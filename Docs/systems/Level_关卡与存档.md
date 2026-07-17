@@ -21,9 +21,9 @@
 | `grid_size` | `(6, 6)` | HEX 取 x 为半径；SQUARE 取 `(列, 行)`。 |
 | `height_levels` | 3 | Tile 高度档数，下限 1。 |
 | `height_step` | 0.45 | 每个高度档对应的世界 Y 差。 |
-| `height_color_low` | 深绿 | 编辑器高度 0 的地形色。 |
-| `height_color_middle` | 浅绿 | 编辑器中间高度的地形色。 |
-| `height_color_high` | 金黄 | 编辑器最高高度的地形色。 |
+| `height_color_low` | 绿 | 高度 0 的地形色，编辑器与运行时共用。 |
+| `height_color_middle` | 黄 | 中间高度的地形色，编辑器与运行时共用。 |
+| `height_color_high` | 红 | 最高高度的地形色，编辑器与运行时共用。 |
 | `tiles` | `[]` | `TileCellData` 资源数组；每项持有自己的 `cell`。 |
 
 ## 关键架构
@@ -62,12 +62,13 @@ Mirror Tile Editor
 | `store_tile` | `(tile: Resource) -> void` | 以 `tile.cell` 覆盖/插入布局并标记资源已变化。 |
 | `clear_tiles` | `() -> void` | 清空布局，供编辑器按新网格参数重建默认格。 |
 | `clamp_tile_heights` | `() -> void` | 将所有序列化地块的高度收紧到当前 `height_levels`。 |
+| `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
 
 ## 约定事实源
 
 - `tiles` 的顺序不代表空间顺序；唯一键是每个 TileCellData 的 `cell`。
 - 资源中的 TileCellData 是可保存的配置；TileCellData 的 `occupant` 是运行时字段，绝不写入关卡文件。
-- 高度三色同样由 LevelResource 序列化，供地块编辑器预览使用；不会覆盖运行时 TileRenderer 的三种玩法类型色。
+- 高度三色由 LevelResource 序列化，作为编辑器与运行时 TileRenderer 共用的地形颜色事实源；地块类型仍由障碍标记和玩法规则区分。
 - `grid_shape` 与 GridManager 枚举的数值顺序必须保持一致；若未来扩展三角形，先扩展 Grid 枚举与迁移策略，再使用新数值。
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。
 

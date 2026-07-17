@@ -25,6 +25,7 @@ var _height_step: SpinBox
 var _height_color_low: ColorPickerButton
 var _height_color_middle: ColorPickerButton
 var _height_color_high: ColorPickerButton
+var _height_brush_select: OptionButton
 var _inspector: VBoxContainer
 var _selected_label: Label
 var _tile_type_select: OptionButton
@@ -82,6 +83,7 @@ func _build_interface() -> void:
 	sidebar.add_theme_constant_override("separation", 8)
 	splitter.add_child(sidebar)
 	_add_level_controls(sidebar)
+	_add_height_brush_controls(sidebar)
 	var palette_title := Label.new()
 	palette_title.text = "地块调色板"
 	palette_title.add_theme_font_size_override("font_size", 16)
@@ -149,6 +151,16 @@ func _add_terrain_color_controls(sidebar: VBoxContainer) -> void:
 	_height_color_high = _make_color_picker()
 	_height_color_high.color_changed.connect(_on_height_color_changed.bind(2))
 	sidebar.add_child(_with_label("上层", _height_color_high))
+
+func _add_height_brush_controls(sidebar: VBoxContainer) -> void:
+	var title := Label.new()
+	title.text = "高度刷"
+	title.add_theme_font_size_override("font_size", 16)
+	sidebar.add_child(title)
+	_height_brush_select = OptionButton.new()
+	_height_brush_select.item_selected.connect(_on_height_brush_changed)
+	sidebar.add_child(_with_label("目标高度", _height_brush_select))
+	_refresh_height_brush_options()
 
 func _add_inspector_controls() -> void:
 	var title := Label.new()
@@ -218,6 +230,7 @@ func _set_level(value: LevelResource) -> void:
 	_height_color_low.color = _level.height_color_low
 	_height_color_middle.color = _level.height_color_middle
 	_height_color_high.color = _level.height_color_high
+	_refresh_height_brush_options()
 	_set_level_controls_blocked(false)
 	_canvas.call("set_level", _level)
 	_set_inspector_enabled(false)
@@ -258,6 +271,8 @@ func _on_height_levels_changed(value: float) -> void:
 		return
 	_level.height_levels = int(value)
 	_level.clamp_tile_heights()
+	_refresh_height_brush_options()
+	_canvas.call("set_height_brush", -1)
 	_canvas.call("refresh")
 
 func _on_height_step_changed(value: float) -> void:
@@ -282,7 +297,28 @@ func _on_height_color_changed(color: Color, color_stop: int) -> void:
 
 func _on_brush_selected(preset_path: String) -> void:
 	_canvas.call("set_brush_preset", preset_path)
+	_height_brush_select.select(0)
 	_status.text = "画笔已选择。可在地图上左键拖动涂刷。"
+
+func _refresh_height_brush_options() -> void:
+	if _height_brush_select == null:
+		return
+	_height_brush_select.clear()
+	_height_brush_select.add_item("关闭", -1)
+	if _level != null:
+		for height_level in range(_level.height_levels):
+			_height_brush_select.add_item("高度 %d" % height_level, height_level)
+	_height_brush_select.select(0)
+
+func _on_height_brush_changed(index: int) -> void:
+	if _level == null:
+		return
+	var height_level := _height_brush_select.get_item_id(index)
+	_canvas.call("set_height_brush", height_level)
+	if height_level < 0:
+		_status.text = "高度刷已关闭。"
+	else:
+		_status.text = "高度刷已选择。左键拖动只修改高度。"
 
 func _reset_canvas_view() -> void:
 	_canvas.call("reset_view")

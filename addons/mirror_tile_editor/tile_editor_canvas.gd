@@ -20,6 +20,12 @@ const WHEEL_ZOOM_STEP := 10.0
 const BRUSH_SAMPLE_SPACING := 4.0
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 
+enum BrushMode {
+	NONE,
+	TILE_TYPE,
+	HEIGHT,
+}
+
 signal cell_selected(cell: Vector3i)
 signal layout_changed
 
@@ -32,7 +38,9 @@ var _ordered_cells: Array[Vector3i] = []
 var _camera_target := Vector3.ZERO
 var _camera_yaw: float = DEFAULT_YAW
 var _view_zoom: float = 48.0
+var _brush_mode: int = BrushMode.NONE
 var _brush_preset_path := ""
+var _height_brush_level: int = -1
 var _is_painting: bool = false
 var _last_paint_position := Vector2.ZERO
 var _painted_cells: Dictionary = {}
@@ -81,11 +89,23 @@ func _process(delta: float) -> void:
 func set_level(value: LevelResource) -> void:
 	level = value
 	has_selected_cell = false
+	_brush_mode = BrushMode.NONE
+	_brush_preset_path = ""
+	_height_brush_level = -1
+	_painted_cells.clear()
 	_refresh_layout()
 	call_deferred("reset_view")
 
 func set_brush_preset(value: String) -> void:
 	_brush_preset_path = value
+	_height_brush_level = -1
+	_brush_mode = BrushMode.TILE_TYPE if not value.is_empty() else BrushMode.NONE
+	_painted_cells.clear()
+
+func set_height_brush(value: int) -> void:
+	_height_brush_level = clampi(value, 0, level.height_levels - 1) if level != null and value >= 0 else -1
+	_brush_preset_path = ""
+	_brush_mode = BrushMode.HEIGHT if _height_brush_level >= 0 else BrushMode.NONE
 	_painted_cells.clear()
 
 func refresh() -> void:
@@ -248,7 +268,7 @@ func _paint_between(from: Vector2, to: Vector2) -> void:
 		_paint_at(point)
 
 func _paint_at(position: Vector2) -> void:
-	if _brush_preset_path.is_empty():
+	if _brush_mode == BrushMode.NONE:
 		return
 	var hit := _find_cell(position)
 	if hit.is_empty():
@@ -256,7 +276,12 @@ func _paint_at(position: Vector2) -> void:
 	var cell: Vector3i = hit.cell
 	if _painted_cells.has(cell):
 		return
-	if _apply_preset_to_cell(cell, _brush_preset_path):
+	var did_paint := false
+	if _brush_mode == BrushMode.TILE_TYPE:
+		did_paint = _apply_preset_to_cell(cell, _brush_preset_path)
+	elif _brush_mode == BrushMode.HEIGHT:
+		did_paint = _apply_height_to_cell(cell, _height_brush_level)
+	if did_paint:
 		_painted_cells[cell] = true
 		selected_cell = cell
 		has_selected_cell = true
@@ -294,6 +319,19 @@ func _apply_preset_to_cell(cell: Vector3i, preset_path: String) -> bool:
 	var tile: Resource = TileCellDataScript.new()
 	tile.call("configure", cell, preset_type, clampi(preset_height, 0, level.height_levels - 1))
 	level.store_tile(tile)
+	return true
+
+func _apply_height_to_cell(cell: Vector3i, height_level: int) -> bool:
+	if level == null:
+		return false
+	var tile: Resource = level.get_tile(cell)
+	if tile == null:
+		return false
+	var target_height := clampi(height_level, 0, level.height_levels - 1)
+	if int(tile.get("height_level")) == target_height:
+		return false
+	tile.call("set_height_level", target_height, level.height_levels)
+	level.emit_changed()
 	return true
 
 func _find_cell(point: Vector2) -> Dictionary:
@@ -338,11 +376,7 @@ func _height_color(tile: Resource) -> Color:
 	if level == null:
 		return Color.WHITE
 	var height_level: int = 0 if tile == null else int(tile.get("height_level"))
-	var maximum_level := maxi(1, level.height_levels - 1)
-	var normalized_height := clampf(float(height_level) / float(maximum_level), 0.0, 1.0)
-	if normalized_height <= 0.5:
-		return level.height_color_low.lerp(level.height_color_middle, normalized_height * 2.0)
-	return level.height_color_middle.lerp(level.height_color_high, (normalized_height - 0.5) * 2.0)
+	return level.get_height_color(height_level)
 
 func _wall_color(top_color: Color) -> Color:
 	return Color(

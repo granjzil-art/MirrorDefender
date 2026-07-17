@@ -18,9 +18,9 @@ extends Resource
 @export var tiles: Array = []
 
 @export_group("Editor Terrain Colors")
-@export var height_color_low: Color = Color(0.16, 0.34, 0.24, 1.0)
-@export var height_color_middle: Color = Color(0.38, 0.58, 0.25, 1.0)
-@export var height_color_high: Color = Color(0.77, 0.68, 0.31, 1.0)
+@export var height_color_low: Color = Color(0.18, 0.60, 0.31, 1.0)
+@export var height_color_middle: Color = Color(0.95, 0.76, 0.18, 1.0)
+@export var height_color_high: Color = Color(0.84, 0.24, 0.20, 1.0)
 
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:
@@ -59,3 +59,10 @@ func clamp_tile_heights() -> void:
 			var current_height: int = tile.get("height_level")
 			tile.set("height_level", clampi(current_height, 0, maxi(0, height_levels - 1)))
 	emit_changed()
+
+func get_height_color(height_level: int) -> Color:
+	var maximum_level := maxi(1, height_levels - 1)
+	var normalized_height := clampf(float(height_level) / float(maximum_level), 0.0, 1.0)
+	if normalized_height <= 0.5:
+		return height_color_low.lerp(height_color_middle, normalized_height * 2.0)
+	return height_color_middle.lerp(height_color_high, (normalized_height - 0.5) * 2.0)

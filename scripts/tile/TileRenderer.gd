@@ -1,20 +1,16 @@
 ## TileRenderer -- M2 greybox terrain presentation.
 ##
 ## This renderer listens to TileManager signals and never changes tile state.
-## Meshes are batched by terrain type; raised cells only expose needed cliff faces.
+## Terrain uses LevelResource height colors; raised cells expose needed cliff faces.
 class_name TileRenderer
 extends Node3D
 
-const TILE_TYPE_COUNT := 3
 const TOP_LIFT := 0.01
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
-@export_group("Terrain Colors")
-@export var buildable_color: Color = Color(0.18, 0.48, 0.34, 1.0)
-@export var destructible_color: Color = Color(0.63, 0.36, 0.16, 1.0)
-@export var blocked_color: Color = Color(0.23, 0.29, 0.36, 1.0)
+@export_group("Obstacle Colors")
 @export var obstacle_color: Color = Color(0.45, 0.48, 0.48, 1.0)
 
 @export_group("Terrain Geometry")
@@ -23,8 +19,8 @@ const TOP_LIFT := 0.01
 
 var _grid: GridManager
 var _tile_manager: TileManager
-var _tile_instances: Array[MeshInstance3D] = []
-var _tile_materials: Array[StandardMaterial3D] = []
+var _terrain_instance: MeshInstance3D
+var _terrain_material: StandardMaterial3D
 var _obstacle_instance: MeshInstance3D
 var _obstacle_material: StandardMaterial3D
 
@@ -53,14 +49,10 @@ func set_tile_manager(value: TileManager) -> void:
 		_rebuild()
 
 func _setup_instances() -> void:
-	var colors: Array[Color] = [buildable_color, destructible_color, blocked_color]
-	for index in range(TILE_TYPE_COUNT):
-		var instance := MeshInstance3D.new()
-		var material := _make_material(colors[index])
-		instance.material_override = material
-		_tile_instances.append(instance)
-		_tile_materials.append(material)
-		add_child(instance)
+	_terrain_instance = MeshInstance3D.new()
+	_terrain_material = _make_terrain_material()
+	_terrain_instance.material_override = _terrain_material
+	add_child(_terrain_instance)
 	_obstacle_instance = MeshInstance3D.new()
 	_obstacle_material = _make_material(obstacle_color)
 	_obstacle_instance.material_override = _obstacle_material
@@ -73,6 +65,11 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
+func _make_terrain_material() -> StandardMaterial3D:
+	var material := _make_material(Color.WHITE)
+	material.vertex_color_use_as_albedo = true
+	return material
+
 func _on_level_loaded(_level_resource: LevelResource) -> void:
 	_rebuild()
 
@@ -80,15 +77,11 @@ func _on_tile_changed(_cell: Vector3i, _tile: TileCellData) -> void:
 	_rebuild()
 
 func _rebuild() -> void:
-	if not feature_enabled or _grid == null or _tile_manager == null or _tile_instances.is_empty():
+	if not feature_enabled or _grid == null or _tile_manager == null or _terrain_instance == null:
 		return
-	var terrain_meshes: Array[ImmediateMesh] = []
-	var terrain_has_geometry: Array[bool] = []
-	for index in range(TILE_TYPE_COUNT):
-		var mesh := ImmediateMesh.new()
-		mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-		terrain_meshes.append(mesh)
-		terrain_has_geometry.append(false)
+	var terrain_mesh := ImmediateMesh.new()
+	terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_terrain_geometry: bool = false
 	var obstacle_mesh := ImmediateMesh.new()
 	obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_obstacle_geometry: bool = false
@@ -96,27 +89,24 @@ func _rebuild() -> void:
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
 			continue
-		var type_index := int(tile.tile_type)
-		if type_index < 0 or type_index >= TILE_TYPE_COUNT:
-			continue
-		var did_add_terrain: bool = _add_tile_geometry(terrain_meshes[type_index], tile)
-		terrain_has_geometry[type_index] = terrain_has_geometry[type_index] or did_add_terrain
+		var terrain_color := _tile_manager.get_height_color(cell)
+		var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
+		has_terrain_geometry = has_terrain_geometry or did_add_terrain
 		if tile.is_destructible():
 			_add_obstacle_geometry(obstacle_mesh, tile)
 			has_obstacle_geometry = true
-	for index in range(TILE_TYPE_COUNT):
-		if terrain_has_geometry[index]:
-			terrain_meshes[index].surface_end()
-			_tile_instances[index].mesh = terrain_meshes[index]
-		else:
-			_tile_instances[index].mesh = null
+	if has_terrain_geometry:
+		terrain_mesh.surface_end()
+		_terrain_instance.mesh = terrain_mesh
+	else:
+		_terrain_instance.mesh = null
 	if has_obstacle_geometry:
 		obstacle_mesh.surface_end()
 		_obstacle_instance.mesh = obstacle_mesh
 	else:
 		_obstacle_instance.mesh = null
 
-func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData) -> bool:
+func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool:
 	var corners := _grid.get_corners(tile.cell)
 	if corners.size() < 3:
 		return false
@@ -125,22 +115,24 @@ func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData) -> bool:
 	for index in range(corners.size()):
 		var a := corners[index] + Vector3(0.0, top_y, 0.0)
 		var b := corners[(index + 1) % corners.size()] + Vector3(0.0, top_y, 0.0)
-		mesh.surface_add_vertex(center)
-		mesh.surface_add_vertex(a)
-		mesh.surface_add_vertex(b)
+		_add_triangle(mesh, terrain_color, center, a, b)
 		var neighbor_cell := _grid.neighbor_across_edge(tile.cell, index)
 		var neighbor_top := _tile_manager.get_world_height(neighbor_cell) + TOP_LIFT
 		if top_y <= neighbor_top + 0.001:
 			continue
 		var lower_a := Vector3(a.x, neighbor_top, a.z)
 		var lower_b := Vector3(b.x, neighbor_top, b.z)
-		mesh.surface_add_vertex(a)
-		mesh.surface_add_vertex(lower_a)
-		mesh.surface_add_vertex(lower_b)
-		mesh.surface_add_vertex(a)
-		mesh.surface_add_vertex(lower_b)
-		mesh.surface_add_vertex(b)
+		_add_triangle(mesh, terrain_color, a, lower_a, lower_b)
+		_add_triangle(mesh, terrain_color, a, lower_b, b)
 	return true
+
+func _add_triangle(mesh: ImmediateMesh, color: Color, a: Vector3, b: Vector3, c: Vector3) -> void:
+	mesh.surface_set_color(color)
+	mesh.surface_add_vertex(a)
+	mesh.surface_set_color(color)
+	mesh.surface_add_vertex(b)
+	mesh.surface_set_color(color)
+	mesh.surface_add_vertex(c)
 
 func _add_obstacle_geometry(mesh: ImmediateMesh, tile: TileCellData) -> void:
 	var center := _grid.cell_to_world(tile.cell)

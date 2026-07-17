@@ -72,6 +72,13 @@ func get_world_height(cell: Vector3i) -> float:
 		return 0.0
 	return float(tile.height_level) * level_data.height_step
 
+func get_height_color(cell: Vector3i) -> Color:
+	var tile := get_tile(cell)
+	var level_data := _get_level()
+	if tile == null or level_data == null:
+		return Color.WHITE
+	return level_data.get_height_color(tile.height_level)
+
 func can_place(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.can_place()

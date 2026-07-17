@@ -1,5 +1,11 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile · 高度分层运行时着色与高度刷 — 2026-07-17
+**模块**：Tile / Level / Godot 编辑器工具。
+
+- LevelResource 的下/中/上高度色默认调整为绿/黄/红，并新增统一的高度色插值方法；TileRenderer 通过 TileManager 读取该颜色，以顶点色批量渲染运行时地形与编辑器预览一致。
+- 地块编辑器新增独立高度刷：按关卡高度档选择目标值并左键连续涂刷，只更新 TileCellData 的 `height_level`，不修改地块类型、障碍或清障状态。
+
 ## Tile Editor 修复 · 关卡资源 placeholder — 2026-07-17
 **模块**：Tile / Level / Godot 编辑器工具。
 
