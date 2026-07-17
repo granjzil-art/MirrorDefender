@@ -6,7 +6,7 @@
 用一个数据资源描述关卡的网格与地块布局，使新增关卡无需改运行时代码；为 M3~M7 的路径、波次、资源和通关存档预留唯一扩展载体。
 
 ## 分类 / 做法
-- **LevelResource**：自定义 `Resource`，当前保存网格形状、格距、范围、高度配置和 TileCellData 列表。
+- **LevelResource**：自定义 `Resource`，当前保存网格形状、格距、范围、高度配置、编辑器下/中/上高度色和 TileCellData 列表。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
 - **运行期加载**：Main 先将 LevelResource 的 grid 参数交给 GridManager，再让 TileManager 读取布局；缺失的格自动补默认可建造数据，不要求手写完整数组。
@@ -20,6 +20,9 @@
 | `grid_size` | `(6, 6)` | HEX 取 x 为半径；SQUARE 取 `(列, 行)`。 |
 | `height_levels` | 3 | Tile 高度档数，下限 1。 |
 | `height_step` | 0.45 | 每个高度档对应的世界 Y 差。 |
+| `height_color_low` | 深绿 | 编辑器高度 0 的地形色。 |
+| `height_color_middle` | 浅绿 | 编辑器中间高度的地形色。 |
+| `height_color_high` | 金黄 | 编辑器最高高度的地形色。 |
 | `tiles` | `[]` | `TileCellData` 资源数组；每项持有自己的 `cell`。 |
 
 ## 关键架构
@@ -28,7 +31,7 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 关卡定义及按 cell 的布局覆盖规则。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 关卡定义、三档编辑器高度色及按 cell 的布局覆盖规则。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | 主场景 M2 验收布局，含道路、两处障碍和 0~2 档高度示例。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 关卡资源的新建、读取和保存入口。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | 通过根节点 `level` 导出引用装配 M2DemoLevel。 |
@@ -43,7 +46,7 @@ LevelResource (.tres)
        └─ level_loaded -> TileRenderer rebuild
 
 Mirror Tile Editor
-  -> creates / edits LevelResource
+  -> creates / edits LevelResource (tiles + height colors)
   -> ResourceSaver.save(.../*.tres)
   -> Main can reference that resource through its `level` export
 ```
@@ -63,6 +66,7 @@ Mirror Tile Editor
 
 - `tiles` 的顺序不代表空间顺序；唯一键是每个 TileCellData 的 `cell`。
 - 资源中的 TileCellData 是可保存的配置；TileCellData 的 `occupant` 是运行时字段，绝不写入关卡文件。
+- 高度三色同样由 LevelResource 序列化，供地块编辑器预览使用；不会覆盖运行时 TileRenderer 的三种玩法类型色。
 - `grid_shape` 与 GridManager 枚举的数值顺序必须保持一致；若未来扩展三角形，先扩展 Grid 枚举与迁移策略，再使用新数值。
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。
 

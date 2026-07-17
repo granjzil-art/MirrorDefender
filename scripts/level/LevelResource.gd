@@ -16,6 +16,11 @@ extends Resource
 @export_range(0.05, 5.0, 0.05, "or_greater") var height_step: float = 0.45
 @export var tiles: Array = []
 
+@export_group("Editor Terrain Colors")
+@export var height_color_low: Color = Color(0.16, 0.34, 0.24, 1.0)
+@export var height_color_middle: Color = Color(0.38, 0.58, 0.25, 1.0)
+@export var height_color_high: Color = Color(0.77, 0.68, 0.31, 1.0)
+
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:
 		var tile: Resource = raw_tile

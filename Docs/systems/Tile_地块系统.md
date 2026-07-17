@@ -11,7 +11,8 @@
 - **不可建造路面**：`tile_type = 2`，不可破坏、不可建造；M4 可作为手动路径的基础数据。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **运行时表现**：TileRenderer 按三种类型批量构建 `ImmediateMesh`，只在高于相邻格的边生成崖壁；未清除障碍显示灰色岩石占位。
-- **编辑器工作流**：启用的 `Mirror Tile Editor` 主屏插件读取三份 TilePreset `.tres`，从调色板拖到格子上覆盖其数据；右侧单格面板可改类型/高度或清障；保存产生 `LevelResource` `.tres`。
+- **编辑器工作流**：启用的 `Mirror Tile Editor` 主屏插件读取三份 TilePreset `.tres`；点击调色板选择画笔后，可在画布上左键拖动连续覆盖格子，也保留单格拖放；右侧单格面板可改类型/高度或清障；保存产生 `LevelResource` `.tres`。
+- **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 或滚轮缩放观察。
 
 ## 关键参数
 
@@ -22,6 +23,7 @@
 | TileCellData | `obstacle_destroyed` | false | 仅对类型 1 有效；true 时该格可建造。 |
 | LevelResource | `height_levels` | 3 | 本关卡可用的高度档数。 |
 | LevelResource | `height_step` | 0.45 | 每档对应的世界 Y 高度。 |
+| LevelResource | `height_color_low` / `height_color_middle` / `height_color_high` | 深绿 / 浅绿 / 金黄 | 编辑器下/中/上高度色标，保存到关卡 `.tres`。 |
 | TileManager | `feature_enabled` | true | 地块模块总开关；关闭时不加载布局。 |
 | TileRenderer | `feature_enabled` | true | 地块灰盒表现总开关。 |
 | TileRenderer | `buildable_color` / `destructible_color` / `blocked_color` | 绿 / 棕 / 蓝灰 | 三类地块的灰盒色。 |
@@ -44,9 +46,9 @@
 | `resources/tiles/DestructibleTile.tres` | `TilePreset` | 可破坏障碍调色板预制。 |
 | `resources/tiles/BlockedTile.tres` | `TilePreset` | 不可建造路面调色板预制。 |
 | `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin` | 注册 Godot 主屏入口“地块编辑器”。 |
-| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 工具栏、地图参数、调色板、单格参数与保存/加载工作流。 |
-| `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 2D hex/square 预览、选格与拖拽落点处理。 |
-| `addons/mirror_tile_editor/tile_palette_item.gd` | `Button` | 从 TilePreset 路径发起拖拽数据。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 工具栏、地图参数、三档高度色、画笔调色板、单格参数与保存/加载工作流。 |
+| `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 可旋转斜俯视地形预览、连续画笔、选格与拖拽落点处理。 |
+| `addons/mirror_tile_editor/tile_palette_item.gd` | `Button` | 选择画笔预制并从 TilePreset 路径发起拖拽数据。 |
 
 ### 模块调用关系 / 数据流
 
@@ -59,8 +61,9 @@ Main (scene composition)
         └─ ImmediateMesh terrain + obstacle marker
 
 Mirror Tile Editor (Godot editor)
-  TilePreset .tres drag path -> TileEditorCanvas
-  -> new TileCellData -> LevelResource.store_tile(cell-keyed)
+  TilePreset .tres click / drag path -> TileEditorCanvas
+  -> left-drag brush or drop -> new TileCellData -> LevelResource.store_tile(cell-keyed)
+  -> LevelResource height_color_low / middle / high -> oblique editor projection
   -> ResourceSaver.save(LevelResource, res://.../*.tres)
 ```
 
@@ -72,6 +75,8 @@ Mirror Tile Editor (Godot editor)
 - 同一个 `cell` 在 `LevelResource.tiles` 中至多一条记录。`store_tile()` 以 cell 覆盖旧资源，编辑器拖到同格不产生重复记录。
 - `TileCellData.TileType` 的数值固定为 `0/1/2`；TilePreset `.tres` 与编辑器 OptionButton 使用同一顺序。
 - 地块高度只改变 Tile 顶面与崖壁的 Y；Grid 几何仍定义在 Y=0 平面，M6 的低层激光可据 `TileManager.get_world_height()` 判定遮挡。
+- `height_color_low`、`height_color_middle`、`height_color_high` 是关卡资源的一部分；当高度档数多于 3 时，编辑器在下→中与中→上两个区间线性插值。
+- 地块编辑画布的键盘控制只在画布获得焦点后生效：WASD 沿当前视角平移、QE 绕关卡焦点旋转、X 放大、C 缩小，滚轮同样可缩放。
 - 镜子挂在 Grid Edge，不占 Tile；地块类型不限制 M5/M6 的边镜放置。
 
 ## 函数索引
@@ -131,18 +136,22 @@ Mirror Tile Editor (Godot editor)
 | 入口 | 关键方法 | 职责 |
 |---|---|---|
 | `tile_editor_plugin.gd` | `_has_main_screen() -> bool` | 将“地块编辑器”注册为主屏工具。 |
-| `tile_palette_item.gd` | `_get_drag_data(at_position: Vector2) -> Variant` | 返回 `{kind, preset_path}`。 |
-| `tile_editor_canvas.gd` | `_can_drop_data` / `_drop_data` | 判定目标格，读取 TilePreset 参数并覆盖该格。 |
+| `tile_palette_item.gd` | `configure(display_name: String, path: String, group: ButtonGroup) -> void` / `_get_drag_data(at_position: Vector2) -> Variant` | 注册互斥画笔按钮并返回 `{kind, preset_path}`。 |
+| `tile_editor_canvas.gd` | `set_brush_preset(value: String) -> void` / `_paint_between(from: Vector2, to: Vector2) -> void` | 设置当前画笔；按固定像素采样补齐鼠标路径，连续覆盖经过的格子。 |
+| `tile_editor_canvas.gd` | `reset_view() -> void` / `_process(delta: float) -> void` | 复位斜俯视投影；在画布焦点内消费 WASD/QE/XC 控制视角。 |
+| `tile_editor_canvas.gd` | `_height_color(tile: Resource) -> Color` / `_draw_cell(cell: Vector3i) -> void` | 以三色高度插值绘制顶面，并只对更低邻格绘制加深的台阶墙面。 |
+| `tile_editor_canvas.gd` | `_can_drop_data` / `_drop_data` | 判定目标格，读取 TilePreset 参数并覆盖该格，同时将预制设为后续画笔。 |
+| `tile_editor_panel.gd` | `_on_brush_selected(preset_path: String) -> void` / `_on_height_color_changed(color: Color, color_stop: int) -> void` | 同步画笔选择及三档关卡颜色。 |
 | `tile_editor_panel.gd` | `_on_cell_selected` / `_on_tile_type_changed` / `_on_tile_height_changed` / `_destroy_selected_obstacle` | 单格参数编辑。 |
 | `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；保存路径必须在 `res://`。 |
 
 ## 使用入口
 
-在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Tile Editor` 启用后，顶部主屏点击“地块编辑器”。选择网格参数，从左侧预制按钮拖到中间地图，再在右侧修改选中格；保存路径默认为 `res://resources/levels/CustomLevel.tres`。项目启动时，`scenes/Main.tscn` 引用 `resources/levels/M2DemoLevel.tres` 作为 M2 灰盒验收关卡。
+在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Tile Editor` 启用后，顶部主屏点击“地块编辑器”。选择网格参数和下/中/上高度色；点击左侧预制按钮选择画笔，在中间地图左键拖动涂刷，或仍可拖放单格；右侧可修改选中格。点击地图后可用 WASD/QE/XC 或滚轮改变观察视角，工具栏的复位图标返回默认视角。保存路径默认为 `res://resources/levels/CustomLevel.tres`。项目启动时，`scenes/Main.tscn` 引用 `resources/levels/M2DemoLevel.tres` 作为 M2 灰盒验收关卡。
 
 ## 已知限制 / 初版不做的部分
 
-- 编辑器仅支持单格拖拽覆盖与单格改参，不做刷子、框选、撤销栈或批量填充。
+- 编辑器支持连续画笔，但不做框选、撤销栈、选区填充或图案刷。
 - 障碍只有灰盒岩石占位；不做耐久、掉落或破坏特效。
 - 高度为离散台阶，不做斜坡、连续地形和地形变形。
 - `occupant` 仅为 M3 预留；M2 不产生建筑占用物。

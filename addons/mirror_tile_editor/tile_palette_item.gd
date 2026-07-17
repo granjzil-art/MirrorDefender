@@ -5,9 +5,11 @@ const DRAG_KIND := "mirror_tile_preset"
 
 var preset_path: String = ""
 
-func configure(display_name: String, path: String) -> void:
+func configure(display_name: String, path: String, group: ButtonGroup) -> void:
 	text = display_name
 	preset_path = path
+	toggle_mode = true
+	button_group = group
 	tooltip_text = path
 	custom_minimum_size = Vector2(0.0, 34.0)
 

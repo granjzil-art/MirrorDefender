@@ -22,11 +22,15 @@ var _size_x: SpinBox
 var _size_y: SpinBox
 var _height_levels: SpinBox
 var _height_step: SpinBox
+var _height_color_low: ColorPickerButton
+var _height_color_middle: ColorPickerButton
+var _height_color_high: ColorPickerButton
 var _inspector: VBoxContainer
 var _selected_label: Label
 var _tile_type_select: OptionButton
 var _tile_height: SpinBox
 var _destroy_button: Button
+var _palette_button_group := ButtonGroup.new()
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -59,6 +63,11 @@ func _build_interface() -> void:
 	save_button.text = "保存"
 	save_button.pressed.connect(_save_level)
 	toolbar.add_child(save_button)
+	var reset_view_button := Button.new()
+	reset_view_button.icon = get_theme_icon("Reload", "EditorIcons")
+	reset_view_button.tooltip_text = "重置编辑视角"
+	reset_view_button.pressed.connect(_reset_canvas_view)
+	toolbar.add_child(reset_view_button)
 	_save_path = LineEdit.new()
 	_save_path.text = DEFAULT_SAVE_PATH
 	_save_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -81,7 +90,8 @@ func _build_interface() -> void:
 		var palette_item := PaletteItem.new()
 		var label: String = item.label
 		var path: String = item.path
-		palette_item.configure(label, path)
+		palette_item.configure(label, path, _palette_button_group)
+		palette_item.pressed.connect(_on_brush_selected.bind(path))
 		sidebar.add_child(palette_item)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -123,6 +133,22 @@ func _add_level_controls(sidebar: VBoxContainer) -> void:
 	_height_step = _make_spin_box(0.05, 5.0, 0.05)
 	_height_step.value_changed.connect(_on_height_step_changed)
 	sidebar.add_child(_with_label("每档世界高度", _height_step))
+	_add_terrain_color_controls(sidebar)
+
+func _add_terrain_color_controls(sidebar: VBoxContainer) -> void:
+	var title := Label.new()
+	title.text = "高度配色"
+	title.add_theme_font_size_override("font_size", 16)
+	sidebar.add_child(title)
+	_height_color_low = _make_color_picker()
+	_height_color_low.color_changed.connect(_on_height_color_changed.bind(0))
+	sidebar.add_child(_with_label("下层", _height_color_low))
+	_height_color_middle = _make_color_picker()
+	_height_color_middle.color_changed.connect(_on_height_color_changed.bind(1))
+	sidebar.add_child(_with_label("中层", _height_color_middle))
+	_height_color_high = _make_color_picker()
+	_height_color_high.color_changed.connect(_on_height_color_changed.bind(2))
+	sidebar.add_child(_with_label("上层", _height_color_high))
 
 func _add_inspector_controls() -> void:
 	var title := Label.new()
@@ -164,6 +190,12 @@ func _make_spin_box(min_value: float, max_value: float, step: float) -> SpinBox:
 	spin_box.allow_greater = true
 	return spin_box
 
+func _make_color_picker() -> ColorPickerButton:
+	var picker := ColorPickerButton.new()
+	picker.edit_alpha = false
+	picker.custom_minimum_size = Vector2(0.0, 30.0)
+	return picker
+
 func _new_level() -> void:
 	var level := LevelResource.new()
 	level.grid_shape = HEX_SHAPE
@@ -183,6 +215,9 @@ func _set_level(value: LevelResource) -> void:
 	_size_y.value = _level.grid_size.y
 	_height_levels.value = _level.height_levels
 	_height_step.value = _level.height_step
+	_height_color_low.color = _level.height_color_low
+	_height_color_middle.color = _level.height_color_middle
+	_height_color_high.color = _level.height_color_high
 	_set_level_controls_blocked(false)
 	_canvas.call("set_level", _level)
 	_set_inspector_enabled(false)
@@ -230,6 +265,27 @@ func _on_height_step_changed(value: float) -> void:
 		return
 	_level.height_step = value
 	_level.emit_changed()
+	_canvas.call("refresh")
+
+func _on_height_color_changed(color: Color, color_stop: int) -> void:
+	if _level == null:
+		return
+	match color_stop:
+		0:
+			_level.height_color_low = color
+		1:
+			_level.height_color_middle = color
+		2:
+			_level.height_color_high = color
+	_level.emit_changed()
+	_canvas.call("refresh")
+
+func _on_brush_selected(preset_path: String) -> void:
+	_canvas.call("set_brush_preset", preset_path)
+	_status.text = "画笔已选择。可在地图上左键拖动涂刷。"
+
+func _reset_canvas_view() -> void:
+	_canvas.call("reset_view")
 
 func _on_cell_selected(cell: Vector3i) -> void:
 	if _level == null:
