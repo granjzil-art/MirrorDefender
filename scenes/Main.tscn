@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/tile/TileManager.gd" id="5_tile_manager"]
 [ext_resource type="Script" path="res://scripts/tile/TileRenderer.gd" id="6_tile_renderer"]
 [ext_resource type="Resource" path="res://resources/levels/M2DemoLevel.tres" id="7_level"]
+[ext_resource type="Script" path="res://scripts/level/LevelLoader.gd" id="8_level_loader"]
+[ext_resource type="Script" path="res://scripts/level/LevelDebugPanel.gd" id="9_level_debug_panel"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -17,7 +19,6 @@ ambient_light_energy = 0.9
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
-level = ExtResource("7_level")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_1")
@@ -42,6 +43,10 @@ script = ExtResource("5_tile_manager")
 
 [node name="TileRenderer" type="Node3D" parent="."]
 script = ExtResource("6_tile_renderer")
+
+[node name="LevelLoader" type="Node" parent="."]
+script = ExtResource("8_level_loader")
+initial_level = ExtResource("7_level")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("4_cam")
@@ -77,3 +82,15 @@ offset_top = -40.0
 offset_right = -16.0
 offset_bottom = -12.0
 text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | T 切换网格 | 左键锁定"
+
+[node name="LevelDebugPanel" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -360.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 54.0
+grow_horizontal = 0
+script = ExtResource("9_level_debug_panel")

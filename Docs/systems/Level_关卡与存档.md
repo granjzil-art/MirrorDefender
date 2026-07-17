@@ -1,6 +1,6 @@
-# 关卡与存档 · Level
+﻿# 关卡与存档 · Level
 
-> 实现状态：M2 已实现关卡定义资源与编辑器保存/加载；局内存档、路径、波次、资源与上限字段留待各后续模块扩充。
+> 实现状态：已实现 LevelResource、编辑器保存/加载、运行时 LevelLoader 与调试选关；局内存档、路径、波次、资源与上限字段留待后续模块扩充。
 
 ## 职责
 用一个数据资源描述关卡的网格与地块布局，使新增关卡无需改运行时代码；为 M3~M7 的路径、波次、资源和通关存档预留唯一扩展载体。
@@ -10,7 +10,8 @@
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
-- **运行期加载**：Main 先将 LevelResource 的 grid 参数交给 GridManager，再让 TileManager 读取布局；缺失的格自动补默认可建造数据，不要求手写完整数组。
+- **运行期加载**：LevelLoader 是唯一装配入口，先把 LevelResource 的网格参数交给 GridManager，再让 TileManager 读取布局；缺失格自动补默认可建造数据。
+- **调试选关**：运行时 LevelDebugPanel 可从 `res://` 选择 LevelResource `.tres`，调用与后续正式选关相同的 `LevelLoader.load_level_path()`；面板由独立 feature flag 控制。
 
 ## 关键参数
 
@@ -25,6 +26,10 @@
 | `height_color_middle` | 黄 | 中间高度的地形色，编辑器与运行时共用。 |
 | `height_color_high` | 红 | 最高高度的地形色，编辑器与运行时共用。 |
 | `tiles` | `[]` | `TileCellData` 资源数组；每项持有自己的 `cell`。 |
+| LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
+| LevelLoader.`initial_level` | M2DemoLevel | 主场景启动时加载的关卡。 |
+| LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关；正式发行可关闭。 |
+| LevelDebugPanel.`initial_directory` | `res://resources/levels` | 调试文件选择器的起始目录。 |
 
 ## 关键架构
 
@@ -33,26 +38,36 @@
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 关卡定义、三档编辑器高度色及按 cell 的布局覆盖规则。 |
+| `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
+| `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | 主场景 M2 验收布局，含道路、两处障碍和 0~2 档高度示例。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 关卡资源的新建、读取和保存入口。 |
-| `scenes/Main.tscn` | `Node3D` 场景 | 通过根节点 `level` 导出引用装配 M2DemoLevel。 |
+| `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 LevelLoader 依赖、加载初始关卡，并在切关后清空旧拾取状态。 |
+| `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 节点的 `initial_level` 装配 M2DemoLevel，并挂载调试面板。 |
 
 ### 模块调用关系 / 数据流
 
 ```text
-LevelResource (.tres)
-  ├─ Main._ready -> GridManager.apply_configuration(shape, size, range)
-  └─ Main._ready -> TileManager.load_level(level)
+Main._ready
+  -> LevelLoader.configure(GridManager, TileManager)
+  -> LevelLoader.load_initial_level()
+
+Debug picker / future production level selection
+  -> LevelLoader.load_level_path(path) or load_level(resource)
+  -> validate LevelResource
+  -> GridManager.apply_configuration(shape, size, range)
+  -> TileManager.load_level(level)
        ├─ serialized tiles -> runtime Dictionary[cell, TileCellData]
-       └─ level_loaded -> TileRenderer rebuild
+       └─ TileManager.level_loaded -> TileRenderer rebuild
+  -> LevelLoader.level_loaded -> debug status / Main clears stale selection
 
 Mirror Tile Editor
   -> creates / edits LevelResource (tiles + height colors)
   -> ResourceSaver.save(.../*.tres)
-  -> Main can reference that resource through its `level` export
+  -> LevelLoader.load_level(resource) can install that resource at runtime
 ```
 
-后续模块只扩展 LevelResource 字段或新增其持有的子资源，不创建平行的关卡格式。
+后续模块只扩展 LevelResource 字段或新增其持有的子资源，不创建平行关卡格式。正式选关 UI 只能调用 LevelLoader，不直接操作 GridManager/TileManager。
 
 ## 函数索引
 
@@ -64,6 +79,29 @@ Mirror Tile Editor
 | `clamp_tile_heights` | `() -> void` | 将所有序列化地块的高度收紧到当前 `height_levels`。 |
 | `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
 
+### LevelLoader.gd
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入关卡装配所需的两个模块入口。 |
+| `load_initial_level` | `() -> bool` | 加载 Inspector 配置的初始关卡。 |
+| `load_level` | `(level_resource: LevelResource, source_path: String = "") -> bool` | 应用 Grid 配置、加载 Tile 布局并广播成功；失败不替换当前关卡。 |
+| `load_level_path` | `(path: String) -> bool` | 从 `res://` 读取 `.tres`，校验 LevelResource 后交给 `load_level()`。 |
+| `get_current_level` | `() -> LevelResource` | 返回当前成功装配的关卡。 |
+| `_report_failure` | `(source_path: String, reason: String) -> void` | 统一发送加载失败信号。 |
+
+**信号**：`level_loaded(level_resource: LevelResource, source_path: String)`、`level_load_failed(source_path: String, reason: String)`。
+
+### LevelDebugPanel.gd
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `configure` | `(level_loader: LevelLoader) -> void` | 订阅 Loader 成功/失败信号，并刷新当前关卡状态。 |
+| `_show_file_dialog` | `() -> void` | 打开仅浏览 `res://` 的 LevelResource 选择器。 |
+| `_on_file_selected` | `(path: String) -> void` | 将选中路径交给 `LevelLoader.load_level_path()`。 |
+| `_on_level_loaded` | `(level_resource: LevelResource, source_path: String) -> void` | 显示当前运行时关卡名。 |
+| `_on_level_load_failed` | `(source_path: String, reason: String) -> void` | 显示失败原因，当前关卡保持不变。 |
+
 ## 约定事实源
 
 - `tiles` 的顺序不代表空间顺序；唯一键是每个 TileCellData 的 `cell`。
@@ -71,9 +109,11 @@ Mirror Tile Editor
 - 高度三色由 LevelResource 序列化，作为编辑器与运行时 TileRenderer 共用的地形颜色事实源；地块类型仍由障碍标记和玩法规则区分。
 - `grid_shape` 与 GridManager 枚举的数值顺序必须保持一致；若未来扩展三角形，先扩展 Grid 枚举与迁移策略，再使用新数值。
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。
+- LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
+- 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 
 ## 已知限制 / 初版不做的部分
 
-- 未实现 `LevelLoader`、`SaveManager` 或局内读档；M2 由 Main 直接装配当前 LevelResource。
+- 未实现 SaveManager、局内读档、关卡解锁与正式选关界面；LevelLoader 接口已预留给正式选关调用。
 - 路径、波次、初始资源、建筑/镜子上限字段将在 M3/M4/M5 的对应系统接入时加入同一资源。
 - 不做云存档、多存档槽和关卡包导入。

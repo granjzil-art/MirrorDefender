@@ -110,12 +110,13 @@ Main（场景装配）
 - 私有：`_setup_materials` / `_make_unshaded(c) -> StandardMaterial3D` / `_setup_instances` / `_connect_grid() -> void`。
 
 ### Main.gd（M2 验收入口，`scripts/Main.gd`，挂 `scenes/Main.tscn` 根）
-- `@export level: LevelResource`；`@onready`：`grid` / `renderer` / `tile_manager` / `tile_renderer` / `cam_rig` / HUD。
-- `_ready()`：先以 `GridManager.apply_configuration()` 应用关卡网格数据，再注入 Grid 到 GridRenderer、TileManager、TileRenderer，最后 `TileManager.load_level(level)`。
+- `@onready`：`grid` / `renderer` / `tile_manager` / `tile_renderer` / `level_loader` / `level_debug_panel` / `cam_rig` / HUD。
+- `_ready()`：先注入 Grid 到各表现/数据模块，再配置 LevelLoader 并通过 `load_initial_level()` 统一装配初始关卡；运行时切关同样由 LevelLoader 调用 `GridManager.apply_configuration()`。
 - `_process()` → `_update_pick()`：每帧拾取，**边优先**高亮，否则高亮格；调 `_update_hud`。
 - `_update_hud(cell, edge: Dictionary)`：HUD 显示网格类型/格距/悬停与已锁定的格边信息；命中格额外显示 Tile 类型/高度与清障提示。
 - `_unhandled_input()`：`toggle_grid_shape`(T) 切 HEX↔SQUARE（通过 `grid_changed` 重建）；`place_select`(左键)锁定当前格/边；`KEY_F` 调用 TileManager 清除锁定格的障碍。
 - `_lock_current_pick() -> void`：读取当前鼠标位置并保存格/边拾取结果，供 HUD 验收显示。
+- `_on_level_loaded(level_resource: LevelResource, source_path: String) -> void`：切关后清空旧关卡的锁定格/边和高亮。
 
 ## 已知限制 / 初版不做的部分
 - 初版仅实现 hex(flat-top) 与 square；三角形仅预留接口，不实现。

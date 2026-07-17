@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Level · 运行时调试选关与正式加载接口 — 2026-07-17
+**模块**：Level / UI / Main / Grid / Tile。
+
+- 新增 LevelLoader 作为运行时唯一关卡装配入口：支持加载初始 LevelResource、按 `res://` 路径加载 `.tres`、统一重配 Grid 与 Tile，并广播成功/失败信号。
+- 新增可关闭的 LevelDebugPanel：运行时右上角显示当前关卡，可打开资源选择器切换自定义关卡；后续正式选关 UI 直接复用 LevelLoader 公共 API，不依赖调试面板。
+- Main 改为依赖注入与初始加载编排，切关后清空旧格/边选择；真机验证 CustomLevel 切换后 Grid 参数、Tile 数量和面板状态与资源一致。
+
 ## Tile 修复 · 不可建造路面运行时灰色 — 2026-07-17
 **模块**：TileRenderer。
 

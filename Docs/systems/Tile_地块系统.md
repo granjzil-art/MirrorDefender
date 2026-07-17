@@ -1,4 +1,4 @@
-# 地块系统 · Tile
+﻿# 地块系统 · Tile
 
 > 实现状态：M2 已完成。运行时地块逻辑位于 `scripts/tile/`；Godot 主屏地块编辑器位于 `addons/mirror_tile_editor/`。
 
@@ -56,8 +56,8 @@
 
 ```text
 Main (scene composition)
-  ├─ LevelResource -> GridManager.apply_configuration(...)
-  ├─ TileManager.set_grid(GridManager) -> load_level(LevelResource)
+  ├─ LevelLoader -> GridManager.apply_configuration(...)
+  ├─ LevelLoader -> TileManager.load_level(LevelResource)
   │     └─ Dictionary[Vector3i, TileCellData]
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
         └─ height-color ImmediateMesh terrain + obstacle marker

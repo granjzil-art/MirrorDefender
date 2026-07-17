@@ -1,6 +1,6 @@
 ## Main —— M1 主场景控制器
 ##
-## 职责：装配 Grid / Tile / 相机 / 渲染，处理拾取并驱动高亮，更新 HUD。
+## 职责：装配 Level / Grid / Tile / 相机 / 渲染，处理拾取并驱动高亮，更新 HUD。
 ## 这是 M2 的验收入口场景。
 ##
 ## 操作：
@@ -11,15 +11,18 @@
 ##   F    清除锁定的可破坏障碍
 extends Node3D
 
-@export var level: LevelResource
+const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
+const LevelDebugPanelScript := preload("res://scripts/level/LevelDebugPanel.gd")
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
 @onready var tile_manager: TileManager = $TileManager
 @onready var tile_renderer: TileRenderer = $TileRenderer
+@onready var level_loader: LevelLoaderScript = $LevelLoader
 @onready var cam_rig: CameraController = $CameraRig
 @onready var hud_label: Label = $HUD/Panel/Info
 @onready var hint_label: Label = $HUD/Hint
+@onready var level_debug_panel: LevelDebugPanelScript = $HUD/LevelDebugPanel
 
 var _camera: Camera3D
 var _has_selected_cell: bool = false
@@ -29,15 +32,15 @@ var _selected_edge_index: int = -1
 var _selected_edge_id: String = ""
 
 func _ready() -> void:
-	if level != null:
-		grid.apply_configuration(level.grid_shape, level.grid_cell_size, level.grid_size)
 	_camera = cam_rig.get_camera()
 	renderer.set_grid(grid)
 	tile_manager.set_grid(grid)
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
-	if level != null:
-		tile_manager.load_level(level)
+	level_loader.configure(grid, tile_manager)
+	level_loader.level_loaded.connect(_on_level_loaded)
+	level_debug_panel.configure(level_loader)
+	level_loader.load_initial_level()
 	_update_hint()
 
 func _process(_delta: float) -> void:
@@ -114,3 +117,9 @@ func _destroy_selected_obstacle() -> void:
 	if not _has_selected_cell:
 		return
 	tile_manager.destroy_obstacle_at(_selected_cell)
+
+func _on_level_loaded(_level_resource: LevelResource, _source_path: String) -> void:
+	_has_selected_cell = false
+	_has_selected_edge = false
+	renderer.highlight_cell(Vector3i.ZERO, false)
+	renderer.highlight_edge(Vector3i.ZERO, 0, false)
