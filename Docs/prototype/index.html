@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mirror 塔防 · 界面原型</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"Segoe UI","Microsoft YaHei",sans-serif; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0d1b2a; color:#e0e6ed; }
+  #stage { position:relative; width:100%; height:100vh; overflow:hidden;
+    background:radial-gradient(ellipse at 50% 30%, #1b3a5c 0%, #0d1b2a 70%); }
+
+  /* ===== 战场（斜俯视）===== */
+  #battlefield { position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-46%) rotateX(52deg) rotateZ(0deg);
+    transform-style:preserve-3d; transition:transform .5s; }
+  .hex-layer { position:relative; }
+  svg.hexmap { overflow:visible; filter:drop-shadow(0 30px 40px rgba(0,0,0,.5)); }
+
+  /* 地面倒影层（镜面主题表现） */
+  #reflection { position:absolute; top:100%; left:50%; transform:translateX(-50%) scaleY(-1);
+    opacity:.18; filter:blur(2px); pointer-events:none;
+    -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,.9), transparent 75%);
+            mask-image:linear-gradient(to bottom, rgba(0,0,0,.9), transparent 75%); }
+
+  /* ===== 顶部资源栏 ===== */
+  #topbar { position:absolute; top:0; left:0; right:0; height:52px; z-index:20;
+    display:flex; align-items:center; gap:22px; padding:0 20px;
+    background:linear-gradient(180deg, rgba(8,16,28,.92), rgba(8,16,28,.4)); backdrop-filter:blur(4px);
+    border-bottom:1px solid rgba(120,190,255,.15); }
+  .res { display:flex; align-items:center; gap:7px; font-size:15px; font-weight:600; }
+  .res .ic { width:22px;height:22px;border-radius:50%; display:grid;place-items:center; font-size:13px; }
+  .ic.gold{background:#f6c445;color:#5a3d00;} .ic.wood{background:#a56b3a;color:#fff;}
+  .ic.pop{background:#5fb0ff;color:#062a4d;} .ic.mirror{background:linear-gradient(135deg,#b8e0ff,#7fb8ff);color:#0a2540;}
+  .topbar-spacer{flex:1;}
+  .wave-chip{display:flex;align-items:center;gap:8px;background:rgba(255,140,60,.15);border:1px solid rgba(255,140,60,.4);
+    padding:5px 12px;border-radius:20px;font-size:13px;font-weight:600;color:#ffb27a;}
+
+  /* ===== 双据点血条 ===== */
+  #basebars{position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:20;
+    display:flex;gap:26px;align-items:center;}
+  .basebar{display:flex;flex-direction:column;gap:3px;width:210px;}
+  .basebar .lbl{font-size:11px;font-weight:700;letter-spacing:.5px;display:flex;justify-content:space-between;}
+  .bar{height:10px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden;position:relative;}
+  .bar>span{position:absolute;top:0;left:0;bottom:0;border-radius:6px;}
+  .ally .bar>span{width:86%;background:linear-gradient(90deg,#3fd68a,#7fffb0);}
+  .ally .lbl{color:#7fffb0;}
+  .enemy .bar>span{width:54%;background:linear-gradient(90deg,#ff5c5c,#ff9a6b); right:0;left:auto;}
+  .enemy .lbl{color:#ff8a7a;}
+  .vs{font-size:16px;font-weight:800;color:#9fb3c8;}
+
+  /* ===== 左侧机制图例 ===== */
+  #legend{position:absolute;left:14px;top:110px;z-index:20;width:210px;
+    background:rgba(10,22,38,.82);border:1px solid rgba(120,190,255,.18);border-radius:12px;padding:12px 13px;backdrop-filter:blur(6px);}
+  #legend h4{font-size:12px;color:#8fbfff;letter-spacing:1px;margin-bottom:9px;text-transform:uppercase;}
+  .leg{display:flex;gap:9px;align-items:flex-start;margin-bottom:11px;font-size:12px;line-height:1.4;}
+  .leg .swatch{width:16px;height:16px;border-radius:4px;flex:none;margin-top:1px;}
+  .leg b{color:#dbe8f5;font-size:12.5px;} .leg p{color:#8ea3b8;font-size:11px;margin-top:1px;}
+
+  /* ===== 右侧：选中信息 + 升级 ===== */
+  #inspector{position:absolute;right:14px;top:110px;z-index:20;width:230px;
+    background:rgba(10,22,38,.85);border:1px solid rgba(120,190,255,.2);border-radius:12px;overflow:hidden;backdrop-filter:blur(6px);}
+  #inspector .head{background:linear-gradient(135deg,#1e4d7a,#123453);padding:11px 13px;}
+  #inspector .head .name{font-size:15px;font-weight:700;}
+  #inspector .head .type{font-size:11px;color:#9fd0ff;}
+  #inspector .body{padding:12px 13px;}
+  .stat{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.08);}
+  .stat span:first-child{color:#8ea3b8;} .stat span:last-child{color:#e8f0f8;font-weight:600;}
+  .lvpips{display:flex;gap:4px;margin:9px 0;}
+  .lvpips i{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.15);}
+  .lvpips i.on{background:linear-gradient(90deg,#7fb8ff,#b8e0ff);}
+  .btnrow{display:flex;gap:8px;margin-top:10px;}
+  .btn{flex:1;text-align:center;padding:8px 0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s;}
+  .btn.up{background:linear-gradient(135deg,#3fd68a,#2ba86a);color:#04220f;}
+  .btn.sell{background:rgba(255,90,90,.18);color:#ff9a8a;border:1px solid rgba(255,90,90,.35);}
+  .btn:hover{transform:translateY(-1px);filter:brightness(1.1);}
+
+  /* ===== 底部建造栏 ===== */
+  #buildbar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:20;
+    display:flex;gap:10px;background:rgba(10,22,38,.88);border:1px solid rgba(120,190,255,.2);
+    padding:11px 14px;border-radius:16px;backdrop-filter:blur(6px);}
+  .card{width:66px;height:78px;border-radius:11px;background:linear-gradient(160deg,#1a3350,#0f2137);
+    border:1px solid rgba(120,190,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+    cursor:pointer;transition:.15s;position:relative;}
+  .card:hover{transform:translateY(-4px);border-color:#7fb8ff;box-shadow:0 8px 20px rgba(60,140,255,.3);}
+  .card.sel{border-color:#7fffb0;box-shadow:0 0 0 2px #7fffb0 inset;}
+  .card .gi{font-size:24px;} .card .cn{font-size:10.5px;color:#cfe0f0;font-weight:600;}
+  .card .cost{position:absolute;bottom:-9px;background:#f6c445;color:#5a3d00;font-size:10px;font-weight:800;
+    padding:1px 7px;border-radius:8px;}
+  .card .cat{position:absolute;top:5px;right:6px;width:8px;height:8px;border-radius:50%;}
+
+  /* ===== 小地图 ===== */
+  #minimap{position:absolute;right:14px;bottom:16px;z-index:20;width:150px;height:120px;
+    background:rgba(8,16,28,.9);border:1px solid rgba(120,190,255,.25);border-radius:10px;padding:8px;}
+  #minimap .mm-title{font-size:10px;color:#8fbfff;letter-spacing:1px;margin-bottom:5px;display:flex;justify-content:space-between;}
+  #minimap .layerbtn{font-size:9px;background:rgba(120,190,255,.2);padding:1px 6px;border-radius:6px;cursor:pointer;}
+  .mm-canvas{position:relative;height:78px;background:rgba(255,255,255,.04);border-radius:6px;overflow:hidden;}
+  .mm-dot{position:absolute;width:6px;height:6px;border-radius:50%;}
+
+  /* ===== 操作提示（3C）===== */
+  #controls{position:absolute;left:14px;bottom:16px;z-index:20;
+    background:rgba(8,16,28,.82);border:1px solid rgba(120,190,255,.15);border-radius:10px;padding:9px 12px;font-size:11px;color:#9fb3c8;}
+  #controls b{color:#cfe0f0;} #controls div{margin:2px 0;}
+  kbd{background:#22384f;border:1px solid #3a5877;border-radius:4px;padding:1px 5px;font-size:10px;color:#dbe8f5;font-family:monospace;}
+
+  .tag{position:absolute;z-index:19;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;pointer-events:none;
+    background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);}
+  .float-note{position:absolute;z-index:21;font-size:11px;color:#bcd4ee;background:rgba(10,22,38,.9);
+    border:1px solid rgba(120,190,255,.3);border-radius:8px;padding:6px 10px;max-width:180px;line-height:1.4;pointer-events:none;}
+  .float-note b{color:#8fe0ff;}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 顶部资源栏 -->
+  <div id="topbar">
+    <div class="res"><span class="ic gold">◈</span>1,240</div>
+    <div class="res"><span class="ic wood">▲</span>86</div>
+    <div class="res"><span class="ic pop">♟</span>12/20</div>
+    <div class="res"><span class="ic mirror">◐</span>3 <span style="font-size:11px;color:#9fb3c8;font-weight:400;">镜面</span></div>
+    <div class="topbar-spacer"></div>
+    <div class="wave-chip">⚔ 第 4 波 · 下一波 0:18</div>
+  </div>
+
+  <!-- 我方据点血量 | 本波剩余敌人 -->
+  <div id="basebars">
+    <div class="basebar ally"><div class="lbl"><span>◆ 我方据点</span><span>860/1000</span></div><div class="bar"><span></span></div></div>
+    <div class="vs">|</div>
+    <div style="display:flex;flex-direction:column;gap:2px;width:150px;align-items:center;">
+      <div style="font-size:11px;font-weight:700;color:#ffb27a;letter-spacing:.5px;">本波剩余敌人</div>
+      <div style="font-size:20px;font-weight:800;color:#ffd24d;">7 <span style="font-size:13px;color:#9fb3c8;font-weight:400;">/ 15</span></div>
+    </div>
+  </div>
+
+  <!-- 战场 -->
+  <div id="battlefield"></div>
+
+  <!-- 左侧机制图例 -->
+  <div id="legend">
+    <h4>镜子机制 · 初版</h4>
+    <div class="leg"><div class="swatch" style="background:#ff4d4d;"></div><div><b>复制镜</b><p>贴边放置·单面朝向，把建筑镜像复制到对称格(投影,无独立AI)</p></div></div>
+    <div class="leg"><div class="swatch" style="background:linear-gradient(90deg,#ff8c3a,#ffd24d);"></div><div><b>反射镜</b><p>激光遇镜面反射,可多次反射,被障碍/隆起地形阻挡</p></div></div>
+    <div class="leg"><div class="swatch" style="background:rgba(120,190,255,.25);border:1px dashed #8fd8ff;"></div><div><b>面镜映射</b><p style="opacity:.6;">天空层·后续扩展(初版不做)</p></div></div>
+  </div>
+
+  <!-- 右侧检视/升级面板 -->
+  <div id="inspector">
+    <div class="head"><div class="name">复制镜塔 Lv.2</div><div class="type">边镜 · 攻击/复制</div></div>
+    <div class="body">
+      <div class="stat"><span>伤害</span><span>34 <b style="color:#7fffb0;">(+12)</b></span></div>
+      <div class="stat"><span>射程</span><span>3.2 格</span></div>
+      <div class="stat"><span>攻速</span><span>1.4 /s</span></div>
+      <div class="stat"><span>镜像系数</span><span>×0.7</span></div>
+      <div class="lvpips"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+      <div class="btnrow"><div class="btn up">升级 ◈180</div><div class="btn sell">出售 ◈90</div></div>
+    </div>
+  </div>
+
+  <!-- 底部建造栏 -->
+  <div id="buildbar">
+    <div class="card sel"><span class="cat" style="background:#ff4d4d;"></span><span class="gi">🪞</span><span class="cn">复制镜塔</span><span class="cost">◈120</span></div>
+    <div class="card"><span class="cat" style="background:#ffd24d;"></span><span class="gi">🔦</span><span class="cn">折射镜</span><span class="cost">◈150</span></div>
+    <div class="card"><span class="cat" style="background:#4d9fff;"></span><span class="gi">🌀</span><span class="cn">面镜</span><span class="cost">◈200</span></div>
+    <div class="card"><span class="cat" style="background:#3fd68a;"></span><span class="gi">🏹</span><span class="cn">箭塔</span><span class="cost">◈80</span></div>
+    <div class="card"><span class="cat" style="background:#3fd68a;"></span><span class="gi">⚔️</span><span class="cn">兵营</span><span class="cost">◈160</span></div>
+    <div class="card"><span class="cat" style="background:#a56b3a;"></span><span class="gi">🏰</span><span class="cn">城墙</span><span class="cost">◈40</span></div>
+  </div>
+
+  <!-- 小地图 -->
+  <div id="minimap">
+    <div class="mm-title"><span>◱ 战场</span><span class="layerbtn">地面 ▲</span></div>
+    <div class="mm-canvas" id="mmcanvas"></div>
+  </div>
+
+  <!-- 操作提示 -->
+  <div id="controls">
+    <div><b>移动</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+    <div><b>旋转</b> <kbd>Q</kbd><kbd>E</kbd> &nbsp; <b>缩放</b> <kbd>X</kbd><kbd>C</kbd></div>
+    <div><b>操作</b> 鼠标左键放置/选择 · 右键取消</div>
+  </div>
+
+  <!-- 机制浮动说明 -->
+  <div class="float-note" id="note1" style="left:36%;top:40%;">🪞 <b>复制塔</b>：本体单位经镜面边复制到相邻格 →</div>
+  <div class="float-note" id="note2" style="right:20%;top:55%;">🔦 <b>折射</b>：激光被镜面弹回，重叠段=双倍伤害</div>
+  <div class="float-note" id="note3" style="left:20%;top:70%;">🌀 <b>面镜</b>：绿格单位映射到天空层，跨过河流</div>
+</div>
+
+<script>
+// ===== 六边形地图生成（flat-top，斜俯视）=====
+const HEX_W=104, HEX_H=90;            // 平顶六边形尺寸
+function hexPoints(cx,cy,r){
+  let p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i);p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+  return p.map(q=>q.join(',')).join(' ');
+}
+// axial -> pixel (flat top)
+function axialToPix(q,r){ const R=54; const x=R*1.5*q; const y=R*Math.sqrt(3)*(r+q/2); return [x,y]; }
+
+// 地图数据：type: ally/enemy/neutral/river ; 高度 h
+const MAP=[
+  {q:-2,r:0,t:'ally'},{q:-2,r:1,t:'ally'},{q:-1,r:-1,t:'ally',base:1},
+  {q:-1,r:0,t:'ally'},{q:-1,r:1,t:'ally'},{q:0,r:-1,t:'neutral'},
+  {q:0,r:0,t:'neutral',river:1},{q:0,r:1,t:'neutral',river:1},{q:1,r:-2,t:'enemy'},
+  {q:1,r:-1,t:'enemy'},{q:1,r:0,t:'enemy'},{q:2,r:-2,t:'enemy',base:2},
+  {q:2,r:-1,t:'enemy'},{q:-2,r:2,t:'ally'},{q:0,r:2,t:'neutral'},{q:1,r:1,t:'enemy'},
+  {q:-1,r:2,t:'ally',h:1},{q:0,r:-2,t:'neutral',h:1},
+];
+const COL={ally:'#4fc973',enemy:'#e05555',neutral:'#7fa86a',river:'#3a86c8'};
+const COL_TOP={ally:'#63e089',enemy:'#ff6b6b',neutral:'#93bd7c',river:'#54a0e0'};
+
+function buildMap(){
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  const cells=MAP.map(c=>{const [x,y]=axialToPix(c.q,c.r);minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);return {...c,x,y};});
+  const W=maxX-minX+160, H=maxY-minY+160, ox=-minX+80, oy=-minY+80;
+  let svg=`<svg class="hexmap" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  const R=54;
+  cells.forEach(c=>{
+    const cx=c.x+ox, cy=c.y+oy;
+    const lift=(c.h||0)*14;
+    const side= c.river?COL.river:COL[c.t];
+    const top = c.river?COL_TOP.river:COL_TOP[c.t];
+    // 侧壁（高度感）
+    if(lift>0){
+      svg+=`<polygon points="${hexPoints(cx,cy+lift,R)}" fill="${side}" opacity=".55"/>`;
+    }
+    // 顶面
+    svg+=`<polygon points="${hexPoints(cx,cy,R)}" fill="${top}" stroke="#eef7ff" stroke-width="2.5" opacity=".97"/>`;
+    // 据点城堡
+    if(c.base){svg+=`<text x="${cx}" y="${cy+9}" font-size="34" text-anchor="middle">${c.base==1?'🏰':'🏯'}</text>`;
+      svg+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${c.base==1?'#7fffb0':'#ff8a7a'}" stroke-width="3" opacity=".7"/>`;}
+    // 河流纹理
+    if(c.river){svg+=`<path d="M${cx-30},${cy} q30,-16 60,0" stroke="#bfe4ff" stroke-width="3" fill="none" opacity=".6"/>`;}
+  });
+
+  // === 机制可视化 ===
+  const pos=(q,r)=>{const [x,y]=axialToPix(q,r);return [x+ox,y+oy];};
+  // 1) 复制塔：本体(-1,0) 镜面边 复制到 (0,-1)
+  let [ax,ay]=pos(-1,0),[bx,by]=pos(0,-1);
+  svg+=`<text x="${ax}" y="${ay+6}" font-size="26" text-anchor="middle">🔵</text>`;
+  svg+=`<text x="${bx}" y="${by+6}" font-size="26" text-anchor="middle" opacity=".55">🔵</text>`;
+  // 镜面边（红）——两格公共边
+  const mex=(ax+bx)/2, mey=(ay+by)/2;
+  svg+=`<line x1="${mex-34}" y1="${mey-8}" x2="${mex+34}" y2="${mey+8}" stroke="#ff3b3b" stroke-width="7" stroke-linecap="round"/>`;
+  svg+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#ff8080" stroke-width="2" stroke-dasharray="5 5" opacity=".8"/>`;
+
+  // 2) 折射：激光从敌方(1,0) 打向 镜面(1,-1) 反射
+  let [lx,ly]=pos(1,0),[mx,my]=pos(1,-1),[rx,ry]=pos(2,-1);
+  svg+=`<line x1="${lx}" y1="${ly}" x2="${mx}" y2="${my}" stroke="#ffb347" stroke-width="4" opacity=".9"/>`;
+  svg+=`<line x1="${mx}" y1="${my}" x2="${rx}" y2="${ry}" stroke="#ff7a2f" stroke-width="4" opacity=".9"/>`;
+  // 镜面边
+  svg+=`<line x1="${mx-30}" y1="${my-14}" x2="${mx+30}" y2="${my+14}" stroke="#ff3b3b" stroke-width="7" stroke-linecap="round"/>`;
+  svg+=`<circle cx="${mx}" cy="${my}" r="7" fill="#fff3c4"/>`;
+
+  // 3) 面镜：河流格(0,1)设为面镜，天空层映射
+  let [fx,fy]=pos(0,1);
+  svg+=`<polygon points="${hexPoints(fx,fy,R-6)}" fill="url(#mir)" opacity=".85"/>`;
+  svg+=`<text x="${fx}" y="${fy+8}" font-size="24" text-anchor="middle">🌀</text>`;
+  // 天空层镜像（上浮）
+  svg+=`<polygon points="${hexPoints(fx,fy-70,R-10)}" fill="#8fd8ff" stroke="#cfefff" stroke-width="2" opacity=".35"/>`;
+  svg+=`<text x="${fx}" y="${fy-62}" font-size="20" text-anchor="middle" opacity=".7">🔵</text>`;
+  svg+=`<line x1="${fx}" y1="${fy}" x2="${fx}" y2="${fy-60}" stroke="#8fd8ff" stroke-width="2" stroke-dasharray="4 4" opacity=".7"/>`;
+
+  svg+=`<defs><linearGradient id="mir" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#bfe8ff"/><stop offset="1" stop-color="#4d9fff"/></linearGradient></defs>`;
+  svg+=`</svg>`;
+  return svg;
+}
+const map=buildMap();
+document.getElementById('battlefield').innerHTML=map+`<div id="reflection">${map}</div>`;
+
+// 小地图点
+const mm=document.getElementById('mmcanvas');
+MAP.forEach(c=>{const d=document.createElement('div');d.className='mm-dot';
+  d.style.left=(50+c.q*13)+'px';d.style.top=(38+c.r*11+c.q*5)+'px';
+  d.style.background=c.river?'#54a0e0':(c.t=='ally'?'#4fc973':c.t=='enemy'?'#e05555':'#8ea87a');
+  if(c.base)d.style.boxShadow='0 0 0 2px #fff';
+  mm.appendChild(d);});
+
+// 视角微交互：QE 旋转 / XC 缩放
+let rotZ=0, scale=1;
+const bf=document.getElementById('battlefield');
+function apply(){bf.style.transform=`translate(-50%,-46%) rotateX(52deg) rotateZ(${rotZ}deg) scale(${scale})`;}
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k==='q')rotZ-=8; if(k==='e')rotZ+=8;
+  if(k==='c')scale=Math.min(1.5,scale+.1); if(k==='x')scale=Math.max(.6,scale-.1);
+  apply();
+});
+</script>
+</body>
+</html>

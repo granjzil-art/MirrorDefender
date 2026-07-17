@@ -1,0 +1,69 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/grid/GridManager.gd" id="2_grid"]
+[ext_resource type="Script" path="res://scripts/grid/GridRenderer.gd" id="3_render"]
+[ext_resource type="Script" path="res://scripts/camera/CameraController.gd" id="4_cam"]
+
+[sub_resource type="Environment" id="Env_1"]
+background_mode = 1
+background_color = Color(0.07, 0.09, 0.13, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.66, 0.78, 1)
+ambient_light_energy = 0.9
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7, -0.5, 0.5, 0, 0.7, 0.7, -0.7, -0.5, 0.5, 0, 12, 0)
+light_energy = 1.1
+shadow_enabled = true
+
+[node name="GridManager" type="Node3D" parent="."]
+script = ExtResource("2_grid")
+grid_shape = 0
+cell_size = 1.0
+grid_size = Vector2i(6, 6)
+edge_pick_threshold = 0.35
+
+[node name="GridRenderer" type="Node3D" parent="."]
+script = ExtResource("3_render")
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("4_cam")
+move_speed = 8.0
+rotate_speed = 90.0
+zoom_distance = 16.0
+zoom_min = 5.0
+zoom_max = 30.0
+pitch_angle = 50.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.64, 0.77, 0, -0.77, 0.64, 0, 12, 10)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="HUD"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 360.0
+offset_bottom = 190.0
+
+[node name="Info" type="Label" parent="HUD/Panel"]
+layout_mode = 2
+text = "初始化中…"
+
+[node name="Hint" type="Label" parent="HUD"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -40.0
+offset_right = -16.0
+offset_bottom = -12.0
+text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | T 切换网格 | 左键锁定"

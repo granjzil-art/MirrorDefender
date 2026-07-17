@@ -1,0 +1,82 @@
+# MirrorDefender · 变更日志（逐里程碑）
+
+## 工程：Git 版本管理与自动提交规范 — 2026-07-17
+**模块**：工程协作。
+
+- 初始化 Git 仓库并关联 `origin` 至 GitHub 的 `granjzil-art/MirrorDefender`，本地 `main` 跟踪远端 `main`。
+- CONTRIBUTING 新增版本管理硬规范：每个已验收功能或修复必须连同实现文档与变更日志自动提交、推送；明确提交格式、冲突处理和禁止提交的本地状态/压缩原包。
+
+## M1 真机修复：网格渲染器依赖注入 — 2026-07-17
+**模块**：Grid / Main 场景装配。
+
+- 真机截图定位 `GridRenderer.grid` 在运行时为 `null`：场景文件中的 `NodePath` 未解析为自定义类型导出引用，导致网格线框从未构建。
+- 新增公开 `GridRenderer.set_grid(grid: GridManager)`，由 `Main._ready()` 在子节点就绪后注入；方法负责订阅 `grid_changed` 并立即重建线框。
+- Godot MCP 真机验收：六边形初始网格可见；注入 `toggle_grid_shape` 后正方形网格可见；`get_debug_output` 无 Parser Error 和运行时错误。
+
+## M1 修正：网格边映射与拾取验证 — 2026-07-16
+**模块**：Grid / CameraInput / Main 场景装配。
+
+- 修正六边形与正方形的角点起始顺序，使 `edge_index`、边外法线与 `neighbor_across_edge()` 的方向严格一致；为后续镜子生效侧、跨边取格和镜像几何建立正确基础。
+- 由 Main 通过 `GridRenderer.set_grid()` 完成网格注入，方法负责订阅 `GridManager.grid_changed` 和首次重建；移除 Main 对下划线私有方法的跨模块调用。
+- 左键 `place_select` 现在锁定当前格/边并在 HUD 显示，补齐 M1 的点击拾取验收入口。
+- 同步更新 Grid、CameraInput 实现文档；修正 CONTRIBUTING 中与设计基线冲突的“镜像不可再被镜像”旧规则。
+
+## BUG 修复：4.7 GDScript 类型推断报错（M1 首次真机运行）— 2026-07-16
+**背景**：通过 Godot MCP 首次在真引擎（4.7.1 stable）运行 `Main.tscn`，捕获到之前纯静态自检无法发现的编译期 Parser Error。
+
+**根因（系统性问题，非单点）**：Godot 4 的一批全局数学函数（`round`/`floor`/`ceil`/`abs`/`min`/`max`/`clamp`/`sign`/`snapped` 等）返回类型为 `Variant`；4.7 工程默认把 `INFERENCE_ON_VARIANT` 警告**当成 error**。凡 `var x := round(...)` 或把其结果赋给带类型变量，都会中断脚本加载。此外从 `Dictionary` 用 `.key` 取值也是 `Variant`，`:=` 同样无法推断。
+
+**修复（全项目 8+ 处，统一改为带类型专用版）**：
+- `round→roundf/roundi`、`abs→absf/absi`、`min→mini/minf`、`max→maxi/maxf`。
+- `GridManager.gd`：`pick_edge`/`pick_cell` 里从 `Dictionary` 取 `g.pos` 先落成带类型局部变量 `var hit_pos: Vector3`；`var d := ...` → `var d: float`；`cell_size = max(...)` → `maxf`。
+- `HexGridShape.gd`：`_cube_round` 全改 `roundf/absf`；`distance` 用 `absi`；`enumerate_cells` 用 `maxi/mini`。
+- `SquareGridShape.gd`：`world_to_cell` 用 `roundi`；`distance` 用 `absi`。
+- `IGridShape.gd`：`_quantize_key` 用 `roundi`。
+
+**验证**：MCP 真机重跑 `Main.tscn` → 无 Parser Error、无运行时错误、`errors: []`，引擎正常启动。
+
+**教训沉淀**：本机无 Godot 可执行文件时，静态自检查不出类型系统级错误。已把 Godot MCP「run→get_debug_output」纳入每里程碑收尾的必做验证；并在 CONTRIBUTING 增加「返回 Variant 的全局函数一律用带类型专用版」硬规范。
+
+## 引擎版本迁移：4.3 → 4.7 — 2026-07-16
+**背景**：用户实际使用 Godot 4.7，工程需按 4.7 规范书写。已核对官方 4.3→4.4→4.5→4.6→4.7 全部升级指南。
+
+**核对结论**：M1 用到的所有 GDScript API（`ImmediateMesh`/`StandardMaterial3D`/`Camera3D.project_ray_*`/`Input.get_action_strength`/`Vector3i`/信号/`@export`/`class_name`）在 4.7 **零破坏性变更**（升级指南均标 GDScript ✔️）。
+
+**实际改动**
+- `scenes/Main.tscn`：去掉 `load_steps=`（4.6 起该属性 deprecated，应被忽略）。`ext_resource` 保留 `path=` 引用（4.7 合法；`uid` 为可选辅助，交由引擎首次打开自动补齐）。
+- `project.godot`：显式声明 `rendering/renderer/rendering_method="forward_plus"`，与 `config/features` 一致。未显式写 `rendering_device/driver.windows` → 沿用引擎内置默认 `vulkan`（比新建模板的 D3D12 在多数 Windows 机更稳）。
+
+**主动规避的 4.7 隐患（复核通过）**
+- 4.7 GDScript 收紧：重写有类型返回的父方法必须显式 `return` → 全部 7 个脚本扫描通过，`IGridShape` 虚方法及子类 override 均有显式 return。
+- 4.7 输入设备 ID 变更（mouse/keyboard 从 0 改为常量）→ 本项目按钮判断用 `MOUSE_BUTTON_WHEEL_*` 类型与 InputMap action，不依赖 device id，安全。
+
+**关于 `.uid` 文件**：未手动生成（手写 `uid://` 有格式冲突风险）。Godot 4.7 首次打开工程会自动为每个脚本生成 `.uid`，并可用 `项目 > 工具 > 升级项目文件` 一键统一格式。
+
+**后续规范**：所有新代码/场景一律按 Godot 4.7 书写。
+
+## M1 · 网格与相机地基 — 2026-07-16
+**范围**：Grid 抽象层（六边形 flat-top + 正方形）、边(Edge)一等公民、拾取、gimbal 相机、网格线框与格/边高亮、主场景装配。
+
+**新增文件**
+- `project.godot`（含 InputMap：WASD/QE/XC/R/T/左键/右键）、`icon.svg`、`.gitignore`
+- `scripts/grid/IGridShape.gd` — 网格形状接口（可拓展基类）
+- `scripts/grid/HexGridShape.gd` — 六边形（立方体坐标，flat-top）
+- `scripts/grid/SquareGridShape.gd` — 正方形（行列坐标）
+- `scripts/grid/GridManager.gd` — 唯一对外入口 + 拾取（pick_cell/pick_edge）
+- `scripts/grid/GridRenderer.gd` — 线框 + 格/边高亮（点线面色块）
+- `scripts/camera/CameraController.gd` — gimbal 斜俯视相机
+- `scripts/Main.gd` + `scenes/Main.tscn` — M1 验收入口
+
+**对齐的设计文档**：`systems/Grid_网格系统.md`、`systems/CameraInput_相机与输入.md`（函数索引已补）。
+
+**验收对照（06 文档 §M1）**
+- ✅ 能生成两种网格地图（T 键运行时切换 HEX/SQUARE）
+- ✅ 相机可自由观察（WASD 平移 / QE 旋转 / XC+滚轮 缩放，斜俯视）
+- ✅ 点击可拾取到具体格子与具体边（HUD 实时显示 cell 坐标、edge_index、canonical_edge_id）
+
+**关键实现决策**
+- Godot 4 无 interface → 用 `class_name` 基类 + 虚方法约定实现「形状走接口」。
+- 拾取用「射线打 y=0 平面 + world_to_cell 数学反算」，不给每格建碰撞体（性能 + 可拓展）。
+- `canonical_edge_id` = 边两端点世界坐标量化(1e-3)后排序拼接 → 相邻两格共享边得同一键，为 M5/M6「一条边至多一面镜」奠基。
+
+**未做/留待后续**：地块高度（M2）、镜子挂载（M5/M6）。当前所有格 y=0。

@@ -1,0 +1,22 @@
+# Godot 4
+.godot/
+.import/
+*.import
+export.cfg
+export_presets.cfg
+*.translation
+
+# System
+.DS_Store
+Thumbs.db
+
+# Local Codex workspace state
+.workbuddy/
+
+# Local engine references and optional source assets
+Godot Engine 4.7 doc/
+HexTileset/
+
+# Source packages are retained outside version control after extraction.
+*.zip
+*.rar
