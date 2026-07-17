@@ -5,6 +5,8 @@ extends Resource
 @export_group("Economy")
 ## Level 1 uses this as construction cost; later levels use it as upgrade cost.
 @export_range(0.0, 100000.0, 1.0, "or_greater") var cost: float = 75.0
+## Exact resource refunded when a building at this level is removed.
+@export_range(0.0, 100000.0, 1.0, "or_greater") var refund_amount: float = 38.0
 @export_range(0.0, 10000.0, 0.1, "or_greater") var resource_per_second: float = 0.0
 
 @export_group("Combat")

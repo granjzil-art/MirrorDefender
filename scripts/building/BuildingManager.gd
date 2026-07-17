@@ -114,6 +114,12 @@ func remove_building(cell: Vector3i, refund: float = 0.0) -> bool:
 	_sync_building_income()
 	return true
 
+func remove_selected_building() -> bool:
+	var building := get_selected_building()
+	if building == null:
+		return false
+	return remove_building(building.cell, building.get_refund_amount())
+
 func clear_buildings(update_resource_count: bool = true) -> void:
 	var cells := _buildings.keys()
 	for raw_cell in cells:

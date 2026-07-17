@@ -16,6 +16,7 @@
 - **当前调试 UI**：主场景右上角 LevelDebugPanel 显示当前关卡，并可从 `res://resources/levels` 选择 `.tres`；正式选关将复用 LevelLoader，不复用该调试面板外观。
 - **M3 灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、靶标四个互斥模式及当前建筑升级按钮。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
+- **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
 
 ## 关键参数
 > 全部为 Godot `@export`，编辑器运行时可调。
@@ -39,6 +40,7 @@
 | `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，注入两个调试面板依赖并路由场景输入。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | M3 模式选择、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -61,6 +63,7 @@ Main mouse hover -> BuildingManager.update_preview -> ghost or Tile/occupant HUD
 ResourceManager.resource_changed / limits_changed / income_rates_changed -> M3DebugPanel summary
 BuildingManager.placement_failed / building_selected / building_upgraded / preview_updated -> M3DebugPanel status
 M3DebugPanel upgrade button -> BuildingManager.upgrade_selected
+BuildingActionPanel buttons -> BuildingManager.remove_selected_building / upgrade_selected / rotate_selected
 ```
 
 ## 函数索引
@@ -80,6 +83,9 @@ M3DebugPanel upgrade button -> BuildingManager.upgrade_selected
 | `M3DebugPanel.gd` | `_refresh_summary() -> void` | 从 Manager 读取资源、上限与目标数量。 |
 | `M3DebugPanel.gd` | `_on_upgrade_pressed() -> void` | 请求 BuildingManager 升级当前选择。 |
 | `M3DebugPanel.gd` | `_on_preview_updated(building: Building) -> void` | 显示预览塔种、1 级和离散朝向。 |
+| `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/删除信号。 |
+| `BuildingActionPanel.gd` | `_update_projection() -> void` | 将选中建筑动作锚点投影到屏幕，越过相机背面时隐藏。 |
+| `BuildingActionPanel.gd` | `_on_delete_pressed()` / `_on_upgrade_pressed()` / `_on_rotate_pressed()` | 调用三个 BuildingManager 公共操作。 |
 
 ## 已知限制 / 初版不做的部分
 - 不做敌方据点相关 UI（已改为我方据点血量 + 剩余敌人计数）。

@@ -16,6 +16,8 @@
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
 - **美术替换**：每一级可指定 `visual_scene: PackedScene`。未指定时使用该级 `tower_color` 生成灰盒塔；`attack_color` 控制方向标记、箭/激光颜色。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
+- **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。
+- **删除退款**：每级 `refund_amount` 是删除该级建筑时的精确返还额。默认数值约为累计建造/升级投入的 50%，但不从费用自动推导。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
 - **离散朝向**：HEX 为 6 档、每档 60 度；SQUARE 为 8 档、每档 45 度。方向只取决于 Grid 形状和 `facing_index`，不读取相机 yaw。
 
@@ -31,6 +33,7 @@
 | 分组 | 参数 | 说明 |
 |---|---|---|
 | Economy | `cost` | 1 级为建造费用；2、3 级为升到该级的费用。 |
+| Economy | `refund_amount` | 删除处于该级的建筑时返还的精确主资源。 |
 | Economy | `resource_per_second` | 该建筑处于本级时每秒提供的资源。 |
 | Combat | `base_damage` | 单发攻击的基础伤害。 |
 | Combat | `targeting_range` | 索敌候选半径，单位为格。 |
@@ -65,6 +68,7 @@
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定方向线段、穿透查询与持续伤害。 |
 | `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 恒定短直线表现、追踪飞行、最大距离与命中结算。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 建造模式、升级按钮、预览/错误状态和经济摘要。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 将选中建筑上方世界坐标投影为删除、升级、旋转悬浮操作。 |
 
 ### 模块调用关系 / 数据流
 
@@ -85,6 +89,12 @@ M3DebugPanel 升级
      -> spend(next_level.cost)
      -> Building.apply_level(next_level)
      -> sync sum(Building.current_stats.resource_per_second)
+
+Select occupied cell
+  -> BuildingManager.select_at -> BuildingActionPanel projects action anchor
+  -> delete: remove_selected_building -> unregister_building(current_level.refund_amount)
+  -> upgrade: upgrade_selected
+  -> rotate: rotate_selected(+1), no resource cost
 
 Arrow Building._process
   -> acquire in targeting_range
@@ -115,11 +125,13 @@ Laser Building._process
 | `apply_level` | `(value: int) -> bool` | 切换整套等级参数，重建策略与外观。 |
 | `can_upgrade` / `get_upgrade_cost` | `() -> bool` / `() -> float` | 判断是否未到上限并读取下一等级费用。 |
 | `get_level_stats` | `() -> BuildingLevelStats` | 返回当前级参数事实源。 |
+| `get_refund_amount` | `() -> float` | 返回当前级配置的精确删除退款。 |
 | `acquire_target` | `() -> CombatTarget` | 在当前级索敌范围内按优先级更新锁定目标。 |
 | `is_target_in_attack_range` | `(target: CombatTarget) -> bool` | 用独立攻击范围判断目标是否可发射。 |
 | `get_targeting_range_world` / `get_attack_range_world` | `() -> float` | 把格数范围转换为世界距离。 |
 | `get_instant_damage` / `get_laser_damage_per_second` | `() -> float` | 用当前级三个乘区返回单发伤害或最终 DPS。 |
 | `launch_projectile` | `(target: CombatTarget, damage: float) -> Projectile` | 用当前级速度/尺寸/颜色通过 CombatManager 发射。 |
+| `get_action_anchor` | `() -> Vector3` | 返回悬浮操作按钮使用的建筑上方世界锚点。 |
 | `rotate_facing` / `set_facing_index` | `(step: int = 1) -> void` / `(value: int) -> void` | 更新世界固定离散朝向。 |
 | `shutdown` | `() -> void` | 停止策略并清理锁定。 |
 
@@ -135,6 +147,7 @@ Laser Building._process
 | `clear_preview` | `(clear_definition: bool = true) -> void` | 清理虚影；可保留塔种/朝向供跨无效格移动。 |
 | `rotate_preview` | `(step: int = 1) -> bool` | 旋转当前虚影。 |
 | `remove_building` | `(cell: Vector3i, refund: float = 0.0) -> bool` | 释放占格、计数与建筑产出后销毁建筑。 |
+| `remove_selected_building` | `() -> bool` | 按选中建筑当前级 `refund_amount` 原子删除并返还资源。 |
 | `clear_buildings` | `(update_resource_count: bool = true) -> void` | 切关时清理全部建筑和预览。 |
 | `select_at` / `rotate_selected` | `(cell: Vector3i) -> Building` / `(step: int = 1) -> bool` | 选择或旋转实际建筑。 |
 | `_sync_building_income` | `() -> void` | 汇总所有当前级 `resource_per_second`。 |
@@ -145,17 +158,17 @@ Laser Building._process
 
 - 建筑空间唯一键是 Grid `Vector3i cell`；占用事实源是 TileManager。
 - 当前等级事实源是 `Building.level + Building._stats`；禁止把等级差写成隐式全局倍率。
-- 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用。
+- 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用；`refund_amount` 是删除当前级的精确返还，不由 `cost` 自动计算。
 - `targeting_range` 只决定候选；`attack_range` 决定是否能发射或激光长度，两者不得互相代替。
 - `BuildingDefinition.Kind` 固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`。
 - HEX 档 0 为世界 -30 度，随后每档 +60 度；SQUARE 档 0 为 +X，随后每档 +45 度。
 
 ## 使用入口
 
-运行 `scenes/Main.tscn`：右上 M3 面板选择箭塔/激光塔，移动鼠标查看虚影，R 调整预览朝向，左键放置；切回“选择”点击建筑后可查看参数、旋转或点击“升级”。
+运行 `scenes/Main.tscn`：右上 M3 面板选择箭塔/激光塔，移动鼠标查看虚影，R 调整预览朝向，左键放置；切回“选择”点击建筑后，地块上方显示删除、升级、旋转按钮。升级满级自动置灰，删除按当前级参数退款。
 
 ## 已知限制 / 初版不做的部分
 
 - 当前正式美术为空时使用逐级颜色灰盒；`visual_scene` 已预留，但资产制作与动画不属于 M3。
-- 暂无售卖、分支升级树或降级。
+- 暂无分支升级树或降级；删除只使用每级固定退款，不支持全局售卖比例或确认弹窗。
 - 投影镜像与 ICopyable 在 M5 接入；M6 再加入地形/障碍/镜面光路阻挡。

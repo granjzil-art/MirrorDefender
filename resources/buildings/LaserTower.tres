@@ -6,6 +6,7 @@
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
 cost = 120.0
+refund_amount = 60.0
 resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 6.0
@@ -24,6 +25,7 @@ attack_color = Color(0.2, 0.95, 1, 1)
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
 cost = 160.0
+refund_amount = 140.0
 resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 7.0
@@ -42,6 +44,7 @@ attack_color = Color(0.28, 1, 0.88, 1)
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
 cost = 220.0
+refund_amount = 250.0
 resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 8.0

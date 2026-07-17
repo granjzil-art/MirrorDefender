@@ -4,6 +4,7 @@ extends Node3D
 
 const ArrowAttackStrategyScript := preload("res://scripts/combat/ArrowAttackStrategy.gd")
 const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
+const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -96,6 +97,9 @@ func get_upgrade_cost() -> float:
 func get_resource_per_second() -> float:
 	return _stats.resource_per_second if _stats != null else 0.0
 
+func get_refund_amount() -> float:
+	return _stats.refund_amount if _stats != null else 0.0
+
 func acquire_target() -> CombatTarget:
 	if _combat_manager == null or _targeting_strategy == null:
 		return null
@@ -136,6 +140,10 @@ func get_facing_direction() -> Vector3:
 
 func get_attack_origin() -> Vector3:
 	return global_position + Vector3(0.0, _get_tower_height() * 0.82, 0.0)
+
+func get_action_anchor() -> Vector3:
+	var cell_size := _grid.cell_size if _grid != null else 1.0
+	return global_position + Vector3(0.0, cell_size * ACTION_ANCHOR_HEIGHT_RATIO, 0.0)
 
 func get_laser_end() -> Vector3:
 	return get_attack_origin() + get_facing_direction() * get_attack_range_world()

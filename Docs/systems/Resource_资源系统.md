@@ -14,6 +14,7 @@
 - **小数累计**：基础和建筑产出使用两个独立缓冲，累计到整数才调用 `gain()`，避免帧率差异和小数丢失。
 - **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和余额并扣费；调用方不拆成非原子步骤。
 - **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
+- **删除退款**：BuildingManager 删除选中建筑时读取当前 `BuildingLevelStats.refund_amount`，传给 `unregister_building(refund)`，使释放占格、减少计数、返还资源保持同一事务。
 
 ## 参数编辑入口
 
@@ -35,6 +36,7 @@
 | `mirror_cap` | 6 | 镜子数量上限，供 M5/M6 使用。 |
 | `base_resource_per_second` | 0.5 | 当前关卡的基础每秒产出。 |
 | BuildingLevelStats.`resource_per_second` | 0.0 | 单个建筑处于该等级时的每秒产出。 |
+| BuildingLevelStats.`refund_amount` | 塔种/等级定 | 删除处于该级建筑时的精确返还额。 |
 
 ## 关键架构
 
@@ -58,6 +60,9 @@ LevelLoader.level_loaded
 BuildingManager.place / upgrade / remove / clear
   -> sum(each Building.current_level.resource_per_second)
   -> ResourceManager.set_building_resource_per_second(total)
+
+BuildingActionPanel delete -> BuildingManager.remove_selected_building
+  -> ResourceManager.unregister_building(current_level.refund_amount)
 
 ResourceManager._process
   -> base buffer -> gain(whole, "base_income")
@@ -92,7 +97,7 @@ resource_changed / limits_changed / income_rates_changed
 ## 约定事实源
 
 - LevelResource 是关卡初始经济与基础产出的事实源；ResourceManager 是当前局余额、计数和累计缓冲事实源。
-- 建筑当前级 `BuildingLevelStats.resource_per_second` 是单塔产出的事实源；ResourceManager 不保存塔种固定产能表。
+- 建筑当前级 `BuildingLevelStats.resource_per_second` 和 `refund_amount` 分别是单塔产出、删除退款的事实源；ResourceManager 不保存塔种固定数值表。
 - 敌人掉落数值属于 M4 敌人定义，不复用 M3 调试靶标的 reward 作为正式配置。
 - `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
 

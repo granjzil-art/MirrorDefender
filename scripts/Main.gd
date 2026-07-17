@@ -16,6 +16,7 @@ extends Node3D
 const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
 const LevelDebugPanelScript := preload("res://scripts/level/LevelDebugPanel.gd")
 const M3DebugPanelScript := preload("res://scripts/ui/M3DebugPanel.gd")
+const BuildingActionPanelScript := preload("res://scripts/ui/BuildingActionPanel.gd")
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -32,6 +33,7 @@ const M3DebugPanelScript := preload("res://scripts/ui/M3DebugPanel.gd")
 @onready var m3_debug_panel: M3DebugPanelScript = $HUD/M3DebugPanel
 
 var _camera: Camera3D
+var _building_action_panel: BuildingActionPanel
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -46,6 +48,9 @@ func _ready() -> void:
 	tile_renderer.set_tile_manager(tile_manager)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager)
+	_building_action_panel = BuildingActionPanelScript.new()
+	$HUD.add_child(_building_action_panel)
+	_building_action_panel.configure(building_manager, _camera)
 	level_loader.configure(grid, tile_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
