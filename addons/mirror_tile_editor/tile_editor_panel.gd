@@ -353,7 +353,7 @@ func _show_load_dialog() -> void:
 	dialog.popup_file_dialog()
 
 func _load_level_file(path: String) -> void:
-	var resource: Resource = ResourceLoader.load(path)
+	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	if resource is LevelResource:
 		_set_level(resource)
 		_save_path.text = path

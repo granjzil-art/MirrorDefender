@@ -1,3 +1,4 @@
+@tool
 ## TileCellData -- serializable state for one map cell.
 ##
 ## This Resource owns gameplay state only. TileManager owns lookup and events,

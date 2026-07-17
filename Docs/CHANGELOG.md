@@ -1,5 +1,10 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile Editor 修复 · 关卡资源 placeholder — 2026-07-17
+**模块**：Tile / Level / Godot 编辑器工具。
+
+- 为 LevelResource、TileCellData 与 TilePreset 添加 `@tool`；加载关卡改用 `CACHE_MODE_REPLACE_DEEP` 刷新资源树。编辑器现在可执行加载关卡中的 `get_tile()`、地块状态判断和预制构建，不再因 placeholder Resource 重复报错。
+
 ## Tile Editor · 连续画笔与斜俯视预览 — 2026-07-17
 **模块**：Tile / Level / Godot 编辑器工具。
 

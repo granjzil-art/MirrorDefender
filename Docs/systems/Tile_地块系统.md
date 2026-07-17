@@ -13,6 +13,7 @@
 - **运行时表现**：TileRenderer 按三种类型批量构建 `ImmediateMesh`，只在高于相邻格的边生成崖壁；未清除障碍显示灰色岩石占位。
 - **编辑器工作流**：启用的 `Mirror Tile Editor` 主屏插件读取三份 TilePreset `.tres`；点击调色板选择画笔后，可在画布上左键拖动连续覆盖格子，也保留单格拖放；右侧单格面板可改类型/高度或清障；保存产生 `LevelResource` `.tres`。
 - **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 或滚轮缩放观察。
+- **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
 ## 关键参数
 
@@ -143,7 +144,7 @@ Mirror Tile Editor (Godot editor)
 | `tile_editor_canvas.gd` | `_can_drop_data` / `_drop_data` | 判定目标格，读取 TilePreset 参数并覆盖该格，同时将预制设为后续画笔。 |
 | `tile_editor_panel.gd` | `_on_brush_selected(preset_path: String) -> void` / `_on_height_color_changed(color: Color, color_stop: int) -> void` | 同步画笔选择及三档关卡颜色。 |
 | `tile_editor_panel.gd` | `_on_cell_selected` / `_on_tile_type_changed` / `_on_tile_height_changed` / `_destroy_selected_obstacle` | 单格参数编辑。 |
-| `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；保存路径必须在 `res://`。 |
+| `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；加载使用 `CACHE_MODE_REPLACE_DEEP` 刷新当前会话中的关卡与子资源，保存路径必须在 `res://`。 |
 
 ## 使用入口
 

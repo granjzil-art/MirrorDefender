@@ -1,3 +1,4 @@
+@tool
 ## TilePreset -- palette asset used by the level editor.
 class_name TilePreset
 extends Resource

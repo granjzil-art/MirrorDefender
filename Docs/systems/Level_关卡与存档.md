@@ -7,6 +7,7 @@
 
 ## 分类 / 做法
 - **LevelResource**：自定义 `Resource`，当前保存网格形状、格距、范围、高度配置、编辑器下/中/上高度色和 TileCellData 列表。
+- **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
 - **运行期加载**：Main 先将 LevelResource 的 grid 参数交给 GridManager，再让 TileManager 读取布局；缺失的格自动补默认可建造数据，不要求手写完整数组。

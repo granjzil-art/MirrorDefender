@@ -1,3 +1,4 @@
+@tool
 ## LevelResource -- data-only level definition.
 ##
 ## M2 owns grid and tile layout. Later milestones extend this same Resource with
