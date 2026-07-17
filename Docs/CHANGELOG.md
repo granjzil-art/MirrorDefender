@@ -1,5 +1,10 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile 修复 · 空批次网格重建 — 2026-07-17
+**模块**：TileRenderer。
+
+- 空地块类型批次或清空全部障碍后，TileRenderer 不再对零顶点 `ImmediateMesh` 调用 `surface_end()`；对应实例改为 `mesh = null`，消除 Godot 的“surface can't be created”错误。
+
 ## M2 · 地块系统与地块编辑器 — 2026-07-17
 **模块**：Tile / Level / Grid / Main / Godot 编辑器工具。
 

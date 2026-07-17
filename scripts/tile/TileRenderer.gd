@@ -83,12 +83,15 @@ func _rebuild() -> void:
 	if not feature_enabled or _grid == null or _tile_manager == null or _tile_instances.is_empty():
 		return
 	var terrain_meshes: Array[ImmediateMesh] = []
+	var terrain_has_geometry: Array[bool] = []
 	for index in range(TILE_TYPE_COUNT):
 		var mesh := ImmediateMesh.new()
 		mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 		terrain_meshes.append(mesh)
+		terrain_has_geometry.append(false)
 	var obstacle_mesh := ImmediateMesh.new()
 	obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_obstacle_geometry: bool = false
 	for cell in _grid.enumerate_cells():
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
@@ -96,19 +99,27 @@ func _rebuild() -> void:
 		var type_index := int(tile.tile_type)
 		if type_index < 0 or type_index >= TILE_TYPE_COUNT:
 			continue
-		_add_tile_geometry(terrain_meshes[type_index], tile)
+		var did_add_terrain: bool = _add_tile_geometry(terrain_meshes[type_index], tile)
+		terrain_has_geometry[type_index] = terrain_has_geometry[type_index] or did_add_terrain
 		if tile.is_destructible():
 			_add_obstacle_geometry(obstacle_mesh, tile)
+			has_obstacle_geometry = true
 	for index in range(TILE_TYPE_COUNT):
-		terrain_meshes[index].surface_end()
-		_tile_instances[index].mesh = terrain_meshes[index]
-	obstacle_mesh.surface_end()
-	_obstacle_instance.mesh = obstacle_mesh
+		if terrain_has_geometry[index]:
+			terrain_meshes[index].surface_end()
+			_tile_instances[index].mesh = terrain_meshes[index]
+		else:
+			_tile_instances[index].mesh = null
+	if has_obstacle_geometry:
+		obstacle_mesh.surface_end()
+		_obstacle_instance.mesh = obstacle_mesh
+	else:
+		_obstacle_instance.mesh = null
 
-func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData) -> void:
+func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData) -> bool:
 	var corners := _grid.get_corners(tile.cell)
 	if corners.size() < 3:
-		return
+		return false
 	var top_y := _tile_manager.get_world_height(tile.cell) + TOP_LIFT
 	var center := _grid.cell_to_world(tile.cell) + Vector3(0.0, top_y, 0.0)
 	for index in range(corners.size()):
@@ -129,6 +140,7 @@ func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData) -> void:
 		mesh.surface_add_vertex(a)
 		mesh.surface_add_vertex(lower_b)
 		mesh.surface_add_vertex(b)
+	return true
 
 func _add_obstacle_geometry(mesh: ImmediateMesh, tile: TileCellData) -> void:
 	var center := _grid.cell_to_world(tile.cell)

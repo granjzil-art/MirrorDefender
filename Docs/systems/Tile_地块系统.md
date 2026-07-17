@@ -122,8 +122,8 @@ Mirror Tile Editor (Godot editor)
 |---|---|---|
 | `set_grid` | `(value: GridManager) -> void` | 订阅 Grid 的 `grid_changed` 并重建表现。 |
 | `set_tile_manager` | `(value: TileManager) -> void` | 订阅 TileManager 的布局/单格变化。 |
-| `_rebuild` | `() -> void` | 以类型分批重建三组 terrain mesh 与一组障碍 mesh。 |
-| `_add_tile_geometry` | `(mesh: ImmediateMesh, tile: TileCellData) -> void` | 添加顶面；只向更低相邻格或边界生成崖壁。 |
+| `_rebuild` | `() -> void` | 以类型分批重建三组 terrain mesh 与一组障碍 mesh；无顶点批次清空实例，不调用 `surface_end()`。 |
+| `_add_tile_geometry` | `(mesh: ImmediateMesh, tile: TileCellData) -> bool` | 添加顶面；只向更低相邻格或边界生成崖壁，并返回是否实际写入顶点。 |
 | `_add_obstacle_geometry` | `(mesh: ImmediateMesh, tile: TileCellData) -> void` | 添加一个四面岩石占位。 |
 
 ### Godot 编辑器插件
