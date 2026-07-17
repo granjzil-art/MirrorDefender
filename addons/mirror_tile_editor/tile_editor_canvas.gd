@@ -8,6 +8,10 @@ const OUTLINE_COLOR := Color(0.65, 0.75, 0.86, 0.72)
 const SELECTED_COLOR := Color(0.98, 0.85, 0.30, 1.0)
 const BLOCKED_MARKER_COLOR := Color(0.10, 0.13, 0.18, 0.9)
 const OBSTACLE_COLOR := Color(0.65, 0.70, 0.70, 1.0)
+const PATH_COLOR := Color(0.96, 0.88, 0.22, 0.95)
+const SELECTED_PATH_COLOR := Color(1.0, 0.46, 0.18, 1.0)
+const SPAWN_COLOR := Color(0.28, 0.92, 0.55, 0.95)
+const BASE_COLOR := Color(0.32, 0.72, 1.0, 0.95)
 const WALL_DARKEN := 0.62
 const CAMERA_PITCH := deg_to_rad(52.0)
 const DEFAULT_YAW := deg_to_rad(-35.0)
@@ -28,6 +32,7 @@ enum BrushMode {
 
 signal cell_selected(cell: Vector3i)
 signal layout_changed
+signal path_cell_clicked(cell: Vector3i)
 
 var level: LevelResource
 var selected_cell: Vector3i = Vector3i.ZERO
@@ -44,6 +49,12 @@ var _height_brush_level: int = -1
 var _is_painting: bool = false
 var _last_paint_position := Vector2.ZERO
 var _painted_cells: Dictionary = {}
+var _path_edit_enabled: bool = false
+var _overlay_paths: Array[PathDefinition] = []
+var _overlay_spawn_points: Array[SpawnPointDefinition] = []
+var _overlay_selected_path: PathDefinition
+var _overlay_base_cell: Vector3i = Vector3i.ZERO
+var _overlay_has_base: bool = false
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
@@ -108,6 +119,26 @@ func set_height_brush(value: int) -> void:
 	_brush_mode = BrushMode.HEIGHT if _height_brush_level >= 0 else BrushMode.NONE
 	_painted_cells.clear()
 
+func set_path_edit_enabled(value: bool) -> void:
+	_path_edit_enabled = value
+	if value:
+		_brush_mode = BrushMode.NONE
+		_brush_preset_path = ""
+		_height_brush_level = -1
+
+func set_m4_overlay(
+	paths: Array[PathDefinition],
+	spawn_points: Array[SpawnPointDefinition],
+	base_cell: Vector3i,
+	selected_path: PathDefinition
+) -> void:
+	_overlay_paths = paths
+	_overlay_spawn_points = spawn_points
+	_overlay_base_cell = base_cell
+	_overlay_has_base = true
+	_overlay_selected_path = selected_path
+	queue_redraw()
+
 func refresh() -> void:
 	_refresh_layout()
 
@@ -168,6 +199,7 @@ func _draw() -> void:
 		return
 	for cell in _ordered_cells:
 		_draw_cell(cell)
+	_draw_m4_overlay()
 	if has_selected_cell:
 		var selected_polygon := _top_polygon(selected_cell)
 		if not selected_polygon.is_empty():
@@ -221,6 +253,32 @@ func _draw_tile_marker(cell: Vector3i, tile: Resource, world_height: float) -> v
 		draw_line(center + Vector2(-diagonal, -diagonal), center + Vector2(diagonal, diagonal), BLOCKED_MARKER_COLOR, 2.0, true)
 		draw_line(center + Vector2(-diagonal, diagonal), center + Vector2(diagonal, -diagonal), BLOCKED_MARKER_COLOR, 2.0, true)
 
+func _draw_m4_overlay() -> void:
+	for path in _overlay_paths:
+		if path == null or path.cells.size() < 2:
+			continue
+		var points := PackedVector2Array()
+		for cell in path.cells:
+			points.append(_cell_center_screen(cell))
+		var color := SELECTED_PATH_COLOR if path == _overlay_selected_path else PATH_COLOR
+		draw_polyline(points, color, 3.0, true)
+		for point in points:
+			draw_circle(point, clampf(_view_zoom * 0.045, 3.0, 7.0), color)
+	for spawn_point in _overlay_spawn_points:
+		if spawn_point != null:
+			var spawn_center := _cell_center_screen(spawn_point.cell)
+			draw_circle(spawn_center, clampf(_view_zoom * 0.13, 6.0, 14.0), SPAWN_COLOR)
+	if _overlay_has_base:
+		var base_center := _cell_center_screen(_overlay_base_cell)
+		draw_circle(base_center, clampf(_view_zoom * 0.16, 8.0, 17.0), BASE_COLOR)
+
+func _cell_center_screen(cell: Vector3i) -> Vector2:
+	if _shape == null:
+		return Vector2.ZERO
+	var tile: Resource = level.get_tile(cell) if level != null else null
+	var world := _shape.cell_to_world(cell)
+	return _project_world(Vector3(world.x, _tile_world_height(tile) + 0.02, world.z))
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
@@ -236,6 +294,12 @@ func _gui_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				grab_focus()
+				if _path_edit_enabled:
+					_select_cell_at(event.position)
+					if has_selected_cell:
+						path_cell_clicked.emit(selected_cell)
+					accept_event()
+					return
 				_is_painting = true
 				_painted_cells.clear()
 				_last_paint_position = event.position

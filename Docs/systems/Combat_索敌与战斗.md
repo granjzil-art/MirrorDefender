@@ -1,10 +1,10 @@
 # 索敌与战斗 · Combat
 
-> 实现状态：M3 已完成统一伤害公式、七种索敌优先级、独立索敌/攻击范围、标准投射物单发攻击和穿透线段持续伤害。
+> 实现状态：M3 已完成统一伤害公式、七种索敌优先级、独立索敌/攻击范围、标准投射物单发攻击和穿透线段持续伤害；M4 已将 EnemyUnit 接入为正式移动目标。
 
 ## 职责
 
-管理可受击目标、空间候选查询、攻击策略、投射物生命周期和统一伤害计算；不包含 M4 的波次、路径和敌人掉落配置。
+管理可受击目标、空间候选查询、攻击策略、投射物生命周期和统一伤害计算；不管理波次或路径，但以 CombatTarget 契约服务 M4 EnemyUnit。
 
 ## 分类 / 做法
 
@@ -16,7 +16,7 @@
 - **投射物表现**：Projectile 使用固定尺寸 BoxMesh 形成短直线，朝飞行方向旋转；飞近目标时不缩短，所以不会退化成点。
 - **投射物跟踪**：目标存活时刷新目标位置；目标失效后飞向最后位置并在最大距离处销毁，不对失效目标结算伤害。
 - **索敌优先级**：最近、最远、最高血、最低血、最快、首个进入、锁定；锁定失效后回退到最近。
-- **M3 靶标**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；`reward` 只随 `target_killed` 广播，M3 不兑换资源，M4 再连接掉落配置。
+- **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
 
 ## 关键参数
 
@@ -40,6 +40,7 @@
 |---|---|---|
 | `scripts/combat/DamageCalculator.gd` | `DamageCalculator` / `RefCounted` | 无状态伤害公式。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 可受击目标契约、生命/死亡信号和 M3 靶标。 |
+| `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | M4 正式目标；附加护甲、路径移动和据点到达行为。 |
 | `scripts/combat/CombatManager.gd` | `CombatManager` / `Node3D` | **战斗唯一入口**；目标注册、范围/线段查询和投射物管理。 |
 | `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 单发攻击的飞行、短直线表现、距离截止和命中结算。 |
 | `scripts/combat/ITargetingStrategy.gd` | `ITargetingStrategy` / `RefCounted` | 索敌策略接口。 |
@@ -51,7 +52,7 @@
 ### 模块调用关系 / 数据流
 
 ```text
-M3 debug target / future M4 Unit -> CombatManager.register_target
+M3 debug target / M4 EnemyUnit -> CombatManager.register_target
 
 Arrow Building
   -> CombatManager.get_targets_in_range(targeting_range)
@@ -68,7 +69,7 @@ Laser Building facing
   -> each target.take_damage(final_dps * delta)
 
 CombatTarget.died -> CombatManager.target_killed(reward)
-  -> M4 enemy/drop system will call ResourceManager.grant_enemy_drop
+EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(reward)
 ```
 
 ## 函数索引
@@ -111,10 +112,10 @@ CombatTarget.died -> CombatManager.target_killed(reward)
 - `targeting_range` 不代表可攻击；`attack_range` 不负责生成候选。
 - 单发攻击的逻辑命中时刻与视觉投射物命中时刻一致。
 - 激光命中在 XZ 平面计算；M6 再加入地形、障碍和镜面阻挡。
-- CombatManager 不生成正式敌人，也不直接修改资源。
+- CombatManager 不生成正式敌人，也不直接修改资源；WaveManager 是 EnemyUnit 掉落的唯一资源桥接者。
 
 ## 已知限制 / 初版不做的部分
 
-- M3 靶标静止；移动、护甲、路径、据点伤害与敌人个体掉落属于 M4。
+- M3 调试靶标仍静止；EnemyUnit 的移动、护甲、路径和据点伤害实现见 Unit、Path、Wave 文档。
 - 投射物当前追踪目标，无加速度、抛物线、范围爆炸或对象池；正式大量单位阶段需评估池化。
 - 不做克制、暴击、闪避、DOT 叠层或衰减。

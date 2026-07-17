@@ -28,6 +28,19 @@ extends Resource
 @export_range(0, 1000, 1, "or_greater") var mirror_cap: int = 6
 @export_range(0.0, 10000.0, 0.1, "or_greater") var base_resource_per_second: float = 0.5
 
+@export_group("M4 Base")
+@export var base_cell: Vector3i = Vector3i.ZERO
+@export_range(1.0, 1000000.0, 1.0, "or_greater") var base_max_hp: float = 100.0
+
+@export_group("M4 Paths")
+@export var paths: Array[PathDefinition] = []
+@export var spawn_points: Array[SpawnPointDefinition] = []
+
+@export_group("M4 Waves")
+@export var waves: Array[WaveDefinition] = []
+@export_range(0.0, 10000.0, 0.1, "or_greater") var wave_prep_time: float = 5.0
+@export var waves_auto_start: bool = false
+
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:
 		var tile: Resource = raw_tile
@@ -72,3 +85,67 @@ func get_height_color(height_level: int) -> Color:
 	if normalized_height <= 0.5:
 		return height_color_low.lerp(height_color_middle, normalized_height * 2.0)
 	return height_color_middle.lerp(height_color_high, (normalized_height - 0.5) * 2.0)
+
+func get_path_by_id(path_id: StringName) -> PathDefinition:
+	for path in paths:
+		if path != null and path.path_id == path_id:
+			return path
+	return null
+
+func get_spawn_point(spawn_id: StringName) -> SpawnPointDefinition:
+	for spawn_point in spawn_points:
+		if spawn_point != null and spawn_point.spawn_id == spawn_id:
+			return spawn_point
+	return null
+
+func validate_m4() -> Array[String]:
+	var errors: Array[String] = []
+	var shape: IGridShape = HexGridShape.new() if grid_shape == 0 else SquareGridShape.new()
+	shape.setup(grid_cell_size)
+	if not shape.is_in_bounds(base_cell, grid_size):
+		errors.append("据点格位于地图外")
+	var path_ids: Dictionary = {}
+	for path in paths:
+		if path == null:
+			errors.append("存在空路径")
+			continue
+		if path.path_id.is_empty() or path_ids.has(path.path_id):
+			errors.append("路径 ID 为空或重复：%s" % path.display_name)
+		path_ids[path.path_id] = true
+		if path.cells.size() < 2:
+			errors.append("路径 %s 至少需要两个格" % path.display_name)
+		for index in range(path.cells.size()):
+			var cell := path.cells[index]
+			if not shape.is_in_bounds(cell, grid_size):
+				errors.append("路径 %s 含地图外格" % path.display_name)
+				break
+			if index > 0 and not shape.get_neighbors(path.cells[index - 1]).has(cell):
+				errors.append("路径 %s 存在不相邻的格" % path.display_name)
+				break
+	var spawn_ids: Dictionary = {}
+	for spawn_point in spawn_points:
+		if spawn_point == null:
+			errors.append("存在空出生点")
+			continue
+		if spawn_point.spawn_id.is_empty() or spawn_ids.has(spawn_point.spawn_id):
+			errors.append("出生点 ID 为空或重复：%s" % spawn_point.display_name)
+		spawn_ids[spawn_point.spawn_id] = true
+		if not shape.is_in_bounds(spawn_point.cell, grid_size):
+			errors.append("出生点 %s 位于地图外" % spawn_point.display_name)
+	for wave in waves:
+		if wave == null:
+			errors.append("存在空波次")
+			continue
+		if wave.spawn_groups.is_empty():
+			errors.append("波次 %s 没有出怪组" % wave.display_name)
+		for group in wave.spawn_groups:
+			if group == null or group.enemy == null or group.spawn_point == null or group.path == null:
+				errors.append("波次 %s 存在未完整配置的出怪组" % wave.display_name)
+				continue
+			if group.count < 1 or group.interval <= 0.0:
+				errors.append("波次 %s 的数量或间隔无效" % wave.display_name)
+			if not paths.has(group.path) or not spawn_points.has(group.spawn_point):
+				errors.append("波次 %s 引用了不属于本关的路径或出生点" % wave.display_name)
+			elif not group.path.cells.is_empty() and group.path.get_start_cell() != group.spawn_point.cell:
+				errors.append("波次 %s 的出生点与路径起点不一致" % wave.display_name)
+	return errors

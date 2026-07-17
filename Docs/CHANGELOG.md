@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M4 · 单位、手动路径、波次与固定路径 AI — 2026-07-17
+**模块**：Level / Path / Unit / Wave / AI / Combat / Resource / UI / Godot 编辑器工具。
+
+- LevelResource 新增据点、路径、出生点、波次、准备期和自动开波字段，并提供编辑器与运行时共用的 M4 配置校验；新增 M4DemoLevel 两波示例资源。
+- 新增 EnemyDefinition、EnemyUnit、BaseCore、PathManager、WaveManager 和 WaveStatusPanel：敌人沿带高度的手动路径行进，到据点扣血；击杀按敌人定义掉落资源，抵达据点不掉落；所有波次清场判胜、据点归零判负。
+- 原地块编辑器升级为关卡编辑器，保留地块页并新增路径和波次页；路径、出生点、据点和出怪组统一保存到同一份 LevelResource。
+- Godot 4.7 真机验收：M4DemoLevel 路径解析与配置校验通过；完整两波清场后进入胜利并获得 69 资源；敌人抵达据点会扣血且据点格不可放置建筑。
+
 ## M3 优化 · 建筑悬浮操作与逐级退款 — 2026-07-17
 **模块**：Building / Resource / UI / Main。
 

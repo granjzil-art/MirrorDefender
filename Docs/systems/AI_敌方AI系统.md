@@ -1,36 +1,38 @@
 # 敌方AI系统 · AI
 
+> 实现状态：M4 已完成脚本驱动的固定路径移动 AI；不使用行为树、寻路或目标决策。
+
 ## 职责
-敌方完全由脚本波次驱动，敌人生成后按行为模式沿指定路径行走，无复杂决策。
+
+定义敌人的最小行为：由 WaveManager 生成，沿 SpawnGroup 指定路径移动，到终点攻击据点；被建筑击杀时由波次系统处理资源掉落。
 
 ## 分类 / 做法
-- **波次驱动**：敌人由 Wave 系统在出生点生成，不做全局决策 AI。
-- **行为模式**：敌人生成后按自身 `behavior_mode` 沿 `path_id` 指定路径行走。
-- **到达据点**：碰到我方据点则**消失**并对据点造成 `damage_to_base` 伤害。
-- 行为模式为简单枚举（如 straight 直行），预留扩展位。
 
-## 关键参数
-> 全部为 Godot `@export`，编辑器运行时可调。
-
-| 参数名 | 默认值 | 说明 |
-|---|---|---|
-| behavior_mode | straight | 行为模式（沿路径直行，预留扩展） |
-| path_id | - | 所走路径（引用 Path 系统） |
-| damage_to_base | 10 | 到达据点时对据点造成的伤害 |
+- **直线行为**：EnemyUnit 仅沿 `PackedVector3Array` 路点移动，路点来自 PathManager。
+- **无决策**：单位不选择目标、不绕行、不抢占格；建筑通过 CombatManager 进行索敌。
+- **到达行为**：移动到最后一点后广播 `reached_base`，自身释放；WaveManager 再调用 BaseCore。
+- **战斗协作**：EnemyUnit 是 CombatTarget，支持索敌优先级、投射物和激光，不向战斗系统反向传递波次规则。
 
 ## 关键架构
-```
-EnemyBehavior (组件)
- ├─ behavior_mode: enum(straight, ...)
- ├─ path_id → PathManager.get_path()
- └─ tick() → 沿路径推进; on_reach_base() → despawn + base.take_damage(damage_to_base)
-（无 BehaviorTree / 无状态机决策，初版仅路径推进）
+
+```text
+WaveManager -> EnemyUnit.configure_unit(enemy, path_points)
+EnemyUnit._process -> move segment by segment
+  -> final point -> reached_base -> WaveManager -> BaseCore.take_damage
+
+CombatManager -> EnemyUnit.take_damage
+  -> CombatTarget.died -> WaveManager reward handling
 ```
 
 ## 函数索引
-> 实现阶段填充：函数名 → 一句话职责。
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `EnemyUnit._process` | `(delta: float) -> void` | 推进固定路径，并支持一帧跨多个路段。 |
+| `EnemyUnit.configure_unit` | `(enemy_definition: EnemyDefinition, path_points: PackedVector3Array) -> void` | 装配 AI 的数值和路线。 |
+| `EnemyUnit._reach_base` | `() -> void` | 单次广播到达伤害并释放单位。 |
 
 ## 已知限制 / 初版不做的部分
-- 无复杂决策 AI、无目标选择、无仇恨、无绕障。
-- behavior_mode 初版仅"沿路径直行"，其余为预留枚举。
-- 不与镜子/建筑交互（单位不可被镜像，仅受伤害）。
+
+- 不做行为树、状态机、自动寻路、仇恨、闪避、攻击建筑或特殊技能。
+- 后续仅在行为模式真实分化后再抽出策略接口，M4 不为单一移动行为过度抽象。

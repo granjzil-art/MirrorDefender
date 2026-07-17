@@ -17,6 +17,10 @@ const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
 const LevelDebugPanelScript := preload("res://scripts/level/LevelDebugPanel.gd")
 const M3DebugPanelScript := preload("res://scripts/ui/M3DebugPanel.gd")
 const BuildingActionPanelScript := preload("res://scripts/ui/BuildingActionPanel.gd")
+const PathManagerScript := preload("res://scripts/path/PathManager.gd")
+const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
+const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
+const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -34,6 +38,10 @@ const BuildingActionPanelScript := preload("res://scripts/ui/BuildingActionPanel
 
 var _camera: Camera3D
 var _building_action_panel: BuildingActionPanel
+var path_manager: PathManager
+var base_core: BaseCore
+var wave_manager: WaveManager
+var _wave_status_panel: WaveStatusPanel
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -51,6 +59,20 @@ func _ready() -> void:
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
 	_building_action_panel.configure(building_manager, _camera)
+	path_manager = PathManagerScript.new()
+	add_child(path_manager)
+	path_manager.configure(grid, tile_manager)
+	base_core = BaseCoreScript.new()
+	add_child(base_core)
+	base_core.configure(grid, tile_manager)
+	wave_manager = WaveManagerScript.new()
+	add_child(wave_manager)
+	wave_manager.configure(path_manager, combat_manager, resource_manager, base_core)
+	_wave_status_panel = WaveStatusPanelScript.new()
+	$HUD.add_child(_wave_status_panel)
+	_wave_status_panel.position = Vector2(1240.0, 270.0)
+	_wave_status_panel.size = Vector2(344.0, 154.0)
+	_wave_status_panel.configure(wave_manager, base_core)
 	level_loader.configure(grid, tile_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
@@ -82,6 +104,21 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	var shape_name := "六边形(HEX)" if grid.grid_shape == GridManager.Shape.HEX else "正方形(SQUARE)"
 	var lines: Array[String] = []
 	lines.append("网格: %s   格距: %.2f" % [shape_name, grid.cell_size])
+	if base_core != null and wave_manager != null:
+		var base_current: int = ceili(base_core.current_hp)
+		var base_maximum: int = ceili(base_core.max_hp)
+		var wave_current := wave_manager.get_current_wave_number()
+		var wave_total := wave_manager.get_total_wave_count()
+		var active_enemies := wave_manager.get_active_enemy_count()
+		var wave_state := wave_manager.get_state_name()
+		lines.append("据点: %d/%d | 波次 %d/%d | 敌人 %d | %s" % [
+			base_current,
+			base_maximum,
+			wave_current,
+			wave_total,
+			active_enemies,
+			wave_state,
+		])
 	if cell.hit:
 		lines.append("拾取格 cell = %s" % str(cell.cell))
 		var tile := tile_manager.get_tile(cell.cell)
@@ -139,7 +176,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 右键选择模式 | R 旋转建筑 | F 清障"
+	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):
@@ -215,6 +252,9 @@ func _destroy_selected_obstacle() -> void:
 func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> void:
 	resource_manager.apply_level_configuration(level_resource)
 	combat_manager.clear_targets()
+	path_manager.load_level(level_resource)
+	base_core.load_level(level_resource)
+	wave_manager.load_level(level_resource)
 	_has_selected_cell = false
 	_has_selected_edge = false
 	renderer.highlight_cell(Vector3i.ZERO, false)

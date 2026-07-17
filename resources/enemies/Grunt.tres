@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+
+[resource]
+script = ExtResource("1_enemy")
+enemy_id = &"grunt"
+display_name = "步兵"
+max_hp = 90.0
+move_speed = 1.45
+armor = 0.0
+base_damage = 8.0
+reward = 6.0
+hit_radius = 0.26
+body_color = Color(0.86, 0.26, 0.25, 1)
+body_height = 0.72

@@ -1,12 +1,13 @@
 ﻿# 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关，以及 M3 初始资源、建筑/镜子上限和关卡基础每秒产出；局内存档、路径、波次与敌人掉落字段留待后续模块扩充。
+> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关、M3 经济配置，以及 M4 据点、手动路径、出生点和波次配置；局内存档与正式选关仍待后续模块扩充。
 
 ## 职责
-用一个数据资源描述关卡的网格、地块布局与经济配置，使新增关卡无需改运行时代码；为 M4~M7 的路径、波次和通关存档保留唯一扩展载体。
+用一个数据资源描述关卡的网格、地块布局、经济、据点、路径和波次，使新增关卡无需改运行时代码；为后续镜子和通关存档保留唯一扩展载体。
 
 ## 分类 / 做法
-- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色，以及 M3 初始资源、建筑/镜子上限和 `base_resource_per_second`。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
+- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济，以及 M4 据点、路径、出生点和波次。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
+- **M4 关卡校验**：`validate_m4()` 统一验证据点格、路径边界与连续性、出生点边界、波次引用和出生点与路径首格的一致性；编辑器与运行时共用同一资源结构。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
@@ -29,8 +30,12 @@
 | `initial_resource` | 200 | 切入关卡时的主资源。 |
 | `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
 | `base_resource_per_second` | 0.5 | 本关基础每秒资源，与建筑产出独立。 |
+| `base_cell` / `base_max_hp` | `(0,0,0)` / 100 | M4 据点所在格和最大生命。 |
+| `paths` / `spawn_points` | `[]` | M4 持有的 PathDefinition / SpawnPointDefinition 数组。 |
+| `waves` | `[]` | M4 固定波次数组，每项持有多个 SpawnGroup。 |
+| `wave_prep_time` / `waves_auto_start` | 5.0 / false | 波次间准备秒数与自动开波开关。 |
 | LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
-| LevelLoader.`initial_level` | M2DemoLevel | 主场景启动时加载的关卡。 |
+| LevelLoader.`initial_level` | M4DemoLevel | 主场景启动时加载的关卡。 |
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关；正式发行可关闭。 |
 | LevelDebugPanel.`initial_directory` | `res://resources/levels` | 调试文件选择器的起始目录。 |
 
@@ -40,13 +45,14 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 网格/地块与 M3 初始资源、上限、基础产出的统一关卡定义。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济和 M4 据点/路径/波次的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
-| `resources/levels/M2DemoLevel.tres` | `LevelResource` | 主场景 M2 验收布局，含道路、两处障碍和 0~2 档高度示例。 |
-| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 关卡资源的新建、读取和保存入口。 |
-| `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 LevelLoader 依赖；切关后应用经济配置并清空旧建筑、目标和拾取状态。 |
-| `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 的 `initial_level` 装配 M2DemoLevel，并挂载关卡/M3 调试面板。 |
+| `resources/levels/M2DemoLevel.tres` | `LevelResource` | M2 地块编辑示例。 |
+| `resources/levels/M4DemoLevel.tres` | `LevelResource` | 两波 M4 可运行示例，含路径、出生点、据点和敌人配置。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 三页关卡资源编辑、读取和保存入口。 |
+| `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 Loader、路径、据点和波次依赖；切关时重置 M3/M4 运行时状态。 |
+| `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 的 `initial_level` 装配 M4DemoLevel，并挂载调试、建造和波次面板。 |
 
 ### 模块调用关系 / 数据流
 
@@ -63,12 +69,14 @@ Debug picker / future production level selection
        ├─ serialized tiles -> runtime Dictionary[cell, TileCellData]
        └─ TileManager.level_loaded -> TileRenderer rebuild
   -> LevelLoader.level_loaded
-       ├─ ResourceManager.apply_level_configuration(level)
-       ├─ CombatManager.clear_targets()
-       └─ debug status / Main clears stale selection
+	   ├─ ResourceManager.apply_level_configuration(level)
+	   ├─ CombatManager.clear_targets()
+	   ├─ PathManager.load_level(level) -> BaseCore.load_level(level)
+	   ├─ WaveManager.load_level(level)
+	   └─ debug status / Main clears stale selection
 
-Mirror Tile Editor
-  -> creates / edits LevelResource (tiles + height colors)
+Mirror Level Editor
+  -> creates / edits LevelResource (tiles + height colors + M4 paths/waves)
   -> ResourceSaver.save(.../*.tres)
   -> LevelLoader.load_level(resource) can install that resource at runtime
 ```
@@ -84,6 +92,9 @@ Mirror Tile Editor
 | `clear_tiles` | `() -> void` | 清空布局，供编辑器按新网格参数重建默认格。 |
 | `clamp_tile_heights` | `() -> void` | 将所有序列化地块的高度收紧到当前 `height_levels`。 |
 | `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
+| `get_path_by_id` | `(path_id: StringName) -> PathDefinition` | 从本关路径数组按稳定 ID 返回定义或 null。 |
+| `get_spawn_point` | `(spawn_id: StringName) -> SpawnPointDefinition` | 从本关出生点数组按稳定 ID 返回定义或 null。 |
+| `validate_m4` | `() -> Array[String]` | 返回据点、路径、出生点和波次的配置错误；空数组表示可启动。 |
 
 ### LevelLoader.gd
 
@@ -118,10 +129,12 @@ Mirror Tile Editor
 - LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
-- LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 M4 敌人定义，三者禁止混写。
+- LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 EnemyDefinition，三者禁止混写。
+- `paths`、`spawn_points` 和 `waves` 均由同一个 LevelResource 持有；SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
+- 路径顺序恒为出生点到据点；本阶段路径终点和 `base_cell` 由设计者共同配置，`M4DemoLevel` 将其设为同一格。
 
 ## 已知限制 / 初版不做的部分
 
 - 未实现 SaveManager、局内读档、关卡解锁与正式选关界面；LevelLoader 接口已预留给正式选关调用。
-- 路径、波次与据点字段将在 M4 后续系统接入时加入同一资源。
+- 当前不做局内读档、关卡解锁和正式选关界面；后续系统只能扩展本资源，不另建平行关卡格式。
 - 不做云存档、多存档槽和关卡包导入。

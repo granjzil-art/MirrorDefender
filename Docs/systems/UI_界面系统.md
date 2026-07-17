@@ -1,7 +1,7 @@
 # 界面系统 · UI
 
 ## 职责
-提供 HUD 与操作入口，沿用原型布局，承载资源、建造、检视、机制图例等信息。
+提供 HUD 与操作入口，沿用原型布局，承载资源、建造、检视、波次与机制图例等信息。
 
 ## 分类 / 做法
 - **沿用原型布局**：
@@ -17,6 +17,7 @@
 - **M3 灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、靶标四个互斥模式及当前建筑升级按钮。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
+- **M4 波次 UI**：右上 `WaveStatusPanel` 显示据点生命、当前/总波数、存活敌人数与波次状态；仅在 READY 状态允许“开始下一波”。
 
 ## 关键参数
 > 全部为 Godot `@export`，编辑器运行时可调。
@@ -30,6 +31,7 @@
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关。 |
 | LevelDebugPanel.`initial_directory` | `res://resources/levels` | 关卡选择器起始目录。 |
 | M3DebugPanel.`feature_enabled` | true | M3 灰盒建造/靶标面板开关。 |
+| WaveStatusPanel.`feature_enabled` | true | M4 波次状态与手动开波面板开关。 |
 
 ## 关键架构
 
@@ -37,10 +39,11 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，注入两个调试面板依赖并路由场景输入。 |
+| `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，装配 M4 运行时节点并注入调试、建造和波次面板。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | M3 模式选择、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
+| `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 显示据点/波次/敌人摘要，并请求 WaveManager 开始下一波。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -64,6 +67,9 @@ ResourceManager.resource_changed / limits_changed / income_rates_changed -> M3De
 BuildingManager.placement_failed / building_selected / building_upgraded / preview_updated -> M3DebugPanel status
 M3DebugPanel upgrade button -> BuildingManager.upgrade_selected
 BuildingActionPanel buttons -> BuildingManager.remove_selected_building / upgrade_selected / rotate_selected
+WaveManager.state_changed / wave_started / wave_completed -> WaveStatusPanel refresh
+BaseCore.health_changed -> WaveStatusPanel refresh
+WaveStatusPanel start button -> WaveManager.start_next_wave
 ```
 
 ## 函数索引
@@ -86,10 +92,13 @@ BuildingActionPanel buttons -> BuildingManager.remove_selected_building / upgrad
 | `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/删除信号。 |
 | `BuildingActionPanel.gd` | `_update_projection() -> void` | 将选中建筑动作锚点投影到屏幕，越过相机背面时隐藏。 |
 | `BuildingActionPanel.gd` | `_on_delete_pressed()` / `_on_upgrade_pressed()` / `_on_rotate_pressed()` | 调用三个 BuildingManager 公共操作。 |
+| `WaveStatusPanel.gd` | `configure(wave_manager: WaveManager, base_core: BaseCore) -> void` | 订阅波次与据点状态并初始化显示。 |
+| `WaveStatusPanel.gd` | `_on_start_pressed() -> void` | 在 READY 时请求 WaveManager 开始下一波。 |
 
 ## 已知限制 / 初版不做的部分
 - 不做敌方据点相关 UI（已改为我方据点血量 + 剩余敌人计数）。
 - 不做设置/存档/主菜单等元界面（Level 系统另述存档数据）。
 - 当前选关面板是可关闭的开发调试入口，不代表正式选关界面与关卡解锁流程。
 - M3 面板同样是灰盒验收入口；当前升级按钮与虚影逻辑可复用，但不代表 M7 的正式卡片建造栏、检视面板或小地图外观。
+- WaveStatusPanel 是 M4 灰盒入口；M7 再将其整合为顶部正式 HUD 的据点血量和本波进度。
 - 小地图仅静态缩略，不做迷雾/交互点选。

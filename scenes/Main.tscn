@@ -15,6 +15,7 @@
 [ext_resource type="Resource" path="res://resources/buildings/ArrowTower.tres" id="13_arrow_tower"]
 [ext_resource type="Resource" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
 [ext_resource type="Script" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
+[ext_resource type="Resource" path="res://resources/levels/M4DemoLevel.tres" id="16_m4_level"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -63,7 +64,7 @@ laser_tower = ExtResource("14_laser_tower")
 
 [node name="LevelLoader" type="Node" parent="."]
 script = ExtResource("8_level_loader")
-initial_level = ExtResource("7_level")
+initial_level = ExtResource("16_m4_level")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("4_cam")

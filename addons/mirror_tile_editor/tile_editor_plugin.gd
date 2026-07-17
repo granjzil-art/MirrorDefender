@@ -22,7 +22,7 @@ func _make_visible(visible: bool) -> void:
 		_panel.visible = visible
 
 func _get_plugin_name() -> String:
-	return "地块编辑器"
+	return "关卡编辑器"
 
 func _get_plugin_icon() -> Texture2D:
 	return EditorInterface.get_editor_theme().get_icon("GridMap", "EditorIcons")

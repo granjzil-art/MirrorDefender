@@ -1,6 +1,6 @@
 ﻿# 地块系统 · Tile
 
-> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口。
+> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口，M4 据点复用该接口占用据点格，编辑器已扩展为关卡编辑器。
 
 ## 职责
 定义每个网格格子的类型、高度、障碍和运行时占用；提供查询、清障、灰盒地形渲染，以及可保存 `.tres` 关卡布局的拖拽式编辑器。
@@ -8,10 +8,10 @@
 ## 分类 / 做法
 - **可建造**：`tile_type = 0`，可放建筑，前提是 `occupant == null`。
 - **可破坏障碍**：`tile_type = 1`。障碍未清除时不可放置；清除后仍保留类型与高度，但 `obstacle_destroyed = true`，因此转为可建造。
-- **不可建造路面**：`tile_type = 2`，不可破坏、不可建造；M4 可作为手动路径的基础数据。
+- **不可建造路面**：`tile_type = 2`，不可破坏、不可建造；M4 路径可经过任意有效地块，通常使用该类型明确道路。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；不可建造路面固定使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁，未清除障碍仍显示灰色岩石占位。
-- **编辑器工作流**：启用的 `Mirror Tile Editor` 主屏插件读取三份 TilePreset `.tres`；点击调色板选择画笔后，可在画布上左键拖动连续覆盖格子，也保留单格拖放；右侧单格面板可改类型/高度或清障；保存产生 `LevelResource` `.tres`。
+- **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。
 - **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 或滚轮缩放观察。
 - **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
@@ -47,9 +47,9 @@
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |
 | `resources/tiles/DestructibleTile.tres` | `TilePreset` | 可破坏障碍调色板预制。 |
 | `resources/tiles/BlockedTile.tres` | `TilePreset` | 不可建造路面调色板预制。 |
-| `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin` | 注册 Godot 主屏入口“地块编辑器”。 |
-| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 工具栏、地图参数、三档高度色、画笔调色板、单格参数与保存/加载工作流。 |
-| `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 可旋转斜俯视地形预览、连续画笔、选格与拖拽落点处理。 |
+| `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin` | 注册 Godot 主屏入口“关卡编辑器”。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 三页工具栏、地图/路径/波次数据编辑与统一保存加载。 |
+| `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 可旋转斜俯视地形预览、连续画笔、路径叠加、选格与拖拽落点处理。 |
 | `addons/mirror_tile_editor/tile_palette_item.gd` | `Button` | 选择画笔预制并从 TilePreset 路径发起拖拽数据。 |
 
 ### 模块调用关系 / 数据流
@@ -68,6 +68,11 @@ Mirror Tile Editor (Godot editor)
   -> left-drag brush or drop -> new TileCellData -> LevelResource.store_tile(cell-keyed)
   -> LevelResource height_color_low / middle / high -> oblique editor projection
   -> ResourceSaver.save(LevelResource, res://.../*.tres)
+
+Level Editor M4 pages
+  -> PathDefinition.cells / SpawnPointDefinition / base_cell
+  -> WaveDefinition / SpawnGroupDefinition references
+  -> LevelResource.validate_m4() -> shared runtime configuration
 ```
 
 其它玩法模块只能通过 `TileManager` 读取/改变运行时地块。编辑器只编辑 `LevelResource`，不会持有场景中的 TileManager。
@@ -148,6 +153,7 @@ Mirror Tile Editor (Godot editor)
 | `tile_editor_plugin.gd` | `_has_main_screen() -> bool` | 将“地块编辑器”注册为主屏工具。 |
 | `tile_palette_item.gd` | `configure(display_name: String, path: String, group: ButtonGroup) -> void` / `_get_drag_data(at_position: Vector2) -> Variant` | 注册互斥画笔按钮并返回 `{kind, preset_path}`。 |
 | `tile_editor_canvas.gd` | `set_brush_preset(value: String) -> void` / `_paint_between(from: Vector2, to: Vector2) -> void` | 设置当前画笔；按固定像素采样补齐鼠标路径，连续覆盖经过的格子。 |
+| `tile_editor_canvas.gd` | `set_path_edit_enabled(value: bool) -> void` / `set_m4_overlay(paths: Array, spawn_points: Array, base_cell: Vector3i, selected_path: PathDefinition) -> void` | 切换到不改地块的路径点选模式，并绘制路径、入口和据点叠加层。 |
 | `tile_editor_canvas.gd` | `set_height_brush(value: int) -> void` / `_apply_height_to_cell(cell: Vector3i, height_level: int) -> bool` | 进入独立高度刷模式；仅调用 TileCellData 的高度更新，不改地块类型或清障状态。 |
 | `tile_editor_canvas.gd` | `reset_view() -> void` / `_process(delta: float) -> void` | 复位斜俯视投影；在画布焦点内消费 WASD/QE/XC 控制视角。 |
 | `tile_editor_canvas.gd` | `_height_color(tile: Resource) -> Color` / `_draw_cell(cell: Vector3i) -> void` | 以三色高度插值绘制顶面，并只对更低邻格绘制加深的台阶墙面。 |
@@ -156,10 +162,11 @@ Mirror Tile Editor (Godot editor)
 | `tile_editor_panel.gd` | `_refresh_height_brush_options() -> void` / `_on_height_color_changed(color: Color, color_stop: int) -> void` | 按关卡档数生成高度刷选项，并同步三档关卡颜色。 |
 | `tile_editor_panel.gd` | `_on_cell_selected` / `_on_tile_type_changed` / `_on_tile_height_changed` / `_destroy_selected_obstacle` | 单格参数编辑。 |
 | `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；加载使用 `CACHE_MODE_REPLACE_DEEP` 刷新当前会话中的关卡与子资源，保存路径必须在 `res://`。 |
+| `tile_editor_panel.gd` | `_refresh_path_controls()` / `_refresh_wave_controls()` / `_validate_m4_level()` | 刷新路径/波次表单，编辑共享资源引用，并将 M4 校验结果显示在对应页面。 |
 
 ## 使用入口
 
-在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Tile Editor` 启用后，顶部主屏点击“地块编辑器”。选择网格参数和下/中/上高度色；点击左侧预制按钮选择类型画笔，或从“高度刷”选择目标高度，两者互斥。随后在中间地图左键拖动涂刷；高度刷只改高度，不改类型或障碍状态。右侧仍可修改选中格。点击地图后可用 WASD/QE/XC 或滚轮改变观察视角，工具栏的复位图标返回默认视角。保存路径默认为 `res://resources/levels/CustomLevel.tres`。运行时由 LevelLoader 加载关卡，BuildingManager 只在 `can_place()` 成功的格上占用。
+在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Level Editor` 启用后，顶部主屏点击“关卡编辑器”。地块页用于网格、颜色、类型和高度；路径页新增路线后点选相邻格记录路线，可设据点并从路线首格新增入口；波次页为每波添加出怪组，选择敌人、入口和路径，再编辑数量、间隔与延迟。保存路径默认为 `res://resources/levels/CustomLevel.tres`，保存前应在路径或波次页执行校验。运行时由 LevelLoader 加载关卡；建筑和据点都通过 TileManager 占用接口占格。
 
 ## 已知限制 / 初版不做的部分
 
