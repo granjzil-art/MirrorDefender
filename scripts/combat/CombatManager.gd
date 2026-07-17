@@ -16,8 +16,11 @@ extends Node3D
 signal target_registered(target: CombatTarget)
 signal target_removed(target: CombatTarget)
 signal target_killed(reward_amount: float)
+signal projectile_spawned(projectile: Projectile)
+signal projectile_hit(target: CombatTarget, applied_damage: float)
 
 var _targets: Array[CombatTarget] = []
+var _projectiles: Array[Projectile] = []
 var _next_entry_order: int = 0
 
 func register_target(target: CombatTarget) -> bool:
@@ -80,6 +83,36 @@ func spawn_debug_target(world_position: Vector3) -> CombatTarget:
 	register_target(target)
 	return target
 
+func spawn_projectile(
+	start: Vector3,
+	target: CombatTarget,
+	speed: float,
+	damage: float,
+	maximum_distance: float,
+	visual_length: float,
+	visual_width: float,
+	color: Color
+) -> Projectile:
+	if not feature_enabled or target == null or not target.is_alive():
+		return null
+	var projectile := Projectile.new()
+	add_child(projectile)
+	projectile.configure(
+		start,
+		target,
+		speed,
+		damage,
+		maximum_distance,
+		visual_length,
+		visual_width,
+		color
+	)
+	projectile.impacted.connect(_on_projectile_impacted)
+	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
+	_projectiles.append(projectile)
+	projectile_spawned.emit(projectile)
+	return projectile
+
 func clear_targets() -> void:
 	var targets := _targets.duplicate()
 	_targets.clear()
@@ -87,6 +120,14 @@ func clear_targets() -> void:
 		if is_instance_valid(target):
 			target.queue_free()
 	_next_entry_order = 0
+	clear_projectiles()
+
+func clear_projectiles() -> void:
+	var projectiles := _projectiles.duplicate()
+	_projectiles.clear()
+	for projectile in projectiles:
+		if is_instance_valid(projectile):
+			projectile.queue_free()
 
 func _cleanup_targets() -> void:
 	for index in range(_targets.size() - 1, -1, -1):
@@ -104,3 +145,9 @@ func _on_target_died(target: CombatTarget, reward_amount: float) -> void:
 
 func _on_target_tree_exited(target: CombatTarget) -> void:
 	unregister_target(target)
+
+func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> void:
+	projectile_hit.emit(target, applied_damage)
+
+func _on_projectile_tree_exited(projectile: Projectile) -> void:
+	_projectiles.erase(projectile)

@@ -44,8 +44,6 @@ func _ready() -> void:
 	tile_manager.set_grid(grid)
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
-	resource_manager.configure(tile_manager)
-	combat_manager.target_killed.connect(_on_target_killed)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager)
 	level_loader.configure(grid, tile_manager)
@@ -63,6 +61,7 @@ func _update_pick() -> void:
 
 	var edge := grid.pick_edge(_camera, mp)
 	var cell := grid.pick_cell(_camera, mp)
+	_update_building_preview(cell)
 
 	# 边优先高亮（靠近边时），否则高亮格。
 	if edge.hit:
@@ -83,8 +82,28 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 		var tile := tile_manager.get_tile(cell.cell)
 		if tile != null:
 			lines.append("地块: %s | 高度档: %d" % [tile.get_display_name(), tile.height_level])
+			var occupant := tile_manager.get_occupant(cell.cell)
+			if occupant is Building:
+				var occupied_building: Building = occupant
+				var occupied_stats := occupied_building.get_level_stats()
+				lines.append("占位: %s L%d/%d | 索敌 %.1f | 射程 %.1f" % [
+					occupied_building.definition.display_name,
+					occupied_building.level,
+					occupied_building.get_max_level(),
+					occupied_stats.targeting_range,
+					occupied_stats.attack_range,
+				])
+			elif occupant != null:
+				lines.append("占位对象: %s" % occupant.name)
 			if tile.is_destructible():
 				lines.append("按 F 清除障碍，转为可建造")
+		var preview := building_manager.get_preview_building()
+		if preview != null and preview.cell == cell.cell:
+			lines.append("放置预览: %s L1 | 朝向 %d/%d" % [
+				preview.definition.display_name,
+				preview.facing_index + 1,
+				preview.get_facing_slot_count(),
+			])
 	else:
 		lines.append("拾取格 cell = (界外)")
 	if edge.hit:
@@ -98,10 +117,19 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 		lines.append("已锁定边 index = %d | %s" % [_selected_edge_index, _selected_edge_id])
 	var selected_building := building_manager.get_selected_building()
 	if selected_building != null:
-		lines.append("建筑: %s | 世界朝向 %d/%d" % [
+		var selected_stats := selected_building.get_level_stats()
+		lines.append("建筑: %s L%d/%d | 世界朝向 %d/%d" % [
 			selected_building.definition.display_name,
+			selected_building.level,
+			selected_building.get_max_level(),
 			selected_building.facing_index + 1,
 			selected_building.get_facing_slot_count(),
+		])
+		lines.append("伤害 %.1f | 索敌 %.1f | 射程 %.1f | 产出 %.1f/s" % [
+			selected_building.get_instant_damage() if selected_building.definition.kind == BuildingDefinition.Kind.ARROW_TOWER else selected_building.get_laser_damage_per_second(),
+			selected_stats.targeting_range,
+			selected_stats.attack_range,
+			selected_stats.resource_per_second,
 		])
 	hud_label.text = "\n".join(lines)
 
@@ -122,7 +150,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cancel_action"):
 		m3_debug_panel.cancel_to_select()
 	elif event.is_action_pressed("rotate_facing"):
-		building_manager.rotate_selected()
+		if m3_debug_panel.get_selected_definition() != null:
+			building_manager.rotate_preview()
+		else:
+			building_manager.rotate_selected()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F:
 		_destroy_selected_obstacle()
 
@@ -137,7 +168,11 @@ func _handle_primary_action() -> void:
 	_has_selected_cell = true
 	match m3_debug_panel.get_mode():
 		M3DebugPanelScript.InteractionMode.BUILD_ARROW, M3DebugPanelScript.InteractionMode.BUILD_LASER:
-			building_manager.place_building(cell, m3_debug_panel.get_selected_definition())
+			building_manager.place_building(
+				cell,
+				m3_debug_panel.get_selected_definition(),
+				building_manager.get_preview_facing_index()
+			)
 		M3DebugPanelScript.InteractionMode.SPAWN_TARGET:
 			var target_position := grid.cell_to_world(cell)
 			target_position.y = tile_manager.get_world_height(cell) + 0.02
@@ -146,6 +181,14 @@ func _handle_primary_action() -> void:
 		_:
 			_lock_current_pick()
 			building_manager.select_at(cell)
+
+func _update_building_preview(cell_pick: Dictionary) -> void:
+	var definition := m3_debug_panel.get_selected_definition()
+	if definition == null or not cell_pick.hit or get_viewport().gui_get_hovered_control() != null:
+		building_manager.clear_preview()
+		return
+	var cell: Vector3i = cell_pick.cell
+	building_manager.update_preview(cell, definition)
 
 func _lock_current_pick() -> void:
 	var mp := get_viewport().get_mouse_position()
@@ -172,6 +215,3 @@ func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> vo
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
 	m3_debug_panel.cancel_to_select()
-
-func _on_target_killed(reward_amount: float) -> void:
-	resource_manager.grant_kill_drop(reward_amount)

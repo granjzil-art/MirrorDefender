@@ -1,12 +1,12 @@
 ﻿# 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关及 M3 初始资源、建筑/镜子上限和五类产出配置；局内存档、路径与波次字段留待后续模块扩充。
+> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关，以及 M3 初始资源、建筑/镜子上限和关卡基础每秒产出；局内存档、路径、波次与敌人掉落字段留待后续模块扩充。
 
 ## 职责
 用一个数据资源描述关卡的网格、地块布局与经济配置，使新增关卡无需改运行时代码；为 M4~M7 的路径、波次和通关存档保留唯一扩展载体。
 
 ## 分类 / 做法
-- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色，以及 M3 初始资源、建筑/镜子上限和五类产出参数。
+- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色，以及 M3 初始资源、建筑/镜子上限和 `base_resource_per_second`。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
@@ -28,11 +28,7 @@
 | `tiles` | `[]` | `TileCellData` 资源数组；每项持有自己的 `cell`。 |
 | `initial_resource` | 200 | 切入关卡时的主资源。 |
 | `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
-| `kill_drop_enabled` | true | 击杀奖励开关。 |
-| `tile_income_enabled` / `tile_income_rate` | true / 1.0 | 建筑占用格每秒产出。 |
-| `producer_income_enabled` / `producer_income_rate` | true / 2.0 | 生产建筑每秒产出。 |
-| `time_growth_enabled` / `time_growth_rate` | true / 0.5 | 时间自然增长。 |
-| `destroy_tile_income_enabled` / `destroy_tile_income_amount` | true / 20 | 清障一次性产出。 |
+| `base_resource_per_second` | 0.5 | 本关基础每秒资源，与建筑产出独立。 |
 | LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
 | LevelLoader.`initial_level` | M2DemoLevel | 主场景启动时加载的关卡。 |
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关；正式发行可关闭。 |
@@ -44,7 +40,7 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 网格/地块与 M3 经济参数的统一关卡定义。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 网格/地块与 M3 初始资源、上限、基础产出的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | 主场景 M2 验收布局，含道路、两处障碍和 0~2 档高度示例。 |
@@ -122,6 +118,7 @@ Mirror Tile Editor
 - LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
+- LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 M4 敌人定义，三者禁止混写。
 
 ## 已知限制 / 初版不做的部分
 

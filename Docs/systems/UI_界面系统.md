@@ -14,7 +14,8 @@
 - **重要改动**：顶部原"双方据点血条"改为 **【我方据点血量条 | 本波剩余敌人 x/y】**。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、波次进度、选中对象）。
 - **当前调试 UI**：主场景右上角 LevelDebugPanel 显示当前关卡，并可从 `res://resources/levels` 选择 `.tres`；正式选关将复用 LevelLoader，不复用该调试面板外观。
-- **M3 灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源/建筑上限/靶标数，并提供选择、箭塔、激光塔、靶标四个互斥模式；正式建造栏将复用 Manager 信号和入口。
+- **M3 灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、靶标四个互斥模式及当前建筑升级按钮。
+- **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 
 ## 关键参数
 > 全部为 Godot `@export`，编辑器运行时可调。
@@ -37,7 +38,7 @@
 |---|---|---|
 | `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，注入两个调试面板依赖并路由场景输入。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
-| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | M3 模式选择、经济/上限/靶标状态和错误反馈。 |
+| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | M3 模式选择、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -56,8 +57,10 @@ LevelDebugPanel -> LevelLoader.load_level_path(path)
 LevelLoader.level_loaded / level_load_failed -> LevelDebugPanel status
 
 M3DebugPanel mode -> Main cell input -> BuildingManager / CombatManager
-ResourceManager.resource_changed / limits_changed -> M3DebugPanel summary
-BuildingManager.placement_failed / building_selected -> M3DebugPanel status
+Main mouse hover -> BuildingManager.update_preview -> ghost or Tile/occupant HUD
+ResourceManager.resource_changed / limits_changed / income_rates_changed -> M3DebugPanel summary
+BuildingManager.placement_failed / building_selected / building_upgraded / preview_updated -> M3DebugPanel status
+M3DebugPanel upgrade button -> BuildingManager.upgrade_selected
 ```
 
 ## 函数索引
@@ -75,10 +78,12 @@ BuildingManager.placement_failed / building_selected -> M3DebugPanel status
 | `M3DebugPanel.gd` | `select_mode(value: InteractionMode) -> void` | 更新按钮状态、模式文本并广播。 |
 | `M3DebugPanel.gd` | `cancel_to_select() -> void` | 右键取消时回到选择模式。 |
 | `M3DebugPanel.gd` | `_refresh_summary() -> void` | 从 Manager 读取资源、上限与目标数量。 |
+| `M3DebugPanel.gd` | `_on_upgrade_pressed() -> void` | 请求 BuildingManager 升级当前选择。 |
+| `M3DebugPanel.gd` | `_on_preview_updated(building: Building) -> void` | 显示预览塔种、1 级和离散朝向。 |
 
 ## 已知限制 / 初版不做的部分
 - 不做敌方据点相关 UI（已改为我方据点血量 + 剩余敌人计数）。
 - 不做设置/存档/主菜单等元界面（Level 系统另述存档数据）。
 - 当前选关面板是可关闭的开发调试入口，不代表正式选关界面与关卡解锁流程。
-- M3 面板同样是灰盒验收入口，不含 M7 的正式卡片建造栏、升级面板或小地图。
+- M3 面板同样是灰盒验收入口；当前升级按钮与虚影逻辑可复用，但不代表 M7 的正式卡片建造栏、检视面板或小地图外观。
 - 小地图仅静态缩略，不做迷雾/交互点选。

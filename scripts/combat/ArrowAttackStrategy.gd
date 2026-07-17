@@ -11,10 +11,11 @@ func tick(building: Node, delta: float) -> void:
 	var target: CombatTarget = building.call("acquire_target")
 	if target == null:
 		return
+	var target_in_range: bool = building.call("is_target_in_attack_range", target)
+	if not target_in_range:
+		return
 	var damage: float = building.call("get_instant_damage")
-	var applied := target.take_damage(damage)
-	building.call("show_attack_line", target.get_target_position(), false)
-	building.call("notify_attack", target, applied, false)
+	building.call("launch_projectile", target, damage)
 	var attacks_per_second: float = building.call("get_attacks_per_second")
 	_cooldown = 1.0 / maxf(0.01, attacks_per_second)
 

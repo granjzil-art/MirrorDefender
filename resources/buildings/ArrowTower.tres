@@ -1,18 +1,64 @@
 [gd_resource type="Resource" script_class="BuildingDefinition" format=3]
 
 [ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
 
-[resource]
-script = ExtResource("1_definition")
-kind = 0
-display_name = "箭塔"
+[sub_resource type="Resource" id="Level1"]
+script = ExtResource("2_stats")
 cost = 75.0
+resource_per_second = 0.0
 base_damage = 20.0
+targeting_range = 5.0
 attack_range = 4.0
 attacks_per_second = 1.0
 laser_dps = 0.0
 level_factor = 1.0
 extra_factor = 1.0
 target_priority = 0
+projectile_speed = 7.0
+projectile_length = 0.32
+projectile_width = 0.07
 tower_color = Color(0.9, 0.52, 0.16, 1)
 attack_color = Color(1, 0.82, 0.28, 1)
+
+[sub_resource type="Resource" id="Level2"]
+script = ExtResource("2_stats")
+cost = 100.0
+resource_per_second = 0.0
+base_damage = 24.0
+targeting_range = 5.5
+attack_range = 4.5
+attacks_per_second = 1.15
+laser_dps = 0.0
+level_factor = 1.2
+extra_factor = 1.0
+target_priority = 0
+projectile_speed = 8.0
+projectile_length = 0.36
+projectile_width = 0.08
+tower_color = Color(0.95, 0.66, 0.18, 1)
+attack_color = Color(1, 0.9, 0.36, 1)
+
+[sub_resource type="Resource" id="Level3"]
+script = ExtResource("2_stats")
+cost = 150.0
+resource_per_second = 0.0
+base_damage = 28.0
+targeting_range = 6.0
+attack_range = 5.0
+attacks_per_second = 1.3
+laser_dps = 0.0
+level_factor = 1.5
+extra_factor = 1.0
+target_priority = 0
+projectile_speed = 9.0
+projectile_length = 0.42
+projectile_width = 0.09
+tower_color = Color(0.92, 0.32, 0.13, 1)
+attack_color = Color(1, 0.72, 0.22, 1)
+
+[resource]
+script = ExtResource("1_definition")
+kind = 0
+display_name = "箭塔"
+levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])

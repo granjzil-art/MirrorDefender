@@ -21,6 +21,7 @@ var _mode: InteractionMode = InteractionMode.SELECT
 var _resource_label: Label
 var _mode_label: Label
 var _status_label: Label
+var _upgrade_button: Button
 var _mode_buttons: Array[Button] = []
 
 func _ready() -> void:
@@ -39,9 +40,14 @@ func configure(
 	if _resource_manager != null:
 		_resource_manager.resource_changed.connect(_on_resource_changed)
 		_resource_manager.limits_changed.connect(_on_limits_changed)
+		_resource_manager.income_rates_changed.connect(_on_income_rates_changed)
 	if _building_manager != null:
 		_building_manager.placement_failed.connect(_on_placement_failed)
 		_building_manager.building_selected.connect(_on_building_selected)
+		_building_manager.building_upgraded.connect(_on_building_upgraded)
+		_building_manager.upgrade_failed.connect(_on_upgrade_failed)
+		_building_manager.preview_updated.connect(_on_preview_updated)
+		_building_manager.preview_cleared.connect(_on_preview_cleared)
 	if _combat_manager != null:
 		_combat_manager.target_registered.connect(_on_target_count_changed)
 		_combat_manager.target_removed.connect(_on_target_count_changed)
@@ -66,6 +72,8 @@ func select_mode(value: InteractionMode) -> void:
 		_mode_buttons[index].button_pressed = index == int(_mode)
 	_mode_label.text = "模式：%s" % _get_mode_name()
 	_status_label.text = ""
+	if _building_manager != null and value != InteractionMode.BUILD_ARROW and value != InteractionMode.BUILD_LASER:
+		_building_manager.clear_preview()
 	mode_changed.emit(_mode)
 
 func cancel_to_select() -> void:
@@ -85,10 +93,19 @@ func _build_interface() -> void:
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 7)
 	panel.add_child(content)
+	var title_row := HBoxContainer.new()
+	content.add_child(title_row)
 	var title := Label.new()
 	title.text = "M3 建筑与战斗"
 	title.add_theme_font_size_override("font_size", 16)
-	content.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
+	_upgrade_button = Button.new()
+	_upgrade_button.text = "升级"
+	_upgrade_button.tooltip_text = "升级当前选中建筑"
+	_upgrade_button.disabled = true
+	_upgrade_button.pressed.connect(_on_upgrade_pressed)
+	title_row.add_child(_upgrade_button)
 	_resource_label = Label.new()
 	content.add_child(_resource_label)
 	var modes := HBoxContainer.new()
@@ -129,8 +146,9 @@ func _refresh_summary() -> void:
 		_resource_label.text = "经济未连接"
 		return
 	var target_count := _combat_manager.get_targets().size() if _combat_manager != null else 0
-	_resource_label.text = "资源 %d  |  建筑 %d/%d  |  靶标 %d" % [
+	_resource_label.text = "资源 %d  |  +%.1f/s  |  建筑 %d/%d  |  靶标 %d" % [
 		floori(_resource_manager.main_resource),
+		_resource_manager.get_total_resource_per_second(),
 		_resource_manager.get_building_count(),
 		_resource_manager.building_cap,
 		target_count,
@@ -153,11 +171,21 @@ func _disconnect_managers() -> void:
 			_resource_manager.resource_changed.disconnect(_on_resource_changed)
 		if _resource_manager.limits_changed.is_connected(_on_limits_changed):
 			_resource_manager.limits_changed.disconnect(_on_limits_changed)
+		if _resource_manager.income_rates_changed.is_connected(_on_income_rates_changed):
+			_resource_manager.income_rates_changed.disconnect(_on_income_rates_changed)
 	if _building_manager != null:
 		if _building_manager.placement_failed.is_connected(_on_placement_failed):
 			_building_manager.placement_failed.disconnect(_on_placement_failed)
 		if _building_manager.building_selected.is_connected(_on_building_selected):
 			_building_manager.building_selected.disconnect(_on_building_selected)
+		if _building_manager.building_upgraded.is_connected(_on_building_upgraded):
+			_building_manager.building_upgraded.disconnect(_on_building_upgraded)
+		if _building_manager.upgrade_failed.is_connected(_on_upgrade_failed):
+			_building_manager.upgrade_failed.disconnect(_on_upgrade_failed)
+		if _building_manager.preview_updated.is_connected(_on_preview_updated):
+			_building_manager.preview_updated.disconnect(_on_preview_updated)
+		if _building_manager.preview_cleared.is_connected(_on_preview_cleared):
+			_building_manager.preview_cleared.disconnect(_on_preview_cleared)
 	if _combat_manager != null:
 		if _combat_manager.target_registered.is_connected(_on_target_count_changed):
 			_combat_manager.target_registered.disconnect(_on_target_count_changed)
@@ -175,6 +203,9 @@ func _on_limits_changed(
 ) -> void:
 	_refresh_summary()
 
+func _on_income_rates_changed(_base_per_second: float, _buildings_per_second: float) -> void:
+	_refresh_summary()
+
 func _on_placement_failed(_cell: Vector3i, reason: String) -> void:
 	_status_label.text = reason
 	_refresh_summary()
@@ -182,13 +213,38 @@ func _on_placement_failed(_cell: Vector3i, reason: String) -> void:
 func _on_building_selected(building: Building) -> void:
 	if building == null:
 		_status_label.text = "未选中建筑"
+		_upgrade_button.disabled = true
 	else:
-		_status_label.text = "已选：%s，朝向 %d/%d" % [
+		_status_label.text = "已选：%s L%d/%d，朝向 %d/%d" % [
 			building.definition.display_name,
+			building.level,
+			building.get_max_level(),
 			building.facing_index + 1,
 			building.get_facing_slot_count(),
 		]
+		_upgrade_button.disabled = not building.can_upgrade()
 	_refresh_summary()
+
+func _on_upgrade_pressed() -> void:
+	if _building_manager != null:
+		_building_manager.upgrade_selected()
+
+func _on_building_upgraded(building: Building, _previous_level: int, _new_level: int) -> void:
+	_on_building_selected(building)
+
+func _on_upgrade_failed(_building: Building, reason: String) -> void:
+	_status_label.text = reason
+
+func _on_preview_updated(building: Building) -> void:
+	_status_label.text = "预览：%s L1，朝向 %d/%d" % [
+		building.definition.display_name,
+		building.facing_index + 1,
+		building.get_facing_slot_count(),
+	]
+
+func _on_preview_cleared() -> void:
+	if _mode == InteractionMode.BUILD_ARROW or _mode == InteractionMode.BUILD_LASER:
+		_status_label.text = "当前格不可放置，查看左侧地块或占位信息"
 
 func _on_target_count_changed(_target: CombatTarget) -> void:
 	_refresh_summary()

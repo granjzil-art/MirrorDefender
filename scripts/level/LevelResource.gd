@@ -26,17 +26,7 @@ extends Resource
 @export_range(0, 100000, 1, "or_greater") var initial_resource: int = 200
 @export_range(0, 1000, 1, "or_greater") var building_cap: int = 20
 @export_range(0, 1000, 1, "or_greater") var mirror_cap: int = 6
-
-@export_group("M3 Income Sources")
-@export var kill_drop_enabled: bool = true
-@export var tile_income_enabled: bool = true
-@export_range(0.0, 1000.0, 0.1, "or_greater") var tile_income_rate: float = 1.0
-@export var producer_income_enabled: bool = true
-@export_range(0.0, 1000.0, 0.1, "or_greater") var producer_income_rate: float = 2.0
-@export var time_growth_enabled: bool = true
-@export_range(0.0, 1000.0, 0.1, "or_greater") var time_growth_rate: float = 0.5
-@export var destroy_tile_income_enabled: bool = true
-@export_range(0, 100000, 1, "or_greater") var destroy_tile_income_amount: int = 20
+@export_range(0.0, 10000.0, 0.1, "or_greater") var base_resource_per_second: float = 0.5
 
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:

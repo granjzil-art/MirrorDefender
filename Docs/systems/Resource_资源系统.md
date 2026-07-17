@@ -1,19 +1,29 @@
 # 资源系统 · Resource
 
-> 实现状态：M3 已完成单一主资源、建筑/镜子计数上限、五类独立产出开关和 LevelResource 关卡配置。
+> 实现状态：M3 已完成单一主资源、建筑/镜子计数上限、关卡基础产出和建筑逐级产出；敌人个体掉落仅预留入口，M4 接入。
 
 ## 职责
-管理唯一主资源、建造事务所需的消费/注册接口、建筑与镜子数量上限，以及五类可独立开关的产出来源。
+
+管理当前主资源、建筑/镜子数量上限、原子消费/注册，以及基础与建筑两路被动产出。敌人死亡掉落的数值归 M4 敌人定义所有，ResourceManager 只提供入账接口。
 
 ## 分类 / 做法
-- **单一主资源**：`main_resource: float` 支持小数速率累计；UI 只显示向下取整值。
-- **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和资源并扣费，防止调用方分步产生竞态。
-- **击杀掉落**：CombatManager.target_killed 经 Main 调 `grant_kill_drop(reward)`。
-- **占领地块产出**：当前定义为“被建筑占用的可建造格数量 × tile_income_rate”；BuildingManager 注册/移除时同步数量。
-- **生产建筑产出**：`producer_count × producer_income_rate`；当前两种塔不是生产建筑，但完整计数接口已实现。
-- **时间增长**：固定 `time_growth_rate` 每秒。
-- **破坏地块**：ResourceManager 订阅 TileManager.obstacle_destroyed，成功清障后一次性获得配置数量。
-- 三类每秒产出各自使用小数缓冲，累计到整数才进入主资源，避免帧率影响和小数丢失。
+
+- **关卡基础产出**：`LevelResource.base_resource_per_second`，加载关卡时复制到 ResourceManager，不依赖建筑。
+- **建筑产出**：每个 `BuildingLevelStats.resource_per_second` 独立编辑；BuildingManager 在放置、升级、移除、清场后汇总所有建筑当前等级的产出。
+- **敌人死亡掉落**：`grant_enemy_drop(amount)` 已预留。M3 靶标死亡不接资源；M4 由每种敌人的配置在死亡时传入个体奖励。
+- **小数累计**：基础和建筑产出使用两个独立缓冲，累计到整数才调用 `gain()`，避免帧率差异和小数丢失。
+- **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和余额并扣费；调用方不拆成非原子步骤。
+- **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
+
+## 参数编辑入口
+
+| 数据 | 编辑位置 | 参数 |
+|---|---|---|
+| 关卡初始资源与基础产出 | `resources/levels/*.tres` 的 `M3 Economy` | `initial_resource`、`building_cap`、`mirror_cap`、`base_resource_per_second` |
+| 每种建筑每级产出 | `resources/buildings/*.tres -> Levels[n] -> Economy` | `resource_per_second` |
+| 敌人个体死亡掉落 | M4 敌人定义 | 尚未实现；届时调用 `grant_enemy_drop(amount)` |
+
+默认关卡基础产出为 `0.5/s`；当前箭塔和激光塔三等级产出默认均为 `0.0/s`，可直接在对应等级资源中修改。
 
 ## 关键参数
 
@@ -23,13 +33,8 @@
 | `main_resource` / Level.`initial_resource` | 200 | 当前/关卡初始主资源。 |
 | `building_cap` | 20 | 原件建筑数量上限。 |
 | `mirror_cap` | 6 | 镜子数量上限，供 M5/M6 使用。 |
-| `kill_drop_enabled` | true | 击杀奖励开关。 |
-| `tile_income_enabled` / `tile_income_rate` | true / 1 | 每个建筑占用格每秒产出。 |
-| `producer_income_enabled` / `producer_income_rate` | true / 2 | 每个生产建筑每秒产出。 |
-| `time_growth_enabled` / `time_growth_rate` | true / 0.5 | 全局自然增长。 |
-| `destroy_tile_income_enabled` / `destroy_tile_income_amount` | true / 20 | 清障一次性产出。 |
-
-所有参数同时在 ResourceManager Inspector 和 LevelResource 的 M3 分组可见；加载关卡时 LevelResource 覆盖运行时值。
+| `base_resource_per_second` | 0.5 | 当前关卡的基础每秒产出。 |
+| BuildingLevelStats.`resource_per_second` | 0.0 | 单个建筑处于该等级时的每秒产出。 |
 
 ## 关键架构
 
@@ -37,55 +42,62 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/resource/ResourceManager.gd` | `ResourceManager` / `Node` | **资源唯一入口**；余额、cap 计数、五类产出和关卡配置。 |
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 持久化关卡初始资源、上限和产出开关/速率。 |
-| `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | 使用原子建筑注册接口并同步占用格/生产建筑数量。 |
-| `scripts/Main.gd` | `Node3D` | 连接战斗击杀奖励，并在 LevelLoader 成功后应用关卡经济。 |
+| `scripts/resource/ResourceManager.gd` | `ResourceManager` / `Node` | **资源唯一入口**；余额、cap、两路被动产出和敌人掉落入账接口。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 持久化初始资源、上限和关卡基础产出。 |
+| `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 持久化每种建筑每级的 `cost` 与 `resource_per_second`。 |
+| `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | 使用原子注册/消费接口并同步当前建筑产出总和。 |
+| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 显示当前资源、总每秒产出和建筑上限。 |
 
 ### 模块调用关系 / 数据流
 
 ```text
-LevelLoader.level_loaded -> Main -> ResourceManager.apply_level_configuration
+LevelLoader.level_loaded
+  -> ResourceManager.apply_level_configuration(level)
+     -> initial_resource / caps / base_resource_per_second
 
-BuildingManager.place_building
-  -> ResourceManager.can_add_building / can_afford
-  -> ResourceManager.try_register_building(cost)
+BuildingManager.place / upgrade / remove / clear
+  -> sum(each Building.current_level.resource_per_second)
+  -> ResourceManager.set_building_resource_per_second(total)
 
-CombatManager.target_killed(reward) -> grant_kill_drop
-TileManager.obstacle_destroyed -> grant_destroy_tile_income
-ResourceManager._process -> tile / producer / time buffers -> gain
+ResourceManager._process
+  -> base buffer -> gain(whole, "base_income")
+  -> building buffer -> gain(whole, "building_income")
 
-resource_changed / limits_changed -> M3DebugPanel / future production HUD
+M4 Enemy.died
+  -> enemy definition reward
+  -> ResourceManager.grant_enemy_drop(amount)
+
+resource_changed / limits_changed / income_rates_changed
+  -> M3DebugPanel / future production HUD
 ```
 
 ## 函数索引
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `configure` | `(tile_manager: TileManager) -> void` | 注入 Tile 入口并订阅清障信号。 |
-| `apply_level_configuration` | `(level_resource: LevelResource) -> void` | 复制经济参数，重置余额、计数和累计缓冲。 |
-| `can_afford` | `(cost: float) -> bool` | 判断模块开启、非负费用且余额充足。 |
-| `spend` | `(cost: float, reason: String = "spend") -> bool` | 扣费并广播；失败不改变余额。 |
+| `apply_level_configuration` | `(level_resource: LevelResource) -> void` | 复制初始资源、cap 和基础产出，清零计数、建筑产出与缓冲。 |
+| `can_afford` | `(cost: float) -> bool` | 判断模块开启、费用非负且余额充足。 |
+| `spend` | `(cost: float, reason: String = "spend") -> bool` | 原子扣费并广播；失败不改余额。 |
 | `gain` | `(amount: float, reason: String = "gain") -> void` | 增加正数资源并广播。 |
-| `can_add_building` / `can_add_mirror` | `() -> bool` | 检查相应计数上限。 |
-| `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 原子检查 cap、扣费、增加计数。 |
-| `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选返还。 |
-| `set_occupied_tile_count` | `(value: int) -> void` | 设置占领地块产出基数。 |
-| `set_producer_count` | `(value: int) -> void` | 设置生产建筑产出基数。 |
-| `grant_kill_drop` | `(amount: float) -> void` | 按开关结算击杀奖励。 |
-| `grant_destroy_tile_income` | `() -> void` | 按开关结算清障固定奖励。 |
-| `get_building_count` / `get_mirror_count` | `() -> int` | 返回当前 cap 计数。 |
-| `_flush_income` | `(buffer: float, reason: String) -> float` | 把累计整数部分入账并返回余数。 |
+| `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 检查 cap、扣费并增加相应计数。 |
+| `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选退款。 |
+| `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的逐秒产出总和。 |
+| `grant_enemy_drop` | `(amount: float) -> void` | 以 `enemy_drop` 原因入账；M4 敌人死亡调用。 |
+| `get_building_resource_per_second` | `() -> float` | 返回建筑产出总和。 |
+| `get_total_resource_per_second` | `() -> float` | 返回基础产出与建筑产出之和。 |
+| `_flush_income` | `(buffer: float, reason: String) -> float` | 把缓冲整数部分入账并返回余数。 |
 
-**信号**：`resource_changed(current, delta, reason)`、`limits_changed(building_count, building_limit, mirror_count, mirror_limit)`。
+**信号**：`resource_changed(current, delta, reason)`、`limits_changed(building_count, building_limit, mirror_count, mirror_limit)`、`income_rates_changed(base_per_second, buildings_per_second)`。
 
 ## 约定事实源
-- LevelResource 是每关初始经济配置事实源；ResourceManager 是当前局余额与计数事实源。
-- 建筑原件计入 building_cap；未来 M5 投影是否计数必须遵循 Mirror 文档，不得直接改 ResourceManager 计数。
-- `reason` 使用 `building_cost`、`mirror_cost`、`kill_drop`、`tile_income`、`producer_income`、`time_growth`、`destroy_tile` 等稳定字符串，供 HUD/统计订阅。
-- 每秒产出以 delta 累计，不依赖固定帧率。
+
+- LevelResource 是关卡初始经济与基础产出的事实源；ResourceManager 是当前局余额、计数和累计缓冲事实源。
+- 建筑当前级 `BuildingLevelStats.resource_per_second` 是单塔产出的事实源；ResourceManager 不保存塔种固定产能表。
+- 敌人掉落数值属于 M4 敌人定义，不复用 M3 调试靶标的 reward 作为正式配置。
+- `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
 
 ## 已知限制 / 初版不做的部分
-- 只有一种货币，不设资源存量上限、利息或溢出返还。
-- 当前无生产建筑塔种，因此 producer source 的默认运行时计数为 0。
-- 不持久化局内余额；SaveManager 属于后续范围。
+
+- M4 前不把任何 `target_killed` 信号兑换为资源。
+- 暂无资源上限、负资源、复利、小数 UI 或离线累计。
+- M5 投影建筑是否计入上限/产出必须由 Mirror 规则决定，不得直接复用原件注册逻辑。

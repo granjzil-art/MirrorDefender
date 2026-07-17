@@ -9,7 +9,7 @@
   - `QE` 旋转镜头
   - `XC` 与鼠标滚轮缩放
 - **交互输入**：
-  - `R` 旋转选中的塔 / 镜子朝向（影响激光塔发射方向、镜子生效侧）
+  - `R` 在建造模式旋转塔虚影；其它模式旋转选中的实际塔。镜子接入后复用同一动作。
   - 鼠标左键：放置 / 选择
   - 鼠标右键：取消
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
@@ -48,7 +48,7 @@ CameraController (本节点 = pivot 焦点)
 
 ### 输入现状（M3）
 - **相机输入**：全部在 `CameraController` 内用 `Input.get_action_strength` + `_unhandled_input`(滚轮) 处理。
-- **Main 场景路由**：`place_select` 根据 M3DebugPanel 模式选择建筑、放箭塔/激光塔或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 调 BuildingManager.rotate_selected()。
+- **Main 场景路由**：`place_select` 根据 M3DebugPanel 模式选择建筑、放箭塔/激光塔或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 在有建造定义时调 `BuildingManager.rotate_preview()`，否则调 `rotate_selected()`。
 - **世界固定朝向**：建筑方向只读 Grid 形状与 facing_index；CameraRig yaw 不参与计算。镜子输入在 M5/M6 接入同一动作时再抽出独立 InputRouter。
 
 ## 函数索引
@@ -82,7 +82,7 @@ CameraController (本节点 = pivot 焦点)
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_zoom_in/out` | X/C | 缩放（+滚轮） | CameraController |
 | `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
-| `rotate_facing` | R | 转塔/镜子朝向 | Main -> BuildingManager（M5/M6 再接镜子） |
+| `rotate_facing` | R | 建造模式转塔虚影，否则转选中塔；M5/M6 再接镜子 | Main -> BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择/建塔/靶标模式 | Main.gd（M3） |
 | `cancel_action` | 鼠标右键 | 回到选择模式 | Main.gd -> M3DebugPanel |
 
