@@ -74,6 +74,9 @@ func get_corners(cell: Vector3i) -> PackedVector3Array:
 func get_edge_endpoints(cell: Vector3i, edge_index: int) -> Array[Vector3]:
 	return shape.get_edge_endpoints(cell, edge_index)
 
+func neighbor_across_edge(cell: Vector3i, edge_index: int) -> Vector3i:
+	return shape.neighbor_across_edge(cell, edge_index)
+
 func canonical_edge_id(cell: Vector3i, edge_index: int) -> String:
 	return shape.canonical_edge_id(cell, edge_index)
 
@@ -85,6 +88,12 @@ func enumerate_cells() -> Array[Vector3i]:
 
 func is_in_bounds(cell: Vector3i) -> bool:
 	return shape.is_in_bounds(cell, grid_size)
+
+## Applies level-owned grid data through GridManager, preserving its public API.
+func apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void:
+	grid_shape = p_shape
+	cell_size = p_cell_size
+	grid_size = p_grid_size
 
 # ---- 拾取 ----
 

@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://scripts/level/LevelResource.gd" id="1_level"]
+[ext_resource type="Script" path="res://scripts/tile/TileCellData.gd" id="2_tile"]
+
+[sub_resource type="Resource" id="Tile_road_0"]
+script = ExtResource("2_tile")
+cell = Vector3i(-4, 2, 2)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_1"]
+script = ExtResource("2_tile")
+cell = Vector3i(-3, 2, 1)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_2"]
+script = ExtResource("2_tile")
+cell = Vector3i(-2, 2, 0)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_3"]
+script = ExtResource("2_tile")
+cell = Vector3i(-1, 1, 0)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_4"]
+script = ExtResource("2_tile")
+cell = Vector3i(0, 0, 0)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_5"]
+script = ExtResource("2_tile")
+cell = Vector3i(1, -1, 0)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_road_6"]
+script = ExtResource("2_tile")
+cell = Vector3i(2, -2, 0)
+tile_type = 2
+
+[sub_resource type="Resource" id="Tile_rock_0"]
+script = ExtResource("2_tile")
+cell = Vector3i(-1, 0, 1)
+tile_type = 1
+height_level = 1
+
+[sub_resource type="Resource" id="Tile_rock_1"]
+script = ExtResource("2_tile")
+cell = Vector3i(1, 0, -1)
+tile_type = 1
+
+[sub_resource type="Resource" id="Tile_hill_0"]
+script = ExtResource("2_tile")
+cell = Vector3i(-2, 0, 2)
+height_level = 2
+
+[sub_resource type="Resource" id="Tile_hill_1"]
+script = ExtResource("2_tile")
+cell = Vector3i(-2, 1, 1)
+height_level = 1
+
+[sub_resource type="Resource" id="Tile_hill_2"]
+script = ExtResource("2_tile")
+cell = Vector3i(2, 0, -2)
+height_level = 1
+
+[resource]
+script = ExtResource("1_level")
+grid_shape = 0
+grid_cell_size = 1.0
+grid_size = Vector2i(6, 6)
+height_levels = 3
+height_step = 0.45
+tiles = [SubResource("Tile_road_0"), SubResource("Tile_road_1"), SubResource("Tile_road_2"), SubResource("Tile_road_3"), SubResource("Tile_road_4"), SubResource("Tile_road_5"), SubResource("Tile_road_6"), SubResource("Tile_rock_0"), SubResource("Tile_rock_1"), SubResource("Tile_hill_0"), SubResource("Tile_hill_1"), SubResource("Tile_hill_2")]

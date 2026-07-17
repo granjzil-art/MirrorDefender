@@ -48,7 +48,7 @@ Main（场景装配）
 - **格坐标 cell**：统一 `Vector3i`。
   - HEX：`(q, r, s)`，约束 `q + r + s = 0`（立方体坐标）；`s` 存于 `.z`。
   - SQUARE：`(col, row, 0)`，`.z` 恒 0。
-- **世界坐标**：`Vector3`，XZ 为地平面，`Y` 为高度（M1 恒 0）。
+- **世界坐标**：`Vector3`，XZ 为地平面。Grid 几何本身位于 `Y=0`；M2 的 Tile 以 `height_level * height_step` 生成顶面和崖壁。
 - **边(Edge)**：`(cell, edge_index)`。HEX `edge_index ∈ [0,6)`，SQUARE `∈ [0,4)`。
   - 边 i 连接 `corner[i] → corner[(i+1)%n]`（角点序见各 shape 文件头注释）。
   - HEX flat-top 角点角度 `300/0/60/120/180/240°`；每条边外法线与 `_DIRS[edge_index]` 对应。
@@ -91,7 +91,8 @@ Main（场景装配）
 - **枚举**：`Shape { HEX, SQUARE }`。**成员**：`shape: IGridShape`。
 - **@export setter**：`grid_shape` / `cell_size`(下限 0.01) / `grid_size` → 改参即 `_rebuild_shape()` + 发信号。
 - **私有**：`_rebuild_shape()`（按 grid_shape new 出 shape 并 setup）。
-- **转发 API**（透传当前 shape，参数同接口）：`cell_to_world` / `world_to_cell` / `get_neighbors` / `distance` / `get_corners` / `get_edge_endpoints` / `canonical_edge_id` / `edge_count` / `enumerate_cells()`（用自身 grid_size）/ `is_in_bounds(cell)`（用自身 grid_size）。
+- **转发 API**（透传当前 shape，参数同接口）：`cell_to_world` / `world_to_cell` / `get_neighbors` / `distance` / `get_corners` / `get_edge_endpoints` / `neighbor_across_edge` / `canonical_edge_id` / `edge_count` / `enumerate_cells()`（用自身 grid_size）/ `is_in_bounds(cell)`（用自身 grid_size）。
+- **关卡装配 API**：`apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void`。LevelResource 只传数据，仍由 GridManager 自己触发 shape 重建和 `grid_changed`；Tile 模块不直接 new 具体 shape。
 - **拾取**（供放置/UI）：
   | 函数 | 签名 | 返回 Dictionary 结构 |
   |---|---|---|
@@ -108,15 +109,15 @@ Main（场景装配）
 - `highlight_edge(cell: Vector3i, edge_index: int, has: bool) -> void`：画抬高线段高亮边。
 - 私有：`_setup_materials` / `_make_unshaded(c) -> StandardMaterial3D` / `_setup_instances` / `_connect_grid() -> void`。
 
-### Main.gd（M1 验收入口，`scripts/Main.gd`，挂 `scenes/Main.tscn` 根）
-- `@onready`：`grid`(GridManager) / `renderer`(GridRenderer) / `cam_rig`(CameraController) / `hud_label` / `hint_label`。
-- `_ready()`：取相机，通过 `renderer.set_grid(grid)` 注入网格并触发首次线框构建。
+### Main.gd（M2 验收入口，`scripts/Main.gd`，挂 `scenes/Main.tscn` 根）
+- `@export level: LevelResource`；`@onready`：`grid` / `renderer` / `tile_manager` / `tile_renderer` / `cam_rig` / HUD。
+- `_ready()`：先以 `GridManager.apply_configuration()` 应用关卡网格数据，再注入 Grid 到 GridRenderer、TileManager、TileRenderer，最后 `TileManager.load_level(level)`。
 - `_process()` → `_update_pick()`：每帧拾取，**边优先**高亮，否则高亮格；调 `_update_hud`。
-- `_update_hud(cell, edge: Dictionary)`：HUD 显示网格类型/格距/悬停与已锁定的格边信息。
-- `_unhandled_input()`：`toggle_grid_shape`(T) 切 HEX↔SQUARE（通过 `grid_changed` 重建）；`place_select`(左键)锁定当前格/边。
+- `_update_hud(cell, edge: Dictionary)`：HUD 显示网格类型/格距/悬停与已锁定的格边信息；命中格额外显示 Tile 类型/高度与清障提示。
+- `_unhandled_input()`：`toggle_grid_shape`(T) 切 HEX↔SQUARE（通过 `grid_changed` 重建）；`place_select`(左键)锁定当前格/边；`KEY_F` 调用 TileManager 清除锁定格的障碍。
 - `_lock_current_pick() -> void`：读取当前鼠标位置并保存格/边拾取结果，供 HUD 验收显示。
 
 ## 已知限制 / 初版不做的部分
 - 初版仅实现 hex(flat-top) 与 square；三角形仅预留接口，不实现。
-- 不做无限滚动网格 / 运行时动态改变 grid_shape。
+- 不做无限滚动网格 / 运行时动态改变网格拓扑；M1 已支持以 T 切换 HEX/SQUARE 作验收观察。
 - 不做寻路（路径由 Path 系统手动指定）。

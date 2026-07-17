@@ -1,17 +1,22 @@
 ## Main —— M1 主场景控制器
 ##
-## 职责：装配 Grid / 相机 / 渲染，处理拾取并驱动高亮，切换网格形状，更新 HUD。
-## 这是 M1 的验收入口场景。
+## 职责：装配 Grid / Tile / 相机 / 渲染，处理拾取并驱动高亮，更新 HUD。
+## 这是 M2 的验收入口场景。
 ##
 ## 操作：
 ##   WASD 平移镜头 / QE 旋转镜头 / XC + 滚轮 缩放
 ##   T    切换 六边形 <-> 正方形
 ##   鼠标悬停：高亮格；靠近边时高亮边（并显示 canonical_edge_id）
 ##   左键：锁定当前拾取格/边并显示到 HUD
+##   F    清除锁定的可破坏障碍
 extends Node3D
+
+@export var level: LevelResource
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
+@onready var tile_manager: TileManager = $TileManager
+@onready var tile_renderer: TileRenderer = $TileRenderer
 @onready var cam_rig: CameraController = $CameraRig
 @onready var hud_label: Label = $HUD/Panel/Info
 @onready var hint_label: Label = $HUD/Hint
@@ -24,8 +29,15 @@ var _selected_edge_index: int = -1
 var _selected_edge_id: String = ""
 
 func _ready() -> void:
+	if level != null:
+		grid.apply_configuration(level.grid_shape, level.grid_cell_size, level.grid_size)
 	_camera = cam_rig.get_camera()
 	renderer.set_grid(grid)
+	tile_manager.set_grid(grid)
+	tile_renderer.set_grid(grid)
+	tile_renderer.set_tile_manager(tile_manager)
+	if level != null:
+		tile_manager.load_level(level)
 	_update_hint()
 
 func _process(_delta: float) -> void:
@@ -54,6 +66,11 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	lines.append("网格: %s   格距: %.2f" % [shape_name, grid.cell_size])
 	if cell.hit:
 		lines.append("拾取格 cell = %s" % str(cell.cell))
+		var tile := tile_manager.get_tile(cell.cell)
+		if tile != null:
+			lines.append("地块: %s | 高度档: %d" % [tile.get_display_name(), tile.height_level])
+			if tile.is_destructible():
+				lines.append("按 F 清除障碍，转为可建造")
 	else:
 		lines.append("拾取格 cell = (界外)")
 	if edge.hit:
@@ -68,7 +85,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移镜头 | QE 旋转 | XC/滚轮 缩放 | T 切换网格形状 | 左键锁定格/边"
+	hint_label.text = "WASD 平移镜头 | QE 旋转 | XC/滚轮 缩放 | T 切换网格形状 | 左键锁定格/边 | F 清除可破坏障碍"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):
@@ -78,6 +95,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			grid.grid_shape = GridManager.Shape.HEX
 	elif event.is_action_pressed("place_select"):
 		_lock_current_pick()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F:
+		_destroy_selected_obstacle()
 
 func _lock_current_pick() -> void:
 	var mp := get_viewport().get_mouse_position()
@@ -90,3 +109,8 @@ func _lock_current_pick() -> void:
 	if _has_selected_edge:
 		_selected_edge_index = edge.edge_index
 		_selected_edge_id = edge.id
+
+func _destroy_selected_obstacle() -> void:
+	if not _has_selected_cell:
+		return
+	tile_manager.destroy_obstacle_at(_selected_cell)

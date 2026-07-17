@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M2 · 地块系统与地块编辑器 — 2026-07-17
+**模块**：Tile / Level / Grid / Main / Godot 编辑器工具。
+
+- 新增 `TileCellData`、`TilePreset`、`TileManager` 与 `TileRenderer`：支持可建造、可破坏障碍、不可建造路面三类地块，离散高度、运行时占用预留、清障转可建造和地形灰盒渲染。
+- 新增 `LevelResource` 与 `M2DemoLevel.tres`：关卡资源保存网格、高度和按 `cell` 去重的布局；Main 先通过 GridManager 应用资源配置，再加载 TileManager。
+- 新增并默认启用 `Mirror Tile Editor` 主屏插件：三份 `.tres` 调色板可拖入六边形/正方形画布，支持单格类型/高度/清障、关卡新建、加载与保存。
+- GridManager 新增 `neighbor_across_edge()` 和 `apply_configuration()`，供台阶崖壁计算与 LevelResource 装配使用。
+- Godot MCP 验收：M2 场景真机加载 127 格地块、道路/障碍/高度有效；调用清障后 `is_destructible=false`、`can_place=true`；编辑器验证调色板覆盖同格不产生重复记录、改单格/清障有效，写出的 `.tres` 可回读。
+
 ## 工程：Git 版本管理与自动提交规范 — 2026-07-17
 **模块**：工程协作。
 

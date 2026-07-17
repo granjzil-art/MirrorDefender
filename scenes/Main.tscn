@@ -4,6 +4,9 @@
 [ext_resource type="Script" path="res://scripts/grid/GridManager.gd" id="2_grid"]
 [ext_resource type="Script" path="res://scripts/grid/GridRenderer.gd" id="3_render"]
 [ext_resource type="Script" path="res://scripts/camera/CameraController.gd" id="4_cam"]
+[ext_resource type="Script" path="res://scripts/tile/TileManager.gd" id="5_tile_manager"]
+[ext_resource type="Script" path="res://scripts/tile/TileRenderer.gd" id="6_tile_renderer"]
+[ext_resource type="Resource" path="res://resources/levels/M2DemoLevel.tres" id="7_level"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -14,6 +17,7 @@ ambient_light_energy = 0.9
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
+level = ExtResource("7_level")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_1")
@@ -32,6 +36,12 @@ edge_pick_threshold = 0.35
 
 [node name="GridRenderer" type="Node3D" parent="."]
 script = ExtResource("3_render")
+
+[node name="TileManager" type="Node3D" parent="."]
+script = ExtResource("5_tile_manager")
+
+[node name="TileRenderer" type="Node3D" parent="."]
+script = ExtResource("6_tile_renderer")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("4_cam")
