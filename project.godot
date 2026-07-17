@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="MirrorDefender"
-config/description="Mirror 主题经典塔防。M1: 网格 + 相机地基。"
+config/description="Mirror 主题经典塔防。M3: 建筑、索敌战斗与资源经济。"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"

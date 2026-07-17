@@ -9,6 +9,12 @@
 [ext_resource type="Resource" path="res://resources/levels/M2DemoLevel.tres" id="7_level"]
 [ext_resource type="Script" path="res://scripts/level/LevelLoader.gd" id="8_level_loader"]
 [ext_resource type="Script" path="res://scripts/level/LevelDebugPanel.gd" id="9_level_debug_panel"]
+[ext_resource type="Script" path="res://scripts/resource/ResourceManager.gd" id="10_resource_manager"]
+[ext_resource type="Script" path="res://scripts/combat/CombatManager.gd" id="11_combat_manager"]
+[ext_resource type="Script" path="res://scripts/building/BuildingManager.gd" id="12_building_manager"]
+[ext_resource type="Resource" path="res://resources/buildings/ArrowTower.tres" id="13_arrow_tower"]
+[ext_resource type="Resource" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
+[ext_resource type="Script" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -43,6 +49,17 @@ script = ExtResource("5_tile_manager")
 
 [node name="TileRenderer" type="Node3D" parent="."]
 script = ExtResource("6_tile_renderer")
+
+[node name="ResourceManager" type="Node" parent="."]
+script = ExtResource("10_resource_manager")
+
+[node name="CombatManager" type="Node3D" parent="."]
+script = ExtResource("11_combat_manager")
+
+[node name="BuildingManager" type="Node3D" parent="."]
+script = ExtResource("12_building_manager")
+arrow_tower = ExtResource("13_arrow_tower")
+laser_tower = ExtResource("14_laser_tower")
 
 [node name="LevelLoader" type="Node" parent="."]
 script = ExtResource("8_level_loader")
@@ -94,3 +111,15 @@ offset_right = -16.0
 offset_bottom = 54.0
 grow_horizontal = 0
 script = ExtResource("9_level_debug_panel")
+
+[node name="M3DebugPanel" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -500.0
+offset_top = 72.0
+offset_right = -16.0
+offset_bottom = 240.0
+grow_horizontal = 0
+script = ExtResource("15_m3_debug_panel")

@@ -46,10 +46,10 @@ CameraController (本节点 = pivot 焦点)
 - **移动方向随 yaw 旋转**：WASD 输入向量按当前 `rotation.y` 变换到世界方向，保证"往屏幕上方走"符合视角。
 - **场景装配**：`Main.tscn` 中节点名 `CameraRig`（挂本脚本），其下有一个 `Camera3D` 子节点；`Main.gd` 通过 `cam_rig.get_camera()` 拿相机做拾取。
 
-### 输入现状（M1）
+### 输入现状（M3）
 - **相机输入**：全部在 `CameraController` 内用 `Input.get_action_strength` + `_unhandled_input`(滚轮) 处理。
-- **网格切换与 M1 选择验证**：`toggle_grid_shape`(T) 在 `Main.gd._unhandled_input` 处理；`place_select`(左键)锁定当前拾取格/边并显示在 HUD，操作提示与面板高度已覆盖锁定信息。
-- **`InputRouter`（放置/选择/取消/R 转朝向）尚未实现** —— 待 M2+ 引入 Tile/Building/Mirror 管理器时新建，届时路由 `place_select`/`cancel_action`/`rotate_facing` 到对应管理器。InputMap 动作已在 `project.godot` 预留。
+- **Main 场景路由**：`place_select` 根据 M3DebugPanel 模式选择建筑、放箭塔/激光塔或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 调 BuildingManager.rotate_selected()。
+- **世界固定朝向**：建筑方向只读 Grid 形状与 facing_index；CameraRig yaw 不参与计算。镜子输入在 M5/M6 接入同一动作时再抽出独立 InputRouter。
 
 ## 函数索引
 > M1 已实现。gimbal 结构：本节点=焦点(可平移+yaw)，子 Camera3D 固定 pitch 俯视。
@@ -68,6 +68,13 @@ CameraController (本节点 = pivot 焦点)
 | `_apply_camera_transform` | `() -> void` | 依 pitch+zoom 放置子相机并俯视焦点 |
 | `get_camera` | `() -> Camera3D` | 返回子 Camera3D（供 Main 拾取用） |
 
+### Main.gd（M3 输入路由）
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/右键/R/F 到当前模块入口。 |
+| `_handle_primary_action` | `() -> void` | 拾取格并按 M3DebugPanel 模式执行选择、建塔或靶标生成。 |
+| `_lock_current_pick` | `() -> void` | 保存当前格/边选择供 HUD 与建筑选择使用。 |
+
 ### InputMap 动作全表（`project.godot`）
 | 动作名 | 默认键 | 用途 | M1 消费者 |
 |---|---|---|---|
@@ -75,9 +82,9 @@ CameraController (本节点 = pivot 焦点)
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_zoom_in/out` | X/C | 缩放（+滚轮） | CameraController |
 | `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
-| `rotate_facing` | R | 转塔/镜子朝向 | 预留(M2+) |
-| `place_select` | 鼠标左键 | 锁定选择；M2+ 进入放置/选择路由 | Main.gd（M1 验证） |
-| `cancel_action` | 鼠标右键 | 取消 | 预留(M2+) |
+| `rotate_facing` | R | 转塔/镜子朝向 | Main -> BuildingManager（M5/M6 再接镜子） |
+| `place_select` | 鼠标左键 | 执行当前选择/建塔/靶标模式 | Main.gd（M3） |
+| `cancel_action` | 鼠标右键 | 回到选择模式 | Main.gd -> M3DebugPanel |
 
 ## 已知限制 / 初版不做的部分
 - 不做手柄/触屏输入，仅键鼠。

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+kind = 0
+display_name = "箭塔"
+cost = 75.0
+base_damage = 20.0
+attack_range = 4.0
+attacks_per_second = 1.0
+laser_dps = 0.0
+level_factor = 1.0
+extra_factor = 1.0
+target_priority = 0
+tower_color = Color(0.9, 0.52, 0.16, 1)
+attack_color = Color(1, 0.82, 0.28, 1)

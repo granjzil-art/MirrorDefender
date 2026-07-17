@@ -1,6 +1,6 @@
 ﻿# 地块系统 · Tile
 
-> 实现状态：M2 已完成。运行时地块逻辑位于 `scripts/tile/`；Godot 主屏地块编辑器位于 `addons/mirror_tile_editor/`。
+> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口。
 
 ## 职责
 定义每个网格格子的类型、高度、障碍和运行时占用；提供查询、清障、灰盒地形渲染，以及可保存 `.tres` 关卡布局的拖拽式编辑器。
@@ -31,7 +31,7 @@
 | TileRenderer | `obstacle_color` | 灰 | 未清除可破坏障碍的岩石占位色；其它可建造地块顶面颜色由 LevelResource 高度色决定。 |
 | TileRenderer | `obstacle_radius_ratio` / `obstacle_height_ratio` | 0.28 / 0.6 | 岩石占位的相对尺寸。 |
 
-`occupant: Node` 为运行时字段，不序列化；M3 的建筑系统通过 TileManager 调用 `place()` / `clear_occupant()`，不直接保有 TileCellData。
+`occupant: Node` 为运行时字段，不序列化；BuildingManager 只调用 TileManager.`place_occupant()` / `clear_occupant()` / `get_occupant()`，不直接保有 TileCellData。
 
 ## 关键架构
 
@@ -59,6 +59,7 @@ Main (scene composition)
   ├─ LevelLoader -> GridManager.apply_configuration(...)
   ├─ LevelLoader -> TileManager.load_level(LevelResource)
   │     └─ Dictionary[Vector3i, TileCellData]
+  ├─ BuildingManager -> can_place / place_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
         └─ height-color ImmediateMesh terrain + obstacle marker
 
@@ -94,7 +95,7 @@ Mirror Tile Editor (Godot editor)
 | `is_blocked` | `() -> bool` | 判断是否为不可建造路面。 |
 | `can_place` | `() -> bool` | 判断可建造且无运行时占用。 |
 | `place` | `(new_occupant: Node) -> bool` | 放入运行时占用物；失败不改变状态。 |
-| `clear_occupant` | `() -> void` | 清空运行时占用物。 |
+| `clear_occupant` | `(expected_occupant: Node = null) -> bool` | 仅在期望占用匹配时清空，避免误删其它模块占用。 |
 | `destroy_obstacle` | `() -> bool` | 清除类型 1 的障碍，保留高度。 |
 | `set_height_level` | `(value: int, height_levels: int) -> void` | 按关卡档数钳制高度。 |
 | `set_tile_type` | `(value: int) -> void` | 切换类型并恢复未清障状态。 |
@@ -117,13 +118,16 @@ Mirror Tile Editor (Godot editor)
 | `get_world_height` | `(cell: Vector3i) -> float` | 返回该格顶面世界 Y。 |
 | `get_height_color` | `(cell: Vector3i) -> Color` | 按关卡的下/中/上色标返回该格运行时高度色。 |
 | `can_place` | `(cell: Vector3i) -> bool` | M3 建筑放置入口。 |
+| `place_occupant` | `(cell: Vector3i, occupant: Node) -> bool` | 通过 TileCellData 原子占格并广播 occupant_changed。 |
+| `clear_occupant` | `(cell: Vector3i, expected_occupant: Node = null) -> bool` | 安全释放指定格占用并广播。 |
+| `get_occupant` | `(cell: Vector3i) -> Node` | 返回运行时占用物或 null。 |
 | `is_blocked` | `(cell: Vector3i) -> bool` | M4 路径 / M6 光路的地形阻挡查询入口。 |
 | `apply_preset` | `(cell: Vector3i, preset: TilePreset) -> bool` | 运行时用预制覆盖一格并发 tile_changed。 |
 | `update_tile_type` | `(cell: Vector3i, tile_type: int) -> bool` | 修改运行时类型并通知表现层。 |
 | `update_tile_height` | `(cell: Vector3i, height_level: int) -> bool` | 修改运行时高度并按关卡档数钳制。 |
 | `destroy_obstacle_at` | `(cell: Vector3i) -> bool` | 清障成功后发 `tile_changed` 和 `obstacle_destroyed`。 |
 
-**信号**：`level_loaded(level_resource: LevelResource)`、`tile_changed(cell: Vector3i, tile: TileCellData)`、`obstacle_destroyed(cell: Vector3i)`。
+**信号**：`level_loaded(level_resource: LevelResource)`、`tile_changed(cell: Vector3i, tile: TileCellData)`、`obstacle_destroyed(cell: Vector3i)`、`occupant_changed(cell: Vector3i, occupant: Node)`。
 
 ### TileRenderer.gd
 
@@ -155,11 +159,11 @@ Mirror Tile Editor (Godot editor)
 
 ## 使用入口
 
-在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Tile Editor` 启用后，顶部主屏点击“地块编辑器”。选择网格参数和下/中/上高度色；点击左侧预制按钮选择类型画笔，或从“高度刷”选择目标高度，两者互斥。随后在中间地图左键拖动涂刷；高度刷只改高度，不改类型或障碍状态。右侧仍可修改选中格。点击地图后可用 WASD/QE/XC 或滚轮改变观察视角，工具栏的复位图标返回默认视角。保存路径默认为 `res://resources/levels/CustomLevel.tres`。项目启动时，`scenes/Main.tscn` 引用 `resources/levels/M2DemoLevel.tres` 作为 M2 灰盒验收关卡。
+在 Godot 的 `项目 > 项目设置 > 插件` 确认 `Mirror Tile Editor` 启用后，顶部主屏点击“地块编辑器”。选择网格参数和下/中/上高度色；点击左侧预制按钮选择类型画笔，或从“高度刷”选择目标高度，两者互斥。随后在中间地图左键拖动涂刷；高度刷只改高度，不改类型或障碍状态。右侧仍可修改选中格。点击地图后可用 WASD/QE/XC 或滚轮改变观察视角，工具栏的复位图标返回默认视角。保存路径默认为 `res://resources/levels/CustomLevel.tres`。运行时由 LevelLoader 加载关卡，BuildingManager 只在 `can_place()` 成功的格上占用。
 
 ## 已知限制 / 初版不做的部分
 
 - 编辑器支持连续画笔，但不做框选、撤销栈、选区填充或图案刷。
 - 障碍只有灰盒岩石占位；不做耐久、掉落或破坏特效。
 - 高度为离散台阶，不做斜坡、连续地形和地形变形。
-- `occupant` 仅为 M3 预留；M2 不产生建筑占用物。
+- `occupant` 只存在于当前运行时；切关时 TileManager 清空旧引用，BuildingManager 同步销毁旧建筑。

@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M3 · 建筑、索敌战斗与资源经济 — 2026-07-17
+**模块**：Building / Combat / Resource / Tile / Level / UI / CameraInput / Main。
+
+- 新增数据驱动的箭塔与激光塔、BuildingManager 放置事务和 TileManager 运行时占用接口；资源、建筑上限与不可建造格会阻止放置，R 在 HEX/SQUARE 中按世界固定 6/8 档旋转。
+- 新增 ITargetingStrategy / IAttackStrategy、七种索敌优先级、统一伤害公式、CombatTarget/CombatManager；箭塔按冷却瞬伤，激光固定方向穿透全部目标并按 delta 持续伤害，建筑不挡光。
+- 新增 ResourceManager：关卡驱动单资源、建筑/镜子 cap，以及击杀、占领格、生产建筑、时间增长、清障五种独立产出开关；新增 M3 灰盒建造/靶标面板。
+- Godot 4.7 真机验收：箭塔瞬伤/击杀掉落、激光双目标持续伤害、上限原子阻止、五类产出总额、HEX 6 向与 SQUARE 8 向及镜头无关性均通过；修复已释放锁定目标的类型句柄后无新增运行时错误。
+
 ## Level · 运行时调试选关与正式加载接口 — 2026-07-17
 **模块**：Level / UI / Main / Grid / Tile。
 

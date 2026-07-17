@@ -1,12 +1,12 @@
 ﻿# 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器保存/加载、运行时 LevelLoader 与调试选关；局内存档、路径、波次、资源与上限字段留待后续模块扩充。
+> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关及 M3 初始资源、建筑/镜子上限和五类产出配置；局内存档、路径与波次字段留待后续模块扩充。
 
 ## 职责
-用一个数据资源描述关卡的网格与地块布局，使新增关卡无需改运行时代码；为 M3~M7 的路径、波次、资源和通关存档预留唯一扩展载体。
+用一个数据资源描述关卡的网格、地块布局与经济配置，使新增关卡无需改运行时代码；为 M4~M7 的路径、波次和通关存档保留唯一扩展载体。
 
 ## 分类 / 做法
-- **LevelResource**：自定义 `Resource`，当前保存网格形状、格距、范围、高度配置、编辑器下/中/上高度色和 TileCellData 列表。
+- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色，以及 M3 初始资源、建筑/镜子上限和五类产出参数。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
@@ -26,6 +26,13 @@
 | `height_color_middle` | 黄 | 中间高度的地形色，编辑器与运行时共用。 |
 | `height_color_high` | 红 | 最高高度的地形色，编辑器与运行时共用。 |
 | `tiles` | `[]` | `TileCellData` 资源数组；每项持有自己的 `cell`。 |
+| `initial_resource` | 200 | 切入关卡时的主资源。 |
+| `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
+| `kill_drop_enabled` | true | 击杀奖励开关。 |
+| `tile_income_enabled` / `tile_income_rate` | true / 1.0 | 建筑占用格每秒产出。 |
+| `producer_income_enabled` / `producer_income_rate` | true / 2.0 | 生产建筑每秒产出。 |
+| `time_growth_enabled` / `time_growth_rate` | true / 0.5 | 时间自然增长。 |
+| `destroy_tile_income_enabled` / `destroy_tile_income_amount` | true / 20 | 清障一次性产出。 |
 | LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
 | LevelLoader.`initial_level` | M2DemoLevel | 主场景启动时加载的关卡。 |
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关；正式发行可关闭。 |
@@ -37,13 +44,13 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 关卡定义、三档编辑器高度色及按 cell 的布局覆盖规则。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 网格/地块与 M3 经济参数的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | 主场景 M2 验收布局，含道路、两处障碍和 0~2 档高度示例。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 关卡资源的新建、读取和保存入口。 |
-| `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 LevelLoader 依赖、加载初始关卡，并在切关后清空旧拾取状态。 |
-| `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 节点的 `initial_level` 装配 M2DemoLevel，并挂载调试面板。 |
+| `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 LevelLoader 依赖；切关后应用经济配置并清空旧建筑、目标和拾取状态。 |
+| `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 的 `initial_level` 装配 M2DemoLevel，并挂载关卡/M3 调试面板。 |
 
 ### 模块调用关系 / 数据流
 
@@ -59,7 +66,10 @@ Debug picker / future production level selection
   -> TileManager.load_level(level)
        ├─ serialized tiles -> runtime Dictionary[cell, TileCellData]
        └─ TileManager.level_loaded -> TileRenderer rebuild
-  -> LevelLoader.level_loaded -> debug status / Main clears stale selection
+  -> LevelLoader.level_loaded
+       ├─ ResourceManager.apply_level_configuration(level)
+       ├─ CombatManager.clear_targets()
+       └─ debug status / Main clears stale selection
 
 Mirror Tile Editor
   -> creates / edits LevelResource (tiles + height colors)
@@ -111,9 +121,10 @@ Mirror Tile Editor
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。
 - LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
+- M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
 
 ## 已知限制 / 初版不做的部分
 
 - 未实现 SaveManager、局内读档、关卡解锁与正式选关界面；LevelLoader 接口已预留给正式选关调用。
-- 路径、波次、初始资源、建筑/镜子上限字段将在 M3/M4/M5 的对应系统接入时加入同一资源。
+- 路径、波次与据点字段将在 M4 后续系统接入时加入同一资源。
 - 不做云存档、多存档槽和关卡包导入。

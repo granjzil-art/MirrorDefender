@@ -16,6 +16,7 @@ const BUILDABLE_TILE_TYPE := 0
 signal level_loaded(level_resource: LevelResource)
 signal tile_changed(cell: Vector3i, tile: TileCellData)
 signal obstacle_destroyed(cell: Vector3i)
+signal occupant_changed(cell: Vector3i, occupant: Node)
 
 var _grid: GridManager
 var _tiles: Dictionary = {}
@@ -43,6 +44,7 @@ func load_level(level_resource: LevelResource) -> void:
 		var serialized_tile: TileCellData = serialized_resource
 		if serialized_tile == null or not _grid.is_in_bounds(serialized_tile.cell):
 			continue
+		serialized_tile.clear_occupant()
 		_tiles[serialized_tile.cell] = serialized_tile
 	for cell in _grid.enumerate_cells():
 		if not _tiles.has(cell):
@@ -82,6 +84,24 @@ func get_height_color(cell: Vector3i) -> Color:
 func can_place(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.can_place()
+
+func place_occupant(cell: Vector3i, occupant: Node) -> bool:
+	var tile := get_tile(cell)
+	if tile == null or not tile.place(occupant):
+		return false
+	occupant_changed.emit(cell, occupant)
+	return true
+
+func clear_occupant(cell: Vector3i, expected_occupant: Node = null) -> bool:
+	var tile := get_tile(cell)
+	if tile == null or not tile.clear_occupant(expected_occupant):
+		return false
+	occupant_changed.emit(cell, null)
+	return true
+
+func get_occupant(cell: Vector3i) -> Node:
+	var tile := get_tile(cell)
+	return tile.occupant if tile != null else null
 
 func is_blocked(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)

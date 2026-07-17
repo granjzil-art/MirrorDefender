@@ -50,8 +50,11 @@ func place(new_occupant: Node) -> bool:
 	occupant = new_occupant
 	return true
 
-func clear_occupant() -> void:
+func clear_occupant(expected_occupant: Node = null) -> bool:
+	if expected_occupant != null and occupant != expected_occupant:
+		return false
 	occupant = null
+	return true
 
 ## Converts the stone obstacle to a buildable cell while preserving terrain height.
 func destroy_obstacle() -> bool:
