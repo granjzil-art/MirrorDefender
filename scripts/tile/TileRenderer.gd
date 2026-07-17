@@ -11,6 +11,7 @@ const TOP_LIFT := 0.01
 @export var feature_enabled: bool = true
 
 @export_group("Obstacle Colors")
+@export var blocked_color: Color = Color(0.34, 0.37, 0.40, 1.0)
 @export var obstacle_color: Color = Color(0.45, 0.48, 0.48, 1.0)
 
 @export_group("Terrain Geometry")
@@ -89,7 +90,7 @@ func _rebuild() -> void:
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
 			continue
-		var terrain_color := _tile_manager.get_height_color(cell)
+		var terrain_color := _get_terrain_color(tile)
 		var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
 		has_terrain_geometry = has_terrain_geometry or did_add_terrain
 		if tile.is_destructible():
@@ -105,6 +106,11 @@ func _rebuild() -> void:
 		_obstacle_instance.mesh = obstacle_mesh
 	else:
 		_obstacle_instance.mesh = null
+
+func _get_terrain_color(tile: TileCellData) -> Color:
+	if tile.is_blocked():
+		return blocked_color
+	return _tile_manager.get_height_color(tile.cell)
 
 func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool:
 	var corners := _grid.get_corners(tile.cell)
