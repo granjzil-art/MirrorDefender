@@ -97,7 +97,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 - EnemyDefinition 是敌人数值事实源；EnemyUnit 是运行时生命、位置、路径进度和攻击状态事实源。
 - `base_damage` 只伤害据点；`attack_damage` 只用于攻击路径屏障，两者禁止混用。
 - `attack_range` 以格为单位，EnemyUnit 生成时固定换算为当前关卡世界距离。
-- PathDefinition 顺序决定“前方”；敌人依次检查同向边屏障和终点地块屏障，不绕路、不回头，反向边屏障不生效。
+- PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障，不绕路、不回头。边屏障默认双向生效，关闭双向参数后才按放置方向匹配。
 - PathManager 路径点、EnemyUnit 和动态建筑共用 Main 局部坐标空间。
 - `reward` 只在敌人被击杀时入账；抵达据点消失不掉资源。
 

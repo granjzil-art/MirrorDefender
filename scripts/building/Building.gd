@@ -201,6 +201,16 @@ func is_edge_placement() -> bool:
 func matches_directed_edge(from_cell: Vector3i, to_cell: Vector3i) -> bool:
 	return is_edge_placement() and cell == from_cell and edge_to_cell == to_cell
 
+func blocks_edge_traversal(from_cell: Vector3i, to_cell: Vector3i) -> bool:
+	if not is_edge_path_blocker():
+		return false
+	if matches_directed_edge(from_cell, to_cell):
+		return true
+	return definition.blocks_both_directions and cell == to_cell and edge_to_cell == from_cell
+
+func is_bidirectional_edge_blocker() -> bool:
+	return is_edge_path_blocker() and definition.blocks_both_directions
+
 func is_structure_alive() -> bool:
 	return is_path_blocker() and _durability != null and _durability.is_alive() and not is_queued_for_deletion()
 
@@ -368,6 +378,8 @@ func _build_visual() -> void:
 		_build_default_body()
 	if is_edge_path_blocker():
 		_build_direction_marker()
+		if is_bidirectional_edge_blocker():
+			_build_direction_marker(true)
 	elif not is_path_blocker():
 		_build_direction_marker()
 		_build_attack_line()
@@ -406,14 +418,15 @@ func _build_barrier_body() -> void:
 	_visual_root.add_child(_durability_label)
 	_update_durability_label()
 
-func _build_direction_marker() -> void:
+func _build_direction_marker(reverse_direction: bool = false) -> void:
 	var cell_size := _grid.cell_size
 	var tower_height := _get_tower_height()
 	var direction_instance := MeshInstance3D.new()
 	var marker_mesh := BoxMesh.new()
 	marker_mesh.size = Vector3(cell_size * 0.12, cell_size * 0.12, cell_size * direction_marker_ratio)
 	direction_instance.mesh = marker_mesh
-	direction_instance.position = Vector3(0.0, tower_height * 0.78, -cell_size * direction_marker_ratio * 0.45)
+	var direction_sign := 1.0 if reverse_direction else -1.0
+	direction_instance.position = Vector3(0.0, tower_height * 0.78, direction_sign * cell_size * direction_marker_ratio * 0.45)
 	direction_instance.material_override = _make_material(_stats.attack_color, true)
 	_visual_root.add_child(direction_instance)
 

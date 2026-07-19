@@ -59,6 +59,16 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 		await process_frame
 		_expect(building_manager.get_edge_building(canonical_id) == null, "external edge-building deletion clears edge occupancy")
 		_expect(resource_manager.get_building_count() == 0, "external edge-building deletion releases building cap usage")
+	var arbitrary_from := Vector3i(0, 1, -1) if shape == GridManager.Shape.HEX else Vector3i(0, 0, 0)
+	var arbitrary_to := Vector3i(1, 0, -1) if shape == GridManager.Shape.HEX else Vector3i(1, 0, 0)
+	var arbitrary_edge_index := grid.find_edge_index(arbitrary_from, arbitrary_to)
+	_expect(not building_manager.is_path_cell(arbitrary_from) and not building_manager.is_path_cell(arbitrary_to), "arbitrary placement fixture is outside every enemy path")
+	var arbitrary_barrier := building_manager.place_edge_building(arbitrary_from, arbitrary_edge_index, building_manager.edge_barrier)
+	_expect(arbitrary_barrier != null, "%s edge barrier can be placed on a non-path shared edge" % grid.get_geometry_tag())
+	var boundary_cell := Vector3i(-5, 0, 5) if shape == GridManager.Shape.HEX else Vector3i(0, 0, 0)
+	var outside_neighbor := Vector3i(-6, 0, 6) if shape == GridManager.Shape.HEX else Vector3i(-1, 0, 0)
+	var boundary_edge_index := grid.find_edge_index(boundary_cell, outside_neighbor)
+	_expect(building_manager.place_edge_building(boundary_cell, boundary_edge_index, building_manager.edge_barrier) == null, "outer boundary edge without a valid neighbor is rejected")
 	host.queue_free()
 	await process_frame
 
@@ -77,8 +87,12 @@ func _test_directional_blocking_and_lifecycle() -> void:
 	var barrier := building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier)
 	_expect(barrier != null, "directional barrier fixture is placed")
 	if barrier != null:
+		_expect(barrier.definition.blocks_both_directions, "edge barrier defaults to bidirectional blocking")
 		_expect(building_manager.resolve_path_blocker(from_cell, to_cell) == barrier, "matching forward path resolves the edge barrier")
-		_expect(building_manager.resolve_path_blocker(to_cell, from_cell) == null, "reverse traversal of the same physical edge is not blocked")
+		_expect(building_manager.resolve_path_blocker(to_cell, from_cell) == barrier, "reverse traversal resolves the same bidirectional edge barrier")
+		barrier.definition.blocks_both_directions = false
+		_expect(building_manager.resolve_path_blocker(to_cell, from_cell) == null, "optional one-way configuration preserves directed blocking")
+		barrier.definition.blocks_both_directions = true
 		var unrelated_from := path.cells[2]
 		var unrelated_to := path.cells[3]
 		_expect(building_manager.resolve_path_blocker(unrelated_from, unrelated_to) == null, "another path direction ignores the edge barrier")

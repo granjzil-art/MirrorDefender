@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Building · 边障任意内部边放置与默认双向阻挡 — 2026-07-19
+**模块**：Building / Grid / Path / Unit / UI / Tests。
+
+- 边障取消“必须属于敌人路径”和出生点/据点相邻边限制，现在可放在任意两个有效地块之间的共享边；地图外圈无邻格边、重复占位边和敌人占据边仍拒绝。
+- `BuildingDefinition.blocks_both_directions` 默认开启，路径正反穿越同一物理边均会被阻挡；关闭后保留原有单向变种能力。双向灰盒在边两侧显示标记，HUD 使用 `↔`。
+- Definition 按 `BARRIER/EDGE_BARRIER` 身份稳定解析放置面，避免 Godot 重存 `.tres` 省略字段后改变建筑类型。
+- Godot 4.7 回归测试扩展至 58 项，覆盖六边形/正方形非路径边放置、外圈拒绝、默认双向和可选单向规则。
+
 ## Level / Building / Unit · 关卡几何标签与有向路径边屏障 — 2026-07-19
 **模块**：Level / Grid / Path / Building / Unit / Combat / UI / Godot 编辑器工具 / Tests。
 

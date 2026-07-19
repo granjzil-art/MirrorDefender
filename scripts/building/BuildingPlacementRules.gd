@@ -8,7 +8,6 @@ var _tile_manager: TileManager
 var _resource_manager: ResourceManager
 var _combat_manager: CombatManager
 var _path_cells: Dictionary = {}
-var _directed_path_edges: Dictionary = {}
 var _protected_path_cells: Dictionary = {}
 
 func configure(
@@ -24,7 +23,6 @@ func configure(
 
 func rebuild_level_cache(level_resource: LevelResource) -> void:
 	_path_cells.clear()
-	_directed_path_edges.clear()
 	_protected_path_cells.clear()
 	if level_resource == null:
 		return
@@ -37,19 +35,9 @@ func rebuild_level_cache(level_resource: LevelResource) -> void:
 			continue
 		for cell in path.cells:
 			_path_cells[cell] = true
-		for index in range(path.cells.size() - 1):
-			var directed_id := _grid.directed_edge_id(path.cells[index], path.cells[index + 1]) if _grid != null else ""
-			if not directed_id.is_empty():
-				_directed_path_edges[directed_id] = true
 
 func is_path_cell(cell: Vector3i) -> bool:
 	return _path_cells.has(cell)
-
-func is_directed_path_edge(from_cell: Vector3i, to_cell: Vector3i) -> bool:
-	if _grid == null:
-		return false
-	var directed_id := _grid.directed_edge_id(from_cell, to_cell)
-	return not directed_id.is_empty() and _directed_path_edges.has(directed_id)
 
 func validate_tile(
 	cell: Vector3i,
@@ -61,9 +49,9 @@ func validate_tile(
 		return common_failure
 	if not _grid.is_in_bounds(cell):
 		return "目标格位于地图外"
-	if definition.placement_surface == BuildingDefinition.PlacementSurface.PATH_EDGE:
+	if definition.is_edge_building():
 		return "边类建筑必须选择路径边放置"
-	if definition.placement_surface == BuildingDefinition.PlacementSurface.PATH_TILE:
+	if definition.is_path_tile_building():
 		if not _path_cells.has(cell):
 			return "屏障只能放置在敌人路径上"
 		if _protected_path_cells.has(cell):
@@ -96,7 +84,7 @@ func validate_edge(
 	if not common_failure.is_empty():
 		result["failure"] = common_failure
 		return result
-	if definition.placement_surface != BuildingDefinition.PlacementSurface.PATH_EDGE:
+	if not definition.is_edge_building():
 		result["failure"] = "该建筑不是边类建筑"
 		return result
 	if not _grid.is_in_bounds(from_cell) or placement_edge_index < 0 or placement_edge_index >= _grid.edge_count():
@@ -107,20 +95,14 @@ func validate_edge(
 	if not _grid.is_in_bounds(to_cell):
 		result["failure"] = "边屏障只能放在两个有效地块之间"
 		return result
-	if not is_directed_path_edge(from_cell, to_cell):
-		result["failure"] = "所选方向不是敌人路径的前进方向"
-		return result
 	var canonical_id := _grid.canonical_edge_id(from_cell, placement_edge_index)
 	result["edge_id"] = canonical_id
 	var occupied: Variant = edge_building_resolver.call(canonical_id) if edge_building_resolver.is_valid() else null
 	if occupied is Building:
 		result["failure"] = "该物理边已被占用"
 		return result
-	if _protected_path_cells.has(from_cell) or _protected_path_cells.has(to_cell):
-		result["failure"] = "出生点或据点相邻边不能放置边屏障"
-		return result
-	if _is_enemy_on_directed_edge(from_cell, to_cell):
-		result["failure"] = "敌人当前占据该路径边"
+	if _is_enemy_on_edge(from_cell, to_cell):
+		result["failure"] = "敌人当前占据该边的相邻格"
 		return result
 	if check_economy:
 		result["failure"] = _validate_economy(definition)
@@ -146,7 +128,7 @@ func _is_enemy_on_cell(cell: Vector3i) -> bool:
 			return true
 	return false
 
-func _is_enemy_on_directed_edge(from_cell: Vector3i, to_cell: Vector3i) -> bool:
+func _is_enemy_on_edge(from_cell: Vector3i, to_cell: Vector3i) -> bool:
 	for target in _combat_manager.get_targets():
 		if target == null or not is_instance_valid(target):
 			continue

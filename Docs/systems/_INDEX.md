@@ -10,7 +10,7 @@
 | 网格 | [Grid_网格系统.md](Grid_网格系统.md) | 六边形 + 正方形 |
 | 地块 | [Tile_地块系统.md](Tile_地块系统.md) | 3 类地块 + 编辑器 + 3档高度 |
 | 建筑 | [Building_建筑系统.md](Building_建筑系统.md) | 箭塔 + 激光塔 + 地块屏障 |
-| 路径边屏障 | [EdgeBarrier_路径边屏障.md](EdgeBarrier_路径边屏障.md) | 六/四边贴边放置 + 有向路径阻挡 |
+| 路径边屏障 | [EdgeBarrier_路径边屏障.md](EdgeBarrier_路径边屏障.md) | 任意内部共享边放置 + 默认双向阻挡 |
 | 单位 | [Unit_单位系统.md](Unit_单位系统.md) | 敌方单位（不可镜像） |
 | 资源 | [Resource_资源系统.md](Resource_资源系统.md) | 单一主资源 + 上限 |
 | 波次 | [Wave_波次系统.md](Wave_波次系统.md) | 经典波次 + 详细出怪参数 |

@@ -163,9 +163,11 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 		var preview := building_manager.get_preview_building()
 		if preview != null and preview.cell == cell.cell:
 			if preview.is_edge_placement():
-				lines.append("放置预览: %s L1 | %s → %s（贴边固定）" % [
+				var preview_connector := "↔" if preview.is_bidirectional_edge_blocker() else "→"
+				lines.append("放置预览: %s L1 | %s %s %s（贴边固定）" % [
 					preview.definition.display_name,
 					str(preview.cell),
+					preview_connector,
 					str(preview.edge_to_cell),
 				])
 			else:
@@ -181,11 +183,13 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 		lines.append("边唯一键 = %s" % edge.id)
 		var edge_building := building_manager.get_edge_building(edge.id)
 		if edge_building != null:
-			lines.append("边占位: %s L%d/%d | %s → %s | 耐久 %d/%d" % [
+			var edge_connector := "↔" if edge_building.is_bidirectional_edge_blocker() else "→"
+			lines.append("边占位: %s L%d/%d | %s %s %s | 耐久 %d/%d" % [
 				edge_building.definition.display_name,
 				edge_building.level,
 				edge_building.get_max_level(),
 				str(edge_building.cell),
+				edge_connector,
 				str(edge_building.edge_to_cell),
 				ceili(edge_building.current_durability),
 				ceili(edge_building.maximum_durability),
@@ -200,11 +204,13 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	if selected_building != null:
 		var selected_stats := selected_building.get_level_stats()
 		if selected_building.is_edge_placement():
-			lines.append("建筑: %s L%d/%d | %s → %s（贴边固定）" % [
+			var selected_connector := "↔" if selected_building.is_bidirectional_edge_blocker() else "→"
+			lines.append("建筑: %s L%d/%d | %s %s %s（贴边固定）" % [
 				selected_building.definition.display_name,
 				selected_building.level,
 				selected_building.get_max_level(),
 				str(selected_building.cell),
+				selected_connector,
 				str(selected_building.edge_to_cell),
 			])
 		else:
@@ -233,7 +239,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 边障需从路径前格侧选边 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
+	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 边障可放任意内部共享边 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):

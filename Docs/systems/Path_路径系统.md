@@ -12,7 +12,7 @@
 - **双网格**：连续性由当前 GridManager 的 `get_neighbors()` 判断，支持 HEX 与 SQUARE。
 - **出生点**：SpawnPointDefinition 保存可复用入口格；SpawnGroup 直接引用出生点和路径资源，而非手填字符串。
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
-- **屏障语义**：路径资源本身保持静态；BuildingPlacementRules 同时缓存路径格与相邻格组成的有向路径段。EnemyUnit 逐段查询同向边屏障，再查询该段终点的地块屏障，不修改路径或重新寻路。
+- **屏障语义**：路径资源本身保持静态；边屏障可预先放在任意内部共享边。EnemyUnit 逐段查询该物理边上的边屏障（默认双向），再查询该段终点的地块屏障，不修改路径或重新寻路。
 - **表现**：PathManager 绘制黄色线路与绿色出生点标记；BaseCore 绘制据点标记。可通过 `feature_enabled` 或 `show_paths` 关闭。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录。记录中只接受与末格相邻的格，非相邻点击会显示两端坐标且不修改数据。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
@@ -74,7 +74,7 @@ Level Editor path page
 ## 约定事实源
 
 - 路径顺序是出生点到据点，敌人不可反向解释。
-- `from_cell -> to_cell` 是有向玩法事实；反向穿过同一物理边不命中原边屏障。两条路径若共享完全相同的有向段，则共同受阻。
+- `canonical_edge_id` 是默认双向边屏障的阻挡事实；路径正反穿过同一物理边均受阻。只有关闭 `blocks_both_directions` 的未来变种才使用 `from_cell -> to_cell` 单向规则。
 - 每条路径的末格必须等于 LevelResource.`base_cell`；每个出怪组的出生点必须等于引用路径的首格。
 - PathDefinition / SpawnPointDefinition 必须由 LevelResource 持有；SpawnGroup 只能引用本关对象。
 - 路径首格和 `base_cell` 是屏障保护格；中间路径格只允许屏障类建筑，普通塔不得占路。

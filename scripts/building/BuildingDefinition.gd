@@ -23,6 +23,9 @@ enum PlacementSurface {
 
 @export_group("Placement")
 @export var placement_surface: PlacementSurface = PlacementSurface.BUILDABLE_TILE
+## Edge buildings block both traversal directions by default. Disable this only
+## for future one-way variants; tile buildings ignore the setting.
+@export var blocks_both_directions: bool = true
 
 @export_group("Levels")
 @export var levels: Array[BuildingLevelStats] = []
@@ -42,5 +45,15 @@ func is_configured() -> bool:
 func is_defensive_structure() -> bool:
 	return kind == Kind.BARRIER or kind == Kind.EDGE_BARRIER
 
+func get_resolved_placement_surface() -> PlacementSurface:
+	if kind == Kind.EDGE_BARRIER:
+		return PlacementSurface.PATH_EDGE
+	if kind == Kind.BARRIER:
+		return PlacementSurface.PATH_TILE
+	return placement_surface
+
 func is_edge_building() -> bool:
-	return placement_surface == PlacementSurface.PATH_EDGE
+	return get_resolved_placement_surface() == PlacementSurface.PATH_EDGE
+
+func is_path_tile_building() -> bool:
+	return get_resolved_placement_surface() == PlacementSurface.PATH_TILE

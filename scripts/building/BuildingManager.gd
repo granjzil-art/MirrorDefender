@@ -319,13 +319,11 @@ func get_path_blocker(cell: Vector3i) -> Node:
 func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i) -> Node:
 	if _grid == null:
 		return null
-	var edge_key := _grid.directed_edge_id(from_cell, to_cell)
-	if not edge_key.is_empty() and _placement_rules.is_directed_path_edge(from_cell, to_cell):
-		var edge_index := _grid.find_edge_index(from_cell, to_cell)
-		if edge_index >= 0:
-			var edge_building := get_edge_building(_grid.canonical_edge_id(from_cell, edge_index))
-			if edge_building != null and edge_building.matches_directed_edge(from_cell, to_cell) and edge_building.is_structure_alive():
-				return edge_building
+	var edge_index := _grid.find_edge_index(from_cell, to_cell)
+	if edge_index >= 0:
+		var edge_building := get_edge_building(_grid.canonical_edge_id(from_cell, edge_index))
+		if edge_building != null and edge_building.blocks_edge_traversal(from_cell, to_cell) and edge_building.is_structure_alive():
+			return edge_building
 	return get_path_blocker(to_cell)
 
 func is_path_cell(cell: Vector3i) -> bool:

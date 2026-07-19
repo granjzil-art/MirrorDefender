@@ -62,7 +62,7 @@ Main（场景装配）
   - HEX flat-top 角点角度 `300/0/60/120/180/240°`；每条边外法线与 `_DIRS[edge_index]` 对应。
   - SQUARE 角点顺序 `右下→右上→左上→左下`，边序为右/上/左/下，`_DIRS[edge_index]` 即跨该边的邻格方向。
 - **canonical_edge_id**（物理边唯一占位）：取该边两端点世界坐标 → 各自量化到 `1e-3`（`roundi(v*1000)`）→ 字典序排序两端点键 → 拼成 `"x,z|x,z"`。**与从哪一侧格看无关**，故相邻两格的共享边得到同一 id。
-- **directed_edge_id**（有向玩法段）：以 `from_cell>to_cell` 生成；仅接受相邻格，反向会得到另一键。边屏障用它区分路径前进方向，但仍用 `canonical_edge_id` 防止同一物理边重复占位。
+- **directed_edge_id**（可选单向玩法段）：以 `from_cell>to_cell` 生成；仅接受相邻格，反向会得到另一键。默认双向边屏障使用 `canonical_edge_id`，仅关闭 `blocks_both_directions` 的变种使用有向匹配。
 - **关卡几何标签**：LevelResource 的 `hex/square` 标签由 `grid_shape` 自动派生，不另存第二份可编辑字段。HEX 普通建筑/边建筑方向数为 `6/6`，SQUARE 为 `8/4`。
 
 ## 函数索引

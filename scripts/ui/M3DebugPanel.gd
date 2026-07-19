@@ -171,7 +171,7 @@ func _get_mode_name() -> String:
 		InteractionMode.BUILD_BARRIER:
 			return "放置屏障（仅路径格）"
 		InteractionMode.BUILD_EDGE_BARRIER:
-			return "放置边屏障（从当前格向路径前进边）"
+			return "放置边屏障（任意内部共享边，默认双向）"
 		InteractionMode.SPAWN_TARGET:
 			return "放置靶标"
 		_:
@@ -231,11 +231,13 @@ func _on_building_selected(building: Building) -> void:
 		_upgrade_button.disabled = true
 	else:
 		if building.is_edge_path_blocker():
-			_status_label.text = "已选：%s L%d/%d，方向 %s → %s，耐久 %d/%d" % [
+			var edge_connector := "↔" if building.is_bidirectional_edge_blocker() else "→"
+			_status_label.text = "已选：%s L%d/%d，%s %s %s，耐久 %d/%d" % [
 				building.definition.display_name,
 				building.level,
 				building.get_max_level(),
 				str(building.cell),
+				edge_connector,
 				str(building.edge_to_cell),
 				ceili(building.current_durability),
 				ceili(building.maximum_durability),
@@ -271,9 +273,11 @@ func _on_upgrade_failed(_building: Building, reason: String) -> void:
 
 func _on_preview_updated(building: Building) -> void:
 	if building.is_edge_placement():
-		_status_label.text = "预览：%s，方向 %s → %s（贴边固定）" % [
+		var edge_connector := "↔" if building.is_bidirectional_edge_blocker() else "→"
+		_status_label.text = "预览：%s，%s %s %s（贴边固定）" % [
 			building.definition.display_name,
 			str(building.cell),
+			edge_connector,
 			str(building.edge_to_cell),
 		]
 		return
