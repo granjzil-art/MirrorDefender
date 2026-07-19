@@ -110,6 +110,60 @@ func get_spawn_point(spawn_id: StringName) -> SpawnPointDefinition:
 			return spawn_point
 	return null
 
+## Collects every plausible pair without mutating legacy data. More than one
+## result is intentionally treated as ambiguous by get_spawn_point_for_path().
+func get_spawn_point_candidates_for_path(path: PathDefinition) -> Array[SpawnPointDefinition]:
+	var result: Array[SpawnPointDefinition] = []
+	if path == null or not paths.has(path):
+		return result
+	var expected_id := SpawnPointDefinition.make_id_for_path(path)
+	if not expected_id.is_empty():
+		var named_spawn := get_spawn_point(expected_id)
+		if named_spawn != null:
+			result.append(named_spawn)
+	for wave in waves:
+		if wave == null:
+			continue
+		for group in wave.spawn_groups:
+			if group == null or group.path != path or not spawn_points.has(group.spawn_point):
+				continue
+			if not result.has(group.spawn_point):
+				result.append(group.spawn_point)
+	if path.cells.is_empty():
+		return result
+	for spawn_point in spawn_points:
+		if spawn_point == null or spawn_point.cell != path.get_start_cell():
+			continue
+		if not result.has(spawn_point):
+			result.append(spawn_point)
+	return result
+
+func get_spawn_point_for_path(path: PathDefinition) -> SpawnPointDefinition:
+	var candidates := get_spawn_point_candidates_for_path(path)
+	return candidates[0] if candidates.size() == 1 else null
+
+func get_path_for_spawn_point(spawn_point: SpawnPointDefinition) -> PathDefinition:
+	if spawn_point == null or not spawn_points.has(spawn_point):
+		return null
+	var candidates: Array[PathDefinition] = []
+	for path in paths:
+		if path != null and SpawnPointDefinition.make_id_for_path(path) == spawn_point.spawn_id:
+			candidates.append(path)
+	for wave in waves:
+		if wave == null:
+			continue
+		for group in wave.spawn_groups:
+			if group == null or group.spawn_point != spawn_point or not paths.has(group.path):
+				continue
+			if not candidates.has(group.path):
+				candidates.append(group.path)
+	for path in paths:
+		if path == null or path.cells.is_empty() or path.get_start_cell() != spawn_point.cell:
+			continue
+		if not candidates.has(path):
+			candidates.append(path)
+	return candidates[0] if candidates.size() == 1 else null
+
 ## Complete preflight used by both the editor and LevelLoader. Validation is
 ## deliberately read-only so a rejected resource cannot partially mutate the
 ## currently running level.

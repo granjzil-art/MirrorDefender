@@ -9,3 +9,23 @@ extends Resource
 
 @export_group("Location")
 @export var cell: Vector3i = Vector3i.ZERO
+
+static func make_id_for_path(path: PathDefinition) -> StringName:
+	if path == null:
+		return &""
+	return StringName("spawn_%s" % str(path.path_id))
+
+static func make_display_name_for_path(path: PathDefinition) -> String:
+	if path == null:
+		return "未关联出生点"
+	var path_name := path.display_name.strip_edges()
+	return "%s 出生点" % (path_name if not path_name.is_empty() else str(path.path_id))
+
+func sync_with_path(path: PathDefinition) -> void:
+	if path == null:
+		return
+	spawn_id = make_id_for_path(path)
+	display_name = make_display_name_for_path(path)
+	if not path.cells.is_empty():
+		cell = path.get_start_cell()
+	emit_changed()

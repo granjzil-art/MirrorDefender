@@ -290,7 +290,8 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	_path_set_base.pressed.connect(_set_base_from_path_selection)
 	sidebar.add_child(_path_set_base)
 	_path_add_spawn = Button.new()
-	_path_add_spawn.text = "按路径起点添加出生点"
+	_path_add_spawn.text = "同步当前路径出生点"
+	_path_add_spawn.tooltip_text = "出生点与路径 1:1 对应；通常会自动同步，此按钮可修复旧关卡数据。"
 	_path_add_spawn.pressed.connect(_add_spawn_from_path)
 	sidebar.add_child(_path_add_spawn)
 	var validate_button := Button.new()
@@ -353,8 +354,8 @@ func _add_wave_tab(tabs: TabContainer) -> void:
 	form.add_child(_make_form_label("敌人"))
 	form.add_child(_wave_enemy_select)
 	_wave_spawn_select = OptionButton.new()
-	_wave_spawn_select.item_selected.connect(_on_wave_spawn_selected)
-	form.add_child(_make_form_label("出生点"))
+	_wave_spawn_select.tooltip_text = "出生点由当前路径自动绑定。"
+	form.add_child(_make_form_label("出生点（随路径）"))
 	form.add_child(_wave_spawn_select)
 	_wave_path_select = OptionButton.new()
 	_wave_path_select.item_selected.connect(_on_wave_path_selected)
@@ -732,7 +733,7 @@ func _refresh_path_controls() -> void:
 	if _level != null:
 		for index in range(_level.paths.size()):
 			var path := _level.paths[index]
-			var label := path.display_name if path != null else "(空路径)"
+			var label := _get_path_option_label(path)
 			_path_select.add_item(label, index)
 	if _path_select.item_count > 0:
 		_path_select.select(clampi(previous_index, 0, _path_select.item_count - 1))
@@ -759,8 +760,9 @@ func _refresh_path_controls() -> void:
 		if not path.cells.is_empty():
 			path_start_text = str(path.get_start_cell())
 			path_end_text = str(path.get_end_cell())
-	var spawn_count: int = _level.spawn_points.size() if _level != null else 0
-	_path_detail.text = "格数：%d\n起点：%s\n终点：%s\n出生点：%d" % [path_cell_count, path_start_text, path_end_text, spawn_count]
+	var paired_spawn: SpawnPointDefinition = _level.get_spawn_point_for_path(path) if _level != null else null
+	var spawn_text := _get_spawn_option_label(paired_spawn) if paired_spawn != null else "未建立"
+	_path_detail.text = "格数：%d\n起点：%s\n终点：%s\n对应出生点：%s" % [path_cell_count, path_start_text, path_end_text, spawn_text]
 	_refresh_path_overlay()
 
 func _refresh_path_overlay() -> void:
@@ -771,7 +773,7 @@ func _add_path() -> void:
 	if _level == null:
 		return
 	var path: PathDefinition = PathDefinitionScript.new()
-	var number := _level.paths.size() + 1
+	var number := _get_next_path_number()
 	path.path_id = StringName("path_%d" % number)
 	path.display_name = "路径 %d" % number
 	_level.paths.append(path)
@@ -788,17 +790,25 @@ func _on_path_id_changed(value: String) -> void:
 	var path := _get_selected_path()
 	if path == null:
 		return
+	var paired_spawn := _level.get_spawn_point_for_path(path)
 	path.path_id = StringName(value.strip_edges())
+	if paired_spawn != null or not path.cells.is_empty():
+		_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
+	_refresh_wave_group_controls()
 
 func _on_path_name_changed(value: String) -> void:
 	var path := _get_selected_path()
 	if path == null:
 		return
+	var paired_spawn := _level.get_spawn_point_for_path(path)
 	path.display_name = value.strip_edges()
+	if paired_spawn != null or not path.cells.is_empty():
+		_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
+	_refresh_wave_group_controls()
 
 func _on_path_canvas_selected(_cell: Vector3i) -> void:
 	_refresh_path_controls()
@@ -819,25 +829,34 @@ func _on_path_canvas_clicked(cell: Vector3i) -> void:
 		if not shape.get_neighbors(previous_cell).has(cell):
 			_status.text = "未添加：%s 与路径末格 %s 不相邻。" % [str(cell), str(previous_cell)]
 			return
+	var paired_spawn := _level.get_spawn_point_for_path(path)
 	path.cells.append(cell)
+	_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
+	_refresh_wave_group_controls()
 
 func _remove_last_path_cell() -> void:
 	var path := _get_selected_path()
 	if path == null or path.cells.is_empty():
 		return
+	var paired_spawn := _level.get_spawn_point_for_path(path)
 	path.cells.pop_back()
+	_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
+	_refresh_wave_group_controls()
 
 func _clear_selected_path() -> void:
 	var path := _get_selected_path()
 	if path == null:
 		return
+	var paired_spawn := _level.get_spawn_point_for_path(path)
 	path.cells.clear()
+	_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
+	_refresh_wave_group_controls()
 
 func _set_base_from_path_selection() -> void:
 	if _level == null or _path_canvas == null or not _path_canvas.has_selected_cell:
@@ -852,15 +871,59 @@ func _add_spawn_from_path() -> void:
 	var path := _get_selected_path()
 	if path == null or path.cells.is_empty():
 		return
-	var spawn: SpawnPointDefinition = SpawnPointDefinitionScript.new()
-	var number := _level.spawn_points.size() + 1
-	spawn.spawn_id = StringName("spawn_%d" % number)
-	spawn.display_name = "入口 %d" % number
-	spawn.cell = path.get_start_cell()
-	_level.spawn_points.append(spawn)
+	var spawn := _sync_spawn_for_path(path)
+	if spawn == null:
+		return
 	_mark_level_changed()
 	_refresh_path_controls()
 	_refresh_wave_controls()
+	_status.text = "已同步 %s 的 1:1 出生点。" % path.display_name
+
+func _get_next_path_number() -> int:
+	if _level == null:
+		return 1
+	var number := _level.paths.size() + 1
+	while true:
+		var path_id := StringName("path_%d" % number)
+		var spawn_id := StringName("spawn_%s" % str(path_id))
+		if _level.get_path_by_id(path_id) == null and _level.get_spawn_point(spawn_id) == null:
+			return number
+		number += 1
+	return number
+
+func _sync_spawn_for_path(path: PathDefinition, known_spawn: SpawnPointDefinition = null) -> SpawnPointDefinition:
+	if _level == null or path == null:
+		return null
+	var spawn := known_spawn
+	if spawn == null:
+		var candidates := _level.get_spawn_point_candidates_for_path(path)
+		if candidates.size() > 1:
+			_status.text = "未同步：%s 对应多个出生点，请先清理旧关卡的重复引用。" % path.display_name
+			return null
+		if candidates.size() == 1:
+			spawn = candidates[0]
+	if spawn == null:
+		spawn = SpawnPointDefinitionScript.new()
+		_level.spawn_points.append(spawn)
+	spawn.sync_with_path(path)
+	return spawn
+
+func _get_path_option_label(path: PathDefinition) -> String:
+	if path == null:
+		return "(空路径)"
+	var display_name := path.display_name.strip_edges()
+	if display_name.is_empty():
+		display_name = "未命名路径"
+	return "%s [%s]" % [display_name, str(path.path_id)]
+
+func _get_spawn_option_label(spawn: SpawnPointDefinition) -> String:
+	if spawn == null:
+		return "(空出生点)"
+	var path := _level.get_path_for_spawn_point(spawn) if _level != null else null
+	var display_name := SpawnPointDefinition.make_display_name_for_path(path) if path != null else spawn.display_name.strip_edges()
+	if display_name.is_empty():
+		display_name = "未关联出生点"
+	return "%s [%s]" % [display_name, str(spawn.spawn_id)]
 
 func _validate_m4_level() -> void:
 	if _level == null:
@@ -912,7 +975,7 @@ func _refresh_wave_group_controls() -> void:
 	_wave_delay.set_block_signals(false)
 	var has_group := group != null
 	_wave_enemy_select.disabled = not has_group
-	_wave_spawn_select.disabled = not has_group
+	_wave_spawn_select.disabled = true
 	_wave_path_select.disabled = not has_group
 	_wave_count.editable = has_group
 	_wave_interval.editable = has_group
@@ -927,7 +990,7 @@ func _refresh_resource_options(option: OptionButton, resources: Array, selected:
 		if not raw_resource is Resource:
 			continue
 		var resource: Resource = raw_resource
-		var label: String = resource.resource_path.get_file().get_basename() if not resource.resource_path.is_empty() else str(resource.get("display_name"))
+		var label := _get_resource_option_label(resource)
 		option.add_item(label)
 		var item_index := option.item_count - 1
 		option.set_item_metadata(item_index, resource)
@@ -935,6 +998,16 @@ func _refresh_resource_options(option: OptionButton, resources: Array, selected:
 			selected_index = item_index
 	option.select(selected_index)
 	option.set_block_signals(false)
+
+func _get_resource_option_label(resource: Resource) -> String:
+	if resource is PathDefinition:
+		return _get_path_option_label(resource as PathDefinition)
+	if resource is SpawnPointDefinition:
+		return _get_spawn_option_label(resource as SpawnPointDefinition)
+	if not resource.resource_path.is_empty():
+		return resource.resource_path.get_file().get_basename()
+	var display_name: Variant = resource.get("display_name")
+	return str(display_name) if display_name != null else "未命名资源"
 
 func _load_enemy_definitions() -> Array:
 	var result: Array = []
@@ -993,10 +1066,9 @@ func _add_spawn_group() -> void:
 	var group: SpawnGroupDefinition = SpawnGroupDefinitionScript.new()
 	if not _enemy_options.is_empty():
 		group.enemy = _enemy_options[0]
-	if _level != null and not _level.spawn_points.is_empty():
-		group.spawn_point = _level.spawn_points[0]
 	if _level != null and not _level.paths.is_empty():
 		group.path = _level.paths[0]
+		group.spawn_point = _level.get_spawn_point_for_path(group.path)
 	wave.spawn_groups.append(group)
 	_mark_level_changed()
 	_refresh_wave_group_controls()
@@ -1024,17 +1096,17 @@ func _on_wave_enemy_selected(index: int) -> void:
 		group.enemy = _get_selected_resource(_wave_enemy_select, index) as EnemyDefinition
 		_mark_level_changed()
 
-func _on_wave_spawn_selected(index: int) -> void:
-	var group := _get_selected_spawn_group()
-	if group != null:
-		group.spawn_point = _get_selected_resource(_wave_spawn_select, index) as SpawnPointDefinition
-		_mark_level_changed()
-
 func _on_wave_path_selected(index: int) -> void:
 	var group := _get_selected_spawn_group()
 	if group != null:
-		group.path = _get_selected_resource(_wave_path_select, index) as PathDefinition
+		var selected_path := _get_selected_resource(_wave_path_select, index) as PathDefinition
+		var paired_spawn := _level.get_spawn_point_for_path(selected_path) if selected_path != null else null
+		group.path = selected_path
+		group.spawn_point = paired_spawn
 		_mark_level_changed()
+		_refresh_wave_group_controls()
+		if group.path != null and group.spawn_point == null:
+			_status.text = "当前路径没有唯一出生点，请到路径页同步。"
 
 func _on_wave_count_changed(value: float) -> void:
 	var group := _get_selected_spawn_group()
