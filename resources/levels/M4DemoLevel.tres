@@ -38,6 +38,7 @@ script = ExtResource("4_group")
 enemy = ExtResource("6_grunt")
 count = 5
 interval = 0.45
+start_delay = 8.0
 spawn_point = SubResource("Spawn_North")
 path = SubResource("Path_Main")
 
@@ -46,7 +47,7 @@ script = ExtResource("4_group")
 enemy = ExtResource("7_runner")
 count = 3
 interval = 0.8
-start_delay = 1.0
+start_delay = 9.0
 spawn_point = SubResource("Spawn_North")
 path = SubResource("Path_Main")
 
@@ -69,4 +70,3 @@ base_max_hp = 100.0
 paths = Array[ExtResource("2_path")]([SubResource("Path_Main")])
 spawn_points = Array[ExtResource("3_spawn")]([SubResource("Spawn_North")])
 waves = Array[ExtResource("5_wave")]([SubResource("Wave_One"), SubResource("Wave_Two")])
-wave_prep_time = 1.0

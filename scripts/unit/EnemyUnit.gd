@@ -53,7 +53,9 @@ func configure_unit(enemy_definition: EnemyDefinition, path_points: PackedVector
 		debug_color = definition.body_color
 		debug_height = definition.body_height
 	if not _path_points.is_empty():
-		global_position = _path_points[0]
+		# WaveManager configures the unit before add_child() so _ready() can build
+		# visuals from the definition. Path points share the Main-local space.
+		position = _path_points[0]
 
 func take_damage(amount: float) -> float:
 	return super.take_damage(maxf(0.0, amount - armor))

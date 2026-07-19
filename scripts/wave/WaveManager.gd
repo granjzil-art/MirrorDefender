@@ -1,4 +1,4 @@
-## M4 wave entry point: timed spawning, base damage, enemy rewards, and victory state.
+## M4 wave entry point: one manual start, global group timeline, rewards, and victory.
 class_name WaveManager
 extends Node
 
@@ -6,7 +6,6 @@ enum State {
 	NO_WAVES,
 	READY,
 	ACTIVE,
-	PREPARING,
 	VICTORY,
 	DEFEAT,
 }
@@ -29,24 +28,20 @@ var _base_core: BaseCore
 var _level: LevelResource
 var _state: State = State.NO_WAVES
 var _current_wave_index: int = -1
-var _preparation_remaining: float = 0.0
+var _battle_elapsed: float = 0.0
 var _spawn_states: Array[Dictionary] = []
 var _active_units: Array[EnemyUnit] = []
+var _unit_wave_indices: Dictionary = {}
+var _started_wave_indices: Dictionary = {}
+var _completed_wave_indices: Dictionary = {}
 
 func _process(delta: float) -> void:
-	if not feature_enabled:
+	if not feature_enabled or _state != State.ACTIVE:
 		return
-	if _state == State.PREPARING:
-		_preparation_remaining = maxf(0.0, _preparation_remaining - delta)
-		if _preparation_remaining <= 0.0:
-			_state = State.READY
-			_emit_state_changed()
-			if _level != null and _level.waves_auto_start:
-				start_next_wave()
-	elif _state == State.ACTIVE:
-		_process_spawn_states(delta)
-		if _all_groups_spawned() and _active_units.is_empty():
-			_complete_wave()
+	_battle_elapsed += maxf(0.0, delta)
+	_process_spawn_states()
+	_update_wave_completions()
+	_finish_battle_if_complete()
 
 func configure(
 	path_manager: PathManager,
@@ -67,38 +62,33 @@ func load_level(level_resource: LevelResource) -> void:
 	_clear_active_units()
 	_level = level_resource
 	_current_wave_index = -1
+	_battle_elapsed = 0.0
 	_spawn_states.clear()
-	_preparation_remaining = 0.0
+	_started_wave_indices.clear()
+	_completed_wave_indices.clear()
 	_state = State.NO_WAVES if _level == null or _level.waves.is_empty() else State.READY
 	_emit_state_changed()
 
-func start_next_wave() -> bool:
+## Starts the only manual phase transition. Every SpawnGroup.start_delay is then
+## measured from this call, including groups owned by later waves.
+func start_battle() -> bool:
 	if not feature_enabled or _state != State.READY or _level == null:
 		return false
-	if _current_wave_index + 1 >= _level.waves.size():
-		_state = State.VICTORY
-		victory.emit()
-		_emit_state_changed()
-		return false
-	_current_wave_index += 1
-	var wave := _level.waves[_current_wave_index]
-	if wave == null:
-		_complete_wave()
-		return false
-	_spawn_states.clear()
-	for group in wave.spawn_groups:
-		if group == null:
-			continue
-		_spawn_states.append({
-			"group": group,
-			"remaining": group.count,
-			"delay": group.start_delay,
-			"cooldown": 0.0,
-		})
+	_battle_elapsed = 0.0
+	_current_wave_index = -1
+	_started_wave_indices.clear()
+	_completed_wave_indices.clear()
+	_build_spawn_timeline()
 	_state = State.ACTIVE
-	wave_started.emit(_current_wave_index + 1, wave)
+	_process_spawn_states()
+	_update_wave_completions()
+	_finish_battle_if_complete()
 	_emit_state_changed()
 	return true
+
+## Compatibility entry for callers created before the global timeline rule.
+func start_next_wave() -> bool:
+	return start_battle()
 
 func get_state() -> State:
 	return _state
@@ -106,11 +96,9 @@ func get_state() -> State:
 func get_state_name() -> String:
 	match _state:
 		State.READY:
-			return "待开始"
+			return "等待开始第一波"
 		State.ACTIVE:
-			return "进攻中"
-		State.PREPARING:
-			return "准备中 %.1fs" % _preparation_remaining
+			return "进攻中 %.1fs" % _battle_elapsed
 		State.VICTORY:
 			return "胜利"
 		State.DEFEAT:
@@ -128,28 +116,53 @@ func get_active_enemy_count() -> int:
 	_cleanup_units()
 	return _active_units.size()
 
-func _process_spawn_states(delta: float) -> void:
+func get_battle_elapsed() -> float:
+	return _battle_elapsed
+
+func _build_spawn_timeline() -> void:
+	_spawn_states.clear()
+	if _level == null:
+		return
+	for wave_index in range(_level.waves.size()):
+		var wave: WaveDefinition = _level.waves[wave_index]
+		if wave == null:
+			continue
+		for group in wave.spawn_groups:
+			if group == null:
+				continue
+			_spawn_states.append({
+				"wave_index": wave_index,
+				"group": group,
+				"remaining": group.count,
+				"next_spawn_time": maxf(0.0, group.start_delay),
+			})
+
+func _process_spawn_states() -> void:
 	for state in _spawn_states:
 		var remaining: int = int(state["remaining"])
 		if remaining <= 0:
 			continue
-		var delay: float = float(state["delay"])
-		if delay > 0.0:
-			delay -= delta
-			state["delay"] = delay
-			if delay > 0.0:
-				continue
-		var cooldown: float = float(state["cooldown"]) - delta
+		var wave_index: int = int(state["wave_index"])
 		var group: SpawnGroupDefinition = state["group"]
-		while cooldown <= 0.0 and remaining > 0:
-			_spawn_group_unit(group)
+		var next_spawn_time: float = float(state["next_spawn_time"])
+		while remaining > 0 and _battle_elapsed + 0.000001 >= next_spawn_time:
+			_mark_wave_started(wave_index)
+			_spawn_group_unit(group, wave_index)
 			remaining -= 1
-			cooldown += maxf(0.01, group.interval)
+			next_spawn_time += maxf(0.01, group.interval)
 		state["remaining"] = remaining
-		state["cooldown"] = cooldown
+		state["next_spawn_time"] = next_spawn_time
 	_emit_state_changed()
 
-func _spawn_group_unit(group: SpawnGroupDefinition) -> void:
+func _mark_wave_started(wave_index: int) -> void:
+	if _started_wave_indices.has(wave_index) or _level == null:
+		return
+	_started_wave_indices[wave_index] = true
+	_current_wave_index = maxi(_current_wave_index, wave_index)
+	var wave: WaveDefinition = _level.waves[wave_index]
+	wave_started.emit(wave_index + 1, wave)
+
+func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> void:
 	if group == null or group.enemy == null or group.path == null or _path_manager == null:
 		return
 	var points := _path_manager.get_world_points(group.path)
@@ -162,9 +175,34 @@ func _spawn_group_unit(group: SpawnGroupDefinition) -> void:
 	unit.reached_base.connect(_on_enemy_reached_base)
 	unit.tree_exited.connect(_on_enemy_tree_exited.bind(unit))
 	_active_units.append(unit)
+	_unit_wave_indices[unit] = wave_index
 	if _combat_manager != null:
 		_combat_manager.register_target(unit)
 	enemy_spawned.emit(unit)
+
+func _update_wave_completions() -> void:
+	if _level == null:
+		return
+	_cleanup_units()
+	for wave_index in range(_level.waves.size()):
+		if not _started_wave_indices.has(wave_index) or _completed_wave_indices.has(wave_index):
+			continue
+		if not _all_wave_groups_spawned(wave_index) or _has_active_unit_for_wave(wave_index):
+			continue
+		_completed_wave_indices[wave_index] = true
+		wave_completed.emit(wave_index + 1)
+
+func _all_wave_groups_spawned(wave_index: int) -> bool:
+	for state in _spawn_states:
+		if int(state["wave_index"]) == wave_index and int(state["remaining"]) > 0:
+			return false
+	return true
+
+func _has_active_unit_for_wave(wave_index: int) -> bool:
+	for unit in _active_units:
+		if int(_unit_wave_indices.get(unit, -1)) == wave_index:
+			return true
+	return false
 
 func _all_groups_spawned() -> bool:
 	for state in _spawn_states:
@@ -172,21 +210,17 @@ func _all_groups_spawned() -> bool:
 			return false
 	return true
 
-func _complete_wave() -> void:
-	if _state != State.ACTIVE:
+func _finish_battle_if_complete() -> void:
+	if _state != State.ACTIVE or not _all_groups_spawned() or not _active_units.is_empty():
 		return
-	wave_completed.emit(_current_wave_index + 1)
-	if _level != null and _current_wave_index + 1 >= _level.waves.size():
-		_state = State.VICTORY
-		victory.emit()
-	else:
-		_state = State.PREPARING
-		_preparation_remaining = _level.wave_prep_time if _level != null else 0.0
+	_state = State.VICTORY
+	victory.emit()
 	_emit_state_changed()
 
 func _clear_active_units() -> void:
 	var units := _active_units.duplicate()
 	_active_units.clear()
+	_unit_wave_indices.clear()
 	for unit in units:
 		if is_instance_valid(unit):
 			unit.queue_free()
@@ -195,6 +229,7 @@ func _cleanup_units() -> void:
 	for index in range(_active_units.size() - 1, -1, -1):
 		var unit := _active_units[index]
 		if unit == null or not is_instance_valid(unit):
+			_unit_wave_indices.erase(unit)
 			_active_units.remove_at(index)
 
 func _on_enemy_died(target: CombatTarget, reward_amount: float) -> void:
@@ -208,6 +243,7 @@ func _on_enemy_reached_base(unit: EnemyUnit, damage: float) -> void:
 
 func _on_enemy_tree_exited(unit: EnemyUnit) -> void:
 	_active_units.erase(unit)
+	_unit_wave_indices.erase(unit)
 
 func _on_base_defeated() -> void:
 	if _state == State.DEFEAT:

@@ -209,8 +209,6 @@ func _draw() -> void:
 
 func _draw_cell(cell: Vector3i) -> void:
 	var tile: Resource = level.get_tile(cell)
-	if tile == null:
-		return
 	var top_color := _height_color(tile)
 	var corners := _shape.get_corners(cell)
 	var current_height := _tile_world_height(tile)
@@ -239,7 +237,8 @@ func _draw_cell(cell: Vector3i) -> void:
 	var outline := PackedVector2Array(polygon)
 	outline.append(polygon[0])
 	draw_polyline(outline, OUTLINE_COLOR, 1.2, true)
-	_draw_tile_marker(cell, tile, current_height)
+	if tile != null:
+		_draw_tile_marker(cell, tile, current_height)
 
 func _draw_tile_marker(cell: Vector3i, tile: Resource, world_height: float) -> void:
 	var center_world := _shape.cell_to_world(cell)
@@ -388,10 +387,14 @@ func _apply_preset_to_cell(cell: Vector3i, preset_path: String) -> bool:
 func _apply_height_to_cell(cell: Vector3i, height_level: int) -> bool:
 	if level == null:
 		return false
+	var target_height := clampi(height_level, 0, level.height_levels - 1)
 	var tile: Resource = level.get_tile(cell)
 	if tile == null:
-		return false
-	var target_height := clampi(height_level, 0, level.height_levels - 1)
+		if target_height == 0:
+			return false
+		tile = TileCellDataScript.new()
+		tile.call("configure", cell, 0, 0)
+		level.store_tile(tile)
 	if int(tile.get("height_level")) == target_height:
 		return false
 	tile.call("set_height_level", target_height, level.height_levels)

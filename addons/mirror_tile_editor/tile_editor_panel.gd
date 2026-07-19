@@ -244,7 +244,7 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	sidebar.add_child(_with_label("路径名称", _path_name))
 	_path_record = CheckButton.new()
 	_path_record.text = "点击地图连续记录格"
-	_path_record.button_pressed = true
+	_path_record.button_pressed = false
 	sidebar.add_child(_path_record)
 	_path_remove_last = Button.new()
 	_path_remove_last.text = "移除最后一格"
@@ -339,10 +339,10 @@ func _add_wave_tab(tabs: TabContainer) -> void:
 	form.add_child(_wave_interval)
 	_wave_delay = _make_spin_box(0.0, 10000.0, 0.1)
 	_wave_delay.value_changed.connect(_on_wave_delay_changed)
-	form.add_child(_make_form_label("组开始延迟（秒）"))
+	form.add_child(_make_form_label("距第一波开始延迟（秒）"))
 	form.add_child(_wave_delay)
 	var help := Label.new()
-	help.text = "路径页先绘制路线并添加出生点；波次中的每个出怪组直接选择敌人、出生点和路径。"
+	help.text = "第一波手动开始；之后所有出怪组按相对首次点击时刻的延迟自动生成，可跨波次重叠。"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	page.add_child(help)
 
@@ -386,6 +386,8 @@ func _new_level() -> void:
 
 func _set_level(value: LevelResource) -> void:
 	_level = value
+	if _path_record != null:
+		_path_record.button_pressed = false
 	_set_level_controls_blocked(true)
 	_shape_select.select(_level.grid_shape)
 	_size_x.value = _level.grid_size.x
@@ -496,17 +498,19 @@ func _on_cell_selected(cell: Vector3i) -> void:
 	if _level == null:
 		return
 	var tile: Resource = _level.get_tile(cell)
-	if tile == null:
-		return
 	_selected_label.text = "cell = %s" % str(cell)
-	_tile_type_select.select(int(tile.get("tile_type")))
+	_tile_type_select.set_block_signals(true)
+	_tile_height.set_block_signals(true)
+	_tile_type_select.select(int(tile.get("tile_type")) if tile != null else 0)
 	_tile_height.max_value = maxi(0, _level.height_levels - 1)
-	_tile_height.value = int(tile.get("height_level"))
-	_destroy_button.visible = bool(tile.call("is_destructible"))
+	_tile_height.value = int(tile.get("height_level")) if tile != null else 0
+	_tile_type_select.set_block_signals(false)
+	_tile_height.set_block_signals(false)
+	_destroy_button.visible = tile != null and bool(tile.call("is_destructible"))
 	_set_inspector_enabled(true)
 
 func _on_tile_type_changed(index: int) -> void:
-	var tile := _selected_tile()
+	var tile := _selected_tile(true)
 	if tile == null:
 		return
 	tile.call("set_tile_type", index)
@@ -515,7 +519,7 @@ func _on_tile_type_changed(index: int) -> void:
 	_canvas.call("refresh")
 
 func _on_tile_height_changed(value: float) -> void:
-	var tile := _selected_tile()
+	var tile := _selected_tile(true)
 	if tile == null:
 		return
 	tile.call("set_height_level", int(value), _level.height_levels)
@@ -530,10 +534,15 @@ func _destroy_selected_obstacle() -> void:
 	_destroy_button.visible = false
 	_canvas.call("refresh")
 
-func _selected_tile() -> Resource:
+func _selected_tile(create_default: bool = false) -> Resource:
 	if _level == null or not _canvas.has_selected_cell:
 		return null
-	return _level.get_tile(_canvas.selected_cell)
+	var tile: Resource = _level.get_tile(_canvas.selected_cell)
+	if tile == null and create_default:
+		tile = TileCellDataScript.new()
+		tile.call("configure", _canvas.selected_cell, 0, 0)
+		_level.store_tile(tile)
+	return tile
 
 func _on_layout_changed() -> void:
 	if _canvas.has_selected_cell:
@@ -631,6 +640,7 @@ func _add_path() -> void:
 	_mark_level_changed()
 	_refresh_path_controls()
 	_path_select.select(_path_select.item_count - 1)
+	_path_record.button_pressed = true
 	_refresh_path_controls()
 
 func _on_path_selected(_index: int) -> void:
@@ -664,6 +674,13 @@ func _on_path_canvas_clicked(cell: Vector3i) -> void:
 		return
 	if not path.cells.is_empty() and path.cells.back() == cell:
 		return
+	if not path.cells.is_empty():
+		var shape: IGridShape = HexGridShape.new() if _level.grid_shape == HEX_SHAPE else SquareGridShape.new()
+		shape.setup(_level.grid_cell_size)
+		var previous_cell: Vector3i = path.cells.back()
+		if not shape.get_neighbors(previous_cell).has(cell):
+			_status.text = "未添加：%s 与路径末格 %s 不相邻。" % [str(cell), str(previous_cell)]
+			return
 	path.cells.append(cell)
 	_mark_level_changed()
 	_refresh_path_controls()

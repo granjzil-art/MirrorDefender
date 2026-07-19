@@ -38,8 +38,6 @@ extends Resource
 
 @export_group("M4 Waves")
 @export var waves: Array[WaveDefinition] = []
-@export_range(0.0, 10000.0, 0.1, "or_greater") var wave_prep_time: float = 5.0
-@export var waves_auto_start: bool = false
 
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:
@@ -114,13 +112,21 @@ func validate_m4() -> Array[String]:
 		path_ids[path.path_id] = true
 		if path.cells.size() < 2:
 			errors.append("路径 %s 至少需要两个格" % path.display_name)
+		elif path.get_end_cell() != base_cell:
+			errors.append("路径 %s 的终点 %s 不是据点格 %s" % [path.display_name, str(path.get_end_cell()), str(base_cell)])
 		for index in range(path.cells.size()):
 			var cell := path.cells[index]
 			if not shape.is_in_bounds(cell, grid_size):
 				errors.append("路径 %s 含地图外格" % path.display_name)
 				break
 			if index > 0 and not shape.get_neighbors(path.cells[index - 1]).has(cell):
-				errors.append("路径 %s 存在不相邻的格" % path.display_name)
+				errors.append("路径 %s：第 %d 格 %s 与第 %d 格 %s 不相邻" % [
+					path.display_name,
+					index,
+					str(path.cells[index - 1]),
+					index + 1,
+					str(cell),
+				])
 				break
 	var spawn_ids: Dictionary = {}
 	for spawn_point in spawn_points:

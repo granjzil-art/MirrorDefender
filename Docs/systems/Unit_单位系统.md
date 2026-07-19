@@ -63,7 +63,7 @@ EnemyUnit reaches final path point
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `EnemyUnit.configure_unit` | `(enemy_definition: EnemyDefinition, path_points: PackedVector3Array) -> void` | 写入数值、表现参数和路径起点。 |
+| `EnemyUnit.configure_unit` | `(enemy_definition: EnemyDefinition, path_points: PackedVector3Array) -> void` | 在加入场景树前写入数值、表现参数和 Main 局部空间路径起点，供 `_ready()` 构建正确灰盒外观。 |
 | `EnemyUnit.take_damage` | `(amount: float) -> float` | 应用固定护甲并返回实际伤害。 |
 | `EnemyUnit._process` | `(delta: float) -> void` | 沿世界路径逐段移动。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |
@@ -75,6 +75,7 @@ EnemyUnit reaches final path point
 ## 约定事实源
 
 - EnemyDefinition 是敌人数值事实源；EnemyUnit 是运行时生命、位置和路径进度事实源。
+- PathManager 生成的路径点与动态 EnemyUnit 共用 Main 局部坐标空间；生成前设置 `position`，不得在节点尚未入树时访问 `global_position`。
 - `reward` 只在敌人被击杀时入账；到达据点消失不掉资源。
 - 据点格通过 TileManager 占用，建筑不能建在该格。
 

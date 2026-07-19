@@ -7,7 +7,7 @@
 
 ## 分类 / 做法
 - **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济，以及 M4 据点、路径、出生点和波次。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
-- **M4 关卡校验**：`validate_m4()` 统一验证据点格、路径边界与连续性、出生点边界、波次引用和出生点与路径首格的一致性；编辑器与运行时共用同一资源结构。
+- **M4 关卡校验**：`validate_m4()` 是只读一致性检查，统一验证据点格、路径长度/边界/逐段连续性/终点、出生点边界，以及波次组参数、资源引用和出生点与路径首格的一致性；它不保存、不加载、不修复关卡。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
@@ -33,7 +33,7 @@
 | `base_cell` / `base_max_hp` | `(0,0,0)` / 100 | M4 据点所在格和最大生命。 |
 | `paths` / `spawn_points` | `[]` | M4 持有的 PathDefinition / SpawnPointDefinition 数组。 |
 | `waves` | `[]` | M4 固定波次数组，每项持有多个 SpawnGroup。 |
-| `wave_prep_time` / `waves_auto_start` | 5.0 / false | 波次间准备秒数与自动开波开关。 |
+| SpawnGroup.`start_delay` | 0.0 | 相对首次点击“开始第一波”的全局延迟；后续波次无需再次点击。 |
 | LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
 | LevelLoader.`initial_level` | M4DemoLevel | 主场景启动时加载的关卡。 |
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关；正式发行可关闭。 |
@@ -94,7 +94,7 @@ Mirror Level Editor
 | `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
 | `get_path_by_id` | `(path_id: StringName) -> PathDefinition` | 从本关路径数组按稳定 ID 返回定义或 null。 |
 | `get_spawn_point` | `(spawn_id: StringName) -> SpawnPointDefinition` | 从本关出生点数组按稳定 ID 返回定义或 null。 |
-| `validate_m4` | `() -> Array[String]` | 返回据点、路径、出生点和波次的配置错误；空数组表示可启动。 |
+| `validate_m4` | `() -> Array[String]` | 只读返回据点、路径和波次一致性错误；路径断点错误包含前后序号及坐标，空数组表示配置通过。 |
 
 ### LevelLoader.gd
 
@@ -131,7 +131,8 @@ Mirror Level Editor
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
 - LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 EnemyDefinition，三者禁止混写。
 - `paths`、`spawn_points` 和 `waves` 均由同一个 LevelResource 持有；SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
-- 路径顺序恒为出生点到据点；本阶段路径终点和 `base_cell` 由设计者共同配置，`M4DemoLevel` 将其设为同一格。
+- 路径顺序恒为出生点到据点；`validate_m4()` 要求每条路径终点等于 `base_cell`，并要求出怪组的出生点等于引用路径的首格。
+- 波次在资源中仍按数组组织，但运行时只手动开始第一波；全部 SpawnGroup 的 `start_delay` 都以这次点击为零点，允许不同波次重叠。
 
 ## 已知限制 / 初版不做的部分
 

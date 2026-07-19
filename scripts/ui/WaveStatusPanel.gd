@@ -41,8 +41,8 @@ func _build_interface() -> void:
 	_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(_summary_label)
 	_start_button = Button.new()
-	_start_button.text = "开始下一波"
-	_start_button.tooltip_text = "在准备完成后开始下一波"
+	_start_button.text = "开始第一波"
+	_start_button.tooltip_text = "启动全局波次时间轴；后续波次按出怪组延迟自动开始"
 	_start_button.pressed.connect(_on_start_pressed)
 	content.add_child(_start_button)
 
@@ -59,7 +59,7 @@ func _disconnect_sources() -> void:
 
 func _on_start_pressed() -> void:
 	if _wave_manager != null:
-		_wave_manager.start_next_wave()
+		_wave_manager.start_battle()
 	_refresh()
 
 func _on_wave_state_changed(
