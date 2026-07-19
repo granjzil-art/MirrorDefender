@@ -8,11 +8,21 @@ enum Kind {
 	ARROW_TOWER,
 	LASER_TOWER,
 	BARRIER,
+	EDGE_BARRIER,
+}
+
+enum PlacementSurface {
+	BUILDABLE_TILE,
+	PATH_TILE,
+	PATH_EDGE,
 }
 
 @export_group("Identity")
 @export var kind: Kind = Kind.ARROW_TOWER
 @export var display_name: String = "箭塔"
+
+@export_group("Placement")
+@export var placement_surface: PlacementSurface = PlacementSurface.BUILDABLE_TILE
 
 @export_group("Levels")
 @export var levels: Array[BuildingLevelStats] = []
@@ -28,3 +38,9 @@ func get_max_level() -> int:
 
 func is_configured() -> bool:
 	return get_max_level() > 0 and get_level_stats(1) != null
+
+func is_defensive_structure() -> bool:
+	return kind == Kind.BARRIER or kind == Kind.EDGE_BARRIER
+
+func is_edge_building() -> bool:
+	return placement_surface == PlacementSurface.PATH_EDGE

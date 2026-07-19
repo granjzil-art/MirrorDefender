@@ -68,7 +68,8 @@ func _refresh_selected_building() -> void:
 	if _delete_button != null:
 		_delete_button.disabled = _selected_building == null
 	if _rotate_button != null:
-		_rotate_button.disabled = _selected_building == null
+		_rotate_button.disabled = _selected_building == null or not _selected_building.can_rotate_in_place()
+		_rotate_button.tooltip_text = "边建筑放置后朝向固定" if _selected_building != null and _selected_building.is_edge_placement() else "顺时针旋转一个可用朝向"
 
 func _update_projection() -> void:
 	if not feature_enabled or _selected_building == null or not is_instance_valid(_selected_building):

@@ -4,6 +4,8 @@ extends CombatTarget
 
 const EnemyAttackStrategyScript := preload("res://scripts/combat/EnemyAttackStrategy.gd")
 const EnemyProjectileScript := preload("res://scripts/combat/EnemyProjectile.gd")
+const ATTACK_RANGE_EPSILON_RATIO := 0.001
+const PATH_PROGRESS_EPSILON := 0.0001
 
 signal reached_base(unit: EnemyUnit, damage_to_base: float)
 signal attack_started(unit: EnemyUnit, target: Node)
@@ -33,18 +35,19 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not feature_enabled or not is_alive() or _reached_base or _path_points.size() < 2:
 		return
-	var blocker := _find_first_path_blocker()
-	if blocker != null:
-		var distance_to_blocker := _horizontal_distance_to(_get_blocker_position(blocker))
-		if distance_to_blocker <= _attack_range_world:
+	var blocker_info := _find_first_path_blocker()
+	if not blocker_info.is_empty():
+		var blocker: Node = blocker_info["node"]
+		var blocker_position := _get_blocker_position(blocker)
+		if _is_within_attack_range(blocker_position):
 			_enter_attack_state(blocker)
-			_face_target(_get_blocker_position(blocker))
+			_face_target(blocker_position)
 			_attack_strategy.tick(self, delta)
 			return
 		_leave_attack_state()
-		var movement_limit := maxf(0.0, distance_to_blocker - _attack_range_world)
+		var movement_limit := _get_path_distance_until_attack_range(blocker_info)
 		_move_along_path(minf(move_speed * maxf(0.0, delta), movement_limit))
-		if is_alive() and is_instance_valid(blocker) and _horizontal_distance_to(_get_blocker_position(blocker)) <= _attack_range_world:
+		if is_alive() and is_instance_valid(blocker) and _is_within_attack_range(_get_blocker_position(blocker)):
 			_enter_attack_state(blocker)
 			_face_target(_get_blocker_position(blocker))
 			_attack_strategy.tick(self, 0.0)
@@ -90,7 +93,7 @@ func take_damage(amount: float) -> float:
 	return super.take_damage(maxf(0.0, amount - armor))
 
 func is_attacking() -> bool:
-	return _attack_target != null and is_instance_valid(_attack_target) and _is_blocker_alive(_attack_target) and _horizontal_distance_to(_get_blocker_position(_attack_target)) <= _attack_range_world
+	return _attack_target != null and is_instance_valid(_attack_target) and _is_blocker_alive(_attack_target) and _is_within_attack_range(_get_blocker_position(_attack_target))
 
 func get_attack_target() -> Node:
 	return _attack_target if is_attacking() else null
@@ -101,14 +104,14 @@ func get_attacks_per_second() -> float:
 func get_attack_range_world() -> float:
 	return _attack_range_world
 
-func perform_attack(target: Node) -> void:
+func perform_attack(target: Node) -> bool:
 	if target == null or not is_instance_valid(target) or not _is_blocker_alive(target):
-		return
+		return false
 	if definition != null and definition.projectile_speed > 0.0:
-		_launch_projectile(target)
-		return
+		return _launch_projectile(target) != null
 	var applied_damage := float(target.call("take_structure_damage", _attack_damage, self))
 	attack_performed.emit(self, target, applied_damage, false)
+	return true
 
 func _move_along_path(remaining_distance: float) -> void:
 	while remaining_distance > 0.0 and _path_index < _path_points.size() - 1:
@@ -130,17 +133,110 @@ func _move_along_path(remaining_distance: float) -> void:
 	if _path_index >= _path_points.size() - 1:
 		_reach_base()
 
-func _find_first_path_blocker() -> Node:
-	if not _blocker_resolver.is_valid() or _path_cells.is_empty():
-		return null
-	var start_index := clampi(_path_index + 1, 0, _path_cells.size())
-	for index in range(start_index, _path_cells.size()):
-		var candidate: Variant = _blocker_resolver.call(_path_cells[index])
-		if candidate is Node:
-			var blocker: Node = candidate
-			if _is_blocker_alive(blocker):
-				return blocker
-	return null
+func _find_first_path_blocker() -> Dictionary:
+	if not _blocker_resolver.is_valid() or _path_cells.size() < 2:
+		return {}
+	var last_segment := mini(_path_cells.size(), _path_points.size()) - 1
+	for segment_index in range(clampi(_path_index, 0, last_segment), last_segment):
+		var from_cell := _path_cells[segment_index]
+		var to_cell := _path_cells[segment_index + 1]
+		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell)
+		if not candidate is Node:
+			continue
+		var blocker: Node = candidate
+		if not _is_blocker_alive(blocker):
+			continue
+		var blocker_position := _get_blocker_position(blocker)
+		var segment_ratio := _get_horizontal_segment_ratio(
+			_path_points[segment_index],
+			_path_points[segment_index + 1],
+			blocker_position
+		)
+		if segment_index == _path_index:
+			var current_ratio := _get_horizontal_segment_ratio(
+				_path_points[segment_index],
+				_path_points[segment_index + 1],
+				global_position
+			)
+			if segment_ratio + PATH_PROGRESS_EPSILON < current_ratio:
+				continue
+		return {
+			"node": blocker,
+			"segment_index": segment_index,
+			"segment_ratio": segment_ratio,
+			"position": blocker_position,
+		}
+	return {}
+
+## Returns travel distance along the authored polyline until the unit first
+## enters the horizontal attack circle. This avoids chord-distance stalls at
+## bends and works for both tile-center and edge-midpoint blockers.
+func _get_path_distance_until_attack_range(blocker_info: Dictionary) -> float:
+	var blocker_position: Vector3 = blocker_info["position"]
+	if _is_within_attack_range(blocker_position):
+		return 0.0
+	var target_segment: int = int(blocker_info["segment_index"])
+	var target_ratio: float = float(blocker_info["segment_ratio"])
+	var segment_start := global_position
+	var accumulated_distance := 0.0
+	for segment_index in range(_path_index, target_segment + 1):
+		var segment_end := _path_points[segment_index + 1]
+		if segment_index == target_segment:
+			segment_end = _path_points[segment_index].lerp(
+				_path_points[segment_index + 1],
+				target_ratio
+			)
+		var entry_ratio := _get_attack_circle_entry_ratio(
+			segment_start,
+			segment_end,
+			blocker_position,
+			_attack_range_world
+		)
+		var segment_length := segment_start.distance_to(segment_end)
+		if entry_ratio >= 0.0:
+			return accumulated_distance + segment_length * entry_ratio
+		accumulated_distance += segment_length
+		segment_start = segment_end
+	return accumulated_distance
+
+func _get_attack_circle_entry_ratio(
+	segment_start: Vector3,
+	segment_end: Vector3,
+	center: Vector3,
+	radius: float
+) -> float:
+	var start_2d := Vector2(segment_start.x, segment_start.z)
+	var end_2d := Vector2(segment_end.x, segment_end.z)
+	var center_2d := Vector2(center.x, center.z)
+	if start_2d.distance_squared_to(center_2d) <= radius * radius:
+		return 0.0
+	var direction := end_2d - start_2d
+	var a := direction.length_squared()
+	if a <= 0.0000001:
+		return -1.0
+	var offset := start_2d - center_2d
+	var b := 2.0 * offset.dot(direction)
+	var c := offset.length_squared() - radius * radius
+	var discriminant := b * b - 4.0 * a * c
+	if discriminant < 0.0:
+		return -1.0
+	var root := sqrt(discriminant)
+	var first := (-b - root) / (2.0 * a)
+	var second := (-b + root) / (2.0 * a)
+	if first >= 0.0 and first <= 1.0:
+		return first
+	if second >= 0.0 and second <= 1.0:
+		return second
+	return -1.0
+
+func _get_horizontal_segment_ratio(start: Vector3, end: Vector3, point: Vector3) -> float:
+	var start_2d := Vector2(start.x, start.z)
+	var direction := Vector2(end.x, end.z) - start_2d
+	var length_squared := direction.length_squared()
+	if length_squared <= 0.0000001:
+		return 0.0
+	var point_2d := Vector2(point.x, point.z)
+	return clampf((point_2d - start_2d).dot(direction) / length_squared, 0.0, 1.0)
 
 func _is_blocker_alive(blocker: Node) -> bool:
 	if blocker == null or not is_instance_valid(blocker) or blocker.is_queued_for_deletion():
@@ -162,6 +258,12 @@ func _get_blocker_position(blocker: Node) -> Vector3:
 func _horizontal_distance_to(world_position: Vector3) -> float:
 	return Vector2(global_position.x, global_position.z).distance_to(Vector2(world_position.x, world_position.z))
 
+func _get_attack_range_epsilon() -> float:
+	return maxf(0.0005, _grid_cell_size * ATTACK_RANGE_EPSILON_RATIO)
+
+func _is_within_attack_range(world_position: Vector3) -> bool:
+	return _horizontal_distance_to(world_position) <= _attack_range_world + _get_attack_range_epsilon()
+
 func _enter_attack_state(target: Node) -> void:
 	if _attack_target == target:
 		return
@@ -179,10 +281,10 @@ func _leave_attack_state() -> void:
 		_attack_strategy.reset(self)
 	attack_stopped.emit(self, previous_target)
 
-func _launch_projectile(target: Node) -> void:
+func _launch_projectile(target: Node) -> EnemyProjectile:
 	var host := get_parent()
 	if host == null or definition == null:
-		return
+		return null
 	var projectile: EnemyProjectile = EnemyProjectileScript.new()
 	host.add_child(projectile)
 	var start := get_attack_origin()
@@ -201,6 +303,7 @@ func _launch_projectile(target: Node) -> void:
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile_spawned.emit(self, projectile)
+	return projectile
 
 func get_attack_origin() -> Vector3:
 	return global_position + Vector3(0.0, debug_height * 0.62, 0.0)

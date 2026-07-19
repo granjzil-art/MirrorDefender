@@ -18,6 +18,7 @@ var _save_path: LineEdit
 var _status: Label
 var _m4_status: Label
 var _shape_select: OptionButton
+var _geometry_tag_label: Label
 var _size_x: SpinBox
 var _size_y: SpinBox
 var _height_levels: SpinBox
@@ -175,6 +176,9 @@ func _add_level_controls(sidebar: VBoxContainer) -> void:
 	_shape_select.add_item("正方形", SQUARE_SHAPE)
 	_shape_select.item_selected.connect(_on_shape_changed)
 	sidebar.add_child(_with_label("网格形状", _shape_select))
+	_geometry_tag_label = Label.new()
+	_geometry_tag_label.tooltip_text = "由网格形状自动派生，运行时建筑朝向与边规则以此为准"
+	sidebar.add_child(_with_label("关卡标签", _geometry_tag_label))
 	_size_x = _make_spin_box(1.0, 20.0, 1.0)
 	_size_x.value_changed.connect(_on_grid_size_changed)
 	sidebar.add_child(_with_label("半径 / 列数", _size_x))
@@ -432,6 +436,7 @@ func _set_level(value: LevelResource) -> void:
 		_path_record.button_pressed = false
 	_set_level_controls_blocked(true)
 	_shape_select.select(_level.grid_shape)
+	_geometry_tag_label.text = str(_level.get_geometry_tag())
 	_size_x.value = _level.grid_size.x
 	_size_y.value = _level.grid_size.y
 	_height_levels.value = _level.height_levels

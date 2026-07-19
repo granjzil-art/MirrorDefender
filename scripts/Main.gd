@@ -22,6 +22,7 @@ const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
 const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
+const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -56,6 +57,7 @@ func _ready() -> void:
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
 	building_manager.barrier = BarrierDefinitionResource
+	building_manager.edge_barrier = EdgeBarrierDefinitionResource
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
@@ -74,7 +76,7 @@ func _ready() -> void:
 		combat_manager,
 		resource_manager,
 		base_core,
-		Callable(building_manager, "get_path_blocker")
+		Callable(building_manager, "resolve_path_blocker")
 	)
 	_wave_status_panel = WaveStatusPanelScript.new()
 	$HUD.add_child(_wave_status_panel)
@@ -96,7 +98,7 @@ func _update_pick() -> void:
 
 	var edge := grid.pick_edge(_camera, mp)
 	var cell := grid.pick_cell(_camera, mp)
-	_update_building_preview(cell)
+	_update_building_preview(cell, edge)
 
 	# 边优先高亮（靠近边时），否则高亮格。
 	if edge.hit:
@@ -111,7 +113,7 @@ func _update_pick() -> void:
 func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	var shape_name := "六边形(HEX)" if grid.grid_shape == GridManager.Shape.HEX else "正方形(SQUARE)"
 	var lines: Array[String] = []
-	lines.append("网格: %s   格距: %.2f" % [shape_name, grid.cell_size])
+	lines.append("关卡标签: %s | 网格: %s | 格距: %.2f" % [str(grid.get_geometry_tag()), shape_name, grid.cell_size])
 	if base_core != null and wave_manager != null:
 		var base_current: int = ceili(base_core.current_hp)
 		var base_maximum: int = ceili(base_core.max_hp)
@@ -160,16 +162,34 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 				lines.append("按 F 清除障碍，转为可建造")
 		var preview := building_manager.get_preview_building()
 		if preview != null and preview.cell == cell.cell:
-			lines.append("放置预览: %s L1 | 朝向 %d/%d" % [
-				preview.definition.display_name,
-				preview.facing_index + 1,
-				preview.get_facing_slot_count(),
-			])
+			if preview.is_edge_placement():
+				lines.append("放置预览: %s L1 | %s → %s（贴边固定）" % [
+					preview.definition.display_name,
+					str(preview.cell),
+					str(preview.edge_to_cell),
+				])
+			else:
+				lines.append("放置预览: %s L1 | 朝向 %d/%d" % [
+					preview.definition.display_name,
+					preview.facing_index + 1,
+					preview.get_facing_slot_count(),
+				])
 	else:
 		lines.append("拾取格 cell = (界外)")
 	if edge.hit:
 		lines.append("拾取边 index = %d" % edge.edge_index)
 		lines.append("边唯一键 = %s" % edge.id)
+		var edge_building := building_manager.get_edge_building(edge.id)
+		if edge_building != null:
+			lines.append("边占位: %s L%d/%d | %s → %s | 耐久 %d/%d" % [
+				edge_building.definition.display_name,
+				edge_building.level,
+				edge_building.get_max_level(),
+				str(edge_building.cell),
+				str(edge_building.edge_to_cell),
+				ceili(edge_building.current_durability),
+				ceili(edge_building.maximum_durability),
+			])
 	else:
 		lines.append("拾取边 = (无)")
 	if _has_selected_cell:
@@ -179,13 +199,22 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	var selected_building := building_manager.get_selected_building()
 	if selected_building != null:
 		var selected_stats := selected_building.get_level_stats()
-		lines.append("建筑: %s L%d/%d | 世界朝向 %d/%d" % [
-			selected_building.definition.display_name,
-			selected_building.level,
-			selected_building.get_max_level(),
-			selected_building.facing_index + 1,
-			selected_building.get_facing_slot_count(),
-		])
+		if selected_building.is_edge_placement():
+			lines.append("建筑: %s L%d/%d | %s → %s（贴边固定）" % [
+				selected_building.definition.display_name,
+				selected_building.level,
+				selected_building.get_max_level(),
+				str(selected_building.cell),
+				str(selected_building.edge_to_cell),
+			])
+		else:
+			lines.append("建筑: %s L%d/%d | 世界朝向 %d/%d" % [
+				selected_building.definition.display_name,
+				selected_building.level,
+				selected_building.get_max_level(),
+				selected_building.facing_index + 1,
+				selected_building.get_facing_slot_count(),
+			])
 		if selected_building.is_path_blocker():
 			lines.append("耐久 %d/%d | 脱战 %.1fs | 回血 %.1f/s | 反伤 %.0f%%" % [
 				ceili(selected_building.current_durability),
@@ -204,7 +233,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
+	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 边障需从路径前格侧选边 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):
@@ -230,6 +259,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _handle_primary_action() -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
+	var edge_pick: Dictionary = grid.pick_edge(_camera, mouse_position)
 	if not cell_pick.hit:
 		m3_debug_panel.report_no_cell()
 		return
@@ -243,6 +273,17 @@ func _handle_primary_action() -> void:
 				m3_debug_panel.get_selected_definition(),
 				building_manager.get_preview_facing_index()
 			)
+		M3DebugPanelScript.InteractionMode.BUILD_EDGE_BARRIER:
+			if not edge_pick.hit:
+				m3_debug_panel.report_no_cell()
+				return
+			var edge_cell: Vector3i = edge_pick.cell
+			var edge_index: int = edge_pick.edge_index
+			building_manager.place_edge_building(
+				edge_cell,
+				edge_index,
+				m3_debug_panel.get_selected_definition()
+			)
 		M3DebugPanelScript.InteractionMode.SPAWN_TARGET:
 			var target_position := grid.cell_to_world(cell)
 			target_position.y = tile_manager.get_world_height(cell) + 0.02
@@ -250,11 +291,22 @@ func _handle_primary_action() -> void:
 				m3_debug_panel.report_target_spawned()
 		_:
 			_lock_current_pick()
-			building_manager.select_at(cell)
+			building_manager.select_at(cell, edge_pick.id if edge_pick.hit else "")
 
-func _update_building_preview(cell_pick: Dictionary) -> void:
+func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
 	var definition := m3_debug_panel.get_selected_definition()
-	if definition == null or not cell_pick.hit or get_viewport().gui_get_hovered_control() != null:
+	if definition == null or get_viewport().gui_get_hovered_control() != null:
+		building_manager.clear_preview()
+		return
+	if definition.is_edge_building():
+		if not edge_pick.hit:
+			building_manager.clear_preview()
+			return
+		var from_cell: Vector3i = edge_pick.cell
+		var placement_edge_index: int = edge_pick.edge_index
+		building_manager.update_edge_preview(from_cell, placement_edge_index, definition)
+		return
+	if not cell_pick.hit:
 		building_manager.clear_preview()
 		return
 	var cell: Vector3i = cell_pick.cell

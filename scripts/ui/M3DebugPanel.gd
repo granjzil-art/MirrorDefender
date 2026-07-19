@@ -7,6 +7,7 @@ enum InteractionMode {
 	BUILD_ARROW,
 	BUILD_LASER,
 	BUILD_BARRIER,
+	BUILD_EDGE_BARRIER,
 	SPAWN_TARGET,
 }
 
@@ -67,6 +68,8 @@ func get_selected_definition() -> BuildingDefinition:
 		return _building_manager.get_definition(BuildingDefinition.Kind.ARROW_TOWER)
 	if _mode == InteractionMode.BUILD_BARRIER:
 		return _building_manager.get_definition(BuildingDefinition.Kind.BARRIER)
+	if _mode == InteractionMode.BUILD_EDGE_BARRIER:
+		return _building_manager.get_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	return null
 
 func select_mode(value: InteractionMode) -> void:
@@ -119,6 +122,7 @@ func _build_interface() -> void:
 	_add_mode_button(modes, group, "箭塔", InteractionMode.BUILD_ARROW)
 	_add_mode_button(modes, group, "激光塔", InteractionMode.BUILD_LASER)
 	_add_mode_button(modes, group, "屏障", InteractionMode.BUILD_BARRIER)
+	_add_mode_button(modes, group, "边障", InteractionMode.BUILD_EDGE_BARRIER)
 	_add_mode_button(modes, group, "靶标", InteractionMode.SPAWN_TARGET)
 	_mode_label = Label.new()
 	content.add_child(_mode_label)
@@ -166,6 +170,8 @@ func _get_mode_name() -> String:
 			return "放置激光塔"
 		InteractionMode.BUILD_BARRIER:
 			return "放置屏障（仅路径格）"
+		InteractionMode.BUILD_EDGE_BARRIER:
+			return "放置边屏障（从当前格向路径前进边）"
 		InteractionMode.SPAWN_TARGET:
 			return "放置靶标"
 		_:
@@ -199,7 +205,7 @@ func _disconnect_managers() -> void:
 			_combat_manager.target_removed.disconnect(_on_target_count_changed)
 
 func _is_build_mode(value: InteractionMode) -> bool:
-	return value == InteractionMode.BUILD_ARROW or value == InteractionMode.BUILD_LASER or value == InteractionMode.BUILD_BARRIER
+	return value == InteractionMode.BUILD_ARROW or value == InteractionMode.BUILD_LASER or value == InteractionMode.BUILD_BARRIER or value == InteractionMode.BUILD_EDGE_BARRIER
 
 func _on_resource_changed(_current: float, _delta: float, _reason: String) -> void:
 	_refresh_summary()
@@ -224,7 +230,17 @@ func _on_building_selected(building: Building) -> void:
 		_status_label.text = "未选中建筑"
 		_upgrade_button.disabled = true
 	else:
-		if building.is_path_blocker():
+		if building.is_edge_path_blocker():
+			_status_label.text = "已选：%s L%d/%d，方向 %s → %s，耐久 %d/%d" % [
+				building.definition.display_name,
+				building.level,
+				building.get_max_level(),
+				str(building.cell),
+				str(building.edge_to_cell),
+				ceili(building.current_durability),
+				ceili(building.maximum_durability),
+			]
+		elif building.is_path_blocker():
 			_status_label.text = "已选：%s L%d/%d，耐久 %d/%d" % [
 				building.definition.display_name,
 				building.level,
@@ -254,6 +270,13 @@ func _on_upgrade_failed(_building: Building, reason: String) -> void:
 	_status_label.text = reason
 
 func _on_preview_updated(building: Building) -> void:
+	if building.is_edge_placement():
+		_status_label.text = "预览：%s，方向 %s → %s（贴边固定）" % [
+			building.definition.display_name,
+			str(building.cell),
+			str(building.edge_to_cell),
+		]
+		return
 	_status_label.text = "预览：%s L1，朝向 %d/%d" % [
 		building.definition.display_name,
 		building.facing_index + 1,

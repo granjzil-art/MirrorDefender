@@ -2,6 +2,8 @@
 class_name BuildingManager
 extends Node3D
 
+const BuildingPlacementRulesScript := preload("res://scripts/building/BuildingPlacementRules.gd")
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -9,6 +11,7 @@ extends Node3D
 @export var arrow_tower: BuildingDefinition
 @export var laser_tower: BuildingDefinition
 @export var barrier: BuildingDefinition
+@export var edge_barrier: BuildingDefinition
 
 signal building_placed(building: Building)
 signal building_removed(building: Building)
@@ -25,13 +28,14 @@ var _tile_manager: TileManager
 var _resource_manager: ResourceManager
 var _combat_manager: CombatManager
 var _buildings: Dictionary = {}
+var _edge_buildings: Dictionary = {}
 var _selected_building: Building
 var _preview_building: Building
 var _preview_definition: BuildingDefinition
 var _preview_cell: Vector3i = Vector3i.ZERO
+var _preview_edge_id: String = ""
 var _preview_facing_index: int = 0
-var _path_cells: Dictionary = {}
-var _protected_path_cells: Dictionary = {}
+var _placement_rules: RefCounted = BuildingPlacementRulesScript.new()
 var _building_exit_callbacks: Dictionary = {}
 
 func configure(
@@ -46,9 +50,11 @@ func configure(
 	_tile_manager = tile_manager
 	_resource_manager = resource_manager
 	_combat_manager = combat_manager
+	_placement_rules.configure(_grid, _tile_manager, _resource_manager, _combat_manager)
 	arrow_tower = _reload_definition(arrow_tower)
 	laser_tower = _reload_definition(laser_tower)
 	barrier = _reload_definition(barrier)
+	edge_barrier = _reload_definition(edge_barrier)
 	if _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 
@@ -65,10 +71,7 @@ func place_building(
 	var building := Building.new()
 	add_child(building)
 	building.configure(definition, cell, _grid, _tile_manager, _combat_manager)
-	building.structure_destroyed.connect(_on_building_destroyed)
-	var exit_callback := _on_building_tree_exited.bind(building)
-	building.tree_exited.connect(exit_callback)
-	_building_exit_callbacks[building] = exit_callback
+	_register_building_lifecycle(building)
 	if placement_facing >= 0:
 		building.set_facing_index(placement_facing)
 	var occupied := _tile_manager.place_path_occupant(cell, building) if building.is_path_blocker() else _tile_manager.place_occupant(cell, building)
@@ -84,6 +87,43 @@ func place_building(
 		placement_failed.emit(cell, "资源不足或达到建筑上限")
 		return null
 	_buildings[cell] = building
+	_sync_building_income()
+	select_building(building)
+	building_placed.emit(building)
+	return building
+
+func place_edge_building(
+	from_cell: Vector3i,
+	placement_edge_index: int,
+	definition: BuildingDefinition
+) -> Building:
+	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition)
+	var failure: String = validation["failure"]
+	if not failure.is_empty():
+		placement_failed.emit(from_cell, failure)
+		return null
+	var to_cell: Vector3i = validation["to_cell"]
+	var canonical_id: String = validation["edge_id"]
+	var level_one_stats := definition.get_level_stats(1)
+	var building := Building.new()
+	add_child(building)
+	building.configure_edge(
+		definition,
+		from_cell,
+		to_cell,
+		placement_edge_index,
+		canonical_id,
+		_grid,
+		_tile_manager,
+		_combat_manager
+	)
+	_register_building_lifecycle(building)
+	if not _resource_manager.try_register_building(level_one_stats.cost):
+		_disconnect_building_lifecycle(building)
+		building.queue_free()
+		placement_failed.emit(from_cell, "资源不足或达到建筑上限")
+		return null
+	_edge_buildings[canonical_id] = building
 	_sync_building_income()
 	select_building(building)
 	building_placed.emit(building)
@@ -122,23 +162,15 @@ func remove_selected_building() -> bool:
 	var building := get_selected_building()
 	if building == null:
 		return false
-	return remove_building(building.cell, building.get_refund_amount())
+	return _release_building(building, building.get_refund_amount(), true, true)
 
 func clear_buildings(update_resource_count: bool = true) -> void:
-	var cells := _buildings.keys()
-	for raw_cell in cells:
-		var cell: Vector3i = raw_cell
-		var building := get_building(cell)
-		if building == null:
-			var stale_building: Variant = _buildings.get(cell)
-			_buildings.erase(cell)
-			_building_exit_callbacks.erase(stale_building)
-			if _tile_manager != null:
-				_tile_manager.clear_occupant(cell)
-			if update_resource_count and _resource_manager != null:
-				_resource_manager.unregister_building()
-			continue
+	var buildings := get_buildings()
+	for building in buildings:
 		_release_building(building, 0.0, update_resource_count, true, false)
+	_buildings.clear()
+	_edge_buildings.clear()
+	_building_exit_callbacks.clear()
 	select_building(null)
 	clear_preview()
 	_sync_building_income()
@@ -161,11 +193,48 @@ func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 	preview_updated.emit(_preview_building)
 	return true
 
+func update_edge_preview(
+	from_cell: Vector3i,
+	placement_edge_index: int,
+	definition: BuildingDefinition
+) -> bool:
+	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition, false)
+	var failure: String = validation["failure"]
+	if not failure.is_empty():
+		clear_preview(false)
+		return false
+	var canonical_id: String = validation["edge_id"]
+	if _preview_building != null and _preview_definition == definition and _preview_edge_id == canonical_id and _preview_cell == from_cell:
+		return true
+	clear_preview(false)
+	_preview_definition = definition
+	_preview_cell = from_cell
+	_preview_edge_id = canonical_id
+	_preview_facing_index = placement_edge_index
+	var to_cell: Vector3i = validation["to_cell"]
+	_preview_building = Building.new()
+	add_child(_preview_building)
+	_preview_building.configure_edge(
+		definition,
+		from_cell,
+		to_cell,
+		placement_edge_index,
+		canonical_id,
+		_grid,
+		_tile_manager,
+		_combat_manager,
+		1,
+		true
+	)
+	preview_updated.emit(_preview_building)
+	return true
+
 func clear_preview(clear_definition: bool = true) -> void:
 	var had_visible_preview := _preview_building != null and is_instance_valid(_preview_building)
 	if _preview_building != null and is_instance_valid(_preview_building):
 		_preview_building.queue_free()
 	_preview_building = null
+	_preview_edge_id = ""
 	if clear_definition:
 		_preview_definition = null
 	if had_visible_preview:
@@ -174,7 +243,8 @@ func clear_preview(clear_definition: bool = true) -> void:
 func rotate_preview(step: int = 1) -> bool:
 	if _preview_building == null or not is_instance_valid(_preview_building):
 		return false
-	_preview_building.rotate_facing(step)
+	if not _preview_building.rotate_facing(step):
+		return false
 	_preview_facing_index = _preview_building.facing_index
 	preview_updated.emit(_preview_building)
 	return true
@@ -197,10 +267,22 @@ func get_buildings() -> Array[Building]:
 		var building: Building = raw_building
 		if building != null and is_instance_valid(building):
 			out.append(building)
+	for raw_building in _edge_buildings.values():
+		var building: Building = raw_building
+		if building != null and is_instance_valid(building):
+			out.append(building)
 	return out
 
-func select_at(cell: Vector3i) -> Building:
-	var building := get_building(cell)
+func get_edge_building(edge_id: String) -> Building:
+	if edge_id.is_empty() or not _edge_buildings.has(edge_id):
+		return null
+	var building: Building = _edge_buildings[edge_id]
+	return building if is_instance_valid(building) else null
+
+func select_at(cell: Vector3i, edge_id: String = "") -> Building:
+	var building := get_edge_building(edge_id) if not edge_id.is_empty() else null
+	if building == null:
+		building = get_building(cell)
 	select_building(building)
 	return building
 
@@ -212,13 +294,14 @@ func rotate_selected(step: int = 1) -> bool:
 	var building := get_selected_building()
 	if building == null:
 		return false
-	building.rotate_facing(step)
-	return true
+	return building.rotate_facing(step)
 
 func get_selected_building() -> Building:
 	return _selected_building if is_instance_valid(_selected_building) else null
 
 func get_definition(kind: int) -> BuildingDefinition:
+	if kind == BuildingDefinition.Kind.EDGE_BARRIER:
+		return edge_barrier
 	if kind == BuildingDefinition.Kind.BARRIER:
 		return barrier
 	if kind == BuildingDefinition.Kind.LASER_TOWER:
@@ -231,54 +314,46 @@ func get_path_blocker(cell: Vector3i) -> Node:
 		return null
 	return building
 
+## Unified enemy-facing blocker contract. Directed edge blockers are checked
+## before the tile blocker at the destination cell of the same route segment.
+func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i) -> Node:
+	if _grid == null:
+		return null
+	var edge_key := _grid.directed_edge_id(from_cell, to_cell)
+	if not edge_key.is_empty() and _placement_rules.is_directed_path_edge(from_cell, to_cell):
+		var edge_index := _grid.find_edge_index(from_cell, to_cell)
+		if edge_index >= 0:
+			var edge_building := get_edge_building(_grid.canonical_edge_id(from_cell, edge_index))
+			if edge_building != null and edge_building.matches_directed_edge(from_cell, to_cell) and edge_building.is_structure_alive():
+				return edge_building
+	return get_path_blocker(to_cell)
+
 func is_path_cell(cell: Vector3i) -> bool:
-	return _path_cells.has(cell)
+	return _placement_rules.is_path_cell(cell)
 
 func _validate_placement(cell: Vector3i, definition: BuildingDefinition) -> String:
 	if not feature_enabled:
 		return "建筑系统已关闭"
-	if _grid == null or _tile_manager == null or _resource_manager == null or _combat_manager == null:
-		return "建筑系统依赖尚未注入"
-	if definition == null or not definition.is_configured():
-		return "建筑等级参数未配置"
-	if not _grid.is_in_bounds(cell):
-		return "目标格位于地图外"
-	var cell_failure := _get_cell_placement_failure(cell, definition)
-	if not cell_failure.is_empty():
-		return cell_failure
-	if not _resource_manager.can_add_building():
-		return "已达到建筑上限"
-	if not _resource_manager.can_afford(definition.get_level_stats(1).cost):
-		return "主资源不足"
-	return ""
+	return _placement_rules.validate_tile(cell, definition)
+
+func _validate_edge_placement(
+	from_cell: Vector3i,
+	placement_edge_index: int,
+	definition: BuildingDefinition,
+	check_economy: bool = true
+) -> Dictionary:
+	if not feature_enabled:
+		return {"failure": "建筑系统已关闭", "to_cell": Vector3i.ZERO, "edge_id": ""}
+	return _placement_rules.validate_edge(
+		from_cell,
+		placement_edge_index,
+		definition,
+		Callable(self, "get_edge_building"),
+		check_economy
+	)
 
 func _can_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
-	return feature_enabled and definition != null and definition.is_configured() and _grid != null and _grid.is_in_bounds(cell) and _tile_manager != null and _get_cell_placement_failure(cell, definition).is_empty()
-
-func _get_cell_placement_failure(cell: Vector3i, definition: BuildingDefinition) -> String:
-	if definition.kind == BuildingDefinition.Kind.BARRIER:
-		if not _path_cells.has(cell):
-			return "屏障只能放置在敌人路径上"
-		if _protected_path_cells.has(cell):
-			return "出生点和据点格不能放置屏障"
-		if not _tile_manager.can_place_path_occupant(cell):
-			return "路径格存在障碍或已被占用"
-		if _is_enemy_on_cell(cell):
-			return "敌人当前占据该路径格"
-		return ""
-	if _path_cells.has(cell):
-		return "敌人路径只能放置屏障"
-	if not _tile_manager.can_place(cell):
-		return "目标地块不可建造或已被占用"
-	return ""
-
-func _is_enemy_on_cell(cell: Vector3i) -> bool:
-	if _combat_manager == null or _grid == null:
-		return false
-	for target in _combat_manager.get_targets():
-		if target != null and is_instance_valid(target) and _grid.world_to_cell(target.global_position) == cell:
-			return true
-	return false
+	return feature_enabled and _placement_rules.validate_tile(cell, definition, false).is_empty()
 
 func _sync_building_income() -> void:
 	if _resource_manager == null:
@@ -300,31 +375,16 @@ func _reload_definition(definition: BuildingDefinition) -> BuildingDefinition:
 
 func _on_level_loaded(level_resource: LevelResource) -> void:
 	clear_buildings(true)
-	_cache_path_cells(level_resource)
-
-func _cache_path_cells(level_resource: LevelResource) -> void:
-	_path_cells.clear()
-	_protected_path_cells.clear()
-	if level_resource == null:
-		return
-	_protected_path_cells[level_resource.base_cell] = true
-	for spawn_point in level_resource.spawn_points:
-		if spawn_point != null:
-			_protected_path_cells[spawn_point.cell] = true
-	for path in level_resource.paths:
-		if path == null:
-			continue
-		for cell in path.cells:
-			_path_cells[cell] = true
+	_placement_rules.rebuild_level_cache(level_resource)
 
 func _on_building_destroyed(building: Building, attacker: Node) -> void:
-	if building == null or get_building(building.cell) != building:
+	if building == null or not _is_registered_building(building):
 		return
 	building_destroyed.emit(building, attacker)
-	remove_building(building.cell, 0.0)
+	_release_building(building, 0.0, true, true)
 
 func _on_building_tree_exited(building: Building) -> void:
-	if building == null or not _buildings.has(building.cell) or _buildings[building.cell] != building:
+	if building == null or not _is_registered_building(building):
 		_building_exit_callbacks.erase(building)
 		return
 	_release_building(building, 0.0, true, false)
@@ -336,10 +396,13 @@ func _release_building(
 	queue_for_deletion: bool,
 	sync_income: bool = true
 ) -> bool:
-	if building == null or not _buildings.has(building.cell) or _buildings[building.cell] != building:
+	if building == null or not _is_registered_building(building):
 		return false
-	_buildings.erase(building.cell)
-	if _tile_manager != null:
+	if building.is_edge_placement():
+		_edge_buildings.erase(building.edge_id)
+	else:
+		_buildings.erase(building.cell)
+	if _tile_manager != null and not building.is_edge_placement():
 		_tile_manager.clear_occupant(building.cell, building)
 	if update_resource_count and _resource_manager != null:
 		_resource_manager.unregister_building(refund)
@@ -354,6 +417,19 @@ func _release_building(
 	if sync_income:
 		_sync_building_income()
 	return true
+
+func _is_registered_building(building: Building) -> bool:
+	if building == null:
+		return false
+	if building.is_edge_placement():
+		return _edge_buildings.has(building.edge_id) and _edge_buildings[building.edge_id] == building
+	return _buildings.has(building.cell) and _buildings[building.cell] == building
+
+func _register_building_lifecycle(building: Building) -> void:
+	building.structure_destroyed.connect(_on_building_destroyed)
+	var exit_callback := _on_building_tree_exited.bind(building)
+	building.tree_exited.connect(exit_callback)
+	_building_exit_callbacks[building] = exit_callback
 
 func _disconnect_building_lifecycle(building: Building) -> void:
 	if building == null or not is_instance_valid(building):

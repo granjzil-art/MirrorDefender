@@ -11,7 +11,9 @@ func tick(attacker: Node, delta: float) -> void:
 	var target: Node = attacker.call("get_attack_target")
 	if target == null or not is_instance_valid(target):
 		return
-	attacker.call("perform_attack", target)
+	var attack_started := bool(attacker.call("perform_attack", target))
+	if not attack_started:
+		return
 	var attacks_per_second: float = attacker.call("get_attacks_per_second")
 	_cooldown = 1.0 / maxf(0.01, attacks_per_second)
 

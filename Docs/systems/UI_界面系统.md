@@ -14,10 +14,11 @@
 - **重要改动**：顶部原"双方据点血条"改为 **【我方据点血量条 | 本波剩余敌人 x/y】**。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、波次进度、选中对象）。
 - **当前调试 UI**：主场景右上角 LevelDebugPanel 显示当前关卡，并可从 `res://resources/levels` 选择 `.tres`；正式选关将复用 LevelLoader，不复用该调试面板外观。
-- **建筑灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、屏障、靶标五个互斥模式及当前建筑升级按钮。
+- **建筑灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、屏障、边障、靶标六个互斥模式及当前建筑升级按钮。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
+- **边屏障反馈**：“边障”模式只在鼠标所在格到邻格恰为路径前进段时显示贴边虚影；HUD 显示 `from -> to`。放置后删除/升级可用，旋转因边对齐锁定而置灰。
 - **M4 波次 UI**：右上 `WaveStatusPanel` 显示据点生命、当前/总波数、存活敌人数与波次状态；仅在 READY 状态允许点击一次“开始第一波”，后续波次按全局组延迟自动开始。
 
 ## 关键参数
@@ -62,7 +63,7 @@ HUD (CanvasLayer)
 LevelDebugPanel -> LevelLoader.load_level_path(path)
 LevelLoader.level_loaded / level_load_failed -> LevelDebugPanel status
 
-M3DebugPanel mode -> Main cell input -> BuildingManager / CombatManager
+M3DebugPanel mode -> Main cell/edge input -> BuildingManager / CombatManager
   -> barrier mode -> BuildingManager path/protected/enemy occupancy validation
 Main mouse hover -> BuildingManager.update_preview -> ghost or Tile/occupant HUD
 ResourceManager.resource_changed / limits_changed / income_rates_changed -> M3DebugPanel summary
@@ -85,7 +86,7 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 | `LevelDebugPanel.gd` | `_on_level_load_failed(source_path: String, reason: String) -> void` | 显示加载失败原因。 |
 | `M3DebugPanel.gd` | `configure(building_manager: BuildingManager, resource_manager: ResourceManager, combat_manager: CombatManager) -> void` | 注入 M3 公共入口并订阅状态信号。 |
 | `M3DebugPanel.gd` | `get_mode() -> InteractionMode` | 返回当前互斥交互模式。 |
-| `M3DebugPanel.gd` | `get_selected_definition() -> BuildingDefinition` | 返回当前箭塔、激光塔、屏障定义或 null。 |
+| `M3DebugPanel.gd` | `get_selected_definition() -> BuildingDefinition` | 返回当前箭塔、激光塔、地块屏障、边屏障定义或 null。 |
 | `M3DebugPanel.gd` | `select_mode(value: InteractionMode) -> void` | 更新按钮状态、模式文本并广播。 |
 | `M3DebugPanel.gd` | `cancel_to_select() -> void` | 右键取消时回到选择模式。 |
 | `M3DebugPanel.gd` | `_refresh_summary() -> void` | 从 Manager 读取资源、上限与目标数量。 |

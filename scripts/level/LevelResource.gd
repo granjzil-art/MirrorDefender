@@ -6,6 +6,9 @@
 class_name LevelResource
 extends Resource
 
+const GEOMETRY_TAG_HEX: StringName = &"hex"
+const GEOMETRY_TAG_SQUARE: StringName = &"square"
+
 @export_group("Grid")
 @export_enum("六边形", "正方形") var grid_shape: int = 0
 @export_range(0.1, 10.0, 0.05, "or_greater") var grid_cell_size: float = 1.0
@@ -38,6 +41,17 @@ extends Resource
 
 @export_group("M4 Waves")
 @export var waves: Array[WaveDefinition] = []
+
+## Stable gameplay tag derived from grid_shape. It is intentionally not stored
+## separately, preventing the level tag and its actual geometry from diverging.
+func get_geometry_tag() -> StringName:
+	return GEOMETRY_TAG_HEX if grid_shape == 0 else GEOMETRY_TAG_SQUARE
+
+func get_tile_building_facing_count() -> int:
+	return 6 if grid_shape == 0 else 8
+
+func get_edge_building_facing_count() -> int:
+	return 6 if grid_shape == 0 else 4
 
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:

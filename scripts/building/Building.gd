@@ -24,6 +24,9 @@ signal structure_destroyed(building: Building, attacker: Node)
 
 var definition: BuildingDefinition
 var cell: Vector3i = Vector3i.ZERO
+var edge_to_cell: Vector3i = Vector3i.ZERO
+var edge_index: int = -1
+var edge_id: String = ""
 var facing_index: int = 0
 var level: int = 1
 var current_durability: float:
@@ -64,6 +67,53 @@ func configure(
 	initial_level: int = 1,
 	preview_mode: bool = false
 ) -> void:
+	edge_to_cell = Vector3i.ZERO
+	edge_index = -1
+	edge_id = ""
+	_configure_common(
+		building_definition,
+		building_cell,
+		grid_manager,
+		tile_manager,
+		combat_manager,
+		initial_level,
+		preview_mode
+	)
+
+func configure_edge(
+	building_definition: BuildingDefinition,
+	from_cell: Vector3i,
+	to_cell: Vector3i,
+	placement_edge_index: int,
+	placement_edge_id: String,
+	grid_manager: GridManager,
+	tile_manager: TileManager,
+	combat_manager: CombatManager,
+	initial_level: int = 1,
+	preview_mode: bool = false
+) -> void:
+	edge_to_cell = to_cell
+	edge_index = placement_edge_index
+	edge_id = placement_edge_id
+	_configure_common(
+		building_definition,
+		from_cell,
+		grid_manager,
+		tile_manager,
+		combat_manager,
+		initial_level,
+		preview_mode
+	)
+
+func _configure_common(
+	building_definition: BuildingDefinition,
+	building_cell: Vector3i,
+	grid_manager: GridManager,
+	tile_manager: TileManager,
+	combat_manager: CombatManager,
+	initial_level: int,
+	preview_mode: bool
+) -> void:
 	definition = building_definition
 	cell = building_cell
 	_grid = grid_manager
@@ -71,9 +121,20 @@ func configure(
 	_combat_manager = combat_manager
 	_preview_mode = preview_mode
 	feature_enabled = not preview_mode
-	position = _grid.cell_to_world(cell) + Vector3(0.0, _tile_manager.get_world_height(cell), 0.0)
+	if is_edge_placement():
+		var endpoints: Array[Vector3] = _grid.get_edge_endpoints(cell, edge_index)
+		var edge_midpoint := _grid.cell_to_world(cell)
+		if endpoints.size() == 2:
+			edge_midpoint = (endpoints[0] + endpoints[1]) * 0.5
+		var edge_height := maxf(
+			_tile_manager.get_world_height(cell),
+			_tile_manager.get_world_height(edge_to_cell)
+		)
+		position = edge_midpoint + Vector3(0.0, edge_height, 0.0)
+	else:
+		position = _grid.cell_to_world(cell) + Vector3(0.0, _tile_manager.get_world_height(cell), 0.0)
 	apply_level(initial_level)
-	set_facing_index(0)
+	set_facing_index(edge_index if is_edge_placement() else 0)
 
 func apply_level(value: int) -> bool:
 	if definition == null or not definition.is_configured():
@@ -126,7 +187,19 @@ func get_refund_amount() -> float:
 	return _stats.refund_amount if _stats != null else 0.0
 
 func is_path_blocker() -> bool:
-	return definition != null and definition.kind == BuildingDefinition.Kind.BARRIER
+	return definition != null and definition.is_defensive_structure()
+
+func is_tile_path_blocker() -> bool:
+	return is_path_blocker() and not is_edge_placement()
+
+func is_edge_path_blocker() -> bool:
+	return is_path_blocker() and is_edge_placement()
+
+func is_edge_placement() -> bool:
+	return definition != null and definition.is_edge_building() and edge_index >= 0 and not edge_id.is_empty()
+
+func matches_directed_edge(from_cell: Vector3i, to_cell: Vector3i) -> bool:
+	return is_edge_placement() and cell == from_cell and edge_to_cell == to_cell
 
 func is_structure_alive() -> bool:
 	return is_path_blocker() and _durability != null and _durability.is_alive() and not is_queued_for_deletion()
@@ -165,22 +238,30 @@ func is_target_in_attack_range(target: CombatTarget) -> bool:
 	var target_position := Vector2(target.global_position.x, target.global_position.z)
 	return origin.distance_squared_to(target_position) <= get_attack_range_world() * get_attack_range_world()
 
-func rotate_facing(step: int = 1) -> void:
+func can_rotate_in_place() -> bool:
+	return not is_edge_placement()
+
+func rotate_facing(step: int = 1) -> bool:
+	if not can_rotate_in_place():
+		return false
 	set_facing_index(facing_index + step)
+	return true
 
 func set_facing_index(value: int) -> void:
 	var slots := get_facing_slot_count()
-	facing_index = posmod(value, slots)
+	facing_index = posmod(edge_index if is_edge_placement() else value, slots)
 	var direction := get_facing_direction()
 	rotation.y = atan2(-direction.x, -direction.z)
 	facing_changed.emit(self, facing_index, slots)
 
 func get_facing_slot_count() -> int:
-	if _grid != null and _grid.grid_shape == GridManager.Shape.SQUARE:
-		return 8
-	return 6
+	if _grid == null:
+		return 6
+	return _grid.get_edge_building_facing_count() if is_edge_placement() else _grid.get_tile_building_facing_count()
 
 func get_facing_direction() -> Vector3:
+	if is_edge_placement() and _grid != null:
+		return (_grid.cell_to_world(edge_to_cell) - _grid.cell_to_world(cell)).normalized()
 	if get_facing_slot_count() == 8:
 		var square_angle := deg_to_rad(45.0 * float(facing_index))
 		return Vector3(cos(square_angle), 0.0, sin(square_angle)).normalized()
@@ -259,7 +340,7 @@ func shutdown() -> void:
 func _configure_attack_strategy() -> void:
 	if _preview_mode:
 		_attack_strategy = null
-	elif definition.kind == BuildingDefinition.Kind.BARRIER:
+	elif definition.is_defensive_structure():
 		_attack_strategy = null
 	elif definition.kind == BuildingDefinition.Kind.LASER_TOWER:
 		_attack_strategy = LaserAttackStrategyScript.new()
@@ -285,7 +366,9 @@ func _build_visual() -> void:
 			custom_visual.queue_free()
 	else:
 		_build_default_body()
-	if not is_path_blocker():
+	if is_edge_path_blocker():
+		_build_direction_marker()
+	elif not is_path_blocker():
 		_build_direction_marker()
 		_build_attack_line()
 

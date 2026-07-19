@@ -34,6 +34,14 @@
 | `GridManager.gd` | `GridManager` | `Node3D` | **唯一对外入口**：持形状 + 转发 API + 拾取 |
 | `GridRenderer.gd` | `GridRenderer` | `Node3D` | 纯表现层：线框 + 格/边高亮（只读 GridManager） |
 
+### 几何标签集成文件
+
+| 文件 | class_name / 基类 | 角色 |
+|---|---|---|
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 以 `grid_shape` 为唯一事实源，派生关卡标签及两类建筑方向数。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | 无 / `Control` | 在关卡编辑器显示只读派生标签，形状切换后同步刷新。 |
+| `scripts/Main.gd` | 无 / `Node3D` | 在运行时 HUD 显示当前 GridManager 派生标签。 |
+
 ### 依赖与数据流
 ```
 Main（场景装配）
@@ -53,7 +61,9 @@ Main（场景装配）
   - 边 i 连接 `corner[i] → corner[(i+1)%n]`（角点序见各 shape 文件头注释）。
   - HEX flat-top 角点角度 `300/0/60/120/180/240°`；每条边外法线与 `_DIRS[edge_index]` 对应。
   - SQUARE 角点顺序 `右下→右上→左上→左下`，边序为右/上/左/下，`_DIRS[edge_index]` 即跨该边的邻格方向。
-- **canonical_edge_id**（一边至多一镜的基石）：取该边两端点世界坐标 → 各自量化到 `1e-3`（`roundi(v*1000)`）→ 字典序排序两端点键 → 拼成 `"x,z|x,z"`。**与从哪一侧格看无关**，故相邻两格的共享边得到同一 id。
+- **canonical_edge_id**（物理边唯一占位）：取该边两端点世界坐标 → 各自量化到 `1e-3`（`roundi(v*1000)`）→ 字典序排序两端点键 → 拼成 `"x,z|x,z"`。**与从哪一侧格看无关**，故相邻两格的共享边得到同一 id。
+- **directed_edge_id**（有向玩法段）：以 `from_cell>to_cell` 生成；仅接受相邻格，反向会得到另一键。边屏障用它区分路径前进方向，但仍用 `canonical_edge_id` 防止同一物理边重复占位。
+- **关卡几何标签**：LevelResource 的 `hex/square` 标签由 `grid_shape` 自动派生，不另存第二份可编辑字段。HEX 普通建筑/边建筑方向数为 `6/6`，SQUARE 为 `8/4`。
 
 ## 函数索引
 > M1 已实现。签名为准，改代码即改此表。
@@ -92,6 +102,7 @@ Main（场景装配）
 - **@export setter**：`grid_shape` / `cell_size`(下限 0.01) / `grid_size` → 改参即 `_rebuild_shape()` + 发信号。
 - **私有**：`_rebuild_shape()`（按 grid_shape new 出 shape 并 setup）。
 - **转发 API**（透传当前 shape，参数同接口）：`cell_to_world` / `world_to_cell` / `get_neighbors` / `distance` / `get_corners` / `get_edge_endpoints` / `neighbor_across_edge` / `canonical_edge_id` / `edge_count` / `enumerate_cells()`（用自身 grid_size）/ `is_in_bounds(cell)`（用自身 grid_size）。
+- **有向边与方向 API**：`directed_edge_id(from_cell: Vector3i, to_cell: Vector3i) -> String`；`find_edge_index(from_cell: Vector3i, to_cell: Vector3i) -> int`；`get_geometry_tag() -> StringName`；`get_tile_building_facing_count() -> int`；`get_edge_building_facing_count() -> int`。
 - **关卡装配 API**：`apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void`。LevelResource 只传数据，仍由 GridManager 自己触发 shape 重建和 `grid_changed`；Tile 模块不直接 new 具体 shape。
 - **拾取**（供放置/UI）：
   | 函数 | 签名 | 返回 Dictionary 结构 |
@@ -99,6 +110,14 @@ Main（场景装配）
   | `raycast_ground` | `(camera: Camera3D, screen_pos: Vector2) -> Dictionary` | `{hit: bool, pos: Vector3}` |
   | `pick_cell` | `(camera, screen_pos) -> Dictionary` | `{hit, cell: Vector3i, pos: Vector3}`（未命中 hit=false） |
   | `pick_edge` | `(camera, screen_pos) -> Dictionary` | `{hit, cell, edge_index: int, id: String}`（最近边中点距离 < `edge_pick_threshold` 才 hit） |
+
+### LevelResource.gd（几何标签 API）
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `get_geometry_tag` | `() -> StringName` | 从 `grid_shape` 派生 `hex` 或 `square`。 |
+| `get_tile_building_facing_count` | `() -> int` | 返回普通地块建筑方向数（HEX=6，SQUARE=8）。 |
+| `get_edge_building_facing_count` | `() -> int` | 返回边建筑方向数（HEX=6，SQUARE=4）。 |
 
 ### GridRenderer.gd（Node3D · 纯表现层）
 - **@export**：`grid: GridManager`（引用）、颜色(line/cell_highlight/edge_highlight)、抬升(line_lift/edge_highlight_lift 防 z-fighting)。

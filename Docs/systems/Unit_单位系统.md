@@ -10,10 +10,11 @@
 
 - **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击伤害、攻速、射程、投射物和灰盒颜色。
 - **固定路径移动**：EnemyUnit 同时接收 `PackedVector3Array` 世界点和 `Array[Vector3i]` 路径格；前者驱动移动，后者按顺序查询前方屏障。
-- **路径阻挡**：阻挡查询是 Main 注入的 `Callable(BuildingManager.get_path_blocker)`。Unit 不导入 Building 类型，只依赖 `is_structure_alive/get_structure_target_position/take_structure_damage` 方法契约。
+- **路径阻挡**：阻挡查询是 Main 注入的 `Callable(BuildingManager.resolve_path_blocker)`，参数为当前有向路径段 `(from_cell, to_cell)`。Unit 不导入 Building 类型，只依赖 `is_structure_alive/get_structure_target_position/take_structure_damage` 方法契约。
 - **攻击状态**：前方第一个屏障进入 `attack_range` 后，近战和远程敌人都停止移动；屏障移除后立即退出攻击状态并继续原路径。
 - **近战**：`projectile_speed = 0` 时由 EnemyAttackStrategy 按 `attacks_per_second` 直接调用结构承伤接口。
 - **远程**：`projectile_speed > 0` 时生成 EnemyProjectile；投射物在命中仍存活屏障时结算伤害。弓箭手是测试资源。
+- **射程接近**：沿真实折线路径逐段求与攻击范围圆的首次交点，再按路径距离移动到交点；不会因弯道的直线距离与路径距离不一致而渐近停滞。统一容差用于进入攻击状态，投射物创建失败不会消耗冷却。
 - **受击**：先以 `max(0, incoming - armor)` 固定减伤，再交给 CombatTarget 扣血。屏障反伤也走该入口，因此可击杀敌人并正常掉落资源。
 - **据点到达**：无屏障阻挡并抵达末点后触发 `reached_base`；WaveManager 调 BaseCore 扣血，单位不产生死亡掉落。
 
@@ -60,8 +61,8 @@ SpawnGroup.enemy + PathDefinition.cells
   -> EnemyUnit.configure_unit -> CombatManager.register_target
 
 EnemyUnit._process
-  -> scan remaining path cells through blocker Callable
-  -> outside range: move without crossing attack-range boundary
+  -> scan remaining directed path segments through blocker Callable
+  -> outside range: solve first path/range-circle intersection and move to it
   -> inside range: stop -> EnemyAttackStrategy
        ├─ melee -> blocker.take_structure_damage
        └─ ranged -> EnemyProjectile -> take_structure_damage
@@ -81,9 +82,10 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | `EnemyUnit._process` | `(delta: float) -> void` | 查询前方屏障，在移动/攻击状态间切换；攻击时不移动。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前屏障有效且仍在射程内时返回 true。 |
 | `EnemyUnit.get_attack_target` | `() -> Node` | 返回策略可攻击的当前屏障或 null。 |
-| `EnemyUnit.perform_attack` | `(target: Node) -> void` | 根据 `projectile_speed` 选择即时近战或 EnemyProjectile。 |
+| `EnemyUnit.perform_attack` | `(target: Node) -> bool` | 根据 `projectile_speed` 选择即时近战或 EnemyProjectile；成功发起才返回 true。 |
 | `EnemyUnit.take_damage` | `(amount: float) -> float` | 应用固定护甲并返回实际伤害。 |
-| `EnemyUnit._find_first_path_blocker` | `() -> Node` | 从下一路径格向据点扫描第一个仍存活屏障。 |
+| `EnemyUnit._find_first_path_blocker` | `() -> Dictionary` | 逐有向路径段扫描，返回 `{node, segment_index, segment_ratio, position}`；无阻挡返回空字典。 |
+| `EnemyUnit._get_path_distance_until_attack_range` | `(blocker_info: Dictionary) -> float` | 沿折线路径计算首次进入攻击圆前可移动的真实路径距离。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |
 | `BaseCore.load_level` | `(level_resource: LevelResource) -> void` | 放置据点、占用据点格并重置生命。 |
 | `BaseCore.take_damage` | `(amount: float) -> float` | 扣据点生命，归零时广播 `defeated`。 |
@@ -95,7 +97,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 - EnemyDefinition 是敌人数值事实源；EnemyUnit 是运行时生命、位置、路径进度和攻击状态事实源。
 - `base_damage` 只伤害据点；`attack_damage` 只用于攻击路径屏障，两者禁止混用。
 - `attack_range` 以格为单位，EnemyUnit 生成时固定换算为当前关卡世界距离。
-- PathDefinition 顺序决定“前方”；敌人只攻击尚未经过路径格上的第一个屏障，不绕路、不回头。
+- PathDefinition 顺序决定“前方”；敌人依次检查同向边屏障和终点地块屏障，不绕路、不回头，反向边屏障不生效。
 - PathManager 路径点、EnemyUnit 和动态建筑共用 Main 局部坐标空间。
 - `reward` 只在敌人被击杀时入账；抵达据点消失不掉资源。
 

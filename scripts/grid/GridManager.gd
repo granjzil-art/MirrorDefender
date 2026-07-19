@@ -80,8 +80,37 @@ func neighbor_across_edge(cell: Vector3i, edge_index: int) -> Vector3i:
 func canonical_edge_id(cell: Vector3i, edge_index: int) -> String:
 	return shape.canonical_edge_id(cell, edge_index)
 
+## Direction-sensitive route segment key. Unlike canonical_edge_id, reversing
+## from/to produces a different key and therefore a different blocking rule.
+func directed_edge_id(from_cell: Vector3i, to_cell: Vector3i) -> String:
+	if not get_neighbors(from_cell).has(to_cell):
+		return ""
+	return "%d,%d,%d>%d,%d,%d" % [
+		from_cell.x,
+		from_cell.y,
+		from_cell.z,
+		to_cell.x,
+		to_cell.y,
+		to_cell.z,
+	]
+
+func find_edge_index(from_cell: Vector3i, to_cell: Vector3i) -> int:
+	for edge_index in range(edge_count()):
+		if neighbor_across_edge(from_cell, edge_index) == to_cell:
+			return edge_index
+	return -1
+
 func edge_count() -> int:
 	return shape.edge_count()
+
+func get_geometry_tag() -> StringName:
+	return &"hex" if grid_shape == Shape.HEX else &"square"
+
+func get_tile_building_facing_count() -> int:
+	return 6 if grid_shape == Shape.HEX else 8
+
+func get_edge_building_facing_count() -> int:
+	return edge_count()
 
 func enumerate_cells() -> Array[Vector3i]:
 	return shape.enumerate_cells(grid_size)

@@ -5,43 +5,43 @@
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
-cost = 60.0
-refund_amount = 30.0
+cost = 50.0
+refund_amount = 25.0
 base_damage = 0.0
-max_durability = 240.0
+max_durability = 180.0
 regeneration_delay = 3.0
-regeneration_per_second = 12.0
+regeneration_per_second = 10.0
 damage_reflection_ratio = 0.0
-tower_color = Color(0.22, 0.62, 0.86, 1)
-attack_color = Color(0.55, 0.88, 1, 1)
+tower_color = Color(0.12, 0.55, 0.95, 1)
+attack_color = Color(0.45, 0.85, 1, 1)
 
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
-cost = 90.0
-refund_amount = 75.0
+cost = 80.0
+refund_amount = 65.0
 base_damage = 0.0
-max_durability = 380.0
+max_durability = 300.0
 regeneration_delay = 2.5
-regeneration_per_second = 18.0
+regeneration_per_second = 16.0
 damage_reflection_ratio = 0.0
-tower_color = Color(0.18, 0.72, 0.92, 1)
-attack_color = Color(0.62, 0.94, 1, 1)
+tower_color = Color(0.10, 0.68, 1, 1)
+attack_color = Color(0.55, 0.92, 1, 1)
 
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
-cost = 140.0
-refund_amount = 145.0
+cost = 125.0
+refund_amount = 125.0
 base_damage = 0.0
-max_durability = 600.0
+max_durability = 480.0
 regeneration_delay = 2.0
-regeneration_per_second = 28.0
+regeneration_per_second = 24.0
 damage_reflection_ratio = 0.1
-tower_color = Color(0.32, 0.48, 0.96, 1)
-attack_color = Color(0.76, 0.82, 1, 1)
+tower_color = Color(0.28, 0.42, 1, 1)
+attack_color = Color(0.72, 0.84, 1, 1)
 
 [resource]
 script = ExtResource("1_definition")
-kind = 2
-display_name = "屏障"
-placement_surface = 1
+kind = 3
+display_name = "边屏障"
+placement_surface = 2
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])
