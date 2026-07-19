@@ -14,9 +14,10 @@
 - **重要改动**：顶部原"双方据点血条"改为 **【我方据点血量条 | 本波剩余敌人 x/y】**。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、波次进度、选中对象）。
 - **当前调试 UI**：主场景右上角 LevelDebugPanel 显示当前关卡，并可从 `res://resources/levels` 选择 `.tres`；正式选关将复用 LevelLoader，不复用该调试面板外观。
-- **M3 灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、靶标四个互斥模式及当前建筑升级按钮。
+- **建筑灰盒 UI**：LevelDebugPanel 下方的 M3DebugPanel 显示资源、总每秒产出、建筑上限和靶标数，提供选择、箭塔、激光塔、屏障、靶标五个互斥模式及当前建筑升级按钮。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
+- **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
 - **M4 波次 UI**：右上 `WaveStatusPanel` 显示据点生命、当前/总波数、存活敌人数与波次状态；仅在 READY 状态允许点击一次“开始第一波”，后续波次按全局组延迟自动开始。
 
 ## 关键参数
@@ -41,7 +42,7 @@
 |---|---|---|
 | `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，装配 M4 运行时节点并注入调试、建造和波次面板。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
-| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | M3 模式选择、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
+| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 箭塔/激光塔/屏障模式、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 显示据点/波次/敌人摘要，并请求 WaveManager 开始全局波次时间轴。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
@@ -62,6 +63,7 @@ LevelDebugPanel -> LevelLoader.load_level_path(path)
 LevelLoader.level_loaded / level_load_failed -> LevelDebugPanel status
 
 M3DebugPanel mode -> Main cell input -> BuildingManager / CombatManager
+  -> barrier mode -> BuildingManager path/protected/enemy occupancy validation
 Main mouse hover -> BuildingManager.update_preview -> ghost or Tile/occupant HUD
 ResourceManager.resource_changed / limits_changed / income_rates_changed -> M3DebugPanel summary
 BuildingManager.placement_failed / building_selected / building_upgraded / preview_updated -> M3DebugPanel status
@@ -83,7 +85,7 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 | `LevelDebugPanel.gd` | `_on_level_load_failed(source_path: String, reason: String) -> void` | 显示加载失败原因。 |
 | `M3DebugPanel.gd` | `configure(building_manager: BuildingManager, resource_manager: ResourceManager, combat_manager: CombatManager) -> void` | 注入 M3 公共入口并订阅状态信号。 |
 | `M3DebugPanel.gd` | `get_mode() -> InteractionMode` | 返回当前互斥交互模式。 |
-| `M3DebugPanel.gd` | `get_selected_definition() -> BuildingDefinition` | 返回当前塔定义或 null。 |
+| `M3DebugPanel.gd` | `get_selected_definition() -> BuildingDefinition` | 返回当前箭塔、激光塔、屏障定义或 null。 |
 | `M3DebugPanel.gd` | `select_mode(value: InteractionMode) -> void` | 更新按钮状态、模式文本并广播。 |
 | `M3DebugPanel.gd` | `cancel_to_select() -> void` | 右键取消时回到选择模式。 |
 | `M3DebugPanel.gd` | `_refresh_summary() -> void` | 从 Manager 读取资源、上限与目标数量。 |

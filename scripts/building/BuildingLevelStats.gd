@@ -19,6 +19,12 @@ extends Resource
 @export_range(0.0, 100.0, 0.05, "or_greater") var extra_factor: float = 1.0
 @export_enum("最近", "最远", "最高血", "最低血", "最快", "首个进入", "锁定") var target_priority: int = 0
 
+@export_group("Defense")
+@export_range(1.0, 1000000.0, 1.0, "or_greater") var max_durability: float = 100.0
+@export_range(0.0, 1000.0, 0.1, "or_greater") var regeneration_delay: float = 3.0
+@export_range(0.0, 100000.0, 0.1, "or_greater") var regeneration_per_second: float = 0.0
+@export_range(0.0, 1.0, 0.01) var damage_reflection_ratio: float = 0.0
+
 @export_group("Projectile")
 @export_range(0.1, 100.0, 0.1, "or_greater") var projectile_speed: float = 7.0
 @export_range(0.1, 5.0, 0.05, "or_greater") var projectile_length: float = 0.32

@@ -8,7 +8,8 @@
 ## 分类 / 做法
 - **可建造**：`tile_type = 0`，可放建筑，前提是 `occupant == null`。
 - **可破坏障碍**：`tile_type = 1`。障碍未清除时不可放置；清除后仍保留类型与高度，但 `obstacle_destroyed = true`，因此转为可建造。
-- **不可建造路面**：`tile_type = 2`，不可破坏、不可建造；M4 路径可经过任意有效地块，通常使用该类型明确道路。
+- **不可建造路面**：`tile_type = 2`，不可破坏、普通建筑不可建造；M4 路径通常使用该类型明确道路，屏障可通过专用路径占位接口放置。
+- **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；不可建造路面固定使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁，未清除障碍仍显示灰色岩石占位。
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。
@@ -32,7 +33,7 @@
 | TileRenderer | `obstacle_color` | 灰 | 未清除可破坏障碍的岩石占位色；其它可建造地块顶面颜色由 LevelResource 高度色决定。 |
 | TileRenderer | `obstacle_radius_ratio` / `obstacle_height_ratio` | 0.28 / 0.6 | 岩石占位的相对尺寸。 |
 
-`occupant: Node` 为运行时字段，不序列化；BuildingManager 只调用 TileManager.`place_occupant()` / `clear_occupant()` / `get_occupant()`，不直接保有 TileCellData。
+`occupant: Node` 为运行时字段，不序列化；BuildingManager 只调用 TileManager 的普通/路径占位、释放和查询接口，不直接保有 TileCellData。
 
 ## 关键架构
 
@@ -60,7 +61,7 @@ Main (scene composition)
   ├─ LevelLoader -> GridManager.apply_configuration(...)
   ├─ LevelLoader -> TileManager.load_level(LevelResource)
   │     └─ Dictionary[Vector3i, TileCellData]
-  ├─ BuildingManager -> can_place / place_occupant / clear_occupant
+  ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
         └─ height-color ImmediateMesh terrain + obstacle marker
 
@@ -85,6 +86,7 @@ Level Editor M4 pages
 - 同一个 `cell` 在 `LevelResource.tiles` 中至多一条记录。`store_tile()` 以 cell 覆盖旧资源，编辑器拖到同格不产生重复记录。
 - LevelResource 中缺失的有效格不是“空洞”，而是默认高度 0 可建造格；编辑器和运行时必须使用同一解释。编辑器只在修改时将该隐式格实体化，避免加载稀疏关卡后误写满数组。
 - `TileCellData.TileType` 的数值固定为 `0/1/2`；TilePreset `.tres` 与编辑器 OptionButton 使用同一顺序。
+- `place_path_occupant` 只放宽 BLOCKED 路面的普通建造限制，不放宽未清障 DESTRUCTIBLE 或已有占位；路径/保护格规则不属于 Tile，由 BuildingManager 持有。
 - 地块高度只改变 Tile 顶面与崖壁的 Y；Grid 几何仍定义在 Y=0 平面，M6 的低层激光可据 `TileManager.get_world_height()` 判定遮挡。
 - `height_color_low`、`height_color_middle`、`height_color_high` 是关卡资源的一部分；当高度档数多于 3 时，编辑器在下→中与中→上两个区间线性插值。
 - 同一组高度色同时驱动编辑器和运行时的非路面地形；`TileRenderer` 经 TileManager 查询颜色，避免渲染层直接读取关卡资源；不可建造路面由渲染器的 `blocked_color` 灰色覆盖。
@@ -103,6 +105,8 @@ Level Editor M4 pages
 | `is_blocked` | `() -> bool` | 判断是否为不可建造路面。 |
 | `can_place` | `() -> bool` | 判断可建造且无运行时占用。 |
 | `place` | `(new_occupant: Node) -> bool` | 放入运行时占用物；失败不改变状态。 |
+| `can_place_path_occupant` | `() -> bool` | 判断无占用且不是未清障障碍，供屏障道路占位。 |
+| `place_path_occupant` | `(new_occupant: Node) -> bool` | 按路径占位规则原子写入 occupant。 |
 | `clear_occupant` | `(expected_occupant: Node = null) -> bool` | 仅在期望占用匹配时清空，避免误删其它模块占用。 |
 | `destroy_obstacle` | `() -> bool` | 清除类型 1 的障碍，保留高度。 |
 | `set_height_level` | `(value: int, height_levels: int) -> void` | 按关卡档数钳制高度。 |
@@ -127,6 +131,8 @@ Level Editor M4 pages
 | `get_height_color` | `(cell: Vector3i) -> Color` | 按关卡的下/中/上色标返回该格运行时高度色。 |
 | `can_place` | `(cell: Vector3i) -> bool` | M3 建筑放置入口。 |
 | `place_occupant` | `(cell: Vector3i, occupant: Node) -> bool` | 通过 TileCellData 原子占格并广播 occupant_changed。 |
+| `can_place_path_occupant` | `(cell: Vector3i) -> bool` | 屏障道路占位预检，不判断是否属于关卡路径。 |
+| `place_path_occupant` | `(cell: Vector3i, occupant: Node) -> bool` | 允许屏障占据灰色路面并广播 occupant_changed。 |
 | `clear_occupant` | `(cell: Vector3i, expected_occupant: Node = null) -> bool` | 安全释放指定格占用并广播。 |
 | `get_occupant` | `(cell: Vector3i) -> Node` | 返回运行时占用物或 null。 |
 | `is_blocked` | `(cell: Vector3i) -> bool` | M4 路径 / M6 光路的地形阻挡查询入口。 |

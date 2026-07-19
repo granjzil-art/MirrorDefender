@@ -2,6 +2,8 @@
 class_name WaveManager
 extends Node
 
+const EnemyProjectileScript := preload("res://scripts/combat/EnemyProjectile.gd")
+
 enum State {
 	NO_WAVES,
 	READY,
@@ -34,6 +36,7 @@ var _active_units: Array[EnemyUnit] = []
 var _unit_wave_indices: Dictionary = {}
 var _started_wave_indices: Dictionary = {}
 var _completed_wave_indices: Dictionary = {}
+var _path_blocker_resolver: Callable
 
 func _process(delta: float) -> void:
 	if not feature_enabled or _state != State.ACTIVE:
@@ -47,7 +50,8 @@ func configure(
 	path_manager: PathManager,
 	combat_manager: CombatManager,
 	resource_manager: ResourceManager,
-	base_core: BaseCore
+	base_core: BaseCore,
+	path_blocker_resolver: Callable = Callable()
 ) -> void:
 	if _base_core != null and _base_core.defeated.is_connected(_on_base_defeated):
 		_base_core.defeated.disconnect(_on_base_defeated)
@@ -55,6 +59,7 @@ func configure(
 	_combat_manager = combat_manager
 	_resource_manager = resource_manager
 	_base_core = base_core
+	_path_blocker_resolver = path_blocker_resolver
 	if _base_core != null:
 		_base_core.defeated.connect(_on_base_defeated)
 
@@ -169,7 +174,13 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> void:
 	if points.size() < 2:
 		return
 	var unit := EnemyUnit.new()
-	unit.configure_unit(group.enemy, points)
+	unit.configure_unit(
+		group.enemy,
+		points,
+		group.path.cells,
+		_level.grid_cell_size if _level != null else 1.0,
+		_path_blocker_resolver
+	)
 	add_child(unit)
 	unit.died.connect(_on_enemy_died)
 	unit.reached_base.connect(_on_enemy_reached_base)
@@ -224,6 +235,12 @@ func _clear_active_units() -> void:
 	for unit in units:
 		if is_instance_valid(unit):
 			unit.queue_free()
+	_clear_enemy_projectiles()
+
+func _clear_enemy_projectiles() -> void:
+	for child in get_children():
+		if child.get_script() == EnemyProjectileScript:
+			child.queue_free()
 
 func _cleanup_units() -> void:
 	for index in range(_active_units.size() - 1, -1, -1):

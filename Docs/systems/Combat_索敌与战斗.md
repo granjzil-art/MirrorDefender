@@ -1,6 +1,6 @@
 # 索敌与战斗 · Combat
 
-> 实现状态：M3 已完成统一伤害公式、七种索敌优先级、独立索敌/攻击范围、标准投射物单发攻击和穿透线段持续伤害；M4 已将 EnemyUnit 接入为正式移动目标。
+> 实现状态：已完成我方索敌/攻击策略、标准投射物与激光，以及敌人对路径屏障的冷却攻击和近战/远程投射物。
 
 ## 职责
 
@@ -17,6 +17,8 @@
 - **投射物跟踪**：目标存活时刷新目标位置；目标失效后飞向最后位置并在最大距离处销毁，不对失效目标结算伤害。
 - **索敌优先级**：最近、最远、最高血、最低血、最快、首个进入、锁定；锁定失效后回退到最近。
 - **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
+- **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
+- **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
 
 ## 关键参数
 
@@ -31,6 +33,8 @@
 | BuildingLevelStats | `projectile_speed` | 投射物格/秒速度。 |
 | BuildingLevelStats | `projectile_length` / `projectile_width` | 恒定短直线尺寸。 |
 | BuildingLevelStats | `target_priority` | 七种索敌优先级枚举。 |
+| EnemyDefinition | `attack_damage` / `attacks_per_second` / `attack_range` | 敌人攻击屏障的伤害、频率和格数射程。 |
+| EnemyDefinition | `projectile_speed` / `projectile_length` / `projectile_width` | 0 为近战；正数及尺寸驱动 EnemyProjectile。 |
 
 ## 关键架构
 
@@ -48,6 +52,8 @@
 | `scripts/combat/IAttackStrategy.gd` | `IAttackStrategy` / `RefCounted` | 攻击逐帧执行/重置接口。 |
 | `scripts/combat/ArrowAttackStrategy.gd` | `ArrowAttackStrategy` / `IAttackStrategy` | 目标获取、独立射程检查、冷却和投射物发射。 |
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定射线穿透与持续伤害。 |
+| `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 敌人攻击冷却和 `perform_attack` 调度。 |
+| `scripts/combat/EnemyProjectile.gd` | `EnemyProjectile` / `Node3D` | 面向屏障方法契约的追踪投射物、表现与命中。 |
 
 ### 模块调用关系 / 数据流
 
@@ -70,6 +76,12 @@ Laser Building facing
 
 CombatTarget.died -> CombatManager.target_killed(reward)
 EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(reward)
+
+EnemyUnit attack state -> EnemyAttackStrategy.tick
+  -> projectile_speed == 0: blocker.take_structure_damage
+  -> projectile_speed > 0: EnemyProjectile
+       -> target/attacker alive check -> take_structure_damage(damage, attacker)
+       -> barrier reflection -> EnemyUnit.take_damage
 ```
 
 ## 函数索引
@@ -104,7 +116,17 @@ EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(rew
 | `_process` | `(delta: float) -> void` | 追踪/飞向最后目标点，处理命中和最大距离。 |
 | `_impact` | `() -> void` | 仅对仍存活目标结算伤害并广播 `impacted`。 |
 
-**信号**：CombatTarget.`health_changed` / `died`；CombatManager.`target_registered` / `target_removed` / `target_killed` / `projectile_spawned` / `projectile_hit`；Projectile.`impacted`。
+### EnemyAttackStrategy / EnemyProjectile
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `EnemyAttackStrategy.tick` | `(attacker: Node, delta: float) -> void` | 冷却到期时读取攻击者当前结构目标并调用 `perform_attack`。 |
+| `EnemyAttackStrategy.reset` | `(attacker: Node) -> void` | 目标切换/离开攻击状态时允许下一次进入立即攻击。 |
+| `EnemyProjectile.configure` | `(start: Vector3, target: Node, attacker: Node, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color) -> void` | 配置结构目标、攻击者、飞行和外观。 |
+| `EnemyProjectile._process` | `(delta: float) -> void` | 仅在攻击者与屏障都有效时追踪飞行。 |
+| `EnemyProjectile._impact` | `() -> void` | 调用屏障 `take_structure_damage` 并广播实际伤害。 |
+
+**信号**：CombatTarget.`health_changed` / `died`；CombatManager.`target_registered` / `target_removed` / `target_killed` / `projectile_spawned` / `projectile_hit`；Projectile.`impacted`；EnemyProjectile.`impacted`。
 
 ## 约定事实源
 
@@ -113,6 +135,7 @@ EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(rew
 - 单发攻击的逻辑命中时刻与视觉投射物命中时刻一致。
 - 激光命中在 XZ 平面计算；M6 再加入地形、障碍和镜面阻挡。
 - CombatManager 不生成正式敌人，也不直接修改资源；WaveManager 是 EnemyUnit 掉落的唯一资源桥接者。
+- 屏障不是 CombatTarget，也不进入 CombatManager 敌对候选；EnemyProjectile 通过结构方法契约造成伤害。
 
 ## 已知限制 / 初版不做的部分
 

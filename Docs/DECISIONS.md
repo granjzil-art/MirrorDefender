@@ -1,0 +1,15 @@
+# 技术与玩法决策记录
+
+## 2026-07-19 · 屏障作为路径专用 Building，并以注入查询驱动敌人攻击
+
+**决策**：屏障复用 BuildingDefinition、BuildingLevelStats、BuildingManager、Tile occupant、升级和经济事务；普通塔禁止占据路径格。EnemyUnit 不直接依赖 Building 类型，而是通过 Main 注入的 `Callable(BuildingManager.get_path_blocker)` 按 PathDefinition 顺序查询前方屏障，并依赖结构方法契约造成伤害。
+
+**理由**：屏障需要复用现有建筑的放置、升级、删除、资源和选择 UI，同时又不能进入 CombatManager 的敌方 CombatTarget 候选。注入查询保留 Unit/Building 模块边界；路径仍是设计者静态事实源，无需为可摧毁屏障引入动态寻路。
+
+**否决的备选**：
+
+- 将屏障继承 CombatTarget：会让我方塔把我方屏障加入敌对索敌候选，阵营过滤尚不存在。
+- 将屏障做成独立于 Building 的新系统：会重复经济、占位、升级、退款和 UI 流程。
+- 屏障出现后动态重算路径：与“阻挡后攻击、摧毁后继续原路线”的需求不符，也会提前引入导航系统复杂度。
+
+**约束**：出生点和据点不可放屏障；未清障格不可特殊占位；屏障战斗摧毁不退款，玩家主动删除按等级退款；所有敌人在攻击状态停止移动。

@@ -7,6 +7,7 @@ const MAX_LEVEL := 3
 enum Kind {
 	ARROW_TOWER,
 	LASER_TOWER,
+	BARRIER,
 }
 
 @export_group("Identity")

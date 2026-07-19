@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/wave/WaveDefinition.gd" id="5_wave"]
 [ext_resource type="Resource" path="res://resources/enemies/Grunt.tres" id="6_grunt"]
 [ext_resource type="Resource" path="res://resources/enemies/Runner.tres" id="7_runner"]
+[ext_resource type="Resource" path="res://resources/enemies/Archer.tres" id="8_archer"]
 
 [sub_resource type="Resource" id="Path_Main"]
 script = ExtResource("2_path")
@@ -51,10 +52,19 @@ start_delay = 9.0
 spawn_point = SubResource("Spawn_North")
 path = SubResource("Path_Main")
 
+[sub_resource type="Resource" id="Group_Two_C"]
+script = ExtResource("4_group")
+enemy = ExtResource("8_archer")
+count = 3
+interval = 1.1
+start_delay = 10.0
+spawn_point = SubResource("Spawn_North")
+path = SubResource("Path_Main")
+
 [sub_resource type="Resource" id="Wave_Two"]
 script = ExtResource("5_wave")
 display_name = "第 2 波：混编突击"
-spawn_groups = Array[ExtResource("4_group")]([SubResource("Group_Two_A"), SubResource("Group_Two_B")])
+spawn_groups = Array[ExtResource("4_group")]([SubResource("Group_Two_A"), SubResource("Group_Two_B"), SubResource("Group_Two_C")])
 
 [resource]
 script = ExtResource("1_level")

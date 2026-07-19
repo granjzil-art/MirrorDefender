@@ -6,6 +6,7 @@ enum InteractionMode {
 	SELECT,
 	BUILD_ARROW,
 	BUILD_LASER,
+	BUILD_BARRIER,
 	SPAWN_TARGET,
 }
 
@@ -64,6 +65,8 @@ func get_selected_definition() -> BuildingDefinition:
 		return _building_manager.get_definition(BuildingDefinition.Kind.LASER_TOWER)
 	if _mode == InteractionMode.BUILD_ARROW:
 		return _building_manager.get_definition(BuildingDefinition.Kind.ARROW_TOWER)
+	if _mode == InteractionMode.BUILD_BARRIER:
+		return _building_manager.get_definition(BuildingDefinition.Kind.BARRIER)
 	return null
 
 func select_mode(value: InteractionMode) -> void:
@@ -72,7 +75,7 @@ func select_mode(value: InteractionMode) -> void:
 		_mode_buttons[index].button_pressed = index == int(_mode)
 	_mode_label.text = "模式：%s" % _get_mode_name()
 	_status_label.text = ""
-	if _building_manager != null and value != InteractionMode.BUILD_ARROW and value != InteractionMode.BUILD_LASER:
+	if _building_manager != null and not _is_build_mode(value):
 		_building_manager.clear_preview()
 	mode_changed.emit(_mode)
 
@@ -115,6 +118,7 @@ func _build_interface() -> void:
 	_add_mode_button(modes, group, "选择", InteractionMode.SELECT)
 	_add_mode_button(modes, group, "箭塔", InteractionMode.BUILD_ARROW)
 	_add_mode_button(modes, group, "激光塔", InteractionMode.BUILD_LASER)
+	_add_mode_button(modes, group, "屏障", InteractionMode.BUILD_BARRIER)
 	_add_mode_button(modes, group, "靶标", InteractionMode.SPAWN_TARGET)
 	_mode_label = Label.new()
 	content.add_child(_mode_label)
@@ -134,7 +138,7 @@ func _add_mode_button(
 	button.toggle_mode = true
 	button.button_group = group
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(88.0, 32.0)
+	button.custom_minimum_size = Vector2(68.0, 32.0)
 	button.pressed.connect(select_mode.bind(mode))
 	container.add_child(button)
 	_mode_buttons.append(button)
@@ -160,6 +164,8 @@ func _get_mode_name() -> String:
 			return "放置箭塔"
 		InteractionMode.BUILD_LASER:
 			return "放置激光塔"
+		InteractionMode.BUILD_BARRIER:
+			return "放置屏障（仅路径格）"
 		InteractionMode.SPAWN_TARGET:
 			return "放置靶标"
 		_:
@@ -192,6 +198,9 @@ func _disconnect_managers() -> void:
 		if _combat_manager.target_removed.is_connected(_on_target_count_changed):
 			_combat_manager.target_removed.disconnect(_on_target_count_changed)
 
+func _is_build_mode(value: InteractionMode) -> bool:
+	return value == InteractionMode.BUILD_ARROW or value == InteractionMode.BUILD_LASER or value == InteractionMode.BUILD_BARRIER
+
 func _on_resource_changed(_current: float, _delta: float, _reason: String) -> void:
 	_refresh_summary()
 
@@ -215,13 +224,22 @@ func _on_building_selected(building: Building) -> void:
 		_status_label.text = "未选中建筑"
 		_upgrade_button.disabled = true
 	else:
-		_status_label.text = "已选：%s L%d/%d，朝向 %d/%d" % [
-			building.definition.display_name,
-			building.level,
-			building.get_max_level(),
-			building.facing_index + 1,
-			building.get_facing_slot_count(),
-		]
+		if building.is_path_blocker():
+			_status_label.text = "已选：%s L%d/%d，耐久 %d/%d" % [
+				building.definition.display_name,
+				building.level,
+				building.get_max_level(),
+				ceili(building.current_durability),
+				ceili(building.maximum_durability),
+			]
+		else:
+			_status_label.text = "已选：%s L%d/%d，朝向 %d/%d" % [
+				building.definition.display_name,
+				building.level,
+				building.get_max_level(),
+				building.facing_index + 1,
+				building.get_facing_slot_count(),
+			]
 		_upgrade_button.disabled = not building.can_upgrade()
 	_refresh_summary()
 
@@ -243,7 +261,7 @@ func _on_preview_updated(building: Building) -> void:
 	]
 
 func _on_preview_cleared() -> void:
-	if _mode == InteractionMode.BUILD_ARROW or _mode == InteractionMode.BUILD_LASER:
+	if _is_build_mode(_mode):
 		_status_label.text = "当前格不可放置，查看左侧地块或占位信息"
 
 func _on_target_count_changed(_target: CombatTarget) -> void:

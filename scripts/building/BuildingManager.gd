@@ -8,11 +8,13 @@ extends Node3D
 @export_group("Definitions")
 @export var arrow_tower: BuildingDefinition
 @export var laser_tower: BuildingDefinition
+@export var barrier: BuildingDefinition
 
 signal building_placed(building: Building)
 signal building_removed(building: Building)
 signal building_selected(building: Building)
 signal building_upgraded(building: Building, previous_level: int, new_level: int)
+signal building_destroyed(building: Building, attacker: Node)
 signal placement_failed(cell: Vector3i, reason: String)
 signal upgrade_failed(building: Building, reason: String)
 signal preview_updated(building: Building)
@@ -28,6 +30,8 @@ var _preview_building: Building
 var _preview_definition: BuildingDefinition
 var _preview_cell: Vector3i = Vector3i.ZERO
 var _preview_facing_index: int = 0
+var _path_cells: Dictionary = {}
+var _protected_path_cells: Dictionary = {}
 
 func configure(
 	grid_manager: GridManager,
@@ -43,6 +47,7 @@ func configure(
 	_combat_manager = combat_manager
 	arrow_tower = _reload_definition(arrow_tower)
 	laser_tower = _reload_definition(laser_tower)
+	barrier = _reload_definition(barrier)
 	if _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 
@@ -59,9 +64,11 @@ func place_building(
 	var building := Building.new()
 	add_child(building)
 	building.configure(definition, cell, _grid, _tile_manager, _combat_manager)
+	building.structure_destroyed.connect(_on_building_destroyed)
 	if placement_facing >= 0:
 		building.set_facing_index(placement_facing)
-	if not _tile_manager.place_occupant(cell, building):
+	var occupied := _tile_manager.place_path_occupant(cell, building) if building.is_path_blocker() else _tile_manager.place_occupant(cell, building)
+	if not occupied:
 		building.queue_free()
 		placement_failed.emit(cell, "地块已被占用")
 		return null
@@ -214,9 +221,20 @@ func get_selected_building() -> Building:
 	return _selected_building if is_instance_valid(_selected_building) else null
 
 func get_definition(kind: int) -> BuildingDefinition:
+	if kind == BuildingDefinition.Kind.BARRIER:
+		return barrier
 	if kind == BuildingDefinition.Kind.LASER_TOWER:
 		return laser_tower
 	return arrow_tower
+
+func get_path_blocker(cell: Vector3i) -> Node:
+	var building := get_building(cell)
+	if building == null or not building.is_path_blocker() or not building.is_structure_alive():
+		return null
+	return building
+
+func is_path_cell(cell: Vector3i) -> bool:
+	return _path_cells.has(cell)
 
 func _validate_placement(cell: Vector3i, definition: BuildingDefinition) -> String:
 	if not feature_enabled:
@@ -227,8 +245,9 @@ func _validate_placement(cell: Vector3i, definition: BuildingDefinition) -> Stri
 		return "建筑等级参数未配置"
 	if not _grid.is_in_bounds(cell):
 		return "目标格位于地图外"
-	if not _tile_manager.can_place(cell):
-		return "目标地块不可建造或已被占用"
+	var cell_failure := _get_cell_placement_failure(cell, definition)
+	if not cell_failure.is_empty():
+		return cell_failure
 	if not _resource_manager.can_add_building():
 		return "已达到建筑上限"
 	if not _resource_manager.can_afford(definition.get_level_stats(1).cost):
@@ -236,7 +255,32 @@ func _validate_placement(cell: Vector3i, definition: BuildingDefinition) -> Stri
 	return ""
 
 func _can_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
-	return feature_enabled and definition != null and definition.is_configured() and _grid != null and _grid.is_in_bounds(cell) and _tile_manager != null and _tile_manager.can_place(cell)
+	return feature_enabled and definition != null and definition.is_configured() and _grid != null and _grid.is_in_bounds(cell) and _tile_manager != null and _get_cell_placement_failure(cell, definition).is_empty()
+
+func _get_cell_placement_failure(cell: Vector3i, definition: BuildingDefinition) -> String:
+	if definition.kind == BuildingDefinition.Kind.BARRIER:
+		if not _path_cells.has(cell):
+			return "屏障只能放置在敌人路径上"
+		if _protected_path_cells.has(cell):
+			return "出生点和据点格不能放置屏障"
+		if not _tile_manager.can_place_path_occupant(cell):
+			return "路径格存在障碍或已被占用"
+		if _is_enemy_on_cell(cell):
+			return "敌人当前占据该路径格"
+		return ""
+	if _path_cells.has(cell):
+		return "敌人路径只能放置屏障"
+	if not _tile_manager.can_place(cell):
+		return "目标地块不可建造或已被占用"
+	return ""
+
+func _is_enemy_on_cell(cell: Vector3i) -> bool:
+	if _combat_manager == null or _grid == null:
+		return false
+	for target in _combat_manager.get_targets():
+		if target != null and is_instance_valid(target) and _grid.world_to_cell(target.global_position) == cell:
+			return true
+	return false
 
 func _sync_building_income() -> void:
 	if _resource_manager == null:
@@ -256,5 +300,27 @@ func _reload_definition(definition: BuildingDefinition) -> BuildingDefinition:
 	)
 	return resource if resource is BuildingDefinition else definition
 
-func _on_level_loaded(_level_resource: LevelResource) -> void:
+func _on_level_loaded(level_resource: LevelResource) -> void:
 	clear_buildings(true)
+	_cache_path_cells(level_resource)
+
+func _cache_path_cells(level_resource: LevelResource) -> void:
+	_path_cells.clear()
+	_protected_path_cells.clear()
+	if level_resource == null:
+		return
+	_protected_path_cells[level_resource.base_cell] = true
+	for spawn_point in level_resource.spawn_points:
+		if spawn_point != null:
+			_protected_path_cells[spawn_point.cell] = true
+	for path in level_resource.paths:
+		if path == null:
+			continue
+		for cell in path.cells:
+			_path_cells[cell] = true
+
+func _on_building_destroyed(building: Building, attacker: Node) -> void:
+	if building == null or get_building(building.cell) != building:
+		return
+	building_destroyed.emit(building, attacker)
+	remove_building(building.cell, 0.0)

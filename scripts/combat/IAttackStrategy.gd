@@ -2,8 +2,8 @@
 class_name IAttackStrategy
 extends RefCounted
 
-func tick(_building: Node, _delta: float) -> void:
+func tick(_attacker: Node, _delta: float) -> void:
 	push_error("IAttackStrategy.tick() 未实现")
 
-func reset(_building: Node) -> void:
+func reset(_attacker: Node) -> void:
 	return

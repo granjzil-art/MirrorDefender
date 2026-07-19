@@ -15,6 +15,7 @@
 - **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和余额并扣费；调用方不拆成非原子步骤。
 - **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
 - **删除退款**：BuildingManager 删除选中建筑时读取当前 `BuildingLevelStats.refund_amount`，传给 `unregister_building(refund)`，使释放占格、减少计数、返还资源保持同一事务。
+- **屏障摧毁**：敌人将屏障耐久打到 0 时调用 `unregister_building(0)`，只释放建筑上限和产出，不获得主动删除退款。
 
 ## 参数编辑入口
 
@@ -65,6 +66,9 @@ BuildingManager.place / upgrade / remove / clear
 BuildingActionPanel delete -> BuildingManager.remove_selected_building
   -> ResourceManager.unregister_building(current_level.refund_amount)
 
+Barrier durability depleted -> BuildingManager.remove_building(cell, 0)
+  -> ResourceManager.unregister_building(0), no refund
+
 ResourceManager._process
   -> base buffer -> gain(whole, "base_income")
   -> building buffer -> gain(whole, "building_income")
@@ -99,6 +103,7 @@ resource_changed / limits_changed / income_rates_changed
 
 - LevelResource 是关卡初始经济与基础产出的事实源；ResourceManager 是当前局余额、计数和累计缓冲事实源。
 - 建筑当前级 `BuildingLevelStats.resource_per_second` 和 `refund_amount` 分别是单塔产出、删除退款的事实源；ResourceManager 不保存塔种固定数值表。
+- `refund_amount` 只用于玩家主动删除；战斗摧毁屏障固定传 0，不从配置退款。
 - 敌人掉落数值属于 EnemyDefinition，不复用 M3 调试靶标的 reward 作为正式配置；WaveManager 的类型收窄是防止靶标误入账的唯一连接点。
 - `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
 

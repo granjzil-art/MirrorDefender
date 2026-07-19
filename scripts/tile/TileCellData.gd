@@ -44,8 +44,18 @@ func is_blocked() -> bool:
 func can_place() -> bool:
 	return is_buildable() and occupant == null
 
+## Path blockers may occupy a road cell, but never an uncleared obstacle.
+func can_place_path_occupant() -> bool:
+	return occupant == null and not is_destructible()
+
 func place(new_occupant: Node) -> bool:
 	if new_occupant == null or not can_place():
+		return false
+	occupant = new_occupant
+	return true
+
+func place_path_occupant(new_occupant: Node) -> bool:
+	if new_occupant == null or not can_place_path_occupant():
 		return false
 	occupant = new_occupant
 	return true

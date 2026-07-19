@@ -4,6 +4,7 @@ extends Node3D
 
 const ArrowAttackStrategyScript := preload("res://scripts/combat/ArrowAttackStrategy.gd")
 const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
+const BarrierDurabilityScript := preload("res://scripts/building/BarrierDurability.gd")
 const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 
 @export_group("Feature")
@@ -18,11 +19,19 @@ const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 signal facing_changed(building: Building, facing_index: int, facing_slots: int)
 signal level_changed(building: Building, level: int, stats: BuildingLevelStats)
 signal attack_performed(building: Building, target: CombatTarget, damage: float, continuous: bool)
+signal durability_changed(building: Building, current: float, maximum: float)
+signal structure_destroyed(building: Building, attacker: Node)
 
 var definition: BuildingDefinition
 var cell: Vector3i = Vector3i.ZERO
 var facing_index: int = 0
 var level: int = 1
+var current_durability: float:
+	get:
+		return _durability.current if _durability != null else 0.0
+var maximum_durability: float:
+	get:
+		return _durability.maximum if _durability != null else 0.0
 
 var _grid: GridManager
 var _tile_manager: TileManager
@@ -35,11 +44,16 @@ var _preview_mode: bool = false
 var _visual_root: Node3D
 var _attack_line_instance: MeshInstance3D
 var _attack_line_material: StandardMaterial3D
+var _durability_label: Label3D
+var _durability: BarrierDurability
 
 func _process(delta: float) -> void:
-	if not feature_enabled or _preview_mode or _stats == null or _attack_strategy == null:
+	if not feature_enabled or _preview_mode or _stats == null:
 		return
-	_attack_strategy.tick(self, delta)
+	if is_path_blocker():
+		_durability.tick(delta)
+	elif _attack_strategy != null:
+		_attack_strategy.tick(self, delta)
 
 func configure(
 	building_definition: BuildingDefinition,
@@ -67,6 +81,7 @@ func apply_level(value: int) -> bool:
 	var next_stats := definition.get_level_stats(value)
 	if next_stats == null:
 		return false
+	var was_configured := _stats != null
 	if _attack_strategy != null:
 		_attack_strategy.reset(self)
 	level = clampi(value, 1, definition.get_max_level())
@@ -74,8 +89,18 @@ func apply_level(value: int) -> bool:
 	_locked_target = null
 	_targeting_strategy = PriorityTargetingStrategy.new(_stats.target_priority)
 	_configure_attack_strategy()
+	if is_path_blocker():
+		if _durability == null:
+			_durability = BarrierDurabilityScript.new()
+			_durability.durability_changed.connect(_on_durability_changed)
+			_durability.depleted.connect(_on_durability_depleted)
+		_durability.configure(_stats, was_configured)
+	else:
+		_durability = null
 	_build_visual()
 	set_facing_index(facing_index)
+	if is_path_blocker():
+		_update_durability_label()
 	level_changed.emit(self, level, _stats)
 	return true
 
@@ -99,6 +124,30 @@ func get_resource_per_second() -> float:
 
 func get_refund_amount() -> float:
 	return _stats.refund_amount if _stats != null else 0.0
+
+func is_path_blocker() -> bool:
+	return definition != null and definition.kind == BuildingDefinition.Kind.BARRIER
+
+func is_structure_alive() -> bool:
+	return is_path_blocker() and _durability != null and _durability.is_alive() and not is_queued_for_deletion()
+
+func get_structure_target_position() -> Vector3:
+	return global_position + Vector3(0.0, _get_tower_height() * 0.45, 0.0)
+
+func get_structure_hit_radius() -> float:
+	var cell_size := _grid.cell_size if _grid != null else 1.0
+	return cell_size * 0.30
+
+func get_durability_ratio() -> float:
+	return _durability.get_ratio() if _durability != null else 0.0
+
+func take_structure_damage(amount: float, attacker: Node = null) -> float:
+	if not feature_enabled or _preview_mode or _durability == null:
+		return 0.0
+	return _durability.take_damage(amount, attacker)
+
+func restore_durability(amount: float) -> float:
+	return _durability.restore(amount) if _durability != null else 0.0
 
 func acquire_target() -> CombatTarget:
 	if _combat_manager == null or _targeting_strategy == null:
@@ -210,6 +259,8 @@ func shutdown() -> void:
 func _configure_attack_strategy() -> void:
 	if _preview_mode:
 		_attack_strategy = null
+	elif definition.kind == BuildingDefinition.Kind.BARRIER:
+		_attack_strategy = null
 	elif definition.kind == BuildingDefinition.Kind.LASER_TOWER:
 		_attack_strategy = LaserAttackStrategyScript.new()
 	else:
@@ -219,6 +270,9 @@ func _build_visual() -> void:
 	if _visual_root != null:
 		remove_child(_visual_root)
 		_visual_root.queue_free()
+	_attack_line_instance = null
+	_attack_line_material = null
+	_durability_label = null
 	_visual_root = Node3D.new()
 	add_child(_visual_root)
 	if _stats.visual_scene != null:
@@ -231,10 +285,14 @@ func _build_visual() -> void:
 			custom_visual.queue_free()
 	else:
 		_build_default_body()
-	_build_direction_marker()
-	_build_attack_line()
+	if not is_path_blocker():
+		_build_direction_marker()
+		_build_attack_line()
 
 func _build_default_body() -> void:
+	if is_path_blocker():
+		_build_barrier_body()
+		return
 	var cell_size := _grid.cell_size
 	var tower_height := _get_tower_height()
 	var body_instance := MeshInstance3D.new()
@@ -246,6 +304,24 @@ func _build_default_body() -> void:
 	body_instance.position.y = tower_height * 0.5
 	body_instance.material_override = _make_material(_stats.tower_color, false)
 	_visual_root.add_child(body_instance)
+
+func _build_barrier_body() -> void:
+	var cell_size := _grid.cell_size
+	var barrier_height := _get_tower_height() * 0.82
+	var body_instance := MeshInstance3D.new()
+	var body_mesh := BoxMesh.new()
+	body_mesh.size = Vector3(cell_size * 0.88, barrier_height, cell_size * 0.20)
+	body_instance.mesh = body_mesh
+	body_instance.position.y = barrier_height * 0.5
+	body_instance.material_override = _make_material(_stats.tower_color, false)
+	_visual_root.add_child(body_instance)
+	_durability_label = Label3D.new()
+	_durability_label.position.y = barrier_height + cell_size * 0.18
+	_durability_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_durability_label.no_depth_test = true
+	_durability_label.font_size = 26
+	_visual_root.add_child(_durability_label)
+	_update_durability_label()
 
 func _build_direction_marker() -> void:
 	var cell_size := _grid.cell_size
@@ -274,6 +350,18 @@ func _apply_preview_materials(node: Node) -> void:
 
 func _get_tower_height() -> float:
 	return _grid.cell_size * tower_height_ratio if _grid != null else tower_height_ratio
+
+func _update_durability_label() -> void:
+	if _durability_label == null:
+		return
+	_durability_label.text = "%d/%d" % [ceili(current_durability), ceili(maximum_durability)]
+
+func _on_durability_changed(current: float, maximum: float) -> void:
+	_update_durability_label()
+	durability_changed.emit(self, current, maximum)
+
+func _on_durability_depleted(attacker: Node) -> void:
+	structure_destroyed.emit(self, attacker)
 
 func _make_material(color: Color, emissive: bool) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()

@@ -1,10 +1,10 @@
 # 建筑系统 · Building
 
-> 实现状态：M3 已完成箭塔、激光塔、三级完整参数、放置虚影、升级、独立索敌/攻击范围、逐级外观与逐级资源产出。
+> 实现状态：已完成箭塔、激光塔与屏障、三级完整参数、放置虚影、升级、逐级外观/产出，以及屏障耐久、脱战回血和反伤。
 
 ## 职责
 
-定义可放置防御建筑，用 `BuildingDefinition + BuildingLevelStats` 组合塔种身份和每级完整参数。`BuildingManager` 是放置、预览、升级、占用、选择和移除的唯一入口。
+定义可放置防御建筑，用 `BuildingDefinition + BuildingLevelStats` 组合建筑身份和每级完整参数。`BuildingManager` 是放置、路径规则、预览、升级、占用、选择和移除的唯一入口。
 
 ## 分类 / 做法
 
@@ -12,6 +12,10 @@
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算，发射时不扣血。
 - **激光塔**：不索敌，沿世界固定朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。
+- **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
+- **耐久与升级**：屏障每级独立配置 `max_durability`。升级时最大耐久的增加量同步加到当前耐久，保留升级前已经损失的绝对耐久。
+- **脱战回血**：屏障每次受伤重置计时；连续 `regeneration_delay` 秒未受伤后，按 `regeneration_per_second` 回耐久。大 delta 只结算越过延迟后的时间。
+- **反伤与摧毁**：`damage_reflection_ratio` 按屏障实际承受伤害反射给攻击者；归零后由 BuildingManager 无退款移除、释放路径占位和建筑上限。玩家主动删除仍使用本级 `refund_amount`。
 - **放置预览**：建造模式悬停可建造空格时创建不占格、不攻击的 1 级半透明建筑；预览保留塔种和朝向，R 旋转虚影，左键放置时继承该朝向。
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
 - **美术替换**：每一级可指定 `visual_scene: PackedScene`。未指定时使用该级 `tower_color` 生成灰盒塔；`attack_color` 控制方向标记、箭/激光颜色。
@@ -27,6 +31,7 @@
 
 - `resources/buildings/ArrowTower.tres`
 - `resources/buildings/LaserTower.tres`
+- `resources/buildings/Barrier.tres`
 
 展开 `Levels` 数组中的三个 `BuildingLevelStats`。数组第 0/1/2 项对应建筑 1/2/3 级。
 
@@ -43,6 +48,10 @@
 | Combat | `level_factor` | 本级独立等级伤害因子。 |
 | Combat | `extra_factor` | 其它伤害乘区预留。 |
 | Combat | `target_priority` | 最近、最远、最高血、最低血、最快、首个进入、锁定。 |
+| Defense | `max_durability` | 屏障本级最大耐久；塔类忽略。 |
+| Defense | `regeneration_delay` | 受伤后进入回血所需的无伤秒数。 |
+| Defense | `regeneration_per_second` | 脱战后的每秒耐久恢复量，0 表示不回血。 |
+| Defense | `damage_reflection_ratio` | 按实际承伤反射给攻击者的比例，范围 0~1。 |
 | Projectile | `projectile_speed` | 单发投射物速度，单位为格/秒。 |
 | Projectile | `projectile_length` | 短直线投射物长度，运行时下限 0.1，不会缩成点。 |
 | Projectile | `projectile_width` | 投射物宽度。 |
@@ -59,11 +68,13 @@
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 一项建筑等级的完整可编辑参数。 |
-| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 塔种身份、显示名和最多三项等级数据。 |
-| `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配策略、外观、朝向、投射物发射和预览状态。 |
+| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名和最多三项等级数据。 |
+| `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |
+| `scripts/building/BarrierDurability.gd` | `BarrierDurability` / `RefCounted` | 屏障耐久、升级保伤、脱战回血、反伤和耗尽信号。 |
 | `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | **建筑唯一入口**；放置事务、预览、升级、占用、选择、旋转、移除和产出汇总。 |
 | `resources/buildings/ArrowTower.tres` | `BuildingDefinition` | 箭塔三等级参数。 |
 | `resources/buildings/LaserTower.tres` | `BuildingDefinition` | 激光塔三等级参数。 |
+| `resources/buildings/Barrier.tres` | `BuildingDefinition` | 屏障三等级耐久、回血、反伤与经济参数。 |
 | `scripts/combat/ArrowAttackStrategy.gd` | `ArrowAttackStrategy` / `IAttackStrategy` | 单目标冷却、射程校验和投射物发射。 |
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定方向线段、穿透查询与持续伤害。 |
 | `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 恒定短直线表现、追踪飞行、最大距离与命中结算。 |
@@ -80,7 +91,8 @@ M3DebugPanel 建造模式 + Main 鼠标悬停
 
 Main 左键
   -> BuildingManager.place_building(cell, definition, preview_facing)
-     -> TileManager.can_place / place_occupant
+     -> tower: reject path cell -> TileManager.can_place / place_occupant
+     -> barrier: require non-protected path cell -> place_path_occupant
      -> ResourceManager.try_register_building(level_1.cost)
      -> Building.configure(..., initial_level=1)
 
@@ -105,6 +117,11 @@ Arrow Building._process
 Laser Building._process
   -> fixed facing segment of attack_range
   -> all touched CombatTarget.take_damage(final_dps * delta)
+
+EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
+  -> enemy attack -> Building.take_structure_damage
+  -> BarrierDurability: damage / reflection / delayed regeneration
+  -> depleted -> BuildingManager.remove_building(refund=0) -> path released
 ```
 
 ## 函数索引
@@ -126,6 +143,10 @@ Laser Building._process
 | `can_upgrade` / `get_upgrade_cost` | `() -> bool` / `() -> float` | 判断是否未到上限并读取下一等级费用。 |
 | `get_level_stats` | `() -> BuildingLevelStats` | 返回当前级参数事实源。 |
 | `get_refund_amount` | `() -> float` | 返回当前级配置的精确删除退款。 |
+| `is_path_blocker` / `is_structure_alive` | `() -> bool` | 判断是否为可阻挡路径且仍有耐久的屏障。 |
+| `take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 委托耐久组件结算实际承伤、反伤和耗尽。 |
+| `restore_durability` / `get_durability_ratio` | `(amount: float) -> float` / `() -> float` | 恢复耐久并返回实际值 / 返回 0~1 耐久比例。 |
+| `get_structure_target_position` / `get_structure_hit_radius` | `() -> Vector3` / `() -> float` | 为近战距离和敌方投射物提供通用结构目标契约。 |
 | `acquire_target` | `() -> CombatTarget` | 在当前级索敌范围内按优先级更新锁定目标。 |
 | `is_target_in_attack_range` | `(target: CombatTarget) -> bool` | 用独立攻击范围判断目标是否可发射。 |
 | `get_targeting_range_world` / `get_attack_range_world` | `() -> float` | 把格数范围转换为世界距离。 |
@@ -134,6 +155,15 @@ Laser Building._process
 | `get_action_anchor` | `() -> Vector3` | 返回悬浮操作按钮使用的建筑上方世界锚点。 |
 | `rotate_facing` / `set_facing_index` | `(step: int = 1) -> void` / `(value: int) -> void` | 更新世界固定离散朝向。 |
 | `shutdown` | `() -> void` | 停止策略并清理锁定。 |
+
+### BarrierDurability.gd
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `configure` | `(stats: BuildingLevelStats, preserve_damage: bool) -> void` | 应用本级最大耐久；升级时增加最大值差并保留已有损伤。 |
+| `tick` | `(delta: float) -> void` | 计算无伤延迟后的有效回血时长。 |
+| `take_damage` | `(amount: float, attacker: Node = null) -> float` | 扣耐久、重置脱战计时、反伤并在归零时发 `depleted`。 |
+| `restore` / `is_alive` / `get_ratio` | `(amount: float) -> float` / `() -> bool` / `() -> float` | 恢复耐久、判断有效、读取耐久比例。 |
 
 ### BuildingManager.gd
 
@@ -150,9 +180,12 @@ Laser Building._process
 | `remove_selected_building` | `() -> bool` | 按选中建筑当前级 `refund_amount` 原子删除并返还资源。 |
 | `clear_buildings` | `(update_resource_count: bool = true) -> void` | 切关时清理全部建筑和预览。 |
 | `select_at` / `rotate_selected` | `(cell: Vector3i) -> Building` / `(step: int = 1) -> bool` | 选择或旋转实际建筑。 |
+| `get_path_blocker` | `(cell: Vector3i) -> Node` | 返回该路径格仍存活的屏障；这是 EnemyUnit 唯一阻挡查询入口。 |
+| `is_path_cell` | `(cell: Vector3i) -> bool` | 查询关卡路径格缓存。 |
+| `_cache_path_cells` | `(level_resource: LevelResource) -> void` | 切关时缓存所有路径格以及出生点/据点保护格。 |
 | `_sync_building_income` | `() -> void` | 汇总所有当前级 `resource_per_second`。 |
 
-**信号**：`building_placed`、`building_removed`、`building_selected`、`building_upgraded`、`placement_failed`、`upgrade_failed`、`preview_updated`、`preview_cleared`；Building.`level_changed` / `facing_changed` / `attack_performed`。
+**信号**：`building_placed`、`building_removed`、`building_selected`、`building_upgraded`、`building_destroyed`、`placement_failed`、`upgrade_failed`、`preview_updated`、`preview_cleared`；Building.`level_changed` / `facing_changed` / `attack_performed` / `durability_changed` / `structure_destroyed`。
 
 ## 约定事实源
 
@@ -160,12 +193,14 @@ Laser Building._process
 - 当前等级事实源是 `Building.level + Building._stats`；禁止把等级差写成隐式全局倍率。
 - 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用；`refund_amount` 是删除当前级的精确返还，不由 `cost` 自动计算。
 - `targeting_range` 只决定候选；`attack_range` 决定是否能发射或激光长度，两者不得互相代替。
-- `BuildingDefinition.Kind` 固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`。
+- `BuildingDefinition.Kind` 固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`。
+- 路径格缓存来自当前 LevelResource；普通塔不得占路。屏障可覆盖 BUILDABLE 或 BLOCKED 路面，但不得覆盖未清障的 DESTRUCTIBLE 格。
+- 屏障摧毁属于战斗损失，不返还资源；主动删除属于玩家操作，按本级 `refund_amount` 返还。
 - HEX 档 0 为世界 -30 度，随后每档 +60 度；SQUARE 档 0 为 +X，随后每档 +45 度。
 
 ## 使用入口
 
-运行 `scenes/Main.tscn`：右上 M3 面板选择箭塔/激光塔，移动鼠标查看虚影，R 调整预览朝向，左键放置；切回“选择”点击建筑后，地块上方显示删除、升级、旋转按钮。升级满级自动置灰，删除按当前级参数退款。
+运行 `scenes/Main.tscn`：右上建筑面板选择箭塔/激光塔/屏障，移动鼠标查看虚影，R 调整预览朝向，左键放置。屏障虚影只会出现在路径的非保护格；选中后左侧 HUD 显示耐久、脱战延迟、回血和反伤。切回“选择”可使用删除、升级、旋转按钮。
 
 ## 已知限制 / 初版不做的部分
 

@@ -21,6 +21,7 @@ const PathManagerScript := preload("res://scripts/path/PathManager.gd")
 const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
 const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
+const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -54,6 +55,7 @@ func _ready() -> void:
 	tile_manager.set_grid(grid)
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
+	building_manager.barrier = BarrierDefinitionResource
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
@@ -67,7 +69,13 @@ func _ready() -> void:
 	base_core.configure(grid, tile_manager)
 	wave_manager = WaveManagerScript.new()
 	add_child(wave_manager)
-	wave_manager.configure(path_manager, combat_manager, resource_manager, base_core)
+	wave_manager.configure(
+		path_manager,
+		combat_manager,
+		resource_manager,
+		base_core,
+		Callable(building_manager, "get_path_blocker")
+	)
 	_wave_status_panel = WaveStatusPanelScript.new()
 	$HUD.add_child(_wave_status_panel)
 	_wave_status_panel.position = Vector2(1240.0, 270.0)
@@ -128,13 +136,24 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 			if occupant is Building:
 				var occupied_building: Building = occupant
 				var occupied_stats := occupied_building.get_level_stats()
-				lines.append("占位: %s L%d/%d | 索敌 %.1f | 射程 %.1f" % [
-					occupied_building.definition.display_name,
-					occupied_building.level,
-					occupied_building.get_max_level(),
-					occupied_stats.targeting_range,
-					occupied_stats.attack_range,
-				])
+				if occupied_building.is_path_blocker():
+					lines.append("占位: %s L%d/%d | 耐久 %d/%d | 脱战 %.1fs 后 +%.1f/s" % [
+						occupied_building.definition.display_name,
+						occupied_building.level,
+						occupied_building.get_max_level(),
+						ceili(occupied_building.current_durability),
+						ceili(occupied_building.maximum_durability),
+						occupied_stats.regeneration_delay,
+						occupied_stats.regeneration_per_second,
+					])
+				else:
+					lines.append("占位: %s L%d/%d | 索敌 %.1f | 射程 %.1f" % [
+						occupied_building.definition.display_name,
+						occupied_building.level,
+						occupied_building.get_max_level(),
+						occupied_stats.targeting_range,
+						occupied_stats.attack_range,
+					])
 			elif occupant != null:
 				lines.append("占位对象: %s" % occupant.name)
 			if tile.is_destructible():
@@ -167,12 +186,21 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 			selected_building.facing_index + 1,
 			selected_building.get_facing_slot_count(),
 		])
-		lines.append("伤害 %.1f | 索敌 %.1f | 射程 %.1f | 产出 %.1f/s" % [
-			selected_building.get_instant_damage() if selected_building.definition.kind == BuildingDefinition.Kind.ARROW_TOWER else selected_building.get_laser_damage_per_second(),
-			selected_stats.targeting_range,
-			selected_stats.attack_range,
-			selected_stats.resource_per_second,
-		])
+		if selected_building.is_path_blocker():
+			lines.append("耐久 %d/%d | 脱战 %.1fs | 回血 %.1f/s | 反伤 %.0f%%" % [
+				ceili(selected_building.current_durability),
+				ceili(selected_building.maximum_durability),
+				selected_stats.regeneration_delay,
+				selected_stats.regeneration_per_second,
+				selected_stats.damage_reflection_ratio * 100.0,
+			])
+		else:
+			lines.append("伤害 %.1f | 索敌 %.1f | 射程 %.1f | 产出 %.1f/s" % [
+				selected_building.get_instant_damage() if selected_building.definition.kind == BuildingDefinition.Kind.ARROW_TOWER else selected_building.get_laser_damage_per_second(),
+				selected_stats.targeting_range,
+				selected_stats.attack_range,
+				selected_stats.resource_per_second,
+			])
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
@@ -209,7 +237,7 @@ func _handle_primary_action() -> void:
 	_selected_cell = cell
 	_has_selected_cell = true
 	match m3_debug_panel.get_mode():
-		M3DebugPanelScript.InteractionMode.BUILD_ARROW, M3DebugPanelScript.InteractionMode.BUILD_LASER:
+		M3DebugPanelScript.InteractionMode.BUILD_ARROW, M3DebugPanelScript.InteractionMode.BUILD_LASER, M3DebugPanelScript.InteractionMode.BUILD_BARRIER:
 			building_manager.place_building(
 				cell,
 				m3_debug_panel.get_selected_definition(),

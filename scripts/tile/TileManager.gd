@@ -85,9 +85,20 @@ func can_place(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.can_place()
 
+func can_place_path_occupant(cell: Vector3i) -> bool:
+	var tile := get_tile(cell)
+	return tile != null and tile.can_place_path_occupant()
+
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)
 	if tile == null or not tile.place(occupant):
+		return false
+	occupant_changed.emit(cell, occupant)
+	return true
+
+func place_path_occupant(cell: Vector3i, occupant: Node) -> bool:
+	var tile := get_tile(cell)
+	if tile == null or not tile.place_path_occupant(occupant):
 		return false
 	occupant_changed.emit(cell, occupant)
 	return true

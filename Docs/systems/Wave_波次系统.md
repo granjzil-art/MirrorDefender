@@ -14,6 +14,7 @@
 - **全局时间轴**：WaveManager 在首次点击时为全部波次建立生成状态；每组首只敌人的时间为 `start_delay`，后续敌人按 `interval` 生成。
 - **波次重叠**：不同波次可以同时出怪。某波第一次实际生成时发送 `wave_started`；该波组全部生成且该波存活敌人为零时发送 `wave_completed`。
 - **胜负**：全部波次的全部组生成结束且场上敌人清空后胜利；BaseCore.defeated 会取消待生成状态、清理单位并失败。
+- **屏障联调**：Main 将 BuildingManager 的阻挡查询 Callable 注入 WaveManager；每个新 EnemyUnit 同时获得路径世界点、路径格、关卡格距和该查询接口。切关/失败会连同敌方投射物清理。
 - **运行时入口**：右侧 `WaveStatusPanel` 在 READY 显示“开始第一波”；进入 ACTIVE 后按钮禁用，不再要求点击后续波次。
 - **编辑**：关卡编辑器“波次”页可增删波次和出怪组，选择敌人/入口/路径，并修改数量、间隔和“距第一波开始延迟”。
 
@@ -38,7 +39,7 @@
 | `scripts/wave/SpawnGroupDefinition.gd` | `SpawnGroupDefinition` / `Resource` | 一条敌人生成时间流。 |
 | `scripts/wave/WaveManager.gd` | `WaveManager` / `Node` | **波次唯一入口**；全局计时、生成、逐波事件、奖励和胜负。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 运行时波次状态与首次开始按钮。 |
-| `resources/levels/M4DemoLevel.tres` | `LevelResource` | 两波全局时间轴示例；第一波延迟 0，第二波两组延迟 8/9 秒。 |
+| `resources/levels/M4DemoLevel.tres` | `LevelResource` | 两波全局时间轴示例；第二波在 8/9/10 秒生成步兵、疾行者和弓箭手组。 |
 
 ### 数据流
 
@@ -48,7 +49,8 @@ LevelLoader.level_loaded -> Main
 
 WaveStatusPanel.start first wave -> WaveManager.start_battle
   -> build every wave/group timeline from t=0
-  -> SpawnGroup.start_delay + interval -> EnemyUnit + CombatManager.register_target
+  -> SpawnGroup.start_delay + interval -> EnemyUnit(path points + cells + blocker Callable)
+  -> CombatManager.register_target
   -> Enemy died -> ResourceManager.grant_enemy_drop
   -> each wave groups exhausted + its active enemies empty -> wave_completed
   -> all groups exhausted + all active enemies empty -> VICTORY
@@ -61,7 +63,7 @@ EnemyUnit.reached_base -> BaseCore.take_damage
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `WaveManager.configure` | `(path_manager: PathManager, combat_manager: CombatManager, resource_manager: ResourceManager, base_core: BaseCore) -> void` | 注入所有运行时公共入口。 |
+| `WaveManager.configure` | `(path_manager: PathManager, combat_manager: CombatManager, resource_manager: ResourceManager, base_core: BaseCore, path_blocker_resolver: Callable = Callable()) -> void` | 注入运行时公共入口和可选路径屏障查询。 |
 | `WaveManager.load_level` | `(level_resource: LevelResource) -> void` | 清理旧单位、重置全局时间轴并进入 READY/NO_WAVES。 |
 | `WaveManager.start_battle` | `() -> bool` | 在 READY 接受唯一一次手动开始，建立全部波次的全局出怪时间轴。 |
 | `WaveManager.start_next_wave` | `() -> bool` | 兼容旧调用的包装；等价调用 `start_battle()`，ACTIVE 中不会再次开始。 |
@@ -69,6 +71,7 @@ EnemyUnit.reached_base -> BaseCore.take_damage
 | `WaveManager.get_state` / `get_state_name` | `() -> State` / `() -> String` | 返回状态枚举/可显示状态。 |
 | `WaveManager.get_current_wave_number` / `get_total_wave_count` | `() -> int` | 返回最近已开始波号和总波数。 |
 | `WaveManager.get_active_enemy_count` | `() -> int` | 返回全部波次的有效场上敌人数量。 |
+| `WaveManager._clear_enemy_projectiles` | `() -> void` | 切关或失败时清理仍在飞行的 EnemyProjectile。 |
 | `WaveStatusPanel.configure` | `(wave_manager: WaveManager, base_core: BaseCore) -> void` | 订阅状态和据点生命。 |
 
 **信号**：`state_changed`、`wave_started`、`wave_completed`、`enemy_spawned`、`enemy_reached_base`、`victory`、`defeat`。

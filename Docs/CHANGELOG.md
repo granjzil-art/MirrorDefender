@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Building / Unit · 路径屏障与敌人攻击 — 2026-07-19
+**模块**：Building / Tile / Path / Unit / AI / Combat / Wave / UI / Main。
+
+- 新增三级屏障 BuildingDefinition：每级独立配置耐久、脱战延迟、回血速度和反伤比例；升级保留已有损伤，战斗摧毁无退款并释放路径，主动删除仍按等级退款。
+- BuildingManager 缓存关卡路径与保护格；普通塔禁止占路，屏障可占可建造或灰色不可建造路径路面，但拒绝未清障格、出生点、据点、已有占用和敌人当前所在格。
+- EnemyDefinition 新增攻击伤害、攻速、射程和敌方投射物参数；所有 EnemyUnit 在屏障进入射程后停止移动，屏障消失后继续原固定路径。
+- 新增 EnemyAttackStrategy、EnemyProjectile 和 Archer.tres；M4DemoLevel 第二波第 10 秒加入弓箭手组，用真实飞行投射物测试远程攻击。
+- 灰盒建筑面板新增“屏障”模式，HUD 显示耐久、脱战回血与反伤；Godot 4.7 自动验收覆盖路径放置规则、三级增血、近战/远程停步、投射物命中、反伤、回血和摧毁释放。
+
 ## M4 · 关卡编辑显示、路径防误改与全局波次时间轴 — 2026-07-19
 **模块**：Level / Tile / Path / Wave / UI / Godot 编辑器工具。
 
