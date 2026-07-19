@@ -2,6 +2,7 @@ extends SceneTree
 
 var _failures: int = 0
 var _checks: int = 0
+var _reentrant_target_removed_count: int = 0
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -109,8 +110,30 @@ func _test_combat_registration_lifecycle() -> void:
 	target.queue_free()
 	await process_frame
 	_expect(combat_manager.get_targets().is_empty(), "external target deletion clears registry")
+
+	_reentrant_target_removed_count = 0
+	combat_manager.target_removed.connect(_on_target_removed_reentrant.bind(combat_manager))
+	var first_queued_target := CombatTarget.new()
+	first_queued_target.debug_visual_enabled = false
+	combat_manager.add_child(first_queued_target)
+	var second_queued_target := CombatTarget.new()
+	second_queued_target.debug_visual_enabled = false
+	combat_manager.add_child(second_queued_target)
+	_expect(
+		combat_manager.register_target(first_queued_target) and combat_manager.register_target(second_queued_target),
+		"multiple targets register for reentrant cleanup"
+	)
+	first_queued_target.queue_free()
+	second_queued_target.queue_free()
+	await process_frame
+	_expect(_reentrant_target_removed_count == 2, "reentrant target_removed listeners observe each removal once")
+	_expect(combat_manager.get_targets().is_empty(), "reentrant cleanup leaves an empty stable registry")
 	combat_manager.queue_free()
 	await process_frame
+
+func _on_target_removed_reentrant(_target: CombatTarget, combat_manager: CombatManager) -> void:
+	_reentrant_target_removed_count += 1
+	combat_manager.get_targets()
 
 func _test_building_external_removal_cleanup() -> void:
 	var fixture := _make_runtime_fixture()

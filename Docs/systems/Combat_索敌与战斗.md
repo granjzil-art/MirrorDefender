@@ -19,7 +19,7 @@
 - **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
 - **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
-- **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销，不残留重复信号或候选。
+- **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
 
 ## 关键参数
 

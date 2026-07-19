@@ -1,5 +1,11 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Combat 修复 · 目标清理信号重入越界 — 2026-07-19
+**模块**：Combat / UI / Tests。
+
+- CombatManager 清理失效目标时改为遍历稳定快照，避免 `unregister_target -> target_removed -> M3DebugPanel.get_targets -> _cleanup_targets` 同步重入修改活动数组并造成索引越界。
+- 新增双目标同时离树、监听者在 `target_removed` 中同步查询的回归测试；注册、回调和候选均只清理一次，不改变战斗规则或数值。
+
 ## 工程 · 健壮性基线 — 2026-07-19
 **模块**：Level / Tile / Grid / Path / Wave / Combat / Building / Godot 编辑器工具 / Tests。
 

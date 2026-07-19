@@ -138,10 +138,12 @@ func clear_projectiles() -> void:
 			projectile.queue_free()
 
 func _cleanup_targets() -> void:
-	for index in range(_targets.size() - 1, -1, -1):
-		var target := _targets[index]
+	# unregister_target emits synchronously. Listeners such as M3DebugPanel may
+	# query targets again from that signal, so never iterate the live array here.
+	var snapshot := _targets.duplicate()
+	for target in snapshot:
 		if target == null or not is_instance_valid(target):
-			_targets.remove_at(index)
+			_targets.erase(target)
 			_target_exit_callbacks.erase(target)
 		elif not target.is_alive():
 			unregister_target(target)
