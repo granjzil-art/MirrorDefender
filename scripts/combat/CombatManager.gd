@@ -22,6 +22,7 @@ signal projectile_hit(target: CombatTarget, applied_damage: float)
 var _targets: Array[CombatTarget] = []
 var _projectiles: Array[Projectile] = []
 var _next_entry_order: int = 0
+var _target_exit_callbacks: Dictionary = {}
 
 func register_target(target: CombatTarget) -> bool:
 	if not feature_enabled or target == null or _targets.has(target):
@@ -29,8 +30,12 @@ func register_target(target: CombatTarget) -> bool:
 	target.entry_order = _next_entry_order
 	_next_entry_order += 1
 	_targets.append(target)
-	target.died.connect(_on_target_died)
-	target.tree_exited.connect(_on_target_tree_exited.bind(target))
+	if not target.died.is_connected(_on_target_died):
+		target.died.connect(_on_target_died)
+	var exit_callback := _on_target_tree_exited.bind(target)
+	if not target.tree_exited.is_connected(exit_callback):
+		target.tree_exited.connect(exit_callback)
+	_target_exit_callbacks[target] = exit_callback
 	target_registered.emit(target)
 	return true
 
@@ -38,6 +43,7 @@ func unregister_target(target: CombatTarget) -> void:
 	if target == null or not _targets.has(target):
 		return
 	_targets.erase(target)
+	_disconnect_target(target)
 	target_removed.emit(target)
 
 func get_targets() -> Array[CombatTarget]:
@@ -115,10 +121,12 @@ func spawn_projectile(
 
 func clear_targets() -> void:
 	var targets := _targets.duplicate()
-	_targets.clear()
 	for target in targets:
 		if is_instance_valid(target):
+			unregister_target(target)
 			target.queue_free()
+	_targets.clear()
+	_target_exit_callbacks.clear()
 	_next_entry_order = 0
 	clear_projectiles()
 
@@ -132,8 +140,11 @@ func clear_projectiles() -> void:
 func _cleanup_targets() -> void:
 	for index in range(_targets.size() - 1, -1, -1):
 		var target := _targets[index]
-		if target == null or not is_instance_valid(target) or not target.is_alive():
+		if target == null or not is_instance_valid(target):
 			_targets.remove_at(index)
+			_target_exit_callbacks.erase(target)
+		elif not target.is_alive():
+			unregister_target(target)
 
 func _xz_distance_squared(a: Vector3, b: Vector3) -> float:
 	var delta := Vector2(a.x - b.x, a.z - b.z)
@@ -151,3 +162,15 @@ func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> voi
 
 func _on_projectile_tree_exited(projectile: Projectile) -> void:
 	_projectiles.erase(projectile)
+
+func _disconnect_target(target: CombatTarget) -> void:
+	if target == null or not is_instance_valid(target):
+		_target_exit_callbacks.erase(target)
+		return
+	if target.died.is_connected(_on_target_died):
+		target.died.disconnect(_on_target_died)
+	if _target_exit_callbacks.has(target):
+		var exit_callback: Callable = _target_exit_callbacks[target]
+		if target.tree_exited.is_connected(exit_callback):
+			target.tree_exited.disconnect(exit_callback)
+	_target_exit_callbacks.erase(target)

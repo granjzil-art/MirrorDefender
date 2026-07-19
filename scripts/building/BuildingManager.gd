@@ -32,6 +32,7 @@ var _preview_cell: Vector3i = Vector3i.ZERO
 var _preview_facing_index: int = 0
 var _path_cells: Dictionary = {}
 var _protected_path_cells: Dictionary = {}
+var _building_exit_callbacks: Dictionary = {}
 
 func configure(
 	grid_manager: GridManager,
@@ -65,15 +66,20 @@ func place_building(
 	add_child(building)
 	building.configure(definition, cell, _grid, _tile_manager, _combat_manager)
 	building.structure_destroyed.connect(_on_building_destroyed)
+	var exit_callback := _on_building_tree_exited.bind(building)
+	building.tree_exited.connect(exit_callback)
+	_building_exit_callbacks[building] = exit_callback
 	if placement_facing >= 0:
 		building.set_facing_index(placement_facing)
 	var occupied := _tile_manager.place_path_occupant(cell, building) if building.is_path_blocker() else _tile_manager.place_occupant(cell, building)
 	if not occupied:
+		_disconnect_building_lifecycle(building)
 		building.queue_free()
 		placement_failed.emit(cell, "地块已被占用")
 		return null
 	if not _resource_manager.try_register_building(level_one_stats.cost):
 		_tile_manager.clear_occupant(cell, building)
+		_disconnect_building_lifecycle(building)
 		building.queue_free()
 		placement_failed.emit(cell, "资源不足或达到建筑上限")
 		return null
@@ -110,16 +116,7 @@ func remove_building(cell: Vector3i, refund: float = 0.0) -> bool:
 	var building := get_building(cell)
 	if building == null:
 		return false
-	_buildings.erase(cell)
-	_tile_manager.clear_occupant(cell, building)
-	_resource_manager.unregister_building(refund)
-	if _selected_building == building:
-		select_building(null)
-	building.shutdown()
-	building_removed.emit(building)
-	building.queue_free()
-	_sync_building_income()
-	return true
+	return _release_building(building, refund, true, true)
 
 func remove_selected_building() -> bool:
 	var building := get_selected_building()
@@ -132,15 +129,16 @@ func clear_buildings(update_resource_count: bool = true) -> void:
 	for raw_cell in cells:
 		var cell: Vector3i = raw_cell
 		var building := get_building(cell)
-		_buildings.erase(cell)
 		if building == null:
+			var stale_building: Variant = _buildings.get(cell)
+			_buildings.erase(cell)
+			_building_exit_callbacks.erase(stale_building)
+			if _tile_manager != null:
+				_tile_manager.clear_occupant(cell)
+			if update_resource_count and _resource_manager != null:
+				_resource_manager.unregister_building()
 			continue
-		_tile_manager.clear_occupant(cell, building)
-		if update_resource_count:
-			_resource_manager.unregister_building()
-		building.shutdown()
-		building_removed.emit(building)
-		building.queue_free()
+		_release_building(building, 0.0, update_resource_count, true, false)
 	select_building(null)
 	clear_preview()
 	_sync_building_income()
@@ -324,3 +322,47 @@ func _on_building_destroyed(building: Building, attacker: Node) -> void:
 		return
 	building_destroyed.emit(building, attacker)
 	remove_building(building.cell, 0.0)
+
+func _on_building_tree_exited(building: Building) -> void:
+	if building == null or not _buildings.has(building.cell) or _buildings[building.cell] != building:
+		_building_exit_callbacks.erase(building)
+		return
+	_release_building(building, 0.0, true, false)
+
+func _release_building(
+	building: Building,
+	refund: float,
+	update_resource_count: bool,
+	queue_for_deletion: bool,
+	sync_income: bool = true
+) -> bool:
+	if building == null or not _buildings.has(building.cell) or _buildings[building.cell] != building:
+		return false
+	_buildings.erase(building.cell)
+	if _tile_manager != null:
+		_tile_manager.clear_occupant(building.cell, building)
+	if update_resource_count and _resource_manager != null:
+		_resource_manager.unregister_building(refund)
+	if _selected_building == building:
+		select_building(null)
+	_disconnect_building_lifecycle(building)
+	if is_instance_valid(building):
+		building.shutdown()
+	building_removed.emit(building)
+	if queue_for_deletion and is_instance_valid(building):
+		building.queue_free()
+	if sync_income:
+		_sync_building_income()
+	return true
+
+func _disconnect_building_lifecycle(building: Building) -> void:
+	if building == null or not is_instance_valid(building):
+		_building_exit_callbacks.erase(building)
+		return
+	if building.structure_destroyed.is_connected(_on_building_destroyed):
+		building.structure_destroyed.disconnect(_on_building_destroyed)
+	if _building_exit_callbacks.has(building):
+		var exit_callback: Callable = _building_exit_callbacks[building]
+		if building.tree_exited.is_connected(exit_callback):
+			building.tree_exited.disconnect(exit_callback)
+	_building_exit_callbacks.erase(building)

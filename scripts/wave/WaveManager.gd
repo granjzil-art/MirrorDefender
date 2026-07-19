@@ -10,6 +10,7 @@ enum State {
 	ACTIVE,
 	VICTORY,
 	DEFEAT,
+	CONFIG_ERROR,
 }
 
 @export_group("Feature")
@@ -20,6 +21,7 @@ signal wave_started(wave_number: int, wave: WaveDefinition)
 signal wave_completed(wave_number: int)
 signal enemy_spawned(unit: EnemyUnit)
 signal enemy_reached_base(unit: EnemyUnit, damage: float)
+signal configuration_failed(reason: String)
 signal victory
 signal defeat
 
@@ -37,6 +39,7 @@ var _unit_wave_indices: Dictionary = {}
 var _started_wave_indices: Dictionary = {}
 var _completed_wave_indices: Dictionary = {}
 var _path_blocker_resolver: Callable
+var _configuration_error: String = ""
 
 func _process(delta: float) -> void:
 	if not feature_enabled or _state != State.ACTIVE:
@@ -66,11 +69,17 @@ func configure(
 func load_level(level_resource: LevelResource) -> void:
 	_clear_active_units()
 	_level = level_resource
+	_configuration_error = ""
 	_current_wave_index = -1
 	_battle_elapsed = 0.0
 	_spawn_states.clear()
 	_started_wave_indices.clear()
 	_completed_wave_indices.clear()
+	if _level != null:
+		var validation_errors := _level.validate_runtime()
+		if not validation_errors.is_empty():
+			_enter_configuration_error("波次关卡配置无效：%s" % "；".join(validation_errors))
+			return
 	_state = State.NO_WAVES if _level == null or _level.waves.is_empty() else State.READY
 	_emit_state_changed()
 
@@ -79,6 +88,10 @@ func load_level(level_resource: LevelResource) -> void:
 func start_battle() -> bool:
 	if not feature_enabled or _state != State.READY or _level == null:
 		return false
+	var preflight_error := _validate_spawn_timeline()
+	if not preflight_error.is_empty():
+		_enter_configuration_error(preflight_error)
+		return false
 	_battle_elapsed = 0.0
 	_current_wave_index = -1
 	_started_wave_indices.clear()
@@ -86,6 +99,8 @@ func start_battle() -> bool:
 	_build_spawn_timeline()
 	_state = State.ACTIVE
 	_process_spawn_states()
+	if _state == State.CONFIG_ERROR:
+		return false
 	_update_wave_completions()
 	_finish_battle_if_complete()
 	_emit_state_changed()
@@ -108,6 +123,8 @@ func get_state_name() -> String:
 			return "胜利"
 		State.DEFEAT:
 			return "失败"
+		State.CONFIG_ERROR:
+			return "配置错误：%s" % _configuration_error
 		_:
 			return "未配置波次"
 
@@ -123,6 +140,9 @@ func get_active_enemy_count() -> int:
 
 func get_battle_elapsed() -> float:
 	return _battle_elapsed
+
+func get_configuration_error() -> String:
+	return _configuration_error
 
 func _build_spawn_timeline() -> void:
 	_spawn_states.clear()
@@ -151,8 +171,11 @@ func _process_spawn_states() -> void:
 		var group: SpawnGroupDefinition = state["group"]
 		var next_spawn_time: float = float(state["next_spawn_time"])
 		while remaining > 0 and _battle_elapsed + 0.000001 >= next_spawn_time:
+			var spawn_error := _spawn_group_unit(group, wave_index)
+			if not spawn_error.is_empty():
+				_enter_configuration_error(spawn_error)
+				return
 			_mark_wave_started(wave_index)
-			_spawn_group_unit(group, wave_index)
 			remaining -= 1
 			next_spawn_time += maxf(0.01, group.interval)
 		state["remaining"] = remaining
@@ -167,12 +190,12 @@ func _mark_wave_started(wave_index: int) -> void:
 	var wave: WaveDefinition = _level.waves[wave_index]
 	wave_started.emit(wave_index + 1, wave)
 
-func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> void:
+func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 	if group == null or group.enemy == null or group.path == null or _path_manager == null:
-		return
+		return "出怪组依赖未完整配置"
 	var points := _path_manager.get_world_points(group.path)
 	if points.size() < 2:
-		return
+		return "路径 %s 无法生成至少两个世界点" % group.path.display_name
 	var unit := EnemyUnit.new()
 	unit.configure_unit(
 		group.enemy,
@@ -182,14 +205,39 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> void:
 		_path_blocker_resolver
 	)
 	add_child(unit)
+	if _combat_manager == null or not _combat_manager.register_target(unit):
+		unit.queue_free()
+		return "敌人 %s 无法注册到 CombatManager" % group.enemy.display_name
 	unit.died.connect(_on_enemy_died)
 	unit.reached_base.connect(_on_enemy_reached_base)
 	unit.tree_exited.connect(_on_enemy_tree_exited.bind(unit))
 	_active_units.append(unit)
 	_unit_wave_indices[unit] = wave_index
-	if _combat_manager != null:
-		_combat_manager.register_target(unit)
 	enemy_spawned.emit(unit)
+	return ""
+
+func _validate_spawn_timeline() -> String:
+	if _path_manager == null or _combat_manager == null or _resource_manager == null or _base_core == null:
+		return "波次系统依赖尚未完整注入"
+	if not _path_manager.feature_enabled:
+		return "PathManager 已关闭"
+	if not _combat_manager.feature_enabled:
+		return "CombatManager 已关闭"
+	if not _resource_manager.feature_enabled:
+		return "ResourceManager 已关闭"
+	if not _base_core.feature_enabled:
+		return "BaseCore 已关闭"
+	if _level == null:
+		return "波次系统未加载关卡"
+	for wave in _level.waves:
+		if wave == null:
+			return "关卡包含空波次"
+		for group in wave.spawn_groups:
+			if group == null or group.enemy == null or group.path == null or group.spawn_point == null:
+				return "波次 %s 包含未完整配置的出怪组" % wave.display_name
+			if not _path_manager.is_path_valid(group.path):
+				return "波次 %s 引用的路径 %s 无效" % [wave.display_name, group.path.display_name]
+	return ""
 
 func _update_wave_completions() -> void:
 	if _level == null:
@@ -269,6 +317,14 @@ func _on_base_defeated() -> void:
 	_spawn_states.clear()
 	_clear_active_units()
 	defeat.emit()
+	_emit_state_changed()
+
+func _enter_configuration_error(reason: String) -> void:
+	_configuration_error = reason
+	_state = State.CONFIG_ERROR
+	_spawn_states.clear()
+	_clear_active_units()
+	configuration_failed.emit(reason)
 	_emit_state_changed()
 
 func _emit_state_changed() -> void:

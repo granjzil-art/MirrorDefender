@@ -7,11 +7,11 @@
 
 ## 分类 / 做法
 - **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济，以及 M4 据点、路径、出生点和波次。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
-- **M4 关卡校验**：`validate_m4()` 是只读一致性检查，统一验证据点格、路径长度/边界/逐段连续性/终点、出生点边界，以及波次组参数、资源引用和出生点与路径首格的一致性；它不保存、不加载、不修复关卡。
+- **运行时完整校验**：`validate_runtime()` 是只读预检，统一验证网格、地块类型/坐标/高度、经济与据点数值、路径长度/边界/逐段连续性/终点、出生点，以及波次组参数和资源引用。`validate_m4()` 是同一检查的兼容入口；两者都不保存、不加载、不修复关卡。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
-- **编辑器保存**：地块编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径，保存后触发文件系统扫描。
-- **运行期加载**：LevelLoader 是唯一装配入口，先把 LevelResource 的网格参数交给 GridManager，再让 TileManager 读取布局；缺失格自动补默认可建造数据。
+- **编辑器保存**：关卡编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径。未保存的新建/加载、会清空地块的网格重建均需确认；网格重建可撤销/重做；校验失败的未完成关卡仅可经二次确认保存。
+- **运行期加载**：LevelLoader 是唯一装配入口。它先完整校验 LevelResource，成功后才配置 Grid 并让 TileManager 构造下一份运行时布局；失败不替换当前关卡。缺失格自动补默认可建造数据。
 - **调试选关**：运行时 LevelDebugPanel 可从 `res://` 选择 LevelResource `.tres`，调用与后续正式选关相同的 `LevelLoader.load_level_path()`；面板由独立 feature flag 控制。
 
 ## 关键参数
@@ -63,10 +63,11 @@ Main._ready
 
 Debug picker / future production level selection
   -> LevelLoader.load_level_path(path) or load_level(resource)
-  -> validate LevelResource
+  -> LevelResource.validate_runtime() (read-only preflight)
+     └─ failure: preserve current Grid / Tile / current level
   -> GridManager.apply_configuration(shape, size, range)
   -> TileManager.load_level(level)
-       ├─ serialized tiles -> runtime Dictionary[cell, TileCellData]
+       ├─ serialized tiles -> cloned runtime Dictionary[cell, TileCellData]
        └─ TileManager.level_loaded -> TileRenderer rebuild
   -> LevelLoader.level_loaded
 	   ├─ ResourceManager.apply_level_configuration(level)
@@ -94,7 +95,8 @@ Mirror Level Editor
 | `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
 | `get_path_by_id` | `(path_id: StringName) -> PathDefinition` | 从本关路径数组按稳定 ID 返回定义或 null。 |
 | `get_spawn_point` | `(spawn_id: StringName) -> SpawnPointDefinition` | 从本关出生点数组按稳定 ID 返回定义或 null。 |
-| `validate_m4` | `() -> Array[String]` | 只读返回据点、路径和波次一致性错误；路径断点错误包含前后序号及坐标，空数组表示配置通过。 |
+| `validate_runtime` | `() -> Array[String]` | 只读返回完整运行时配置错误；覆盖 Grid、Tile、经济、据点、路径、出生点和波次，空数组表示可安装。 |
+| `validate_m4` | `() -> Array[String]` | 编辑器兼容入口，直接返回 `validate_runtime()` 的同一结果。 |
 
 ### LevelLoader.gd
 
@@ -102,7 +104,7 @@ Mirror Level Editor
 |---|---|---|
 | `configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入关卡装配所需的两个模块入口。 |
 | `load_initial_level` | `() -> bool` | 加载 Inspector 配置的初始关卡。 |
-| `load_level` | `(level_resource: LevelResource, source_path: String = "") -> bool` | 应用 Grid 配置、加载 Tile 布局并广播成功；失败不替换当前关卡。 |
+| `load_level` | `(level_resource: LevelResource, source_path: String = "") -> bool` | 先只读预检，再应用 Grid 配置、原子安装 Tile 布局并广播成功；失败不改变当前关卡。 |
 | `load_level_path` | `(path: String) -> bool` | 从 `res://` 读取 `.tres`，校验 LevelResource 后交给 `load_level()`。 |
 | `get_current_level` | `() -> LevelResource` | 返回当前成功装配的关卡。 |
 | `_report_failure` | `(source_path: String, reason: String) -> void` | 统一发送加载失败信号。 |
@@ -122,7 +124,7 @@ Mirror Level Editor
 ## 约定事实源
 
 - `tiles` 的顺序不代表空间顺序；唯一键是每个 TileCellData 的 `cell`。
-- 资源中的 TileCellData 是可保存的配置；TileCellData 的 `occupant` 是运行时字段，绝不写入关卡文件。
+- 资源中的 TileCellData 是可保存的配置快照；TileManager 加载时为每格克隆运行时对象。`occupant`、局内清障和局内高度修改只存在于该运行实例，绝不写回关卡资源。
 - 高度三色由 LevelResource 序列化，作为编辑器与运行时 TileRenderer 共用的地形颜色事实源；地块类型仍由障碍标记和玩法规则区分。
 - `grid_shape` 与 GridManager 枚举的数值顺序必须保持一致；若未来扩展三角形，先扩展 Grid 枚举与迁移策略，再使用新数值。
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。

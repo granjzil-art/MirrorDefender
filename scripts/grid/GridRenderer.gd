@@ -76,17 +76,23 @@ func _rebuild_grid_lines() -> void:
 	if grid == null or grid.shape == null:
 		return
 	var im := ImmediateMesh.new()
-	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	var has_grid_geometry: bool = false
 	for cell in grid.enumerate_cells():
 		var corners := grid.get_corners(cell)
 		var n := corners.size()
 		for i in range(n):
+			if not has_grid_geometry:
+				im.surface_begin(Mesh.PRIMITIVE_LINES)
+				has_grid_geometry = true
 			var a := corners[i] + Vector3(0, line_lift, 0)
 			var b := corners[(i + 1) % n] + Vector3(0, line_lift, 0)
 			im.surface_add_vertex(a)
 			im.surface_add_vertex(b)
-	im.surface_end()
-	_grid_mesh_inst.mesh = im
+	if has_grid_geometry:
+		im.surface_end()
+		_grid_mesh_inst.mesh = im
+	else:
+		_grid_mesh_inst.mesh = null
 
 ## 高亮某格（填充多边形）。cell=null 时隐藏。
 func highlight_cell(cell: Vector3i, has: bool) -> void:

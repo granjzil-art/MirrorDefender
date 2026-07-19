@@ -1,5 +1,19 @@
 # 技术与玩法决策记录
 
+## 2026-07-19 · 关卡资源只作配置快照，运行时安装必须先校验后提交
+
+**决策**：LevelResource 及其 TileCellData 只作为可保存配置；LevelLoader 在任何 Grid/Tile 状态变化前执行只读 `validate_runtime()`，TileManager 仅在完整构造下一份字典后一次替换当前状态，并为每个序列化地块创建独立运行时副本。波次依赖或生成失败进入显式 `CONFIG_ERROR`，不得把失败生成视作已完成。
+
+**理由**：Resource 会被 Godot 缓存，也可能被编辑器和多个运行实例同时引用。把 occupant、清障或局内高度直接写回 Resource 会造成跨关卡/跨实例污染；先改 Grid 再发现 Tile 无效会留下半装配状态；静默跳过失败敌人则可能耗尽计数并错误判胜。
+
+**否决的备选**：
+
+- 继续复用序列化 TileCellData 作为运行时对象：对象引用最少，但局内状态会污染缓存和其它实例。
+- 加载时边校验边修改各管理器：实现较短，但任一中途失败都需要跨模块回滚。
+- 出怪失败只打印错误并扣除剩余数量：运行不中断，但胜利条件失真，配置错误难以定位。
+
+**约束**：预检必须只读；失败加载保留当前关卡；TileManager 直接加载时要求 Grid 已与 LevelResource 配置一致；运行时变化不写回 `.tres`；编辑器仍可经二次确认保存未完成关卡，但运行时不会安装它；本决策不改变任何玩法数值。
+
 ## 2026-07-19 · 屏障作为路径专用 Building，并以注入查询驱动敌人攻击
 
 **决策**：屏障复用 BuildingDefinition、BuildingLevelStats、BuildingManager、Tile occupant、升级和经济事务；普通塔禁止占据路径格。EnemyUnit 不直接依赖 Building 类型，而是通过 Main 注入的 `Callable(BuildingManager.get_path_blocker)` 按 PathDefinition 顺序查询前方屏障，并依赖结构方法契约造成伤害。

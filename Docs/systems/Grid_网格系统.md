@@ -104,7 +104,7 @@ Main（场景装配）
 - **@export**：`grid: GridManager`（引用）、颜色(line/cell_highlight/edge_highlight)、抬升(line_lift/edge_highlight_lift 防 z-fighting)。
 - `set_grid(value: GridManager) -> void`：由 Main 在子节点就绪后注入网格，解除旧订阅、建立新订阅并首次绘制。
 - `_ready()` → 建材质/实例；若编辑器已提供 `grid`，调用私有 `_connect_grid()` 完成订阅与首次重建。
-- `_rebuild_grid_lines() -> void`：遍历 `enumerate_cells` 用 `ImmediateMesh`(PRIMITIVE_LINES) 画所有格边线。
+- `_rebuild_grid_lines() -> void`：遍历 `enumerate_cells` 用 `ImmediateMesh`(PRIMITIVE_LINES) 画所有格边线；空网格直接令 mesh 为 null，不调用零顶点 `surface_end()`。
 - `highlight_cell(cell: Vector3i, has: bool) -> void`：填充多边形高亮格（has=false 隐藏）。
 - `highlight_edge(cell: Vector3i, edge_index: int, has: bool) -> void`：画抬高线段高亮边。
 - 私有：`_setup_materials` / `_make_unshaded(c) -> StandardMaterial3D` / `_setup_instances` / `_connect_grid() -> void`。

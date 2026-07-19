@@ -12,8 +12,9 @@
 - **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；不可建造路面固定使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁，未清除障碍仍显示灰色岩石占位。
-- **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。
+- **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
+- **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
 - **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 或滚轮缩放观察。
 - **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
@@ -60,7 +61,7 @@
 Main (scene composition)
   ├─ LevelLoader -> GridManager.apply_configuration(...)
   ├─ LevelLoader -> TileManager.load_level(LevelResource)
-  │     └─ Dictionary[Vector3i, TileCellData]
+  │     └─ validated serialized tiles -> cloned runtime Dictionary[Vector3i, TileCellData]
   ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
         └─ height-color ImmediateMesh terrain + obstacle marker
@@ -84,6 +85,7 @@ Level Editor M4 pages
 
 - `cell` 一律是 Grid 的 `Vector3i`：HEX `(q, r, s)`、且 `q+r+s=0`；SQUARE `(col, row, 0)`。
 - 同一个 `cell` 在 `LevelResource.tiles` 中至多一条记录。`store_tile()` 以 cell 覆盖旧资源，编辑器拖到同格不产生重复记录。
+- LevelResource 中的 TileCellData 是配置事实源，不是局内状态对象；每次成功加载都创建独立运行时副本，TileManager 的修改信号只描述当前实例。
 - LevelResource 中缺失的有效格不是“空洞”，而是默认高度 0 可建造格；编辑器和运行时必须使用同一解释。编辑器只在修改时将该隐式格实体化，避免加载稀疏关卡后误写满数组。
 - `TileCellData.TileType` 的数值固定为 `0/1/2`；TilePreset `.tres` 与编辑器 OptionButton 使用同一顺序。
 - `place_path_occupant` 只放宽 BLOCKED 路面的普通建造限制，不放宽未清障 DESTRUCTIBLE 或已有占位；路径/保护格规则不属于 Tile，由 BuildingManager 持有。
@@ -124,7 +126,7 @@ Level Editor M4 pages
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `set_grid` | `(value: GridManager) -> void` | 注入唯一 Grid 入口；节点就绪后自动加载已配置关卡。 |
-| `load_level` | `(level_resource: LevelResource) -> void` | 清空索引、加载有效序列化格并为遗漏格补默认可建造数据。 |
+| `load_level` | `(level_resource: LevelResource) -> bool` | 要求资源校验通过且 Grid 配置一致；先构造独立运行时副本和默认格，再原子替换索引。失败保留当前状态。 |
 | `get_tile` | `(cell: Vector3i) -> TileCellData` | 按格坐标返回运行时单格，界外/未索引返回 null。 |
 | `get_tiles` | `() -> Array[TileCellData]` | 按当前 Grid 枚举顺序返回完整布局。 |
 | `get_world_height` | `(cell: Vector3i) -> float` | 返回该格顶面世界 Y。 |
@@ -170,7 +172,7 @@ Level Editor M4 pages
 | `tile_editor_panel.gd` | `_on_brush_selected(preset_path: String) -> void` / `_on_height_brush_changed(index: int) -> void` | 切换类型画笔或独立高度刷，两个模式互斥。 |
 | `tile_editor_panel.gd` | `_refresh_height_brush_options() -> void` / `_on_height_color_changed(color: Color, color_stop: int) -> void` | 按关卡档数生成高度刷选项，并同步三档关卡颜色。 |
 | `tile_editor_panel.gd` | `_on_cell_selected` / `_selected_tile(create_default: bool = false)` / `_on_tile_type_changed` / `_on_tile_height_changed` | 单格参数编辑；选择隐式格时显示默认值，真正改值时才创建资源。 |
-| `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；加载使用 `CACHE_MODE_REPLACE_DEEP` 刷新当前会话中的关卡与子资源，保存路径必须在 `res://`。 |
+| `tile_editor_panel.gd` | `_save_level() -> void` / `_load_level_file(path: String) -> void` | 资源保存/加载；加载使用 `CACHE_MODE_REPLACE_DEEP`，保存路径必须在 `res://`；未保存切换与破坏性重建需确认，网格重建接入 UndoRedo，非法保存需二次确认。 |
 | `tile_editor_panel.gd` | `_refresh_path_controls()` / `_refresh_wave_controls()` / `_validate_m4_level()` | 刷新路径/波次表单，编辑共享资源引用，并将 M4 校验结果显示在对应页面。 |
 
 ## 使用入口

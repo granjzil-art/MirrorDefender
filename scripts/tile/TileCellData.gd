@@ -1,8 +1,9 @@
 @tool
 ## TileCellData -- serializable state for one map cell.
 ##
-## This Resource owns gameplay state only. TileManager owns lookup and events,
-## while TileRenderer owns all 3D presentation.
+## Serialized instances are level configuration snapshots. TileManager clones
+## them before play and owns runtime mutation, lookup, occupancy, and events;
+## TileRenderer owns all 3D presentation.
 class_name TileCellData
 extends Resource
 

@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## 工程 · 健壮性基线 — 2026-07-19
+**模块**：Level / Tile / Grid / Path / Wave / Combat / Building / Godot 编辑器工具 / Tests。
+
+- LevelResource 新增运行时完整预检；LevelLoader 在改变 Grid/Tile 前拒绝非法资源，加载失败保留当前关卡。TileManager 将序列化 TileCellData 克隆成独立运行时状态，多个运行实例不再共享占用、清障或高度修改。
+- GridRenderer 与 PathManager 对空几何不再结束零顶点 ImmediateMesh；WaveManager 新增 `CONFIG_ERROR`，依赖或生成失败不会消耗出怪计数、触发假胜利或误发波次开始事件。
+- CombatManager 与 BuildingManager 的注册/移除改为幂等生命周期事务；目标或建筑被外部释放时同步清理信号、字典、地块占位、建筑上限和产出。
+- 关卡编辑器增加未保存提示、网格重建确认、网格重建撤销/重做、非法关卡保存二次确认，以及敌人资源空引用过滤和稳定排序。
+- 新增可由 Godot 4.7.1 直接运行的持久化健壮性测试，37 项断言覆盖上述边界及 M4DemoLevel 的校验、弓箭手和全局延迟契约；本批不改变玩法和数值。
+
 ## Building / Unit · 路径屏障与敌人攻击 — 2026-07-19
 **模块**：Building / Tile / Path / Unit / AI / Combat / Wave / UI / Main。
 

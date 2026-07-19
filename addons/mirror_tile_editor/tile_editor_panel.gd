@@ -51,11 +51,18 @@ var _wave_count: SpinBox
 var _wave_interval: SpinBox
 var _wave_delay: SpinBox
 var _enemy_options: Array = []
+var _undo_redo := UndoRedo.new()
+var _undo_button: Button
+var _redo_button: Button
+var _dirty_indicator: Label
+var _confirmation_dialog: ConfirmationDialog
+var _pending_confirmation: Callable = Callable()
+var _is_dirty: bool = false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_interface()
-	_new_level()
+	_create_new_level()
 
 func _build_interface() -> void:
 	var root := VBoxContainer.new()
@@ -73,7 +80,7 @@ func _build_interface() -> void:
 	toolbar.add_child(title)
 	var new_button := Button.new()
 	new_button.text = "新建"
-	new_button.pressed.connect(_new_level)
+	new_button.pressed.connect(_request_new_level)
 	toolbar.add_child(new_button)
 	var load_button := Button.new()
 	load_button.text = "加载"
@@ -83,6 +90,16 @@ func _build_interface() -> void:
 	save_button.text = "保存"
 	save_button.pressed.connect(_save_level)
 	toolbar.add_child(save_button)
+	_undo_button = Button.new()
+	_undo_button.text = "撤销"
+	_undo_button.tooltip_text = "撤销最近一次网格重建"
+	_undo_button.pressed.connect(_undo_grid_rebuild)
+	toolbar.add_child(_undo_button)
+	_redo_button = Button.new()
+	_redo_button.text = "重做"
+	_redo_button.tooltip_text = "重做最近一次网格重建"
+	_redo_button.pressed.connect(_redo_grid_rebuild)
+	toolbar.add_child(_redo_button)
 	var reset_view_button := Button.new()
 	reset_view_button.icon = get_theme_icon("Reload", "EditorIcons")
 	reset_view_button.tooltip_text = "重置编辑视角"
@@ -93,6 +110,9 @@ func _build_interface() -> void:
 	_save_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_save_path.tooltip_text = "关卡资源保存路径"
 	toolbar.add_child(_save_path)
+	_dirty_indicator = Label.new()
+	_dirty_indicator.custom_minimum_size = Vector2(72.0, 0.0)
+	toolbar.add_child(_dirty_indicator)
 	_m4_status = Label.new()
 	_m4_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_m4_status.add_theme_color_override("font_color", Color(0.65, 0.77, 0.88, 1.0))
@@ -137,6 +157,13 @@ func _build_interface() -> void:
 	_add_inspector_controls()
 	_add_path_tab(tabs)
 	_add_wave_tab(tabs)
+	_confirmation_dialog = ConfirmationDialog.new()
+	_confirmation_dialog.title = "确认操作"
+	_confirmation_dialog.confirmed.connect(_on_confirmation_confirmed)
+	_confirmation_dialog.canceled.connect(_on_confirmation_canceled)
+	add_child(_confirmation_dialog)
+	_update_history_buttons()
+	_set_dirty(false)
 
 func _add_level_controls(sidebar: VBoxContainer) -> void:
 	var title := Label.new()
@@ -373,15 +400,30 @@ func _make_color_picker() -> ColorPickerButton:
 	picker.custom_minimum_size = Vector2(0.0, 30.0)
 	return picker
 
-func _new_level() -> void:
+func _request_new_level() -> void:
+	if _is_dirty:
+		_request_confirmation(
+			"当前关卡有未保存修改。新建关卡会丢失这些修改，是否继续？",
+			_create_new_level
+		)
+		return
+	_create_new_level()
+
+func _create_new_level() -> void:
 	var level := LevelResource.new()
 	level.grid_shape = HEX_SHAPE
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(6, 6)
 	level.height_levels = 3
 	level.height_step = 0.45
+	if _save_path != null:
+		_save_path.text = DEFAULT_SAVE_PATH
 	_set_level(level)
-	_populate_default_tiles()
+	level.tiles = _make_default_tiles(level.grid_shape, level.grid_size)
+	_set_level(level)
+	_undo_redo.clear_history()
+	_update_history_buttons()
+	_set_dirty(false)
 	_status.text = "新关卡已创建。拖拽左侧预制地块到地图。"
 
 func _set_level(value: LevelResource) -> void:
@@ -413,35 +455,82 @@ func _set_level_controls_blocked(blocked: bool) -> void:
 	_height_levels.set_block_signals(blocked)
 	_height_step.set_block_signals(blocked)
 
-func _populate_default_tiles() -> void:
-	if _level == null:
-		return
-	_level.clear_tiles()
-	var shape: IGridShape = HexGridShape.new() if _level.grid_shape == HEX_SHAPE else SquareGridShape.new()
-	shape.setup(_level.grid_cell_size)
-	for cell in shape.enumerate_cells(_level.grid_size):
+func _make_default_tiles(shape_id: int, grid_size: Vector2i) -> Array:
+	var result: Array = []
+	var shape: IGridShape = HexGridShape.new() if shape_id == HEX_SHAPE else SquareGridShape.new()
+	shape.setup(_level.grid_cell_size if _level != null else 1.0)
+	for cell in shape.enumerate_cells(grid_size):
 		var tile: Resource = TileCellDataScript.new()
 		tile.call("configure", cell, 0, 0)
-		_level.store_tile(tile)
-	_canvas.call("refresh")
+		result.append(tile)
+	return result
 
-func _on_shape_changed(index: int) -> void:
+func _duplicate_tiles(source: Array) -> Array:
+	var result: Array = []
+	for raw_tile in source:
+		if raw_tile is Resource:
+			result.append((raw_tile as Resource).duplicate(true))
+	return result
+
+func _commit_grid_rebuild(shape_id: int, grid_size: Vector2i) -> void:
 	if _level == null:
 		return
-	_level.grid_shape = index
-	_populate_default_tiles()
+	var before_shape := _level.grid_shape
+	var before_size := _level.grid_size
+	var before_tiles := _duplicate_tiles(_level.tiles)
+	var after_tiles := _make_default_tiles(shape_id, grid_size)
+	_undo_redo.create_action("重建关卡网格")
+	_undo_redo.add_do_method(_apply_grid_snapshot.bind(shape_id, grid_size, after_tiles))
+	_undo_redo.add_undo_method(_apply_grid_snapshot.bind(before_shape, before_size, before_tiles))
+	_undo_redo.commit_action()
+	_set_dirty(true)
+	_update_history_buttons()
+
+func _apply_grid_snapshot(shape_id: int, grid_size: Vector2i, tiles: Array) -> void:
+	if _level == null:
+		return
+	_level.grid_shape = shape_id
+	_level.grid_size = grid_size
+	_level.tiles = _duplicate_tiles(tiles)
+	_level.emit_changed()
+	_set_level(_level)
+
+func _restore_grid_controls() -> void:
+	if _level == null:
+		return
+	_set_level_controls_blocked(true)
+	_shape_select.select(_level.grid_shape)
+	_size_x.value = _level.grid_size.x
+	_size_y.value = _level.grid_size.y
+	_set_level_controls_blocked(false)
+
+func _on_shape_changed(index: int) -> void:
+	if _level == null or index == _level.grid_shape:
+		return
+	_restore_grid_controls()
+	_request_confirmation(
+		"切换网格形状会重建全部地块；路径、出生点和波次会保留，但可能需要重新校验。是否继续？",
+		_commit_grid_rebuild.bind(index, _level.grid_size)
+	)
 
 func _on_grid_size_changed(_value: float) -> void:
 	if _level == null:
 		return
-	_level.grid_size = Vector2i(int(_size_x.value), int(_size_y.value))
-	_populate_default_tiles()
+	var next_size := Vector2i(int(_size_x.value), int(_size_y.value))
+	if next_size == _level.grid_size:
+		return
+	_restore_grid_controls()
+	_request_confirmation(
+		"修改网格尺寸会重建全部地块；路径、出生点和波次会保留，但可能需要重新校验。是否继续？",
+		_commit_grid_rebuild.bind(_level.grid_shape, next_size)
+	)
 
 func _on_height_levels_changed(value: float) -> void:
 	if _level == null:
 		return
 	_level.height_levels = int(value)
 	_level.clamp_tile_heights()
+	_set_dirty(true)
 	_refresh_height_brush_options()
 	_canvas.call("set_height_brush", -1)
 	_canvas.call("refresh")
@@ -450,7 +539,7 @@ func _on_height_step_changed(value: float) -> void:
 	if _level == null:
 		return
 	_level.height_step = value
-	_level.emit_changed()
+	_mark_level_changed()
 	_canvas.call("refresh")
 
 func _on_height_color_changed(color: Color, color_stop: int) -> void:
@@ -463,7 +552,7 @@ func _on_height_color_changed(color: Color, color_stop: int) -> void:
 			_level.height_color_middle = color
 		2:
 			_level.height_color_high = color
-	_level.emit_changed()
+	_mark_level_changed()
 	_canvas.call("refresh")
 
 func _on_brush_selected(preset_path: String) -> void:
@@ -514,7 +603,7 @@ func _on_tile_type_changed(index: int) -> void:
 	if tile == null:
 		return
 	tile.call("set_tile_type", index)
-	_level.emit_changed()
+	_mark_level_changed()
 	_destroy_button.visible = bool(tile.call("is_destructible"))
 	_canvas.call("refresh")
 
@@ -523,14 +612,14 @@ func _on_tile_height_changed(value: float) -> void:
 	if tile == null:
 		return
 	tile.call("set_height_level", int(value), _level.height_levels)
-	_level.emit_changed()
+	_mark_level_changed()
 	_canvas.call("refresh")
 
 func _destroy_selected_obstacle() -> void:
 	var tile := _selected_tile()
 	if tile == null or not bool(tile.call("destroy_obstacle")):
 		return
-	_level.emit_changed()
+	_mark_level_changed()
 	_destroy_button.visible = false
 	_canvas.call("refresh")
 
@@ -547,7 +636,7 @@ func _selected_tile(create_default: bool = false) -> Resource:
 func _on_layout_changed() -> void:
 	if _canvas.has_selected_cell:
 		_on_cell_selected(_canvas.selected_cell)
-	_level.emit_changed()
+	_mark_level_changed()
 
 func _set_inspector_enabled(enabled: bool) -> void:
 	_tile_type_select.disabled = not enabled
@@ -584,6 +673,50 @@ func _get_selected_spawn_group() -> SpawnGroupDefinition:
 func _mark_level_changed() -> void:
 	if _level != null:
 		_level.emit_changed()
+		_set_dirty(true)
+
+func _set_dirty(value: bool) -> void:
+	_is_dirty = value
+	if _dirty_indicator != null:
+		_dirty_indicator.text = "未保存" if _is_dirty else "已保存"
+		_dirty_indicator.tooltip_text = "当前关卡包含未保存修改" if _is_dirty else "当前关卡已保存或尚未修改"
+
+func _request_confirmation(message: String, action: Callable, confirm_text: String = "继续") -> void:
+	if _confirmation_dialog == null:
+		return
+	_pending_confirmation = action
+	_confirmation_dialog.dialog_text = message
+	_confirmation_dialog.get_ok_button().text = confirm_text
+	_confirmation_dialog.popup_centered(Vector2i(560, 180))
+
+func _on_confirmation_confirmed() -> void:
+	var action := _pending_confirmation
+	_pending_confirmation = Callable()
+	if action.is_valid():
+		action.call()
+
+func _on_confirmation_canceled() -> void:
+	_pending_confirmation = Callable()
+
+func _undo_grid_rebuild() -> void:
+	if not _undo_redo.has_undo():
+		return
+	_undo_redo.undo()
+	_set_dirty(true)
+	_update_history_buttons()
+
+func _redo_grid_rebuild() -> void:
+	if not _undo_redo.has_redo():
+		return
+	_undo_redo.redo()
+	_set_dirty(true)
+	_update_history_buttons()
+
+func _update_history_buttons() -> void:
+	if _undo_button != null:
+		_undo_button.disabled = not _undo_redo.has_undo()
+	if _redo_button != null:
+		_redo_button.disabled = not _undo_redo.has_redo()
 
 func _refresh_path_controls() -> void:
 	if _path_select == null:
@@ -785,12 +918,16 @@ func _refresh_resource_options(option: OptionButton, resources: Array, selected:
 	option.clear()
 	option.add_item(empty_label, -1)
 	var selected_index := 0
-	for index in range(resources.size()):
-		var resource: Resource = resources[index]
+	for raw_resource in resources:
+		if not raw_resource is Resource:
+			continue
+		var resource: Resource = raw_resource
 		var label: String = resource.resource_path.get_file().get_basename() if not resource.resource_path.is_empty() else str(resource.get("display_name"))
-		option.add_item(label, index)
+		option.add_item(label)
+		var item_index := option.item_count - 1
+		option.set_item_metadata(item_index, resource)
 		if resource == selected:
-			selected_index = index + 1
+			selected_index = item_index
 	option.select(selected_index)
 	option.set_block_signals(false)
 
@@ -808,7 +945,21 @@ func _load_enemy_definitions() -> Array:
 				result.append(resource)
 		file_name = directory.get_next()
 	directory.list_dir_end()
+	result.sort_custom(_sort_resources_by_path)
 	return result
+
+func _sort_resources_by_path(a: Resource, b: Resource) -> bool:
+	if a == null:
+		return false
+	if b == null:
+		return true
+	return a.resource_path.naturalnocasecmp_to(b.resource_path) < 0
+
+func _get_selected_resource(option: OptionButton, index: int) -> Resource:
+	if option == null or index <= 0 or index >= option.item_count:
+		return null
+	var value: Variant = option.get_item_metadata(index)
+	return value if value is Resource else null
 
 func _add_wave() -> void:
 	if _level == null:
@@ -865,19 +1016,19 @@ func _on_wave_group_selected(_index: int) -> void:
 func _on_wave_enemy_selected(index: int) -> void:
 	var group := _get_selected_spawn_group()
 	if group != null:
-		group.enemy = _enemy_options[index - 1] if index > 0 and index - 1 < _enemy_options.size() else null
+		group.enemy = _get_selected_resource(_wave_enemy_select, index) as EnemyDefinition
 		_mark_level_changed()
 
 func _on_wave_spawn_selected(index: int) -> void:
 	var group := _get_selected_spawn_group()
 	if group != null:
-		group.spawn_point = _level.spawn_points[index - 1] if index > 0 and index - 1 < _level.spawn_points.size() else null
+		group.spawn_point = _get_selected_resource(_wave_spawn_select, index) as SpawnPointDefinition
 		_mark_level_changed()
 
 func _on_wave_path_selected(index: int) -> void:
 	var group := _get_selected_spawn_group()
 	if group != null:
-		group.path = _level.paths[index - 1] if index > 0 and index - 1 < _level.paths.size() else null
+		group.path = _get_selected_resource(_wave_path_select, index) as PathDefinition
 		_mark_level_changed()
 
 func _on_wave_count_changed(value: float) -> void:
@@ -903,16 +1054,30 @@ func _show_load_dialog() -> void:
 	dialog.access = EditorFileDialog.ACCESS_RESOURCES
 	dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
 	dialog.add_filter("*.tres ; LevelResource")
-	dialog.file_selected.connect(_load_level_file)
+	dialog.file_selected.connect(_on_load_dialog_file_selected.bind(dialog))
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	dialog.popup_file_dialog()
+
+func _on_load_dialog_file_selected(path: String, dialog: EditorFileDialog) -> void:
+	dialog.queue_free()
+	if _is_dirty:
+		_request_confirmation(
+			"当前关卡有未保存修改。加载其他关卡会丢失这些修改，是否继续？",
+			_load_level_file.bind(path),
+			"加载"
+		)
+		return
+	_load_level_file(path)
 
 func _load_level_file(path: String) -> void:
 	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	if resource is LevelResource:
 		_set_level(resource)
 		_save_path.text = path
+		_undo_redo.clear_history()
+		_update_history_buttons()
+		_set_dirty(false)
 		_status.text = "已加载 %s" % path
 	else:
 		_status.text = "加载失败：不是 LevelResource"
@@ -927,6 +1092,17 @@ func _save_level() -> void:
 	if not path.ends_with(".tres"):
 		path += ".tres"
 		_save_path.text = path
+	var validation_errors := _level.validate_runtime()
+	if not validation_errors.is_empty():
+		_request_confirmation(
+			"当前关卡校验失败：\n%s\n\n仍要作为未完成关卡保存吗？" % "\n".join(validation_errors),
+			_save_level_to_path.bind(path),
+			"仍然保存"
+		)
+		return
+	_save_level_to_path(path)
+
+func _save_level_to_path(path: String) -> void:
 	var directory := ProjectSettings.globalize_path(path.get_base_dir())
 	var directory_error := DirAccess.make_dir_recursive_absolute(directory)
 	if directory_error != OK:
@@ -937,4 +1113,5 @@ func _save_level() -> void:
 		_status.text = "保存失败：%s" % error_string(save_error)
 		return
 	EditorInterface.get_resource_filesystem().scan()
+	_set_dirty(false)
 	_status.text = "已保存 %s" % path

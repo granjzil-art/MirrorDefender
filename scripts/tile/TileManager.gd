@@ -33,23 +33,33 @@ func set_grid(value: GridManager) -> void:
 	if is_node_ready() and level_data != null:
 		load_level(level_data)
 
-func load_level(level_resource: LevelResource) -> void:
-	level = level_resource
-	_tiles.clear()
-	var level_data := _get_level()
-	if not feature_enabled or level_data == null or _grid == null:
-		return
-	level_data.clamp_tile_heights()
-	for serialized_resource in level_data.tiles:
+func load_level(level_resource: LevelResource) -> bool:
+	if not feature_enabled or level_resource == null or _grid == null:
+		return false
+	if not level_resource.validate_runtime().is_empty():
+		return false
+	if (
+		int(_grid.grid_shape) != level_resource.grid_shape
+		or not is_equal_approx(_grid.cell_size, level_resource.grid_cell_size)
+		or _grid.grid_size != level_resource.grid_size
+	):
+		return false
+	var next_tiles: Dictionary = {}
+	for serialized_resource in level_resource.tiles:
+		if not serialized_resource is TileCellData:
+			return false
 		var serialized_tile: TileCellData = serialized_resource
-		if serialized_tile == null or not _grid.is_in_bounds(serialized_tile.cell):
+		if not _grid.is_in_bounds(serialized_tile.cell):
 			continue
-		serialized_tile.clear_occupant()
-		_tiles[serialized_tile.cell] = serialized_tile
+		var runtime_tile := _make_runtime_tile(serialized_tile, level_resource.height_levels)
+		next_tiles[runtime_tile.cell] = runtime_tile
 	for cell in _grid.enumerate_cells():
-		if not _tiles.has(cell):
-			_tiles[cell] = _make_default_tile(cell)
-	level_loaded.emit(level_data)
+		if not next_tiles.has(cell):
+			next_tiles[cell] = _make_default_tile(cell)
+	level = level_resource
+	_tiles = next_tiles
+	level_loaded.emit(level_resource)
+	return true
 
 func get_tile(cell: Vector3i) -> TileCellData:
 	if not _tiles.has(cell):
@@ -155,15 +165,9 @@ func destroy_obstacle_at(cell: Vector3i) -> bool:
 
 func _set_tile(tile: TileCellData) -> void:
 	_tiles[tile.cell] = tile
-	var level_data := _get_level()
-	if level_data != null:
-		level_data.store_tile(tile)
 	_notify_tile_changed(tile)
 
 func _notify_tile_changed(tile: TileCellData) -> void:
-	var level_data := _get_level()
-	if level_data != null:
-		level_data.clamp_tile_heights()
 	tile_changed.emit(tile.cell, tile)
 
 func _get_level() -> LevelResource:
@@ -173,4 +177,14 @@ func _get_level() -> LevelResource:
 func _make_default_tile(cell: Vector3i) -> TileCellData:
 	var tile := TileCellData.new()
 	tile.configure(cell, BUILDABLE_TILE_TYPE, 0)
+	return tile
+
+func _make_runtime_tile(source: TileCellData, height_levels: int) -> TileCellData:
+	var tile := TileCellData.new()
+	tile.configure(
+		source.cell,
+		source.tile_type,
+		clampi(source.height_level, 0, maxi(0, height_levels - 1))
+	)
+	tile.obstacle_destroyed = source.obstacle_destroyed
 	return tile

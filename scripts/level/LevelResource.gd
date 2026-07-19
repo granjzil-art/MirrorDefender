@@ -96,11 +96,74 @@ func get_spawn_point(spawn_id: StringName) -> SpawnPointDefinition:
 			return spawn_point
 	return null
 
-func validate_m4() -> Array[String]:
+## Complete preflight used by both the editor and LevelLoader. Validation is
+## deliberately read-only so a rejected resource cannot partially mutate the
+## currently running level.
+func validate_runtime() -> Array[String]:
 	var errors: Array[String] = []
-	var shape: IGridShape = HexGridShape.new() if grid_shape == 0 else SquareGridShape.new()
+	_validate_grid_and_tiles(errors)
+	_validate_level_parameters(errors)
+	_validate_m4_content(errors)
+	return errors
+
+## Compatibility entry retained for the level editor's M4 validation button.
+func validate_m4() -> Array[String]:
+	return validate_runtime()
+
+func _validate_grid_and_tiles(errors: Array[String]) -> void:
+	if grid_shape != 0 and grid_shape != 1:
+		errors.append("网格形状无效：%d" % grid_shape)
+	if not is_finite(grid_cell_size) or grid_cell_size <= 0.0:
+		errors.append("格距必须为有限正数")
+	if grid_shape == 0:
+		if grid_size.x < 1:
+			errors.append("六边形地图半径必须至少为 1")
+	elif grid_size.x < 1 or grid_size.y < 1:
+		errors.append("正方形地图行列数必须至少为 1")
+	if height_levels < 1:
+		errors.append("高度档数必须至少为 1")
+	if not is_finite(height_step) or height_step <= 0.0:
+		errors.append("每档高度必须为有限正数")
+	if grid_shape != 0 and grid_shape != 1:
+		return
+	var shape: IGridShape = _make_validation_shape()
 	shape.setup(grid_cell_size)
-	if not shape.is_in_bounds(base_cell, grid_size):
+	var tile_cells: Dictionary = {}
+	for index in range(tiles.size()):
+		var raw_tile: Variant = tiles[index]
+		if not raw_tile is TileCellData:
+			errors.append("地块数组第 %d 项不是 TileCellData" % (index + 1))
+			continue
+		var tile: TileCellData = raw_tile
+		if tile_cells.has(tile.cell):
+			errors.append("地块坐标重复：%s" % str(tile.cell))
+		else:
+			tile_cells[tile.cell] = true
+		if not _is_valid_cell_coordinate(tile.cell):
+			errors.append("地块坐标格式无效：%s" % str(tile.cell))
+		elif not shape.is_in_bounds(tile.cell, grid_size):
+			errors.append("地块 %s 位于地图外" % str(tile.cell))
+		if tile.tile_type < TileCellData.TileType.BUILDABLE or tile.tile_type > TileCellData.TileType.BLOCKED:
+			errors.append("地块 %s 的类型无效" % str(tile.cell))
+		if tile.height_level < 0 or tile.height_level >= height_levels:
+			errors.append("地块 %s 的高度档 %d 越界" % [str(tile.cell), tile.height_level])
+
+func _validate_level_parameters(errors: Array[String]) -> void:
+	if initial_resource < 0:
+		errors.append("初始资源不能为负数")
+	if building_cap < 0 or mirror_cap < 0:
+		errors.append("建筑或镜面上限不能为负数")
+	if not is_finite(base_resource_per_second) or base_resource_per_second < 0.0:
+		errors.append("关卡基础资源产出必须为有限非负数")
+	if not is_finite(base_max_hp) or base_max_hp <= 0.0:
+		errors.append("据点生命值必须为有限正数")
+
+func _validate_m4_content(errors: Array[String]) -> void:
+	if grid_shape != 0 and grid_shape != 1 or not is_finite(grid_cell_size) or grid_cell_size <= 0.0:
+		return
+	var shape: IGridShape = _make_validation_shape()
+	shape.setup(grid_cell_size)
+	if not _is_valid_cell_coordinate(base_cell) or not shape.is_in_bounds(base_cell, grid_size):
 		errors.append("据点格位于地图外")
 	var path_ids: Dictionary = {}
 	for path in paths:
@@ -116,7 +179,7 @@ func validate_m4() -> Array[String]:
 			errors.append("路径 %s 的终点 %s 不是据点格 %s" % [path.display_name, str(path.get_end_cell()), str(base_cell)])
 		for index in range(path.cells.size()):
 			var cell := path.cells[index]
-			if not shape.is_in_bounds(cell, grid_size):
+			if not _is_valid_cell_coordinate(cell) or not shape.is_in_bounds(cell, grid_size):
 				errors.append("路径 %s 含地图外格" % path.display_name)
 				break
 			if index > 0 and not shape.get_neighbors(path.cells[index - 1]).has(cell):
@@ -136,7 +199,7 @@ func validate_m4() -> Array[String]:
 		if spawn_point.spawn_id.is_empty() or spawn_ids.has(spawn_point.spawn_id):
 			errors.append("出生点 ID 为空或重复：%s" % spawn_point.display_name)
 		spawn_ids[spawn_point.spawn_id] = true
-		if not shape.is_in_bounds(spawn_point.cell, grid_size):
+		if not _is_valid_cell_coordinate(spawn_point.cell) or not shape.is_in_bounds(spawn_point.cell, grid_size):
 			errors.append("出生点 %s 位于地图外" % spawn_point.display_name)
 	for wave in waves:
 		if wave == null:
@@ -148,10 +211,17 @@ func validate_m4() -> Array[String]:
 			if group == null or group.enemy == null or group.spawn_point == null or group.path == null:
 				errors.append("波次 %s 存在未完整配置的出怪组" % wave.display_name)
 				continue
-			if group.count < 1 or group.interval <= 0.0:
+			if group.count < 1 or not is_finite(group.interval) or group.interval <= 0.0:
 				errors.append("波次 %s 的数量或间隔无效" % wave.display_name)
+			if not is_finite(group.start_delay) or group.start_delay < 0.0:
+				errors.append("波次 %s 的组开始延迟无效" % wave.display_name)
 			if not paths.has(group.path) or not spawn_points.has(group.spawn_point):
 				errors.append("波次 %s 引用了不属于本关的路径或出生点" % wave.display_name)
 			elif not group.path.cells.is_empty() and group.path.get_start_cell() != group.spawn_point.cell:
 				errors.append("波次 %s 的出生点与路径起点不一致" % wave.display_name)
-	return errors
+
+func _make_validation_shape() -> IGridShape:
+	return HexGridShape.new() if grid_shape == 0 else SquareGridShape.new()
+
+func _is_valid_cell_coordinate(cell: Vector3i) -> bool:
+	return cell.x + cell.y + cell.z == 0 if grid_shape == 0 else cell.z == 0

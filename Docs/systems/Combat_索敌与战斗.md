@@ -19,6 +19,7 @@
 - **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
 - **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
+- **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销，不残留重复信号或候选。
 
 ## 关键参数
 
@@ -99,8 +100,8 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `register_target` | `(target: CombatTarget) -> bool` | 分配进入序号、订阅死亡并加入候选。 |
-| `unregister_target` | `(target: CombatTarget) -> void` | 从候选移除并广播。 |
+| `register_target` | `(target: CombatTarget) -> bool` | 分配进入序号、建立唯一死亡/离树回调并加入候选；重复注册返回 false。 |
+| `unregister_target` | `(target: CombatTarget) -> void` | 幂等移除候选、解除生命周期回调并广播。 |
 | `get_targets_in_range` | `(origin: Vector3, range_world: float) -> Array[CombatTarget]` | 按 XZ 距离返回范围候选。 |
 | `get_targets_on_segment` | `(start: Vector3, end: Vector3) -> Array[CombatTarget]` | 用点到线段距离返回全部激光触碰目标。 |
 | `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color) -> Projectile` | 创建、配置并跟踪投射物。 |
@@ -135,6 +136,7 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 - 单发攻击的逻辑命中时刻与视觉投射物命中时刻一致。
 - 激光命中在 XZ 平面计算；M6 再加入地形、障碍和镜面阻挡。
 - CombatManager 不生成正式敌人，也不直接修改资源；WaveManager 是 EnemyUnit 掉落的唯一资源桥接者。
+- CombatManager 的 `_targets` 与其回调表必须同步增删；任何外部释放都由 `tree_exited` 回收，重新注册不得叠加旧回调。
 - 屏障不是 CombatTarget，也不进入 CombatManager 敌对候选；EnemyProjectile 通过结构方法契约造成伤害。
 
 ## 已知限制 / 初版不做的部分

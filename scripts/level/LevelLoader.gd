@@ -36,12 +36,21 @@ func load_level(level_resource: LevelResource, source_path: String = "") -> bool
 		_report_failure(source_path, "关卡资源为空")
 		return false
 	var resolved_path := source_path if not source_path.is_empty() else level_resource.resource_path
+	var validation_errors := level_resource.validate_runtime()
+	if not validation_errors.is_empty():
+		_report_failure(resolved_path, "关卡校验失败：\n%s" % "\n".join(validation_errors))
+		return false
+	if not _tile_manager.feature_enabled:
+		_report_failure(resolved_path, "TileManager 已关闭，无法装配关卡")
+		return false
 	_grid.apply_configuration(
 		level_resource.grid_shape,
 		level_resource.grid_cell_size,
 		level_resource.grid_size
 	)
-	_tile_manager.load_level(level_resource)
+	if not _tile_manager.load_level(level_resource):
+		_report_failure(resolved_path, "TileManager 拒绝加载关卡")
+		return false
 	_current_level = level_resource
 	level_loaded.emit(level_resource, resolved_path)
 	return true

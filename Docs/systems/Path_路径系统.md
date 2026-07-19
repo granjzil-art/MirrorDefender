@@ -13,7 +13,7 @@
 - **出生点**：SpawnPointDefinition 保存可复用入口格；SpawnGroup 直接引用出生点和路径资源，而非手填字符串。
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
 - **屏障语义**：路径资源本身保持静态；BuildingManager 缓存 PathDefinition.cells 作为屏障可放置范围，EnemyUnit 按同一有序格数组查询前方屏障，不修改路径或重新寻路。
-- **表现**：PathManager 绘制黄色线路与绿色出生点标记；BaseCore 绘制据点标记。可通过 `show_paths` 关闭。
+- **表现**：PathManager 绘制黄色线路与绿色出生点标记；BaseCore 绘制据点标记。可通过 `feature_enabled` 或 `show_paths` 关闭。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录。记录中只接受与末格相邻的格，非相邻点击会显示两端坐标且不修改数据。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
 

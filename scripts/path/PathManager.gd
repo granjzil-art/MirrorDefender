@@ -76,7 +76,7 @@ func _rebuild_visuals() -> void:
 		return
 	for child in _marker_root.get_children():
 		child.queue_free()
-	if not show_paths or _level == null:
+	if not feature_enabled or not show_paths or _level == null:
 		_path_mesh.mesh = null
 		return
 	var material := StandardMaterial3D.new()
@@ -86,16 +86,22 @@ func _rebuild_visuals() -> void:
 	material.emission = path_color
 	material.emission_energy_multiplier = 1.3
 	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
+	var has_path_geometry: bool = false
 	for path in _level.paths:
 		if path == null:
 			continue
 		var points := get_world_points(path)
 		for index in range(1, points.size()):
+			if not has_path_geometry:
+				mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
+				has_path_geometry = true
 			mesh.surface_add_vertex(points[index - 1])
 			mesh.surface_add_vertex(points[index])
-	mesh.surface_end()
-	_path_mesh.mesh = mesh
+	if has_path_geometry:
+		mesh.surface_end()
+		_path_mesh.mesh = mesh
+	else:
+		_path_mesh.mesh = null
 	for spawn_point in _level.spawn_points:
 		if spawn_point != null:
 			_create_spawn_marker(spawn_point)

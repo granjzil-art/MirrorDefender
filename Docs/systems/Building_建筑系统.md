@@ -23,6 +23,7 @@
 - **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。
 - **删除退款**：每级 `refund_amount` 是删除该级建筑时的精确返还额。默认数值约为累计建造/升级投入的 50%，但不从费用自动推导。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
+- **移除事务**：主动删除、战斗摧毁、切关清理和外部 `queue_free()` 共用幂等释放路径，统一解除信号、清除字典/地块占位、释放建筑上限、选择和产出；同一建筑不会重复退款或重复注销。
 - **离散朝向**：HEX 为 6 档、每档 60 度；SQUARE 为 8 档、每档 45 度。方向只取决于 Grid 形状和 `facing_index`，不读取相机 yaw。
 
 ## 参数编辑入口
@@ -176,7 +177,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `update_preview` | `(cell: Vector3i, definition: BuildingDefinition) -> bool` | 在可建造空格创建/更新不占格虚影。 |
 | `clear_preview` | `(clear_definition: bool = true) -> void` | 清理虚影；可保留塔种/朝向供跨无效格移动。 |
 | `rotate_preview` | `(step: int = 1) -> bool` | 旋转当前虚影。 |
-| `remove_building` | `(cell: Vector3i, refund: float = 0.0) -> bool` | 释放占格、计数与建筑产出后销毁建筑。 |
+| `remove_building` | `(cell: Vector3i, refund: float = 0.0) -> bool` | 通过幂等释放事务清理占格、计数、回调与建筑产出后销毁建筑。 |
 | `remove_selected_building` | `() -> bool` | 按选中建筑当前级 `refund_amount` 原子删除并返还资源。 |
 | `clear_buildings` | `(update_resource_count: bool = true) -> void` | 切关时清理全部建筑和预览。 |
 | `select_at` / `rotate_selected` | `(cell: Vector3i) -> Building` / `(step: int = 1) -> bool` | 选择或旋转实际建筑。 |
@@ -196,6 +197,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 - `BuildingDefinition.Kind` 固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`。
 - 路径格缓存来自当前 LevelResource；普通塔不得占路。屏障可覆盖 BUILDABLE 或 BLOCKED 路面，但不得覆盖未清障的 DESTRUCTIBLE 格。
 - 屏障摧毁属于战斗损失，不返还资源；主动删除属于玩家操作，按本级 `refund_amount` 返还。
+- BuildingManager 的 cell 字典、Tile occupant、ResourceManager 建筑计数和生命周期回调必须作为同一事务更新；外部释放只做无退款清理。
 - HEX 档 0 为世界 -30 度，随后每档 +60 度；SQUARE 档 0 为 +X，随后每档 +45 度。
 
 ## 使用入口
