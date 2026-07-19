@@ -21,6 +21,8 @@ const PathManagerScript := preload("res://scripts/path/PathManager.gd")
 const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
 const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
+const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd")
+const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
 
@@ -43,6 +45,8 @@ var _building_action_panel: BuildingActionPanel
 var path_manager: PathManager
 var base_core: BaseCore
 var wave_manager: WaveManager
+var tile_effect_system: TileEffectSystem
+var path_route_planner: PathRoutePlanner
 var _wave_status_panel: WaveStatusPanel
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
@@ -69,6 +73,12 @@ func _ready() -> void:
 	base_core = BaseCoreScript.new()
 	add_child(base_core)
 	base_core.configure(grid, tile_manager)
+	tile_effect_system = TileEffectSystemScript.new()
+	add_child(tile_effect_system)
+	tile_effect_system.configure(tile_manager)
+	path_route_planner = PathRoutePlannerScript.new()
+	add_child(path_route_planner)
+	path_route_planner.configure(grid, tile_manager)
 	wave_manager = WaveManagerScript.new()
 	add_child(wave_manager)
 	wave_manager.configure(
@@ -76,7 +86,12 @@ func _ready() -> void:
 		combat_manager,
 		resource_manager,
 		base_core,
-		Callable(building_manager, "resolve_path_blocker")
+		Callable(building_manager, "resolve_path_blocker"),
+		Callable(path_route_planner, "find_detour"),
+		Callable(path_manager, "get_cell_world_position"),
+		Callable(tile_effect_system, "apply_enter"),
+		Callable(tile_effect_system, "apply_stay"),
+		Callable(tile_manager, "blocks_enemy_navigation")
 	)
 	_wave_status_panel = WaveStatusPanelScript.new()
 	$HUD.add_child(_wave_status_panel)
@@ -339,6 +354,7 @@ func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> vo
 	resource_manager.apply_level_configuration(level_resource)
 	combat_manager.clear_targets()
 	path_manager.load_level(level_resource)
+	path_route_planner.load_level(level_resource)
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
 	_has_selected_cell = false

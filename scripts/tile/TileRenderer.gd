@@ -24,6 +24,8 @@ var _terrain_instance: MeshInstance3D
 var _terrain_material: StandardMaterial3D
 var _obstacle_instance: MeshInstance3D
 var _obstacle_material: StandardMaterial3D
+var _element_instance: MeshInstance3D
+var _element_material: StandardMaterial3D
 
 func _ready() -> void:
 	_setup_instances()
@@ -58,6 +60,10 @@ func _setup_instances() -> void:
 	_obstacle_material = _make_material(obstacle_color)
 	_obstacle_instance.material_override = _obstacle_material
 	add_child(_obstacle_instance)
+	_element_instance = MeshInstance3D.new()
+	_element_material = _make_terrain_material()
+	_element_instance.material_override = _element_material
+	add_child(_element_instance)
 
 func _make_material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
@@ -86,6 +92,9 @@ func _rebuild() -> void:
 	var obstacle_mesh := ImmediateMesh.new()
 	obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_obstacle_geometry: bool = false
+	var element_mesh := ImmediateMesh.new()
+	element_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_element_geometry: bool = false
 	for cell in _grid.enumerate_cells():
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
@@ -96,6 +105,8 @@ func _rebuild() -> void:
 		if tile.is_destructible():
 			_add_obstacle_geometry(obstacle_mesh, tile)
 			has_obstacle_geometry = true
+		if tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
+			has_element_geometry = _add_element_geometry(element_mesh, tile) or has_element_geometry
 	if has_terrain_geometry:
 		terrain_mesh.surface_end()
 		_terrain_instance.mesh = terrain_mesh
@@ -106,11 +117,19 @@ func _rebuild() -> void:
 		_obstacle_instance.mesh = obstacle_mesh
 	else:
 		_obstacle_instance.mesh = null
+	if has_element_geometry:
+		element_mesh.surface_end()
+		_element_instance.mesh = element_mesh
+	else:
+		_element_instance.mesh = null
 
 func _get_terrain_color(tile: TileCellData) -> Color:
+	var fallback: Color
 	if tile.is_blocked():
-		return blocked_color
-	return _tile_manager.get_height_color(tile.cell)
+		fallback = blocked_color
+	else:
+		fallback = _tile_manager.get_height_color(tile.cell)
+	return tile.get_terrain_color(fallback)
 
 func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool:
 	var corners := _grid.get_corners(tile.cell)
@@ -155,3 +174,78 @@ func _add_obstacle_geometry(mesh: ImmediateMesh, tile: TileCellData) -> void:
 		mesh.surface_add_vertex(top)
 		mesh.surface_add_vertex(base[index])
 		mesh.surface_add_vertex(base[(index + 1) % base.size()])
+
+func _add_element_geometry(mesh: ImmediateMesh, tile: TileCellData) -> bool:
+	var color := tile.get_visual_color()
+	match tile.get_visual_kind():
+		TileDefinition.VisualKind.SPIKES:
+			_add_spikes(mesh, tile, color)
+			return true
+		TileDefinition.VisualKind.HOLE:
+			return _add_hole(mesh, tile, color)
+		TileDefinition.VisualKind.ROCK:
+			_add_rock(mesh, tile, color)
+			return true
+	return false
+
+func _add_spikes(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> void:
+	var center := _grid.cell_to_world(tile.cell)
+	var base_y := _tile_manager.get_world_height(tile.cell) + TOP_LIFT * 2.0
+	var spread := _grid.cell_size * 0.18
+	var radius := _grid.cell_size * 0.10
+	var offsets: Array[Vector3] = [
+		Vector3(-spread, 0.0, -spread),
+		Vector3(spread, 0.0, -spread),
+		Vector3(-spread, 0.0, spread),
+		Vector3(spread, 0.0, spread),
+	]
+	for offset in offsets:
+		var spike_center := center + offset
+		var top := Vector3(spike_center.x, base_y + _grid.cell_size * 0.28, spike_center.z)
+		var base: Array[Vector3] = [
+			Vector3(spike_center.x + radius, base_y, spike_center.z),
+			Vector3(spike_center.x, base_y, spike_center.z + radius),
+			Vector3(spike_center.x - radius, base_y, spike_center.z),
+			Vector3(spike_center.x, base_y, spike_center.z - radius),
+		]
+		for index in range(base.size()):
+			_add_triangle(mesh, color, top, base[index], base[(index + 1) % base.size()])
+
+func _add_hole(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> bool:
+	var corners := _grid.get_corners(tile.cell)
+	if corners.size() < 3:
+		return false
+	var base_y := _tile_manager.get_world_height(tile.cell) + TOP_LIFT * 2.0
+	var world_center := _grid.cell_to_world(tile.cell)
+	var center := Vector3(world_center.x, base_y, world_center.z)
+	for index in range(corners.size()):
+		var corner_a := corners[index]
+		var corner_b := corners[(index + 1) % corners.size()]
+		var a := center.lerp(Vector3(corner_a.x, base_y, corner_a.z), 0.58)
+		var b := center.lerp(Vector3(corner_b.x, base_y, corner_b.z), 0.58)
+		_add_triangle(mesh, color, center, a, b)
+	return true
+
+func _add_rock(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> void:
+	var center := _grid.cell_to_world(tile.cell)
+	var base_y := _tile_manager.get_world_height(tile.cell) + TOP_LIFT
+	var radius := _grid.cell_size * 0.38
+	var shoulder_y := base_y + _grid.cell_size * 0.32
+	var top := Vector3(center.x - radius * 0.12, base_y + _grid.cell_size * 0.72, center.z + radius * 0.08)
+	var ring: Array[Vector3] = []
+	var sides := maxi(4, _grid.edge_count())
+	for index in range(sides):
+		var angle := TAU * float(index) / float(sides)
+		var scale := 0.82 if index % 2 == 0 else 1.0
+		ring.append(Vector3(
+			center.x + cos(angle) * radius * scale,
+			shoulder_y,
+			center.z + sin(angle) * radius * scale
+		))
+	for index in range(ring.size()):
+		var next_index := (index + 1) % ring.size()
+		_add_triangle(mesh, color, top, ring[index], ring[next_index])
+		var base_a := Vector3(ring[index].x, base_y, ring[index].z)
+		var base_b := Vector3(ring[next_index].x, base_y, ring[next_index].z)
+		_add_triangle(mesh, color.darkened(0.18), ring[index], base_a, base_b)
+		_add_triangle(mesh, color.darkened(0.18), ring[index], base_b, ring[next_index])

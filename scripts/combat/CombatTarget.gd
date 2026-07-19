@@ -41,6 +41,26 @@ func configure_debug_target(world_position: Vector3, hp: float, speed: float, re
 	_update_debug_status()
 
 func take_damage(amount: float) -> float:
+	return _apply_damage(amount)
+
+## Environmental damage entry that intentionally bypasses unit armor.
+func take_unmitigated_damage(amount: float) -> float:
+	return _apply_damage(amount)
+
+## Continuous-damage contract. Subclasses may mitigate the rate, keeping the
+## result independent from how traversal time is split across frames.
+func take_damage_over_time(damage_per_second: float, duration: float) -> float:
+	return _apply_damage(maxf(0.0, damage_per_second) * maxf(0.0, duration))
+
+## Explicit environmental defeat hook. The multiplier controls only this
+## target's configured reward and keeps normal combat deaths unchanged.
+func defeat(reward_multiplier: float = 1.0) -> bool:
+	if not feature_enabled or not _alive:
+		return false
+	_apply_damage(current_hp, maxf(0.0, reward_multiplier))
+	return true
+
+func _apply_damage(amount: float, reward_multiplier: float = 1.0) -> float:
 	if not feature_enabled or not _alive or amount <= 0.0:
 		return 0.0
 	var applied := minf(amount, current_hp)
@@ -49,7 +69,7 @@ func take_damage(amount: float) -> float:
 	_update_debug_status()
 	if current_hp <= 0.0:
 		_alive = false
-		died.emit(self, reward)
+		died.emit(self, reward * reward_multiplier)
 		queue_free()
 	return applied
 

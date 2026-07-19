@@ -213,6 +213,8 @@ func _validate_grid_and_tiles(errors: Array[String]) -> void:
 			errors.append("地块 %s 位于地图外" % str(tile.cell))
 		if tile.tile_type < TileCellData.TileType.BUILDABLE or tile.tile_type > TileCellData.TileType.BLOCKED:
 			errors.append("地块 %s 的类型无效" % str(tile.cell))
+		for definition_error in tile.get_configuration_errors():
+			errors.append("地块 %s：%s" % [str(tile.cell), definition_error])
 		if tile.height_level < 0 or tile.height_level >= height_levels:
 			errors.append("地块 %s 的高度档 %d 越界" % [str(tile.cell), tile.height_level])
 

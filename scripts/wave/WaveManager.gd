@@ -39,6 +39,11 @@ var _unit_wave_indices: Dictionary = {}
 var _started_wave_indices: Dictionary = {}
 var _completed_wave_indices: Dictionary = {}
 var _path_blocker_resolver: Callable
+var _route_resolver: Callable
+var _cell_world_resolver: Callable
+var _tile_enter_resolver: Callable
+var _tile_stay_resolver: Callable
+var _navigation_blocker_resolver: Callable
 var _configuration_error: String = ""
 
 func _process(delta: float) -> void:
@@ -54,7 +59,12 @@ func configure(
 	combat_manager: CombatManager,
 	resource_manager: ResourceManager,
 	base_core: BaseCore,
-	path_blocker_resolver: Callable = Callable()
+	path_blocker_resolver: Callable = Callable(),
+	route_resolver: Callable = Callable(),
+	cell_world_resolver: Callable = Callable(),
+	tile_enter_resolver: Callable = Callable(),
+	tile_stay_resolver: Callable = Callable(),
+	navigation_blocker_resolver: Callable = Callable()
 ) -> void:
 	if _base_core != null and _base_core.defeated.is_connected(_on_base_defeated):
 		_base_core.defeated.disconnect(_on_base_defeated)
@@ -63,6 +73,11 @@ func configure(
 	_resource_manager = resource_manager
 	_base_core = base_core
 	_path_blocker_resolver = path_blocker_resolver
+	_route_resolver = route_resolver
+	_cell_world_resolver = cell_world_resolver
+	_tile_enter_resolver = tile_enter_resolver
+	_tile_stay_resolver = tile_stay_resolver
+	_navigation_blocker_resolver = navigation_blocker_resolver
 	if _base_core != null:
 		_base_core.defeated.connect(_on_base_defeated)
 
@@ -202,7 +217,13 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 		points,
 		group.path.cells,
 		_level.grid_cell_size if _level != null else 1.0,
-		_path_blocker_resolver
+		_path_blocker_resolver,
+		group.path,
+		_route_resolver,
+		_cell_world_resolver,
+		_tile_enter_resolver,
+		_tile_stay_resolver,
+		_navigation_blocker_resolver
 	)
 	add_child(unit)
 	if _combat_manager == null or not _combat_manager.register_target(unit):

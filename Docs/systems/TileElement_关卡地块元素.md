@@ -1,0 +1,106 @@
+# 关卡地块元素 · Tile Element
+
+> 实现状态：已完成尖刺、空洞、大石头障碍，以及基于手工路径的动态换路。支持正方形与六边形关卡。
+
+## 职责
+
+关卡元素是直接写入 `TileCellData` 的地形配置，不是 `Building`，不占用建筑上限，不参与建造/升级/删除事务。本系统提供可复用地块定义、敌人进入/停留效果、灰盒表现和大石头换路。
+
+## 分类 / 玩法
+
+- **尖刺格子**：可通行；敌人占据该格的时间按秒造成持续伤害。默认 20 伤害/秒且忽略护甲。
+- **空洞格子**：初始手工路径可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。动态换路不会主动选择含空洞的后缀。
+- **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
+- **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
+
+## 编辑器使用
+
+1. 打开 Godot 主屏的 Mirror 关卡编辑器，进入“地块”页。
+2. 在“地块调色板”选择“尖刺格子”、“空洞格子”或“大石头障碍”，左键单击/拖动涂刷；也可拖放预设到单格。
+3. 类型刷只替换地块定义，保留该格当前高度；高度刷只改高度。
+4. 路径页仍手工绘制全部候选路径。大石头可直接画在初始路径上；候选路径必须与触发格相交或相邻，且从接入格到据点的后缀不含石头或空洞。
+5. 调色板会自动扫描 `resources/tiles/*.tres`；新增 `TilePreset` 资源后无需修改编辑器脚本。
+
+## 关键参数
+
+| 资源 | 参数 | 说明 |
+|---|---|---|
+| `TileDefinition` | `tile_id` / `display_name` | 稳定标识与编辑器名称。 |
+| `TileDefinition` | `surface_kind` | 可建造、可破坏、路面或关卡元素的表面分类。 |
+| `TileDefinition` | `allows_tile_building` | 是否允许普通块建筑和路径块建筑。 |
+| `TileDefinition` | `allows_edge_building` | 是否允许该格参与的共享边放置边建筑。 |
+| `TileDefinition` | `effect` | 敌人遍历效果策略，可替换为新 `TileEffect` 变种。 |
+| `TileDefinition` | `override_terrain_color` / `terrain_color` | 是否覆盖高度分层底色及覆盖色。 |
+| `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式美术场景接口。 |
+| `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
+| `TileEffect` | `safe_for_reroute` | 是否允许动态换路主动选中该格。 |
+| `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |
+| `VoidTileEffect` | `reward_multiplier` | 空洞击杀时的敌人掉落倍率。 |
+| `PathRoutePlanner` | `feature_enabled` | 动态换路功能开关。 |
+| `PathRoutePlanner` | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的运行时调试线。 |
+
+## 关键架构
+
+### 文件构成
+
+| 文件 | class_name / 基类 | 角色 |
+|---|---|---|
+| `scripts/tile/TileDefinition.gd` | `TileDefinition` / `Resource` | 整合地块表面、建筑权限、效果与表现配置。 |
+| `scripts/tile/effects/TileEffect.gd` | `TileEffect` / `Resource` | 敌人遍历策略基类。 |
+| `scripts/tile/effects/SpikeTileEffect.gd` | `SpikeTileEffect` / `TileEffect` | 按占格时间结算持续伤害。 |
+| `scripts/tile/effects/VoidTileEffect.gd` | `VoidTileEffect` / `TileEffect` | 进格时立即击杀并应用掉落倍率。 |
+| `scripts/tile/effects/RockTileEffect.gd` | `RockTileEffect` / `TileEffect` | 声明永久导航阻断。 |
+| `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem` / `Node` | 通过 TileManager 解析地块效果并分发进入/停留事件。 |
+| `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 在手工路径集中选择确定性最短可用后缀。 |
+| `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 引用 TileDefinition，保留旧 `tile_type` 兼容分支。 |
+| `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 关卡编辑器画笔预设。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 绘制地形与三种元素灰盒。 |
+| `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 提供不受护甲伤害和指定掉落倍率的击杀入口。 |
+| `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐格分发效果，在阻碍前一格安装临时路由。 |
+| `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 地块权限、双网格换路、高速跨格和资源不变性回归。 |
+
+### 数据流
+
+```text
+Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
+  -> TileManager 克隆运行时格
+     -> TileRenderer 灰盒表现
+     -> TileEffectSystem -> EnemyUnit enter/stay -> damage/defeat
+     -> PathRoutePlanner -> 其他 PathDefinition 可用后缀 -> EnemyUnit 临时路由
+
+BuildingPlacementRules
+  -> TileManager.allows_edge_building(边两侧)
+  -> TileManager.can_place / can_place_path_occupant(块建筑)
+```
+
+## 函数索引
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `TileDefinition.blocks_enemy_navigation` | `() -> bool` | 委托效果策略判断是否永久阻断敌人。 |
+| `TileDefinition.can_use_for_reroute` | `() -> bool` | 判断该格是否可用于候选路径后缀。 |
+| `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
+| `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
+| `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
+| `TileEffectSystem.apply_enter` | `(target: Node, cell: Vector3i) -> void` | 解析指定格并分发进入效果。 |
+| `TileEffectSystem.apply_stay` | `(target: Node, cell: Vector3i, duration: float) -> void` | 解析指定格并分发持续效果。 |
+| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell}`；只在 `blocked_cell` 为导航阻碍时触发。 |
+| `CombatTarget.take_unmitigated_damage` | `(amount: float) -> float` | 不经 EnemyUnit 护甲覆写的环境伤害入口。 |
+| `CombatTarget.take_damage_over_time` | `(damage_per_second: float, duration: float) -> float` | 帧率无关的持续伤害入口；EnemyUnit 以护甲扣减每秒伤害率。 |
+| `CombatTarget.defeat` | `(reward_multiplier: float = 1.0) -> bool` | 立即击杀并按倍率发出掉落值。 |
+| `EnemyUnit.configure_unit` | `(..., path_definition: PathDefinition, route_resolver: Callable, cell_world_resolver: Callable, tile_enter_resolver: Callable, tile_stay_resolver: Callable, navigation_blocker_resolver: Callable) -> void` | 注入路径、换路、坐标和地块效果接口；旧参数保持兼容。 |
+
+## 换路事实源
+
+- 敌人出生时仍使用波次组中原始 `PathDefinition`，不预先重算。
+- 只在敌人位于当前格中心且下一格为导航阻碍时安装临时路由。
+- 候选只是其他手工 `PathDefinition`；必须包含当前格（接入代价 0）或有一格与当前格相邻（代价 1）。线条在二维投影中相交不算路径相交。
+- 选择分数为“接入边 + 候选路径后缀边数”；最低分优先，平分时按 `LevelResource.paths` 的序列化顺序稳定决胜。
+- 候选后缀每格必须在边界内、路径相邻且 `can_use_for_reroute = true`。建筑屏障仍是可攻击目标，不会使候选路径失效。
+- 换路只替换单个敌人的运行时数组，不修改 `LevelResource` 或 `PathDefinition`。后续再遇石头可再次选路。
+
+## 已知限制
+
+- 当前不做自由格网 A*，也不同时串联多条路径；每次阻挡事件只选一条候选路径的一个后缀。
+- `visual_scene` 为正式美术资产预留接口，当前编辑器与运行时使用 `visual_kind` 灰盒绘制。
+- 大石头当前是关卡地形，永久且不可破坏；若未来要可攻击岩石，应新建可生命结构策略，不在本资源上增加 Building 状态。

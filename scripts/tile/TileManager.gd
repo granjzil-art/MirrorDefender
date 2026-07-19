@@ -99,6 +99,18 @@ func can_place_path_occupant(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.can_place_path_occupant()
 
+func allows_edge_building(cell: Vector3i) -> bool:
+	var tile := get_tile(cell)
+	return tile != null and tile.allows_edge_building()
+
+func blocks_enemy_navigation(cell: Vector3i) -> bool:
+	var tile := get_tile(cell)
+	return tile != null and tile.blocks_enemy_navigation()
+
+func can_use_for_reroute(cell: Vector3i) -> bool:
+	var tile := get_tile(cell)
+	return tile != null and tile.can_use_for_reroute()
+
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)
 	if tile == null or not tile.place(occupant):
@@ -184,7 +196,8 @@ func _make_runtime_tile(source: TileCellData, height_levels: int) -> TileCellDat
 	tile.configure(
 		source.cell,
 		source.tile_type,
-		clampi(source.height_level, 0, maxi(0, height_levels - 1))
+		clampi(source.height_level, 0, maxi(0, height_levels - 1)),
+		source.definition
 	)
 	tile.obstacle_destroyed = source.obstacle_destroyed
 	return tile

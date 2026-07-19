@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="TilePreset" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TilePreset" format=3]
 
 [ext_resource type="Script" path="res://scripts/tile/TilePreset.gd" id="1_preset"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/BlockedRoad.tres" id="2_definition"]
 
 [resource]
 script = ExtResource("1_preset")
 display_name = "不可建造路面"
+definition = ExtResource("2_definition")
 tile_type = 2
 height_level = 0

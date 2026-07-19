@@ -12,6 +12,8 @@ signal attack_started(unit: EnemyUnit, target: Node)
 signal attack_stopped(unit: EnemyUnit, target: Node)
 signal attack_performed(unit: EnemyUnit, target: Node, applied_damage: float, ranged: bool)
 signal projectile_spawned(unit: EnemyUnit, projectile: EnemyProjectile)
+signal rerouted(unit: EnemyUnit, from_path: PathDefinition, to_path: PathDefinition, join_cell: Vector3i)
+signal route_blocked(unit: EnemyUnit, blocked_cell: Vector3i)
 
 var definition: EnemyDefinition
 var armor: float = 0.0
@@ -20,9 +22,18 @@ var damage_to_base: float = 10.0
 var _path_points := PackedVector3Array()
 var _path_cells: Array[Vector3i] = []
 var _path_index: int = 0
+var _active_path: PathDefinition
 var _reached_base: bool = false
 var _grid_cell_size: float = 1.0
 var _blocker_resolver: Callable
+var _route_resolver: Callable
+var _cell_world_resolver: Callable
+var _tile_enter_resolver: Callable
+var _tile_stay_resolver: Callable
+var _navigation_blocker_resolver: Callable
+var _tile_effects_initialized: bool = false
+var _waiting_blocked_cell: Vector3i = Vector3i.ZERO
+var _is_waiting_for_route: bool = false
 var _attack_target: Node
 var _attack_strategy: EnemyAttackStrategy
 var _attack_damage: float = 0.0
@@ -33,7 +44,13 @@ func _ready() -> void:
 	super._ready()
 
 func _process(delta: float) -> void:
-	if not feature_enabled or not is_alive() or _reached_base or _path_points.size() < 2:
+	if not feature_enabled or not is_alive() or _reached_base or _path_points.is_empty():
+		return
+	_initialize_tile_effects()
+	if not is_alive():
+		return
+	if _path_points.size() < 2:
+		_apply_current_tile_stay(delta)
 		return
 	var blocker_info := _find_first_path_blocker()
 	if not blocker_info.is_empty():
@@ -42,34 +59,53 @@ func _process(delta: float) -> void:
 		if _is_within_attack_range(blocker_position):
 			_enter_attack_state(blocker)
 			_face_target(blocker_position)
+			_apply_current_tile_stay(delta)
+			if not is_alive():
+				return
 			_attack_strategy.tick(self, delta)
 			return
 		_leave_attack_state()
 		var movement_limit := _get_path_distance_until_attack_range(blocker_info)
-		_move_along_path(minf(move_speed * maxf(0.0, delta), movement_limit))
+		var movement_duration := _move_along_path(minf(move_speed * maxf(0.0, delta), movement_limit))
+		_apply_current_tile_stay(maxf(0.0, delta - movement_duration))
 		if is_alive() and is_instance_valid(blocker) and _is_within_attack_range(_get_blocker_position(blocker)):
 			_enter_attack_state(blocker)
 			_face_target(_get_blocker_position(blocker))
 			_attack_strategy.tick(self, 0.0)
 		return
 	_leave_attack_state()
-	_move_along_path(move_speed * maxf(0.0, delta))
+	var movement_duration := _move_along_path(move_speed * maxf(0.0, delta))
+	_apply_current_tile_stay(maxf(0.0, delta - movement_duration))
 
 func configure_unit(
 	enemy_definition: EnemyDefinition,
 	path_points: PackedVector3Array,
 	path_cells: Array[Vector3i] = [],
 	grid_cell_size: float = 1.0,
-	blocker_resolver: Callable = Callable()
+	blocker_resolver: Callable = Callable(),
+	path_definition: PathDefinition = null,
+	route_resolver: Callable = Callable(),
+	cell_world_resolver: Callable = Callable(),
+	tile_enter_resolver: Callable = Callable(),
+	tile_stay_resolver: Callable = Callable(),
+	navigation_blocker_resolver: Callable = Callable()
 ) -> void:
 	definition = enemy_definition
 	_path_points = path_points
 	_path_cells.clear()
 	_path_cells.append_array(path_cells)
 	_path_index = 0
+	_active_path = path_definition
 	_reached_base = false
 	_grid_cell_size = maxf(0.1, grid_cell_size)
 	_blocker_resolver = blocker_resolver
+	_route_resolver = route_resolver
+	_cell_world_resolver = cell_world_resolver
+	_tile_enter_resolver = tile_enter_resolver
+	_tile_stay_resolver = tile_stay_resolver
+	_navigation_blocker_resolver = navigation_blocker_resolver
+	_tile_effects_initialized = false
+	_is_waiting_for_route = false
 	_attack_target = null
 	_attack_strategy = EnemyAttackStrategyScript.new()
 	if definition != null:
@@ -92,6 +128,9 @@ func configure_unit(
 func take_damage(amount: float) -> float:
 	return super.take_damage(maxf(0.0, amount - armor))
 
+func take_damage_over_time(damage_per_second: float, duration: float) -> float:
+	return super.take_damage_over_time(maxf(0.0, damage_per_second - armor), duration)
+
 func is_attacking() -> bool:
 	return _attack_target != null and is_instance_valid(_attack_target) and _is_blocker_alive(_attack_target) and _is_within_attack_range(_get_blocker_position(_attack_target))
 
@@ -113,25 +152,109 @@ func perform_attack(target: Node) -> bool:
 	attack_performed.emit(self, target, applied_damage, false)
 	return true
 
-func _move_along_path(remaining_distance: float) -> void:
+func _move_along_path(remaining_distance: float) -> float:
+	var movement_duration := 0.0
 	while remaining_distance > 0.0 and _path_index < _path_points.size() - 1:
+		var navigation_state := _resolve_next_terrain_blocker()
+		if navigation_state < 0:
+			break
+		if navigation_state > 0:
+			continue
 		var destination := _path_points[_path_index + 1]
 		var to_destination := destination - global_position
 		var distance_to_destination := to_destination.length()
 		if distance_to_destination <= 0.0001:
 			_path_index += 1
+			_apply_tile_enter(_path_cells[_path_index] if _path_index < _path_cells.size() else Vector3i.ZERO)
+			if not is_alive():
+				break
 			continue
+		var traveled_distance := minf(distance_to_destination, remaining_distance)
+		var traveled_duration := traveled_distance / maxf(0.0001, move_speed)
+		_apply_current_tile_stay(traveled_duration)
+		movement_duration += traveled_duration
+		if not is_alive():
+			break
 		if distance_to_destination <= remaining_distance:
 			global_position = destination
 			remaining_distance -= distance_to_destination
 			_path_index += 1
+			_apply_tile_enter(_path_cells[_path_index] if _path_index < _path_cells.size() else Vector3i.ZERO)
+			if not is_alive():
+				break
 		else:
 			var direction := to_destination / distance_to_destination
 			global_position += direction * remaining_distance
 			_face_direction(direction)
 			remaining_distance = 0.0
-	if _path_index >= _path_points.size() - 1:
+	if is_alive() and _path_index >= _path_points.size() - 1:
 		_reach_base()
+	return movement_duration
+
+## -1 waits, 0 continues on the current route, 1 installed a new route.
+func _resolve_next_terrain_blocker() -> int:
+	if not _route_resolver.is_valid() or _path_index >= _path_cells.size() - 1:
+		_is_waiting_for_route = false
+		return 0
+	if global_position.distance_to(_path_points[_path_index]) > PATH_PROGRESS_EPSILON:
+		return 0
+	var current_cell := _path_cells[_path_index]
+	var blocked_cell := _path_cells[_path_index + 1]
+	var resolution: Variant = _route_resolver.call(_active_path, current_cell, blocked_cell)
+	if not resolution is Dictionary or not bool(resolution.get("triggered", false)):
+		_is_waiting_for_route = false
+		return 0
+	if not bool(resolution.get("found", false)):
+		if not _is_waiting_for_route or _waiting_blocked_cell != blocked_cell:
+			route_blocked.emit(self, blocked_cell)
+		_waiting_blocked_cell = blocked_cell
+		_is_waiting_for_route = true
+		return -1
+	var route_value: Variant = resolution.get("cells", [])
+	if not route_value is Array or route_value.size() < 2:
+		return -1
+	var route_cells: Array[Vector3i] = []
+	for raw_cell in route_value:
+		if raw_cell is Vector3i:
+			route_cells.append(raw_cell)
+	if route_cells.size() < 2:
+		return -1
+	var route_points := PackedVector3Array()
+	for cell in route_cells:
+		if _cell_world_resolver.is_valid():
+			var point: Variant = _cell_world_resolver.call(cell)
+			if not point is Vector3:
+				return -1
+			route_points.append(point)
+		else:
+			route_points.append(global_position if cell == current_cell else Vector3.ZERO)
+	if not _cell_world_resolver.is_valid():
+		return -1
+	var previous_path := _active_path
+	_path_cells = route_cells
+	_path_points = route_points
+	_path_index = 0
+	_active_path = resolution.get("path") as PathDefinition
+	_is_waiting_for_route = false
+	rerouted.emit(self, previous_path, _active_path, resolution.get("join_cell", current_cell))
+	return 1
+
+func _initialize_tile_effects() -> void:
+	if _tile_effects_initialized:
+		return
+	_tile_effects_initialized = true
+	if not _path_cells.is_empty():
+		_apply_tile_enter(_path_cells[clampi(_path_index, 0, _path_cells.size() - 1)])
+
+func _apply_tile_enter(cell: Vector3i) -> void:
+	if _tile_enter_resolver.is_valid():
+		_tile_enter_resolver.call(self, cell)
+
+func _apply_current_tile_stay(duration: float) -> void:
+	if duration <= 0.0 or not _tile_stay_resolver.is_valid() or _path_cells.is_empty():
+		return
+	var cell := _path_cells[clampi(_path_index, 0, _path_cells.size() - 1)]
+	_tile_stay_resolver.call(self, cell, duration)
 
 func _find_first_path_blocker() -> Dictionary:
 	if not _blocker_resolver.is_valid() or _path_cells.size() < 2:
@@ -140,6 +263,8 @@ func _find_first_path_blocker() -> Dictionary:
 	for segment_index in range(clampi(_path_index, 0, last_segment), last_segment):
 		var from_cell := _path_cells[segment_index]
 		var to_cell := _path_cells[segment_index + 1]
+		if _navigation_blocker_resolver.is_valid() and bool(_navigation_blocker_resolver.call(to_cell)):
+			break
 		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell)
 		if not candidate is Node:
 			continue

@@ -1,10 +1,10 @@
 # 路径系统 · Path
 
-> 实现状态：M4 已完成线性格子路径、出生点、运行时世界点解析、可视调试线和关卡编辑器路径页。
+> 实现状态：M4 已完成线性格子路径、出生点、运行时世界点解析、可视调试线和关卡编辑器路径页；已增加大石头触发的手工路径最短换路。
 
 ## 职责
 
-保存设计者手工给出的有序格子序列，并将其转换为带地形高度的世界点供 EnemyUnit 移动。路径不做寻路、避障或运行时修改。
+保存设计者手工给出的有序格子序列，并将其转换为带地形高度的世界点供 EnemyUnit 移动。大石头阻断下一格时，可在现有手工路径中选择最短可用后缀；不做自由格网寻路，不改写路径资源。
 
 ## 分类 / 做法
 
@@ -12,7 +12,8 @@
 - **双网格**：连续性由当前 GridManager 的 `get_neighbors()` 判断，支持 HEX 与 SQUARE。
 - **出生点**：每条 PathDefinition 与一个 SpawnPointDefinition 1:1 对应。路径是编辑事实源；出生点 ID、显示名和格坐标由路径派生，SpawnGroup 仍直接引用两个资源以兼容运行时接口。
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
-- **屏障语义**：路径资源本身保持静态；边屏障可预先放在任意内部共享边。EnemyUnit 逐段查询该物理边上的边屏障（默认双向），再查询该段终点的地块屏障，不修改路径或重新寻路。
+- **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
+- **地形换路**：大石头是不可攻击的导航阻碍。EnemyUnit 抵达其前一格中心时，PathRoutePlanner 在其他手工路径中选择“当前格相交/相邻 + 后缀可通行”的最短候选；无候选时原地等待。
 - **表现**：PathManager 绘制黄色线路与绿色出生点标记；BaseCore 绘制据点标记。可通过 `feature_enabled` 或 `show_paths` 关闭。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，记录首格时建立同编号出生点，避免空路径在坐标零点显示伪入口。记录中只接受与末格相邻的格，非相邻点击会显示两端坐标且不修改数据。波次页只编辑路径，出生点为随路径自动绑定的只读项。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
@@ -27,6 +28,8 @@
 | SpawnPointDefinition | `cell` | 入口所在格，校验时必须在地图内。 |
 | PathManager | `show_paths` | 路线和出生点调试表现开关。 |
 | PathManager | `path_color` / `spawn_color` / `line_lift` | 运行时灰盒颜色和抬升高度。 |
+| PathRoutePlanner | `feature_enabled` | 大石头动态换路开关。 |
+| PathRoutePlanner | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的调试线开关、颜色与抬升。 |
 
 ## 关键架构
 
@@ -36,7 +39,8 @@
 |---|---|---|
 | `scripts/path/PathDefinition.gd` | `PathDefinition` / `Resource` | 路径 ID、名称和有序格子。 |
 | `scripts/path/SpawnPointDefinition.gd` | `SpawnPointDefinition` / `Resource` | 出生点 ID、名称和格坐标。 |
-| `scripts/path/PathManager.gd` | `PathManager` / `Node3D` | **路径唯一运行时入口**；索引、世界点解析、校验和调试绘制。 |
+| `scripts/path/PathManager.gd` | `PathManager` / `Node3D` | 初始路径索引、世界点解析、校验和调试绘制入口。 |
+| `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 从手工路径集中选取确定性最短可用后缀，可选绘制换路调试线。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 复用地形斜俯视投影绘制 M4 路线/入口/据点。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
 | `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 1:1 命名、旧关卡关联识别和波次自动绑定回归。 |
@@ -47,7 +51,9 @@
 LevelResource.paths / spawn_points
   -> PathManager.load_level -> path_id index + runtime line markers
   -> WaveManager SpawnGroupDefinition.path
-  -> PathManager.get_world_points + PathDefinition.cells -> EnemyUnit movement/blocker order
+  -> PathManager.get_world_points + PathDefinition.cells -> EnemyUnit initial movement/blocker order
+  -> rock at next cell -> PathRoutePlanner.find_detour
+     -> temporary per-enemy route (does not mutate PathDefinition)
 
 LevelResource.paths -> BuildingManager path-cell cache
   -> ordinary towers rejected / barrier allowed outside spawn and base
@@ -76,6 +82,9 @@ Level Editor path page
 | `PathManager.get_path_definition` | `(path_id: StringName) -> PathDefinition` | 通过稳定 ID 返回路径定义。 |
 | `PathManager.get_world_points` | `(path: PathDefinition) -> PackedVector3Array` | 把路径格转为带高度世界点。 |
 | `PathManager.is_path_valid` | `(path: PathDefinition) -> bool` | 校验边界、长度和相邻连续性。 |
+| `PathRoutePlanner.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入网格相邻与地块可通行事实源。 |
+| `PathRoutePlanner.load_level` | `(level_resource: LevelResource) -> void` | 替换候选手工路径集并清理调试线。 |
+| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered: bool, found: bool, path: PathDefinition, cells: Array[Vector3i], cost: int, join_cell: Vector3i}`；选最短安全后缀，平分按路径序列化顺序。 |
 | `LevelResource.validate_m4` | `() -> Array[String]` | 只读检查据点边界，路径长度/边界/逐段相邻/终点，出生点边界，以及波次组数量、间隔和引用；空数组表示通过。 |
 | `TileEditorPanel._on_path_canvas_clicked` | `(cell: Vector3i) -> void` | 仅在记录开启时追加首格或相邻格；拒绝非相邻点击并保留原路径。 |
 | `TileEditorPanel._sync_spawn_for_path` | `(path: PathDefinition, known_spawn: SpawnPointDefinition = null) -> SpawnPointDefinition` | 为路径复用或创建唯一出生点并同步命名/起点。 |
@@ -84,6 +93,9 @@ Level Editor path page
 ## 约定事实源
 
 - 路径顺序是出生点到据点，敌人不可反向解释。
+- 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
+- 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
+- 候选后缀不得包含大石头或空洞；建筑屏障不使路径失效，仍由敌人停步攻击。
 - `canonical_edge_id` 是默认双向边屏障的阻挡事实；路径正反穿过同一物理边均受阻。只有关闭 `blocks_both_directions` 的未来变种才使用 `from_cell -> to_cell` 单向规则。
 - 每条路径的末格必须等于 LevelResource.`base_cell`；出生点与路径 1:1，它的格始终同步为路径首格。波次中路径是选择事实源，出生点随之自动绑定。
 - 路径页与波次页的路径选项统一使用 `display_name [path_id]`，禁止用子资源的 `resource_path` 或所属关卡文件名作为标签。
@@ -93,5 +105,5 @@ Level Editor path page
 
 ## 已知限制 / 初版不做的部分
 
-- 不做分叉、合流、图寻路、动态路径重算或路径共享导航网格。
+- 不做自由格网 A*、导航网格或一次串联多条候选路径。每次阻挡事件只转入一条手工路径的后缀；后续再遇阻碍时可再次选路。
 - 旧关卡未使用 `spawn_<path_id>` 命名时，编辑器会综合已有 SpawnGroup 引用与起点格识别候选；只有候选唯一时才会绑定。多个候选会显示歧义提示且不创建更多出生点。只有点击“同步当前路径出生点”或编辑该路径时才会将唯一旧出生点改为新命名。

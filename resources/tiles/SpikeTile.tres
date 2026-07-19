@@ -1,11 +1,10 @@
 [gd_resource type="Resource" script_class="TilePreset" format=3]
 
 [ext_resource type="Script" path="res://scripts/tile/TilePreset.gd" id="1_preset"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Buildable.tres" id="2_definition"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="2_definition"]
 
 [resource]
 script = ExtResource("1_preset")
-display_name = "可建造"
+display_name = "尖刺格子"
+tile_type = 2
 definition = ExtResource("2_definition")
-tile_type = 0
-height_level = 0

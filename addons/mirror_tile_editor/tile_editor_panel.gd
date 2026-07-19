@@ -30,6 +30,7 @@ var _height_brush_select: OptionButton
 var _inspector: VBoxContainer
 var _selected_label: Label
 var _tile_type_select: OptionButton
+var _tile_preset_options: Array = []
 var _tile_height: SpinBox
 var _destroy_button: Button
 var _palette_button_group := ButtonGroup.new()
@@ -136,9 +137,9 @@ func _build_interface() -> void:
 	palette_title.text = "地块调色板"
 	palette_title.add_theme_font_size_override("font_size", 16)
 	sidebar.add_child(palette_title)
-	_add_palette_item(sidebar, "可建造", "res://resources/tiles/BuildableTile.tres")
-	_add_palette_item(sidebar, "可破坏障碍", "res://resources/tiles/DestructibleTile.tres")
-	_add_palette_item(sidebar, "不可建造路面", "res://resources/tiles/BlockedTile.tres")
+	_tile_preset_options = _load_tile_presets()
+	for option in _tile_preset_options:
+		_add_palette_item(sidebar, str(option["label"]), str(option["path"]))
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override("font_color", Color(0.65, 0.77, 0.88, 1.0))
@@ -199,6 +200,31 @@ func _add_palette_item(sidebar: VBoxContainer, label: String, path: String) -> v
 	palette_item.pressed.connect(_on_brush_selected.bind(path))
 	sidebar.add_child(palette_item)
 
+func _load_tile_presets() -> Array:
+	var result: Array = []
+	var directory := DirAccess.open("res://resources/tiles")
+	if directory == null:
+		return result
+	var file_names := PackedStringArray()
+	directory.list_dir_begin()
+	var file_name := directory.get_next()
+	while not file_name.is_empty():
+		if not directory.current_is_dir() and file_name.ends_with(".tres"):
+			file_names.append(file_name)
+		file_name = directory.get_next()
+	directory.list_dir_end()
+	file_names.sort()
+	for candidate in file_names:
+		var path := "res://resources/tiles/%s" % candidate
+		var preset: Resource = ResourceLoader.load(path)
+		if preset != null and preset.has_method("make_tile"):
+			result.append({
+				"label": str(preset.get("display_name")),
+				"path": path,
+				"preset": preset,
+			})
+	return result
+
 func _add_terrain_color_controls(sidebar: VBoxContainer) -> void:
 	var title := Label.new()
 	title.text = "高度配色"
@@ -234,9 +260,9 @@ func _add_inspector_controls() -> void:
 	_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_inspector.add_child(_selected_label)
 	_tile_type_select = OptionButton.new()
-	_tile_type_select.add_item("可建造", 0)
-	_tile_type_select.add_item("可破坏障碍", 1)
-	_tile_type_select.add_item("不可建造路面", 2)
+	for option in _tile_preset_options:
+		_tile_type_select.add_item(str(option["label"]))
+		_tile_type_select.set_item_metadata(_tile_type_select.item_count - 1, option["path"])
 	_tile_type_select.item_selected.connect(_on_tile_type_changed)
 	_inspector.add_child(_with_label("地块类型", _tile_type_select))
 	_tile_height = _make_spin_box(0.0, 15.0, 1.0)
@@ -465,9 +491,14 @@ func _make_default_tiles(shape_id: int, grid_size: Vector2i) -> Array:
 	var result: Array = []
 	var shape: IGridShape = HexGridShape.new() if shape_id == HEX_SHAPE else SquareGridShape.new()
 	shape.setup(_level.grid_cell_size if _level != null else 1.0)
+	var default_preset: Resource = ResourceLoader.load("res://resources/tiles/BuildableTile.tres")
 	for cell in shape.enumerate_cells(grid_size):
-		var tile: Resource = TileCellDataScript.new()
-		tile.call("configure", cell, 0, 0)
+		var tile: Resource
+		if default_preset != null and default_preset.has_method("make_tile"):
+			tile = default_preset.call("make_tile", cell, _level.height_levels if _level != null else 1)
+		else:
+			tile = TileCellDataScript.new()
+			tile.call("configure", cell, 0, 0)
 		result.append(tile)
 	return result
 
@@ -596,7 +627,7 @@ func _on_cell_selected(cell: Vector3i) -> void:
 	_selected_label.text = "cell = %s" % str(cell)
 	_tile_type_select.set_block_signals(true)
 	_tile_height.set_block_signals(true)
-	_tile_type_select.select(int(tile.get("tile_type")) if tile != null else 0)
+	_tile_type_select.select(_find_tile_preset_index(tile))
 	_tile_height.max_value = maxi(0, _level.height_levels - 1)
 	_tile_height.value = int(tile.get("height_level")) if tile != null else 0
 	_tile_type_select.set_block_signals(false)
@@ -606,12 +637,36 @@ func _on_cell_selected(cell: Vector3i) -> void:
 
 func _on_tile_type_changed(index: int) -> void:
 	var tile := _selected_tile(true)
-	if tile == null:
+	if tile == null or index < 0 or index >= _tile_type_select.item_count:
 		return
-	tile.call("set_tile_type", index)
+	var preset_path: String = str(_tile_type_select.get_item_metadata(index))
+	var preset: Resource = ResourceLoader.load(preset_path)
+	if preset == null:
+		return
+	var definition: Resource = preset.get("definition")
+	if definition != null:
+		tile.call("set_definition", definition, int(preset.get("tile_type")))
+	else:
+		tile.call("set_tile_type", int(preset.get("tile_type")))
 	_mark_level_changed()
 	_destroy_button.visible = bool(tile.call("is_destructible"))
 	_canvas.call("refresh")
+
+func _find_tile_preset_index(tile: Resource) -> int:
+	if tile == null or _tile_type_select.item_count == 0:
+		return 0
+	var tile_definition: Resource = tile.get("definition")
+	var tile_definition_id: StringName = tile_definition.get("tile_id") if tile_definition != null else &""
+	for index in range(_tile_type_select.item_count):
+		var preset: Resource = ResourceLoader.load(str(_tile_type_select.get_item_metadata(index)))
+		if preset == null:
+			continue
+		var preset_definition: Resource = preset.get("definition")
+		if tile_definition != null and preset_definition != null and preset_definition.get("tile_id") == tile_definition_id:
+			return index
+		if tile_definition == null and preset_definition == null and int(preset.get("tile_type")) == int(tile.get("tile_type")):
+			return index
+	return 0
 
 func _on_tile_height_changed(value: float) -> void:
 	var tile := _selected_tile(true)

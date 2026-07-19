@@ -95,6 +95,9 @@ func validate_edge(
 	if not _grid.is_in_bounds(to_cell):
 		result["failure"] = "边屏障只能放在两个有效地块之间"
 		return result
+	if not _tile_manager.allows_edge_building(from_cell) or not _tile_manager.allows_edge_building(to_cell):
+		result["failure"] = "该边两侧的地块未同时允许边建筑"
+		return result
 	var canonical_id := _grid.canonical_edge_id(from_cell, placement_edge_index)
 	result["edge_id"] = canonical_id
 	var occupied: Variant = edge_building_resolver.call(canonical_id) if edge_building_resolver.is_valid() else null

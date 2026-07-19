@@ -244,13 +244,44 @@ func _draw_tile_marker(cell: Vector3i, tile: Resource, world_height: float) -> v
 	var center_world := _shape.cell_to_world(cell)
 	var center := _project_world(Vector3(center_world.x, world_height, center_world.z))
 	var marker_radius := clampf(_view_zoom * 0.12, 4.0, 12.0)
-	if bool(tile.call("is_destructible")):
+	var visual_kind: int = int(tile.call("get_visual_kind")) if tile.has_method("get_visual_kind") else 0
+	var visual_color: Color = tile.call("get_visual_color") if tile.has_method("get_visual_color") else BLOCKED_MARKER_COLOR
+	if visual_kind == TileDefinition.VisualKind.SPIKES:
+		_draw_spike_marker(center, marker_radius, visual_color)
+	elif visual_kind == TileDefinition.VisualKind.HOLE:
+		draw_circle(center, marker_radius * 1.25, visual_color)
+		draw_arc(center, marker_radius * 1.25, 0.0, TAU, 24, OUTLINE_COLOR.darkened(0.45), 1.5, true)
+	elif visual_kind == TileDefinition.VisualKind.ROCK:
+		var rock := PackedVector2Array([
+			center + Vector2(-marker_radius, marker_radius * 0.55),
+			center + Vector2(-marker_radius * 0.72, -marker_radius * 0.58),
+			center + Vector2(-marker_radius * 0.12, -marker_radius),
+			center + Vector2(marker_radius * 0.82, -marker_radius * 0.52),
+			center + Vector2(marker_radius, marker_radius * 0.48),
+			center + Vector2(marker_radius * 0.18, marker_radius),
+		])
+		draw_colored_polygon(rock, visual_color)
+		var rock_outline := PackedVector2Array(rock)
+		rock_outline.append(rock[0])
+		draw_polyline(rock_outline, OUTLINE_COLOR.darkened(0.35), 1.5, true)
+	elif bool(tile.call("is_destructible")):
 		draw_circle(center, marker_radius, OBSTACLE_COLOR)
 		draw_arc(center, marker_radius, 0.0, TAU, 20, BLOCKED_MARKER_COLOR, 1.5, true)
 	elif bool(tile.call("is_blocked")):
 		var diagonal := marker_radius * 0.8
 		draw_line(center + Vector2(-diagonal, -diagonal), center + Vector2(diagonal, diagonal), BLOCKED_MARKER_COLOR, 2.0, true)
 		draw_line(center + Vector2(-diagonal, diagonal), center + Vector2(diagonal, -diagonal), BLOCKED_MARKER_COLOR, 2.0, true)
+
+func _draw_spike_marker(center: Vector2, radius: float, color: Color) -> void:
+	var offsets := [Vector2(-radius * 0.62, radius * 0.35), Vector2.ZERO, Vector2(radius * 0.62, radius * 0.35)]
+	for offset in offsets:
+		var spike_center: Vector2 = center + offset
+		var spike := PackedVector2Array([
+			spike_center + Vector2(-radius * 0.32, radius * 0.35),
+			spike_center + Vector2(0.0, -radius * 0.72),
+			spike_center + Vector2(radius * 0.32, radius * 0.35),
+		])
+		draw_colored_polygon(spike, color)
 
 func _draw_m4_overlay() -> void:
 	for path in _overlay_paths:
@@ -377,10 +408,15 @@ func _apply_preset_to_cell(cell: Vector3i, preset_path: String) -> bool:
 	var preset_resource: Resource = ResourceLoader.load(preset_path)
 	if preset_resource == null:
 		return false
-	var preset_type: int = int(preset_resource.get("tile_type"))
-	var preset_height: int = int(preset_resource.get("height_level"))
-	var tile: Resource = TileCellDataScript.new()
-	tile.call("configure", cell, preset_type, clampi(preset_height, 0, level.height_levels - 1))
+	var current_tile: Resource = level.get_tile(cell)
+	var preserved_height: int = int(current_tile.get("height_level")) if current_tile != null else int(preset_resource.get("height_level"))
+	var tile: Resource
+	if preset_resource.has_method("make_tile"):
+		tile = preset_resource.call("make_tile", cell, level.height_levels)
+	else:
+		tile = TileCellDataScript.new()
+		tile.call("configure", cell, int(preset_resource.get("tile_type")), 0)
+	tile.call("set_height_level", preserved_height, level.height_levels)
 	level.store_tile(tile)
 	return true
 
@@ -443,7 +479,10 @@ func _height_color(tile: Resource) -> Color:
 	if level == null:
 		return Color.WHITE
 	var height_level: int = 0 if tile == null else int(tile.get("height_level"))
-	return level.get_height_color(height_level)
+	var fallback := level.get_height_color(height_level)
+	if tile != null and tile.has_method("get_terrain_color"):
+		return tile.call("get_terrain_color", fallback)
+	return fallback
 
 func _wall_color(top_color: Color) -> Color:
 	return Color(

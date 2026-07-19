@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="TilePreset" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TilePreset" format=3]
 
 [ext_resource type="Script" path="res://scripts/tile/TilePreset.gd" id="1_preset"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/Destructible.tres" id="2_definition"]
 
 [resource]
 script = ExtResource("1_preset")
 display_name = "可破坏障碍"
+definition = ExtResource("2_definition")
 tile_type = 1
 height_level = 0

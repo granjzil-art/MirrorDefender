@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile / Path · 关卡地块元素与手工路径换路 — 2026-07-19
+**模块**：Tile / Level / Path / Unit / Combat / Building / Wave / Main / Godot 编辑器工具 / Tests。
+
+- 新增数据驱动 `TileDefinition` / `TileEffect`：尖刺按占格时间造成可配 DPS，空洞进格即死并可配掉落倍率，大石头作为永久不可攻击导航阻碍；三者默认禁止块建筑、允许边建筑。
+- 关卡编辑器改为自动发现 `resources/tiles/*.tres`，新增三种连续画笔、Inspector 类型选择与可辨识灰盒；类型涂刷保留高度，高度刷仍不改类型。
+- 新增 `PathRoutePlanner`：敌人仅在大石头前一格触发，从相交/相邻的其他手工路径选择剩余边数最短且不含石头/空洞的后缀；无路原地等待，支持六边形/正方形，不修改初始路径资源。
+- EnemyUnit 增加逐格进入与按移动时长的停留分发，高速移动不会跳过空洞；建筑屏障仍停步攻击，不参与地形换路。
+- 新增 45 项 Godot 4.7 回归断言，覆盖旧地块兼容、共享边双侧权限、元素空渲染批次、HEX/SQUARE 最短路、无路等待、尖刺帧率无关、高速空洞与资源不变性。
+
 ## Path / Level Editor · 路径与出生点 1:1 命名 — 2026-07-19
 **模块**：Path / Level / Godot 编辑器工具 / Tests。
 
