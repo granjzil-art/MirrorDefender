@@ -19,6 +19,7 @@ const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 signal facing_changed(building: Building, facing_index: int, facing_slots: int)
 signal level_changed(building: Building, level: int, stats: BuildingLevelStats)
 signal attack_performed(building: Building, target: CombatTarget, damage: float, continuous: bool)
+signal copy_attack_triggered(building: Building, attack_kind: StringName, world_start: Vector3, world_end: Vector3, damage: float)
 signal durability_changed(building: Building, current: float, maximum: float)
 signal structure_destroyed(building: Building, attacker: Node)
 
@@ -318,6 +319,38 @@ func get_laser_damage_per_second() -> float:
 func get_combat_manager() -> CombatManager:
 	return _combat_manager
 
+func get_copy_kind() -> StringName:
+	if definition == null or is_edge_placement():
+		return &""
+	if definition.kind == BuildingDefinition.Kind.BARRIER:
+		return &"barrier"
+	if definition.kind == BuildingDefinition.Kind.LASER_TOWER:
+		return &"laser_tower"
+	if definition.kind == BuildingDefinition.Kind.ARROW_TOWER:
+		return &"arrow_tower"
+	return &""
+
+func get_copy_display_name() -> String:
+	return definition.display_name if definition != null else "建筑"
+
+func get_copy_color() -> Color:
+	return _stats.tower_color if _stats != null else Color.WHITE
+
+func get_projectile_speed_world() -> float:
+	return _stats.projectile_speed * _grid.cell_size if _stats != null and _grid != null else 1.0
+
+func get_projectile_length_world() -> float:
+	return _stats.projectile_length * _grid.cell_size if _stats != null and _grid != null else 0.2
+
+func get_projectile_width_world() -> float:
+	return _stats.projectile_width * _grid.cell_size if _stats != null and _grid != null else 0.05
+
+func get_attack_color() -> Color:
+	return _stats.attack_color if _stats != null else Color.WHITE
+
+func notify_copy_attack(attack_kind: StringName, world_start: Vector3, world_end: Vector3, damage: float) -> void:
+	copy_attack_triggered.emit(self, attack_kind, world_start, world_end, maxf(0.0, damage))
+
 func launch_projectile(target: CombatTarget, damage: float) -> Projectile:
 	if _combat_manager == null or _stats == null:
 		return null
@@ -333,6 +366,7 @@ func launch_projectile(target: CombatTarget, damage: float) -> Projectile:
 	)
 	if projectile != null:
 		projectile.impacted.connect(_on_projectile_impacted)
+		notify_copy_attack(&"projectile", get_attack_origin(), target.get_target_position(), damage)
 	return projectile
 
 func show_attack_line(world_end: Vector3, _persistent: bool) -> void:

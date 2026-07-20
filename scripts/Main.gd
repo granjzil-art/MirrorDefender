@@ -17,12 +17,16 @@ const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
 const LevelDebugPanelScript := preload("res://scripts/level/LevelDebugPanel.gd")
 const M3DebugPanelScript := preload("res://scripts/ui/M3DebugPanel.gd")
 const BuildingActionPanelScript := preload("res://scripts/ui/BuildingActionPanel.gd")
+const MirrorActionPanelScript := preload("res://scripts/ui/MirrorActionPanel.gd")
 const PathManagerScript := preload("res://scripts/path/PathManager.gd")
 const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
 const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
 const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd")
 const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
+const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
+const MirrorManagerScript := preload("res://scripts/mirror/MirrorManager.gd")
+const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
 
@@ -42,11 +46,14 @@ const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBa
 
 var _camera: Camera3D
 var _building_action_panel: BuildingActionPanel
+var _mirror_action_panel: MirrorActionPanel
 var path_manager: PathManager
 var base_core: BaseCore
 var wave_manager: WaveManager
 var tile_effect_system: TileEffectSystem
 var path_route_planner: PathRoutePlanner
+var edge_occupancy_registry: EdgeOccupancyRegistry
+var mirror_manager: MirrorManager
 var _wave_status_panel: WaveStatusPanel
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
@@ -62,11 +69,31 @@ func _ready() -> void:
 	tile_renderer.set_tile_manager(tile_manager)
 	building_manager.barrier = BarrierDefinitionResource
 	building_manager.edge_barrier = EdgeBarrierDefinitionResource
+	edge_occupancy_registry = EdgeOccupancyRegistryScript.new()
+	building_manager.set_edge_occupancy_registry(edge_occupancy_registry)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
-	m3_debug_panel.configure(building_manager, resource_manager, combat_manager)
+	mirror_manager = MirrorManagerScript.new()
+	add_child(mirror_manager)
+	mirror_manager.copy_mirror_definition = CopyMirrorDefinitionResource
+	mirror_manager.configure(
+		grid,
+		tile_manager,
+		resource_manager,
+		combat_manager,
+		building_manager,
+		edge_occupancy_registry
+	)
+	building_manager.building_selected.connect(_on_building_selected_for_exclusivity)
+	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)
+	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
+	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
+	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
 	_building_action_panel.configure(building_manager, _camera)
+	_mirror_action_panel = MirrorActionPanelScript.new()
+	$HUD.add_child(_mirror_action_panel)
+	_mirror_action_panel.configure(mirror_manager, _camera)
 	path_manager = PathManagerScript.new()
 	add_child(path_manager)
 	path_manager.configure(grid, tile_manager)
@@ -76,6 +103,7 @@ func _ready() -> void:
 	tile_effect_system = TileEffectSystemScript.new()
 	add_child(tile_effect_system)
 	tile_effect_system.configure(tile_manager)
+	tile_effect_system.set_effect_overlay_resolver(Callable(mirror_manager, "get_projected_effects"))
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
 	path_route_planner.configure(grid, tile_manager)
@@ -209,6 +237,13 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 				ceili(edge_building.current_durability),
 				ceili(edge_building.maximum_durability),
 			])
+		else:
+			var edge_mirror := mirror_manager.get_mirror(edge.id)
+			if edge_mirror != null:
+				lines.append("边占位: 复制镜 | 生效侧 %s | 当前投影 %d" % [
+					str(edge_mirror.get_active_cell()),
+					mirror_manager.get_projections().size(),
+				])
 	else:
 		lines.append("拾取边 = (无)")
 	if _has_selected_cell:
@@ -251,10 +286,26 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 				selected_stats.attack_range,
 				selected_stats.resource_per_second,
 			])
+	var selected_mirror := mirror_manager.get_selected_mirror()
+	if selected_mirror != null:
+		lines.append("镜子: 复制镜 | 边 %s | 生效侧 %s | R 翻面 / Delete 删除" % [
+			selected_mirror.edge_id,
+			str(selected_mirror.get_active_cell()),
+		])
+	var mirror_preview := mirror_manager.get_preview_info()
+	if not mirror_preview.is_empty():
+		if bool(mirror_preview.get("has_source", false)):
+			lines.append("镜像预览: %s → %s | %s" % [
+				str(mirror_preview.source_cell),
+				str(mirror_preview.target_cell),
+				"、".join(mirror_preview.types),
+			])
+		else:
+			lines.append("镜像预览: %s" % str(mirror_preview.warning))
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 边障可放任意内部共享边 | 右键选择模式 | R 旋转建筑 | F 清障 | 右上开始波次"
+	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 右键选择模式 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | 右上开始波次"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):
@@ -270,10 +321,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cancel_action"):
 		m3_debug_panel.cancel_to_select()
 	elif event.is_action_pressed("rotate_facing"):
-		if m3_debug_panel.get_selected_definition() != null:
+		if m3_debug_panel.is_copy_mirror_mode():
+			mirror_manager.flip_preview()
+		elif mirror_manager.get_selected_mirror() != null:
+			mirror_manager.flip_selected()
+		elif m3_debug_panel.get_selected_definition() != null:
 			building_manager.rotate_preview()
 		else:
 			building_manager.rotate_selected()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_DELETE:
+		mirror_manager.remove_selected_mirror()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F:
 		_destroy_selected_obstacle()
 
@@ -305,6 +362,15 @@ func _handle_primary_action() -> void:
 				edge_index,
 				m3_debug_panel.get_selected_definition()
 			)
+		M3DebugPanelScript.InteractionMode.BUILD_COPY_MIRROR:
+			if not edge_pick.hit:
+				m3_debug_panel.report_no_cell()
+				return
+			mirror_manager.place_copy_mirror(
+				edge_pick.cell,
+				edge_pick.edge_index,
+				mirror_manager.get_preview_info().get("active_cell", edge_pick.cell) == edge_pick.cell
+			)
 		M3DebugPanelScript.InteractionMode.SPAWN_TARGET:
 			var target_position := grid.cell_to_world(cell)
 			target_position.y = tile_manager.get_world_height(cell) + 0.02
@@ -312,9 +378,22 @@ func _handle_primary_action() -> void:
 				m3_debug_panel.report_target_spawned()
 		_:
 			_lock_current_pick()
-			building_manager.select_at(cell, edge_pick.id if edge_pick.hit else "")
+			var selected_mirror := mirror_manager.select_at_edge(edge_pick.id if edge_pick.hit else "")
+			if selected_mirror != null:
+				building_manager.select_building(null)
+			else:
+				mirror_manager.select_mirror(null)
+				building_manager.select_at(cell, edge_pick.id if edge_pick.hit else "")
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
+	if m3_debug_panel.is_copy_mirror_mode():
+		building_manager.clear_preview()
+		if get_viewport().gui_get_hovered_control() != null or not edge_pick.hit:
+			mirror_manager.clear_preview()
+			return
+		mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index)
+		return
+	mirror_manager.clear_preview()
 	var definition := m3_debug_panel.get_selected_definition()
 	if definition == null or get_viewport().gui_get_hovered_control() != null:
 		building_manager.clear_preview()
@@ -362,3 +441,11 @@ func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> vo
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
 	m3_debug_panel.cancel_to_select()
+
+func _on_building_selected_for_exclusivity(building: Building) -> void:
+	if building != null and mirror_manager.get_selected_mirror() != null:
+		mirror_manager.select_mirror(null)
+
+func _on_mirror_selected_for_exclusivity(mirror: CopyMirror) -> void:
+	if mirror != null and building_manager.get_selected_building() != null:
+		building_manager.select_building(null)

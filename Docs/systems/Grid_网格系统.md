@@ -103,6 +103,7 @@ Main（场景装配）
 - **私有**：`_rebuild_shape()`（按 grid_shape new 出 shape 并 setup）。
 - **转发 API**（透传当前 shape，参数同接口）：`cell_to_world` / `world_to_cell` / `get_neighbors` / `distance` / `get_corners` / `get_edge_endpoints` / `neighbor_across_edge` / `canonical_edge_id` / `edge_count` / `enumerate_cells()`（用自身 grid_size）/ `is_in_bounds(cell)`（用自身 grid_size）。
 - **有向边与方向 API**：`directed_edge_id(from_cell: Vector3i, to_cell: Vector3i) -> String`；`find_edge_index(from_cell: Vector3i, to_cell: Vector3i) -> int`；`get_geometry_tag() -> StringName`；`get_tile_building_facing_count() -> int`；`get_edge_building_facing_count() -> int`。
+- **镜像离散几何 API**：`get_mirror_cell_pair(from_cell, edge_index, active_from_side, distance_from_edge) -> Dictionary` 返回 `{valid, source_cell, target_cell}`；方形/六边形坐标步进只存在于 GridManager，Mirror 不读取具体坐标布局。
 - **关卡装配 API**：`apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void`。LevelResource 只传数据，仍由 GridManager 自己触发 shape 重建和 `grid_changed`；Tile 模块不直接 new 具体 shape。
 - **拾取**（供放置/UI）：
   | 函数 | 签名 | 返回 Dictionary 结构 |

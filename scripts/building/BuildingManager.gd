@@ -37,6 +37,8 @@ var _preview_edge_id: String = ""
 var _preview_facing_index: int = 0
 var _placement_rules: RefCounted = BuildingPlacementRulesScript.new()
 var _building_exit_callbacks: Dictionary = {}
+var _edge_occupancy_registry: EdgeOccupancyRegistry
+var _projection_blocker_resolver: Callable
 
 func configure(
 	grid_manager: GridManager,
@@ -57,6 +59,12 @@ func configure(
 	edge_barrier = _reload_definition(edge_barrier)
 	if _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
+
+func set_edge_occupancy_registry(value: EdgeOccupancyRegistry) -> void:
+	_edge_occupancy_registry = value
+
+func set_projection_blocker_resolver(value: Callable) -> void:
+	_projection_blocker_resolver = value
 
 func place_building(
 	cell: Vector3i,
@@ -122,6 +130,12 @@ func place_edge_building(
 		_disconnect_building_lifecycle(building)
 		building.queue_free()
 		placement_failed.emit(from_cell, "资源不足或达到建筑上限")
+		return null
+	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(canonical_id, building):
+		_resource_manager.unregister_building(level_one_stats.cost)
+		_disconnect_building_lifecycle(building)
+		building.queue_free()
+		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
 	_edge_buildings[canonical_id] = building
 	_sync_building_income()
@@ -324,7 +338,14 @@ func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node =
 		var edge_building := get_edge_building(_grid.canonical_edge_id(from_cell, edge_index))
 		if edge_building != null and edge_building.blocks_edge_traversal(from_cell, to_cell) and edge_building.is_structure_alive() and edge_building.affects_target(target):
 			return edge_building
-	return get_path_blocker(to_cell, target)
+	var tile_blocker := get_path_blocker(to_cell, target)
+	if tile_blocker != null:
+		return tile_blocker
+	if _projection_blocker_resolver.is_valid():
+		var projected: Variant = _projection_blocker_resolver.call(to_cell, target)
+		if projected is Node:
+			return projected
+	return null
 
 func is_path_cell(cell: Vector3i) -> bool:
 	return _placement_rules.is_path_cell(cell)
@@ -346,7 +367,7 @@ func _validate_edge_placement(
 		from_cell,
 		placement_edge_index,
 		definition,
-		Callable(self, "get_edge_building"),
+		Callable(self, "_get_edge_occupant"),
 		check_economy
 	)
 
@@ -398,6 +419,8 @@ func _release_building(
 		return false
 	if building.is_edge_placement():
 		_edge_buildings.erase(building.edge_id)
+		if _edge_occupancy_registry != null:
+			_edge_occupancy_registry.unregister(building.edge_id, building)
 	else:
 		_buildings.erase(building.cell)
 	if _tile_manager != null and not building.is_edge_placement():
@@ -440,3 +463,8 @@ func _disconnect_building_lifecycle(building: Building) -> void:
 		if building.tree_exited.is_connected(exit_callback):
 			building.tree_exited.disconnect(exit_callback)
 	_building_exit_callbacks.erase(building)
+
+func _get_edge_occupant(edge_id: String) -> Object:
+	if _edge_occupancy_registry != null:
+		return _edge_occupancy_registry.get_occupant(edge_id)
+	return get_edge_building(edge_id)

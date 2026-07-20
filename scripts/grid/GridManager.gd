@@ -80,6 +80,36 @@ func neighbor_across_edge(cell: Vector3i, edge_index: int) -> Vector3i:
 func canonical_edge_id(cell: Vector3i, edge_index: int) -> String:
 	return shape.canonical_edge_id(cell, edge_index)
 
+## Returns the source/target pair at a discrete distance from an internal edge.
+## Coordinate stepping stays encapsulated here so mirror gameplay remains
+## independent from square/hex storage details.
+func get_mirror_cell_pair(
+	from_cell: Vector3i,
+	edge_index: int,
+	active_from_side: bool,
+	distance_from_edge: int
+) -> Dictionary:
+	var result := {
+		"valid": false,
+		"source_cell": Vector3i.ZERO,
+		"target_cell": Vector3i.ZERO,
+	}
+	if not is_in_bounds(from_cell) or edge_index < 0 or edge_index >= edge_count():
+		return result
+	var to_cell := neighbor_across_edge(from_cell, edge_index)
+	if not is_in_bounds(to_cell):
+		return result
+	var source_near := from_cell if active_from_side else to_cell
+	var target_near := to_cell if active_from_side else from_cell
+	var step := source_near - target_near
+	var offset := maxi(1, distance_from_edge) - 1
+	var source_cell := source_near + step * offset
+	var target_cell := target_near - step * offset
+	result["source_cell"] = source_cell
+	result["target_cell"] = target_cell
+	result["valid"] = is_in_bounds(source_cell) and is_in_bounds(target_cell)
+	return result
+
 ## Direction-sensitive route segment key. Unlike canonical_edge_id, reversing
 ## from/to produces a different key and therefore a different blocking rule.
 func directed_edge_id(from_cell: Vector3i, to_cell: Vector3i) -> String:

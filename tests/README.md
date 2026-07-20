@@ -31,3 +31,9 @@
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/airborne_effects_test.gd
 ```
+
+M5 复制镜双网格几何、最近整格复制、放置预览、非占位叠加/严格占位开关、塔攻击同步、屏障共享耐久、地块覆盖效果、递归镜链与共享物理边占用回归测试：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/copy_mirror_test.gd
+```

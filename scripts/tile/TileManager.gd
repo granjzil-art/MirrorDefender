@@ -20,6 +20,7 @@ signal occupant_changed(cell: Vector3i, occupant: Node)
 
 var _grid: GridManager
 var _tiles: Dictionary = {}
+var _navigation_overlay_resolver: Callable
 
 func _ready() -> void:
 	var level_data := _get_level()
@@ -32,6 +33,9 @@ func set_grid(value: GridManager) -> void:
 	var level_data := _get_level()
 	if is_node_ready() and level_data != null:
 		load_level(level_data)
+
+func set_navigation_overlay_resolver(value: Callable) -> void:
+	_navigation_overlay_resolver = value
 
 func load_level(level_resource: LevelResource) -> bool:
 	if not feature_enabled or level_resource == null or _grid == null:
@@ -105,11 +109,13 @@ func allows_edge_building(cell: Vector3i) -> bool:
 
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.blocks_enemy_navigation(target)
+	if tile != null and tile.blocks_enemy_navigation(target):
+		return true
+	return bool(_navigation_overlay_resolver.call(cell, target)) if _navigation_overlay_resolver.is_valid() else false
 
 func can_use_for_reroute(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.can_use_for_reroute(target)
+	return tile != null and tile.can_use_for_reroute(target) and not blocks_enemy_navigation(cell, target)
 
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)

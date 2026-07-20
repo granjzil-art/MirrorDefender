@@ -8,6 +8,7 @@ enum InteractionMode {
 	BUILD_LASER,
 	BUILD_BARRIER,
 	BUILD_EDGE_BARRIER,
+	BUILD_COPY_MIRROR,
 	SPAWN_TARGET,
 }
 
@@ -19,6 +20,7 @@ signal mode_changed(mode: InteractionMode)
 var _building_manager: BuildingManager
 var _resource_manager: ResourceManager
 var _combat_manager: CombatManager
+var _mirror_manager: MirrorManager
 var _mode: InteractionMode = InteractionMode.SELECT
 var _resource_label: Label
 var _mode_label: Label
@@ -33,12 +35,14 @@ func _ready() -> void:
 func configure(
 	building_manager: BuildingManager,
 	resource_manager: ResourceManager,
-	combat_manager: CombatManager
+	combat_manager: CombatManager,
+	mirror_manager: MirrorManager = null
 ) -> void:
 	_disconnect_managers()
 	_building_manager = building_manager
 	_resource_manager = resource_manager
 	_combat_manager = combat_manager
+	_mirror_manager = mirror_manager
 	if _resource_manager != null:
 		_resource_manager.resource_changed.connect(_on_resource_changed)
 		_resource_manager.limits_changed.connect(_on_limits_changed)
@@ -53,6 +57,11 @@ func configure(
 	if _combat_manager != null:
 		_combat_manager.target_registered.connect(_on_target_count_changed)
 		_combat_manager.target_removed.connect(_on_target_count_changed)
+	if _mirror_manager != null:
+		_mirror_manager.placement_failed.connect(_on_mirror_placement_failed)
+		_mirror_manager.mirror_selected.connect(_on_mirror_selected)
+		_mirror_manager.preview_updated.connect(_on_mirror_preview_updated)
+		_mirror_manager.preview_cleared.connect(_on_mirror_preview_cleared)
 	_refresh_summary()
 	select_mode(InteractionMode.SELECT)
 
@@ -72,6 +81,9 @@ func get_selected_definition() -> BuildingDefinition:
 		return _building_manager.get_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	return null
 
+func is_copy_mirror_mode() -> bool:
+	return _mode == InteractionMode.BUILD_COPY_MIRROR
+
 func select_mode(value: InteractionMode) -> void:
 	_mode = value
 	for index in range(_mode_buttons.size()):
@@ -80,6 +92,8 @@ func select_mode(value: InteractionMode) -> void:
 	_status_label.text = ""
 	if _building_manager != null and not _is_build_mode(value):
 		_building_manager.clear_preview()
+	if _mirror_manager != null and value != InteractionMode.BUILD_COPY_MIRROR:
+		_mirror_manager.clear_preview()
 	mode_changed.emit(_mode)
 
 func cancel_to_select() -> void:
@@ -123,6 +137,7 @@ func _build_interface() -> void:
 	_add_mode_button(modes, group, "激光塔", InteractionMode.BUILD_LASER)
 	_add_mode_button(modes, group, "屏障", InteractionMode.BUILD_BARRIER)
 	_add_mode_button(modes, group, "边障", InteractionMode.BUILD_EDGE_BARRIER)
+	_add_mode_button(modes, group, "复制镜", InteractionMode.BUILD_COPY_MIRROR)
 	_add_mode_button(modes, group, "靶标", InteractionMode.SPAWN_TARGET)
 	_mode_label = Label.new()
 	content.add_child(_mode_label)
@@ -154,11 +169,13 @@ func _refresh_summary() -> void:
 		_resource_label.text = "经济未连接"
 		return
 	var target_count := _combat_manager.get_targets().size() if _combat_manager != null else 0
-	_resource_label.text = "资源 %d  |  +%.1f/s  |  建筑 %d/%d  |  靶标 %d" % [
+	_resource_label.text = "资源 %d | +%.1f/s | 建筑 %d/%d | 镜子 %d/%d | 靶标 %d" % [
 		floori(_resource_manager.main_resource),
 		_resource_manager.get_total_resource_per_second(),
 		_resource_manager.get_building_count(),
 		_resource_manager.building_cap,
+		_resource_manager.get_mirror_count(),
+		_resource_manager.mirror_cap,
 		target_count,
 	]
 
@@ -172,6 +189,8 @@ func _get_mode_name() -> String:
 			return "放置屏障（仅路径格）"
 		InteractionMode.BUILD_EDGE_BARRIER:
 			return "放置边屏障（任意内部共享边，默认双向）"
+		InteractionMode.BUILD_COPY_MIRROR:
+			return "放置复制镜（R 翻转生效侧）"
 		InteractionMode.SPAWN_TARGET:
 			return "放置靶标"
 		_:
@@ -203,9 +222,18 @@ func _disconnect_managers() -> void:
 			_combat_manager.target_registered.disconnect(_on_target_count_changed)
 		if _combat_manager.target_removed.is_connected(_on_target_count_changed):
 			_combat_manager.target_removed.disconnect(_on_target_count_changed)
+	if _mirror_manager != null:
+		if _mirror_manager.placement_failed.is_connected(_on_mirror_placement_failed):
+			_mirror_manager.placement_failed.disconnect(_on_mirror_placement_failed)
+		if _mirror_manager.mirror_selected.is_connected(_on_mirror_selected):
+			_mirror_manager.mirror_selected.disconnect(_on_mirror_selected)
+		if _mirror_manager.preview_updated.is_connected(_on_mirror_preview_updated):
+			_mirror_manager.preview_updated.disconnect(_on_mirror_preview_updated)
+		if _mirror_manager.preview_cleared.is_connected(_on_mirror_preview_cleared):
+			_mirror_manager.preview_cleared.disconnect(_on_mirror_preview_cleared)
 
 func _is_build_mode(value: InteractionMode) -> bool:
-	return value == InteractionMode.BUILD_ARROW or value == InteractionMode.BUILD_LASER or value == InteractionMode.BUILD_BARRIER or value == InteractionMode.BUILD_EDGE_BARRIER
+	return value == InteractionMode.BUILD_ARROW or value == InteractionMode.BUILD_LASER or value == InteractionMode.BUILD_BARRIER or value == InteractionMode.BUILD_EDGE_BARRIER or value == InteractionMode.BUILD_COPY_MIRROR
 
 func _on_resource_changed(_current: float, _delta: float, _reason: String) -> void:
 	_refresh_summary()
@@ -293,3 +321,28 @@ func _on_preview_cleared() -> void:
 
 func _on_target_count_changed(_target: CombatTarget) -> void:
 	_refresh_summary()
+
+func _on_mirror_placement_failed(_cell: Vector3i, reason: String) -> void:
+	_status_label.text = reason
+	_refresh_summary()
+
+func _on_mirror_selected(mirror: CopyMirror) -> void:
+	if mirror == null:
+		return
+	_status_label.text = "已选：复制镜 | 生效侧 %s | R 翻面 | Delete 删除" % str(mirror.get_active_cell())
+	_upgrade_button.disabled = true
+	_refresh_summary()
+
+func _on_mirror_preview_updated(info: Dictionary) -> void:
+	if bool(info.get("has_source", false)):
+		_status_label.text = "镜像预览：%s → %s | %s" % [
+			str(info.get("source_cell", Vector3i.ZERO)),
+			str(info.get("target_cell", Vector3i.ZERO)),
+			"、".join(info.get("types", [])),
+		]
+	else:
+		_status_label.text = str(info.get("warning", "未找到复制源"))
+
+func _on_mirror_preview_cleared() -> void:
+	if _mode == InteractionMode.BUILD_COPY_MIRROR:
+		_status_label.text = "选择两个有效地块之间的未占用边"

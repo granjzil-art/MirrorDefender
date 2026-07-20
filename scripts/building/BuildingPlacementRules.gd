@@ -101,7 +101,7 @@ func validate_edge(
 	var canonical_id := _grid.canonical_edge_id(from_cell, placement_edge_index)
 	result["edge_id"] = canonical_id
 	var occupied: Variant = edge_building_resolver.call(canonical_id) if edge_building_resolver.is_valid() else null
-	if occupied is Building:
+	if occupied != null:
 		result["failure"] = "该物理边已被占用"
 		return result
 	if _is_enemy_on_edge(from_cell, to_cell):

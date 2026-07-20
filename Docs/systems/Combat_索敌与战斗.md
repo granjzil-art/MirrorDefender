@@ -21,6 +21,7 @@
 - **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
 - **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
+- **复制塔攻击事件**：Building 在真实投射物发射或激光每 tick 结算前发出 `copy_attack_triggered`。MirrorManager 只镜像起点/终点和本次伤害，不让虚像索敌或持有冷却；箭塔虚像使用固定终点投射物，激光虚像沿镜像线段结算，因此都允许打空。
 
 ## 关键参数
 
@@ -58,6 +59,7 @@
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定射线穿透与持续伤害。 |
 | `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 敌人攻击冷却和 `perform_attack` 调度。 |
 | `scripts/combat/EnemyProjectile.gd` | `EnemyProjectile` / `Node3D` | 面向屏障方法契约的追踪投射物、表现与命中。 |
+| `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | M5 塔虚像使用的固定终点、不追踪投射物。 |
 
 ### 模块调用关系 / 数据流
 
@@ -79,6 +81,11 @@ Laser Building facing
   -> CombatManager.get_targets_on_segment
   -> Building.affects_target filters each touched target
   -> each target.take_damage(final_dps * delta)
+
+Building.copy_attack_triggered
+  -> MirrorManager transforms start/end through projection lineage
+  -> projectile: fixed mirrored endpoint, no retarget
+  -> laser: mirrored segment tick, no independent clock
 
 CombatTarget.died -> CombatManager.target_killed(reward)
 EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(reward)

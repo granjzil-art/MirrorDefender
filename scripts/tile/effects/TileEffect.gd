@@ -33,5 +33,14 @@ func apply_enter(_target: Node) -> void:
 func apply_stay(_target: Node, _duration: float) -> void:
 	pass
 
+func get_copy_kind() -> StringName:
+	return &""
+
+func get_copy_display_name() -> String:
+	return "地块效果"
+
+func get_copy_color() -> Color:
+	return Color(0.35, 0.75, 1.0)
+
 func validate_configuration() -> Array[String]:
 	return []

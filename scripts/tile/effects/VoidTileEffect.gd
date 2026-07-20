@@ -18,3 +18,12 @@ func validate_configuration() -> Array[String]:
 	if not is_finite(reward_multiplier) or reward_multiplier < 0.0:
 		errors.append("空洞击杀资源倍率必须为有限非负数")
 	return errors
+
+func get_copy_kind() -> StringName:
+	return &"void"
+
+func get_copy_display_name() -> String:
+	return "空洞"
+
+func get_copy_color() -> Color:
+	return Color(0.08, 0.06, 0.16)

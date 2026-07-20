@@ -22,3 +22,12 @@ func validate_configuration() -> Array[String]:
 	if not is_finite(damage_per_second) or damage_per_second < 0.0:
 		errors.append("尖刺每秒伤害必须为有限非负数")
 	return errors
+
+func get_copy_kind() -> StringName:
+	return &"spike"
+
+func get_copy_display_name() -> String:
+	return "尖刺"
+
+func get_copy_color() -> Color:
+	return Color(0.9, 0.28, 0.2)

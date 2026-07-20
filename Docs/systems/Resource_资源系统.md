@@ -106,9 +106,10 @@ resource_changed / limits_changed / income_rates_changed
 - `refund_amount` 只用于玩家主动删除；战斗摧毁屏障固定传 0，不从配置退款。
 - 敌人掉落数值属于 EnemyDefinition，不复用 M3 调试靶标的 reward 作为正式配置；WaveManager 的类型收窄是防止靶标误入账的唯一连接点。
 - `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
+- 实体复制镜通过 `try_register_mirror(copy_mirror_definition.cost)` 与 `unregister_mirror(refund)` 参与镜子上限和经济；虚像不注册建筑/镜子、不产出资源、不计任何 cap。
 
 ## 已知限制 / 初版不做的部分
 
 - M4 不把泛用的 `CombatManager.target_killed` 兑换为资源，避免调试靶标或未来中立目标误入账。
 - 暂无资源上限、负资源、复利、小数 UI 或离线累计。
-- M5 投影建筑是否计入上限/产出必须由 Mirror 规则决定，不得直接复用原件注册逻辑。
+- M5 已确认虚像不计入上限和产出；未来变种若要改变经济语义，必须新增显式参数，不能复用原件注册逻辑。

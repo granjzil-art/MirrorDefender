@@ -13,6 +13,7 @@
 - **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
+- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影不修改目标 TileCellData；TileEffectSystem 叠加进入/停留效果，TileManager 叠加岩石导航阻断，并继续按源效果 `affects_airborne` 过滤。
 
 ## 编辑器使用
 
@@ -52,6 +53,7 @@
 | `scripts/tile/effects/VoidTileEffect.gd` | `VoidTileEffect` / `TileEffect` | 进格时立即击杀并应用掉落倍率。 |
 | `scripts/tile/effects/RockTileEffect.gd` | `RockTileEffect` / `TileEffect` | 声明永久导航阻断。 |
 | `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem` / `Node` | 通过 TileManager 解析地块效果并分发进入/停留事件。 |
+| `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | 提供非占位投影效果和导航覆盖查询。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 在手工路径集中选择确定性最短可用后缀。 |
 | `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 引用 TileDefinition，保留旧 `tile_type` 兼容分支。 |
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 关卡编辑器画笔预设。 |
@@ -70,6 +72,10 @@ Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
      -> TileEffectSystem -> TileEffect.affects_target -> damage/defeat or ignore
      -> PathRoutePlanner(target) -> 目标可用的 PathDefinition 后缀 -> EnemyUnit 临时路由
 
+MirrorManager projection overlay
+  -> TileEffectSystem.set_effect_overlay_resolver -> base + all projected effects
+  -> TileManager.set_navigation_overlay_resolver -> projected rock blocks navigation
+
 BuildingPlacementRules
   -> TileManager.allows_edge_building(边两侧)
   -> TileManager.can_place / can_place_path_occupant(块建筑)
@@ -87,6 +93,8 @@ BuildingPlacementRules
 | `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
 | `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
+| `TileEffect.get_copy_kind/get_copy_display_name/get_copy_color` | `() -> StringName/String/Color` | 以可扩展契约描述镜子复制语义与灰盒表现。 |
+| `TileEffectSystem.set_effect_overlay_resolver` | `(value: Callable) -> void` | 注入非占位效果覆盖层，不依赖 Mirror 类型。 |
 | `TileEffectSystem.apply_enter` | `(target: Node, cell: Vector3i) -> void` | 解析指定格并分发进入效果。 |
 | `TileEffectSystem.apply_stay` | `(target: Node, cell: Vector3i, duration: float) -> void` | 解析指定格并分发持续效果。 |
 | `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell}`；只在 `blocked_cell` 对该目标为导航阻碍时触发。 |
