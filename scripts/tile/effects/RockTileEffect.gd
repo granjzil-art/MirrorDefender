@@ -5,4 +5,3 @@ extends TileEffect
 
 func _init() -> void:
 	enemy_traversal = EnemyTraversal.BLOCKED
-	safe_for_reroute = false

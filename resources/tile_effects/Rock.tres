@@ -5,4 +5,3 @@
 [resource]
 script = ExtResource("1_effect")
 enemy_traversal = 1
-safe_for_reroute = false

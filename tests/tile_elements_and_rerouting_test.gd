@@ -46,7 +46,7 @@ func _test_tile_definition_contracts() -> void:
 	var rock := (ResourceLoader.load("res://resources/tiles/RockTile.tres") as TilePreset).make_tile(Vector3i.ZERO, 3) as TileCellData
 	_expect(rock.blocks_enemy_navigation() and not rock.can_use_for_reroute(), "rock blocks navigation and is excluded from detours")
 	var void_tile := (ResourceLoader.load("res://resources/tiles/VoidTile.tres") as TilePreset).make_tile(Vector3i.ZERO, 3) as TileCellData
-	_expect(not void_tile.blocks_enemy_navigation() and not void_tile.can_use_for_reroute(), "void is passable on an initial route but excluded from voluntary detours")
+	_expect(not void_tile.blocks_enemy_navigation() and void_tile.can_use_for_reroute(), "void is navigation-passable and remains eligible for detours")
 
 func _test_edge_permission_contract() -> void:
 	var level := _make_level(GridManager.Shape.SQUARE)
@@ -119,10 +119,46 @@ func _test_exact_intersection_and_no_route() -> void:
 	level.base_cell = Vector3i(3, 1, 0)
 	level.paths = [original, exact]
 	level.store_tile(_rock_tile(Vector3i(2, 1, 0)))
+	level.store_tile((ResourceLoader.load("res://resources/tiles/VoidTile.tres") as TilePreset).make_tile(Vector3i(2, 2, 0), 3))
 	var fixture := _make_fixture(level)
 	var result := (fixture["planner"] as PathRoutePlanner).find_detour(original, Vector3i(1, 1, 0), Vector3i(2, 1, 0))
 	_expect(bool(result["found"]) and result["join_cell"] == Vector3i(1, 1, 0), "an actual shared cell is a zero-cost path intersection")
+	_expect((result["cells"] as Array).has(Vector3i(2, 2, 0)), "a shortest detour remains selectable when its suffix contains a void")
 	_expect(int(result["cost"]) == 4, "exact-intersection score counts only remaining grid edges")
+	var effects := TileEffectSystem.new()
+	(fixture["host"] as Node).add_child(effects)
+	effects.configure(fixture["tile"] as TileManager)
+	var points := PackedVector3Array()
+	for cell in original.cells:
+		points.append((fixture["grid"] as GridManager).cell_to_world(cell))
+	var enemy_definition := EnemyDefinition.new()
+	enemy_definition.move_speed = 10.0
+	var enemy := EnemyUnit.new()
+	enemy.debug_visual_enabled = false
+	var selected_paths: Array[StringName] = []
+	enemy.rerouted.connect(func(
+		_unit: EnemyUnit,
+		_from_path: PathDefinition,
+		to_path: PathDefinition,
+		_join_cell: Vector3i
+	) -> void:
+		selected_paths.append(to_path.path_id)
+	)
+	enemy.configure_unit(
+		enemy_definition,
+		points,
+		original.cells,
+		1.0,
+		Callable(),
+		original,
+		Callable(fixture["planner"], "find_detour"),
+		func(cell: Vector3i) -> Vector3: return (fixture["grid"] as GridManager).cell_to_world(cell),
+		Callable(effects, "apply_enter"),
+		Callable(effects, "apply_stay")
+	)
+	(fixture["host"] as Node).add_child(enemy)
+	enemy._process(1.0)
+	_expect(selected_paths == [&"exact"] and not enemy.is_alive(), "enemy can select a void detour and then resolves the void defeat effect")
 	level.paths = [original]
 	(fixture["planner"] as PathRoutePlanner).load_level(level)
 	var missing := (fixture["planner"] as PathRoutePlanner).find_detour(original, Vector3i(1, 1, 0), Vector3i(2, 1, 0))

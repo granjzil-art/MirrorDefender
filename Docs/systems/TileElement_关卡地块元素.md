@@ -9,7 +9,7 @@
 ## 分类 / 玩法
 
 - **尖刺格子**：可通行；敌人占据该格的时间按秒造成持续伤害。默认 20 伤害/秒且忽略护甲。
-- **空洞格子**：初始手工路径可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。动态换路不会主动选择含空洞的后缀。
+- **空洞格子**：导航上可通行，初始路径和动态换路都可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。
 - **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
 
@@ -33,7 +33,6 @@
 | `TileDefinition` | `override_terrain_color` / `terrain_color` | 是否覆盖高度分层底色及覆盖色。 |
 | `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式美术场景接口。 |
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
-| `TileEffect` | `safe_for_reroute` | 是否允许动态换路主动选中该格。 |
 | `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |
 | `VoidTileEffect` | `reward_multiplier` | 空洞击杀时的敌人掉落倍率。 |
 | `PathRoutePlanner` | `feature_enabled` | 动态换路功能开关。 |
@@ -79,6 +78,7 @@ BuildingPlacementRules
 |---|---|---|
 | `TileDefinition.blocks_enemy_navigation` | `() -> bool` | 委托效果策略判断是否永久阻断敌人。 |
 | `TileDefinition.can_use_for_reroute` | `() -> bool` | 判断该格是否可用于候选路径后缀。 |
+| `TileEffect.can_use_for_reroute` | `() -> bool` | 仅返回该效果是否未阻断导航；不评估尖刺/空洞等危害。 |
 | `TileDefinition.get_visual_tag` / `TileCellData.get_visual_tag` | `() -> StringName` | 向编辑器工具提供稳定的灰盒类型标签，避免 tool 脚本热重载直接依赖运行时全局枚举。 |
 | `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
@@ -97,8 +97,7 @@ BuildingPlacementRules
 - 只在敌人位于当前格中心且下一格为导航阻碍时安装临时路由。
 - 候选只是其他手工 `PathDefinition`；必须包含当前格（接入代价 0）或有一格与当前格相邻（代价 1）。线条在二维投影中相交不算路径相交。
 - 选择分数为“接入边 + 候选路径后缀边数”；最低分优先，平分时按 `LevelResource.paths` 的序列化顺序稳定决胜。
-- 候选后缀每格必须在边界内、路径相邻且 `can_use_for_reroute = true`。建筑屏障仍是可攻击目标，不会使候选路径失效。
-- 候选后缀中只要有一格是大石头或空洞，整个接入点即不可用；若所有接入点都被淘汰，`find_detour` 返回 `triggered=true, found=false`，敌人原地等待。
+- 候选后缀每格必须在边界内、路径相邻且不阻断导航。地块过滤的唯一规则是 `blocks_enemy_navigation() == false`；空洞和尖刺均可选。建筑屏障仍是可攻击目标，不会使候选路径失效。
 - 换路只替换单个敌人的运行时数组，不修改 `LevelResource` 或 `PathDefinition`。后续再遇石头可再次选路。
 
 ## 已知限制

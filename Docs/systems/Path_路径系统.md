@@ -84,7 +84,7 @@ Level Editor path page
 | `PathManager.is_path_valid` | `(path: PathDefinition) -> bool` | 校验边界、长度和相邻连续性。 |
 | `PathRoutePlanner.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入网格相邻与地块可通行事实源。 |
 | `PathRoutePlanner.load_level` | `(level_resource: LevelResource) -> void` | 替换候选手工路径集并清理调试线。 |
-| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered: bool, found: bool, path: PathDefinition, cells: Array[Vector3i], cost: int, join_cell: Vector3i}`；选最短安全后缀，平分按路径序列化顺序。 |
+| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered: bool, found: bool, path: PathDefinition, cells: Array[Vector3i], cost: int, join_cell: Vector3i}`；选不含导航阻碍的最短后缀，平分按路径序列化顺序。 |
 | `LevelResource.validate_m4` | `() -> Array[String]` | 只读检查据点边界，路径长度/边界/逐段相邻/终点，出生点边界，以及波次组数量、间隔和引用；空数组表示通过。 |
 | `TileEditorPanel._on_path_canvas_clicked` | `(cell: Vector3i) -> void` | 仅在记录开启时追加首格或相邻格；拒绝非相邻点击并保留原路径。 |
 | `TileEditorPanel._sync_spawn_for_path` | `(path: PathDefinition, known_spawn: SpawnPointDefinition = null) -> SpawnPointDefinition` | 为路径复用或创建唯一出生点并同步命名/起点。 |
@@ -95,7 +95,7 @@ Level Editor path page
 - 路径顺序是出生点到据点，敌人不可反向解释。
 - 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
 - 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
-- 候选后缀不得包含大石头或空洞；建筑屏障不使路径失效，仍由敌人停步攻击。
+- 候选后缀只排除大石头等导航阻碍；空洞与尖刺均可被选中，敌人进入后再结算地块效果。建筑屏障不使路径失效，仍由敌人停步攻击。
 - `canonical_edge_id` 是默认双向边屏障的阻挡事实；路径正反穿过同一物理边均受阻。只有关闭 `blocks_both_directions` 的未来变种才使用 `from_cell -> to_cell` 单向规则。
 - 每条路径的末格必须等于 LevelResource.`base_cell`；出生点与路径 1:1，它的格始终同步为路径首格。波次中路径是选择事实源，出生点随之自动绑定。
 - 路径页与波次页的路径选项统一使用 `display_name [path_id]`，禁止用子资源的 `resource_path` 或所属关卡文件名作为标签。

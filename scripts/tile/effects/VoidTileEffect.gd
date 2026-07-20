@@ -8,7 +8,6 @@ extends TileEffect
 
 func _init() -> void:
 	enemy_traversal = EnemyTraversal.PASSABLE
-	safe_for_reroute = false
 
 func apply_enter(target: Node) -> void:
 	if target != null and is_instance_valid(target) and target.has_method("defeat"):

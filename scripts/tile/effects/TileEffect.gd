@@ -10,14 +10,12 @@ enum EnemyTraversal {
 
 @export_group("Navigation")
 @export_enum("Passable", "Blocked") var enemy_traversal: int = EnemyTraversal.PASSABLE
-## False excludes this tile from a voluntarily selected detour suffix.
-@export var safe_for_reroute: bool = true
 
 func blocks_enemy_navigation() -> bool:
 	return enemy_traversal == EnemyTraversal.BLOCKED
 
 func can_use_for_reroute() -> bool:
-	return not blocks_enemy_navigation() and safe_for_reroute
+	return not blocks_enemy_navigation()
 
 func apply_enter(_target: Node) -> void:
 	pass

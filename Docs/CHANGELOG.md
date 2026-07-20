@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Path / Tile · 动态换路只排除导航阻碍 — 2026-07-20
+**模块**：Path / Tile / Level / Unit / Tests。
+
+- 按最终玩法规则收敛候选判定：只有 `enemy_traversal=BLOCKED` 的导航障碍会使手工路径后缀不可用；空洞与尖刺均可被选中，敌人进格后再正常结算死亡/伤害。
+- 移除会与唯一规则冲突的 `TileEffect.safe_for_reroute` 参数及旧资源字段，`can_use_for_reroute()` 现在只是“未阻断导航”的稳定查询。
+- `M4DemoLevel` 的空洞恢复到路径 3 后缀 `(1, 0, -1)`；换路回归扩展至 50 项断言，覆盖“最短路径含空洞仍可选”及敌人进入后正常掉落死亡。
+
 ## Level / Path · 修正 M4 换路示例与运行时验收 — 2026-07-20
 **模块**：Level / Tile / Path / Unit / Tests。
 
