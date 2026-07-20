@@ -100,9 +100,10 @@
 - 复制镜只有生效面显示实时平面反射；背面使用不反射的深色镜背。反射内容来自与主场景共享的 `World3D`，包含完整地形、建筑、敌人和场景效果，不是单独建筑贴图。
 - 镜面相机使用与实体镜面矩形匹配的离轴视锥；位置由主相机关于镜面轴反射得到。镜面材质位于独立可见层，反射相机排除该层以阻断镜中镜无限渲染。
 - 实际镜面刷新由 `MirrorManager` 轮询调度；只刷新主相机视锥内且正面朝向相机的镜子，并限制刷新间隔与每帧上限。放置预览使用独立低分辨率。
-- 建筑投影复制 `Building` 当前 `_visual_root` 的静态视觉快照；地块元素投影通过 `TileRenderer.create_tile_visual_snapshot()` 复用正常地块的地表、真实高度、侧壁、路径/高度基底色、障碍与元素几何；元素内容不改写快照基底色。
+- 建筑投影复制 `Building` 当前 `_visual_root` 的静态视觉快照；地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
 - 所有视觉快照按 payload 的完整镜链做严格仿射反射。不得用圆盘、圆柱、方块等独立几何替代地块/建筑，也不得用位移、缩放或垂直错层拆开重叠虚像。
 - 投影保留源内容主色，叠加强度可调的半透明、发光与边缘高光；同格多项投影只通过不同强调色、同心标识环和悬停标签区分，标识不参与玩法也不替代源几何。
+- 同格透明投影按稳定的叠放序号分配 `render_priority`，且不写入深度缓冲；重建时先隐藏旧投影再延迟释放，避免新旧几何在同一帧闪烁。
 - 悬停投影格时 HUD 与世界标签显示同格虚像数量、类型、序号和复制链深度。
 - 投影不播放独立待机或攻击动画；攻击表现由原件事件同步驱动。
 
@@ -171,7 +172,7 @@ CopyMirror
 
 MirrorProjection
   ├─ payload / lineage / composed_transform
-  ├─ Building 或 TileRenderer 提供的真实视觉快照
+  ├─ Building 真实视觉快照 / TileRenderer 地块内容快照
   ├─ 不写入地块 occupant
   └─ 屏障伤害转发与玩法代理
 ```
@@ -183,7 +184,7 @@ MirrorProjection
 - TileManager 与 TileEffectSystem 只通过注入的投影覆盖查询协作，不持有 Mirror 节点。
 - 塔只发出“原件攻击事件”；MirrorManager 负责生成同步投影攻击，塔不直接依赖镜子模块。
 - 复制源以稳定 payload 接口描述，MirrorManager 不按节点名或资源路径硬编码玩法类型。
-- Main 只注入主相机和 `TileRenderer.create_tile_visual_snapshot` Callable；MirrorManager 不持有 TileRenderer 具体类型。
+- Main 只注入主相机和 `TileRenderer.create_tile_content_visual_snapshot` Callable；MirrorManager 不持有 TileRenderer 具体类型。
 
 ### 实现文件
 
@@ -194,14 +195,14 @@ MirrorProjection
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧和程序化表现。 |
 | `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、离轴视锥和反射贴图。 |
 | `scripts/mirror/MirrorCopyPayload.gd` | `MirrorCopyPayload` / `RefCounted` | 稳定来源、镜子谱系和复合反射变换。 |
-| `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源视觉快照、严格反射材质/标识、屏障与地块效果代理。 |
+| `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、稳定透明渲染顺序、严格反射标识、屏障与地块效果代理。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、预览、固定点镜链和跨模块查询。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子的删除/翻面按钮。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 提供无行为、无独立动画时钟的当前建筑视觉。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_visual_snapshot` 用正常渲染器同一几何路径生成完整单格视觉。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 55 项双网格、玩法联调、真实快照与平面反射回归。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 60 项双网格、玩法联调、内容快照、稳定透明顺序与平面反射回归。 |
 
 ## 六、函数索引
 
@@ -216,13 +217,13 @@ MirrorProjection
 | `MirrorManager.resolve_projected_blocker` | `(cell, target = null) -> Node` | 向 BuildingManager 提供投影屏障代理。 |
 | `MirrorManager.update_preview` / `flip_preview` | `(from_cell, edge_index) -> bool` / `() -> bool` | 构建镜面、源格/目标格信息和投影虚影，翻面后重算。 |
 | `MirrorManager.set_reflection_camera` | `(camera: Camera3D) -> void` | 注入主相机并为已有/预览镜面建立共享世界反射。 |
-| `MirrorManager.set_tile_visual_snapshot_resolver` | `(resolver: Callable) -> void` | 注入完整地块视觉快照工厂，保持 Mirror/Tile 模块边界。 |
+| `MirrorManager.set_tile_visual_snapshot_resolver` | `(resolver: Callable) -> void` | 注入不含地形基底的地块内容快照工厂，保持 Mirror/Tile 模块边界。 |
 | `MirrorManager.set_inspected_cell` | `(cell: Variant = null) -> void` | 切换同格虚像悬停标签，不移动任何虚像几何。 |
 | `MirrorCopyPayload.copy_through` | `(mirror_id, target_cell, axis_start, axis_end) -> MirrorCopyPayload` | 追加谱系与镜像轴，产生下一层不可变语义 payload。 |
 | `MirrorCopyPayload.transform_point` | `(point) -> Vector3` | 按谱系顺序应用复合镜像，供同步攻击使用。 |
 | `MirrorCopyPayload.get_composed_transform` / `transform_transform` | `() -> Transform3D` / `(source_transform: Transform3D) -> Transform3D` | 把点反射谱系组合为仿射变换，并严格作用到源视觉姿态。 |
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
-| `TileRenderer.create_tile_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块几何函数生成地表、侧壁、障碍和元素快照。 |
+| `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 可见且面向主相机时更新反射相机并请求 SubViewport 单帧刷新。 |
 | `CopyMirror.refresh_visual` | `() -> void` | Definition 表现参数变化时重建镜框、镜面目标与当前生效面。 |
 | `EdgeOccupancyRegistry.try_register` / `unregister` | `(edge_id, occupant) -> bool` / `(edge_id, expected = null) -> bool` | 原子登记/释放物理边。 |

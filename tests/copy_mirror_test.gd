@@ -76,13 +76,22 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var tower_projection := _find_projection_kind(projections, &"arrow_tower")
 	var tile_projection := _find_projection_kind(projections, &"spike")
 	_expect(tower_projection.get_visual_snapshot() != null, "tower projection reuses a snapshot of the source Building visual")
-	_expect(tile_projection.get_visual_snapshot() != null, "tile-effect projection reuses a snapshot of the complete source tile visual")
+	_expect(tile_projection.get_visual_snapshot() != null, "tile-effect projection reuses a snapshot of the source tile content")
 	var source_center := grid.cell_to_world(source_cell)
 	var mirrored_source_center := tile_projection.payload.transform_point(source_center)
 	var rendered_source_center := tile_projection.get_visual_snapshot().global_transform * source_center
 	_expect(rendered_source_center.distance_to(mirrored_source_center) < 0.001, "tile snapshot geometry receives the exact mirror transform without substitute offsets")
 	_expect(tower_projection.global_position.distance_to(tile_projection.global_position) < 0.001, "overlapping projections remain on the same exact target transform")
-	_expect(_snapshot_uses_immediate_mesh(tile_projection.get_visual_snapshot()), "tile projection keeps TileRenderer terrain and element geometry instead of a primitive substitute")
+	_expect(_snapshot_uses_immediate_mesh(tile_projection.get_visual_snapshot()), "tile projection keeps TileRenderer element geometry instead of a primitive substitute")
+	_expect(not _snapshot_has_named_mesh(tile_projection.get_visual_snapshot(), "Terrain"), "tile projection excludes the source terrain base")
+	_expect(_snapshot_has_named_mesh(tile_projection.get_visual_snapshot(), "Element"), "tile projection preserves the source tile element")
+	_expect(_projection_materials_have_stable_order(projections), "overlapping transparent projections use deterministic render priorities without depth writes")
+	var retired_projection := tile_projection
+	mirror_manager.rebuild_now()
+	_expect(not retired_projection.visible, "projection rebuild hides retired visuals before deferred deletion")
+	projections = mirror_manager.get_projections(target_cell)
+	tower_projection = _find_projection_kind(projections, &"arrow_tower")
+	tile_projection = _find_projection_kind(projections, &"spike")
 	_expect(tile_manager.get_occupant(target_cell) == null, "default projections do not write TileCellData occupancy")
 	var reflection_camera := Camera3D.new()
 	host.add_child(reflection_camera)
@@ -190,7 +199,8 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	var recursive := rock_mirrors.get_projections(Vector3i(6, 2, 0))
 	_expect(not recursive.is_empty() and recursive[0].payload.chain_depth == 2, "an existing projection can be copied through a second mirror")
 	_expect(recursive[0].payload.lineage.size() == 2, "recursive payload records a finite two-mirror lineage")
-	_expect(recursive[0].get_visual_snapshot() != null and _snapshot_uses_immediate_mesh(recursive[0].get_visual_snapshot()), "recursive tile projection keeps the original complete tile snapshot")
+	_expect(recursive[0].get_visual_snapshot() != null and _snapshot_uses_immediate_mesh(recursive[0].get_visual_snapshot()), "recursive tile projection keeps the original tile-content snapshot")
+	_expect(not _snapshot_has_named_mesh(recursive[0].get_visual_snapshot(), "Terrain"), "recursive tile projection never introduces terrain base geometry")
 	var original_rock_center := rock_grid.cell_to_world(Vector3i(2, 2, 0))
 	var recursive_rendered_center := recursive[0].get_visual_snapshot().global_transform * original_rock_center
 	_expect(recursive_rendered_center.distance_to(recursive[0].payload.transform_point(original_rock_center)) < 0.001, "recursive tile snapshot applies every mirror axis to the original geometry")
@@ -252,7 +262,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	)
 	mirror_manager.copy_mirror_definition = definition as CopyMirrorDefinition
 	mirror_manager.configure(grid, tile_manager, resource_manager, combat_manager, building_manager, registry)
-	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_visual_snapshot"))
+	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
 	var loader := LevelLoader.new()
@@ -302,6 +312,15 @@ func _make_effect_tile(cell: Vector3i, effect: TileEffect, allows_building: bool
 	definition.allows_tile_building = allows_building
 	definition.allows_edge_building = true
 	definition.effect = effect
+	if effect is SpikeTileEffect:
+		definition.visual_kind = TileDefinition.VisualKind.SPIKES
+		definition.visual_color = Color(0.95, 0.28, 0.20, 1.0)
+	elif effect is VoidTileEffect:
+		definition.visual_kind = TileDefinition.VisualKind.HOLE
+		definition.visual_color = Color(0.01, 0.015, 0.025, 1.0)
+	elif effect is RockTileEffect:
+		definition.visual_kind = TileDefinition.VisualKind.ROCK
+		definition.visual_color = Color(0.08, 0.085, 0.09, 1.0)
 	var tile := TileCellData.new()
 	tile.configure(cell, TileCellData.TileType.BUILDABLE, 0, definition)
 	return tile
@@ -339,6 +358,35 @@ func _snapshot_uses_immediate_mesh(snapshot: Node3D) -> bool:
 		if child is Node3D and _snapshot_uses_immediate_mesh(child):
 			return true
 	return false
+
+func _snapshot_has_named_mesh(snapshot: Node3D, mesh_name: String) -> bool:
+	if snapshot == null:
+		return false
+	var child := snapshot.get_node_or_null(NodePath(mesh_name))
+	return child is MeshInstance3D and child.mesh is ImmediateMesh
+
+func _projection_materials_have_stable_order(projections: Array[MirrorProjection]) -> bool:
+	var priorities: Dictionary = {}
+	for projection in projections:
+		var mesh := _find_first_mesh_instance(projection.get_visual_snapshot())
+		if mesh == null or not mesh.material_override is StandardMaterial3D:
+			return false
+		var material := mesh.material_override as StandardMaterial3D
+		if material.depth_draw_mode != BaseMaterial3D.DEPTH_DRAW_DISABLED or priorities.has(material.render_priority):
+			return false
+		priorities[material.render_priority] = true
+	return priorities.size() == projections.size()
+
+func _find_first_mesh_instance(node: Node) -> MeshInstance3D:
+	if node == null:
+		return null
+	if node is MeshInstance3D:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _find_first_mesh_instance(child)
+		if found != null:
+			return found
+	return null
 
 func _find_projection_projectile(combat_manager: CombatManager) -> MirrorProjectionProjectile:
 	for child in combat_manager.get_children():

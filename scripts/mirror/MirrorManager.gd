@@ -501,6 +501,7 @@ func _refresh_preview_projection() -> void:
 func _clear_projection_nodes() -> void:
 	for projection in _projections:
 		if is_instance_valid(projection):
+			projection.visible = false
 			projection.queue_free()
 	_projections.clear()
 	_projections_by_cell.clear()
@@ -508,6 +509,7 @@ func _clear_projection_nodes() -> void:
 func _clear_preview_projections() -> void:
 	for projection in _preview_projections:
 		if is_instance_valid(projection):
+			projection.visible = false
 			projection.queue_free()
 	_preview_projections.clear()
 

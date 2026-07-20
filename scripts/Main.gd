@@ -83,7 +83,7 @@ func _ready() -> void:
 		building_manager,
 		edge_occupancy_registry
 	)
-	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_visual_snapshot"))
+	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
 	mirror_manager.set_reflection_camera(_camera)
 	building_manager.building_selected.connect(_on_building_selected_for_exclusivity)
 	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)

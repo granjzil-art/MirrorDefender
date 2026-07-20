@@ -49,7 +49,7 @@ func _run() -> void:
 	_expect(tile_manager.place_occupant(occupied_path_cell, occupant), "fixture places a building-like occupant on a path tile")
 	_expect(renderer.get_base_terrain_color(occupied_path_cell).is_equal_approx(before_occupancy), "occupant never changes the tile base color")
 	var snapshot := renderer.create_tile_visual_snapshot(path_element_cell)
-	_expect(_snapshot_terrain_uses_color(snapshot, PATH_COLOR), "mirror tile snapshot preserves the separated #ffb93b path base")
+	_expect(_snapshot_terrain_uses_color(snapshot, PATH_COLOR), "full tile snapshot preserves the separated #ffb93b path base")
 	snapshot.free()
 	var editor_canvas := TileEditorCanvasScript.new()
 	root.add_child(editor_canvas)

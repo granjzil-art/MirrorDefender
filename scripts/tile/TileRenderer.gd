@@ -1,7 +1,7 @@
 ## TileRenderer -- M2 greybox terrain presentation.
 ##
 ## This renderer listens to TileManager signals and never changes tile state.
-## Terrain uses LevelResource height colors; raised cells expose needed cliff faces.
+## Terrain uses LevelResource path/height colors; raised cells expose needed cliff faces.
 class_name TileRenderer
 extends Node3D
 
@@ -100,34 +100,42 @@ func get_base_terrain_color(cell: Vector3i) -> Color:
 	return tile.get_terrain_color(fallback)
 
 func create_tile_visual_snapshot(cell: Vector3i) -> Node3D:
+	return _create_tile_visual_snapshot(cell, true)
+
+func create_tile_content_visual_snapshot(cell: Vector3i) -> Node3D:
+	return _create_tile_visual_snapshot(cell, false)
+
+func _create_tile_visual_snapshot(cell: Vector3i, include_base_terrain: bool) -> Node3D:
 	if not feature_enabled or _grid == null or _tile_manager == null:
 		return null
 	var tile := _tile_manager.get_tile(cell)
 	if tile == null:
 		return null
 	var snapshot := Node3D.new()
-	snapshot.name = "TileVisualSnapshot"
-	var terrain_mesh := ImmediateMesh.new()
-	terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
-		terrain_mesh.surface_end()
-		_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material)
+	snapshot.name = "TileVisualSnapshot" if include_base_terrain else "TileContentVisualSnapshot"
+	if include_base_terrain:
+		var terrain_mesh := ImmediateMesh.new()
+		terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+		if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
+			terrain_mesh.surface_end()
+			_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material, "Terrain")
 	if tile.is_destructible():
 		var obstacle_mesh := ImmediateMesh.new()
 		obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 		_add_obstacle_geometry(obstacle_mesh, tile)
 		obstacle_mesh.surface_end()
-		_add_snapshot_instance(snapshot, obstacle_mesh, _obstacle_material)
+		_add_snapshot_instance(snapshot, obstacle_mesh, _obstacle_material, "Obstacle")
 	if tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
 		var element_mesh := ImmediateMesh.new()
 		element_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 		if _add_element_geometry(element_mesh, tile):
 			element_mesh.surface_end()
-			_add_snapshot_instance(snapshot, element_mesh, _element_material)
+			_add_snapshot_instance(snapshot, element_mesh, _element_material, "Element")
 	return snapshot
 
-func _add_snapshot_instance(parent: Node3D, mesh: Mesh, source_material: Material) -> void:
+func _add_snapshot_instance(parent: Node3D, mesh: Mesh, source_material: Material, instance_name: String) -> void:
 	var instance := MeshInstance3D.new()
+	instance.name = instance_name
 	instance.mesh = mesh
 	instance.material_override = source_material.duplicate() if source_material != null else null
 	parent.add_child(instance)

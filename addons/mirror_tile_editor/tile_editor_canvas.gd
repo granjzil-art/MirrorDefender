@@ -56,6 +56,10 @@ var _is_painting: bool = false
 var _last_paint_position := Vector2.ZERO
 var _painted_cells: Dictionary = {}
 var _path_edit_enabled: bool = false
+var _is_recording_path: bool = false
+var _last_path_position := Vector2.ZERO
+var _has_last_recorded_path_cell: bool = false
+var _last_recorded_path_cell: Vector3i = Vector3i.ZERO
 var _overlay_paths: Array[PathDefinition] = []
 var _overlay_spawn_points: Array[SpawnPointDefinition] = []
 var _overlay_selected_path: PathDefinition
@@ -114,6 +118,8 @@ func set_level(value: LevelResource) -> void:
 	_brush_preset_path = ""
 	_height_brush_level = -1
 	_painted_cells.clear()
+	_is_recording_path = false
+	_has_last_recorded_path_cell = false
 	_refresh_layout()
 	call_deferred("reset_view")
 
@@ -135,6 +141,9 @@ func set_path_edit_enabled(value: bool) -> void:
 		_brush_mode = BrushMode.NONE
 		_brush_preset_path = ""
 		_height_brush_level = -1
+	else:
+		_is_recording_path = false
+		_has_last_recorded_path_cell = false
 
 func set_m4_overlay(
 	paths: Array[PathDefinition],
@@ -337,9 +346,10 @@ func _gui_input(event: InputEvent) -> void:
 			if event.pressed:
 				grab_focus()
 				if _path_edit_enabled:
-					_select_cell_at(event.position)
-					if has_selected_cell:
-						path_cell_clicked.emit(selected_cell)
+					_is_recording_path = true
+					_has_last_recorded_path_cell = false
+					_last_path_position = event.position
+					_record_path_at(event.position)
 					accept_event()
 					return
 				_is_painting = true
@@ -350,12 +360,20 @@ func _gui_input(event: InputEvent) -> void:
 			else:
 				_is_painting = false
 				_painted_cells.clear()
+				_is_recording_path = false
+				_has_last_recorded_path_cell = false
 			accept_event()
 			return
-	if event is InputEventMouseMotion and _is_painting:
-		_paint_between(_last_paint_position, event.position)
-		_last_paint_position = event.position
-		accept_event()
+	if event is InputEventMouseMotion:
+		if _is_recording_path:
+			_record_path_between(_last_path_position, event.position)
+			_last_path_position = event.position
+			accept_event()
+			return
+		if _is_painting:
+			_paint_between(_last_paint_position, event.position)
+			_last_paint_position = event.position
+			accept_event()
 
 func _select_cell_at(position: Vector2) -> void:
 	var hit := _find_cell(position)
@@ -372,6 +390,28 @@ func _paint_between(from: Vector2, to: Vector2) -> void:
 	for index in range(steps + 1):
 		var point := from.lerp(to, float(index) / float(steps))
 		_paint_at(point)
+
+func _record_path_between(from: Vector2, to: Vector2) -> void:
+	var distance := from.distance_to(to)
+	var steps := maxi(1, ceili(distance / BRUSH_SAMPLE_SPACING))
+	for index in range(steps + 1):
+		var point := from.lerp(to, float(index) / float(steps))
+		_record_path_at(point)
+
+func _record_path_at(position: Vector2) -> void:
+	var hit := _find_cell(position)
+	if hit.is_empty():
+		return
+	var cell: Vector3i = hit.cell
+	if _has_last_recorded_path_cell and cell == _last_recorded_path_cell:
+		return
+	_last_recorded_path_cell = cell
+	_has_last_recorded_path_cell = true
+	selected_cell = cell
+	has_selected_cell = true
+	cell_selected.emit(cell)
+	path_cell_clicked.emit(cell)
+	queue_redraw()
 
 func _paint_at(position: Vector2) -> void:
 	if _brush_mode == BrushMode.NONE:

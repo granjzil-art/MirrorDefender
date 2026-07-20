@@ -1,9 +1,13 @@
-## Runtime projection overlay. It reuses the source's complete visual snapshot,
-## applies the exact composed reflection, and never occupies TileCellData.
+## Runtime projection overlay. It reuses a source building or tile-content
+## snapshot, applies the exact composed reflection, and never occupies TileCellData.
 class_name MirrorProjection
 extends Node3D
 
 static var _shared_rim_shader: Shader
+
+const PROJECTION_PRIORITY_BASE := 8
+const PROJECTION_PRIORITY_STRIDE := 2
+const PREVIEW_PRIORITY_OFFSET := 64
 
 var payload: MirrorCopyPayload
 var preview_mode: bool = false
@@ -147,6 +151,8 @@ func _make_projection_material(source_material: Material) -> StandardMaterial3D:
 	material.albedo_color = color
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.render_priority = _get_render_priority(false)
 	material.emission_enabled = true
 	material.emission = source_color.lerp(_accent_color, maxf(0.34, tint_strength))
 	material.emission_energy_multiplier = _definition.projection_emission_energy
@@ -157,7 +163,7 @@ func _make_rim_material() -> ShaderMaterial:
 		_shared_rim_shader = Shader.new()
 		_shared_rim_shader.code = """
 shader_type spatial;
-render_mode unshaded, cull_disabled, blend_mix, depth_prepass_alpha;
+render_mode unshaded, cull_disabled, blend_mix;
 uniform vec4 accent : source_color;
 uniform float rim_alpha = 0.42;
 void fragment() {
@@ -169,6 +175,7 @@ void fragment() {
 """
 	var material := ShaderMaterial.new()
 	material.shader = _shared_rim_shader
+	material.render_priority = _get_render_priority(true)
 	material.set_shader_parameter("accent", _accent_color)
 	material.set_shader_parameter("rim_alpha", _definition.projection_rim_alpha)
 	return material
@@ -205,7 +212,16 @@ func _make_line_material(color: Color) -> StandardMaterial3D:
 	material.emission_energy_multiplier = _definition.projection_emission_energy
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.render_priority = _get_render_priority(true)
 	return material
+
+func _get_render_priority(overlay_pass: bool) -> int:
+	var preview_offset := PREVIEW_PRIORITY_OFFSET if preview_mode else 0
+	var priority := PROJECTION_PRIORITY_BASE + preview_offset + _stack_index * PROJECTION_PRIORITY_STRIDE
+	if overlay_pass:
+		priority += 1
+	return clampi(priority, Material.RENDER_PRIORITY_MIN, Material.RENDER_PRIORITY_MAX)
 
 func _resolve_accent_color() -> Color:
 	var stable_hash := absi(payload.stable_key.hash()) if payload != null else 0

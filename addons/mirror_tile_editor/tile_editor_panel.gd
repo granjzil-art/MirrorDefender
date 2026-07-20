@@ -877,19 +877,71 @@ func _on_path_canvas_clicked(cell: Vector3i) -> void:
 		return
 	if not path.cells.is_empty() and path.cells.back() == cell:
 		return
+	var cells_to_append: Array[Vector3i] = [cell]
 	if not path.cells.is_empty():
 		var shape: IGridShape = HexGridShape.new() if _level.grid_shape == HEX_SHAPE else SquareGridShape.new()
 		shape.setup(_level.grid_cell_size)
 		var previous_cell: Vector3i = path.cells.back()
-		if not shape.get_neighbors(previous_cell).has(cell):
+		cells_to_append = _get_path_cells_to_append(shape, previous_cell, cell)
+		if cells_to_append.is_empty():
 			_status.text = "未添加：%s 与路径末格 %s 不相邻。" % [str(cell), str(previous_cell)]
 			return
 	var paired_spawn := _level.get_spawn_point_for_path(path)
-	path.cells.append(cell)
+	path.cells.append_array(cells_to_append)
 	_sync_spawn_for_path(path, paired_spawn)
 	_mark_level_changed()
 	_refresh_path_controls()
 	_refresh_wave_group_controls()
+
+func _get_path_cells_to_append(
+	shape: IGridShape,
+	previous_cell: Vector3i,
+	target_cell: Vector3i
+) -> Array[Vector3i]:
+	if shape.get_neighbors(previous_cell).has(target_cell):
+		return [target_cell]
+	if not shape is SquareGridShape or previous_cell.z != 0 or target_cell.z != 0:
+		return []
+	var step := Vector3i.ZERO
+	if previous_cell.x == target_cell.x:
+		step.y = signi(target_cell.y - previous_cell.y)
+	elif previous_cell.y == target_cell.y:
+		step.x = signi(target_cell.x - previous_cell.x)
+	else:
+		return []
+	if step == Vector3i.ZERO:
+		return []
+	var result: Array[Vector3i] = []
+	var current := previous_cell + step
+	while current != target_cell:
+		result.append(current)
+		current += step
+	result.append(target_cell)
+	return result
+
+func _normalize_square_path_gaps(level: LevelResource) -> int:
+	if level == null or level.grid_shape != GridManager.Shape.SQUARE:
+		return 0
+	var shape := SquareGridShape.new()
+	shape.setup(level.grid_cell_size)
+	var inserted_cells := 0
+	for path in level.paths:
+		if path == null or path.cells.size() < 2:
+			continue
+		var normalized: Array[Vector3i] = [path.cells[0]]
+		for index in range(1, path.cells.size()):
+			var previous_cell: Vector3i = normalized.back()
+			var target_cell: Vector3i = path.cells[index]
+			var segment := _get_path_cells_to_append(shape, previous_cell, target_cell)
+			if segment.is_empty():
+				normalized.append(target_cell)
+				continue
+			inserted_cells += maxi(0, segment.size() - 1)
+			normalized.append_array(segment)
+		path.cells = normalized
+	if inserted_cells > 0:
+		level.emit_changed()
+	return inserted_cells
 
 func _remove_last_path_cell() -> void:
 	var path := _get_selected_path()
@@ -1205,12 +1257,16 @@ func _on_load_dialog_file_selected(path: String, dialog: EditorFileDialog) -> vo
 func _load_level_file(path: String) -> void:
 	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	if resource is LevelResource:
+		var inserted_path_cells := _normalize_square_path_gaps(resource)
 		_set_level(resource)
 		_save_path.text = path
 		_undo_redo.clear_history()
 		_update_history_buttons()
-		_set_dirty(false)
-		_status.text = "已加载 %s" % path
+		_set_dirty(inserted_path_cells > 0)
+		if inserted_path_cells > 0:
+			_status.text = "已加载 %s，并补齐 %d 个四边形路径中间格；请保存关卡。" % [path, inserted_path_cells]
+		else:
+			_status.text = "已加载 %s" % path
 	else:
 		_status.text = "加载失败：不是 LevelResource"
 

@@ -14,7 +14,7 @@
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
 - **基底/元素分层**：尖刺、空洞和大石头只用 `visual_color` / `visual_scene` 绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
-- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影不修改目标 TileCellData；TileEffectSystem 叠加进入/停留效果，TileManager 叠加岩石导航阻断，并继续按源效果 `affects_airborne` 过滤。
+- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；TileEffectSystem 叠加进入/停留效果，TileManager 叠加岩石导航阻断，并继续按源效果 `affects_airborne` 过滤。
 
 ## 编辑器使用
 

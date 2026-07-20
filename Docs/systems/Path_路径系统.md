@@ -15,7 +15,7 @@
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
 - **地形换路**：大石头是不可攻击的导航阻碍。EnemyUnit 抵达其前一格中心时，PathRoutePlanner 在其他手工路径中选择“当前格相交/相邻 + 后缀可通行”的最短候选；无候选时原地等待。
 - **表现**：全部 `PathDefinition.cells` 的并集使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，运行时与关卡编辑器一致。PathManager 另行绘制可关闭的路线与出生点调试标记；BaseCore 绘制据点标记。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
-- **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，记录首格时建立同编号出生点，避免空路径在坐标零点显示伪入口。记录中只接受与末格相邻的格，非相邻点击会显示两端坐标且不修改数据。波次页只编辑路径，出生点为随路径自动绑定的只读项。
+- **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，可按住左键连续拖过地块，画布会按鼠标轨迹采样并逐格记录。四边形同行/同列的跳格端点会自动补全中间格；加载旧关卡时也执行同一无歧义修复并标记为未保存。其它非相邻落点仍会被拒绝。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
 
 ## 关键参数
@@ -44,7 +44,7 @@
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 从手工路径集中选取确定性最短可用后缀，可选绘制换路调试线。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 复用地形斜俯视投影绘制 M4 路线/入口/据点。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
-| `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 1:1 命名、旧关卡关联识别和波次自动绑定回归。 |
+| `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 1:1 命名、四边形连续记录/旧路径补全、关联识别和波次自动绑定回归。 |
 | `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 路径格并集、默认色和运行时/编辑器一致性回归。 |
 
 ### 数据流
@@ -89,7 +89,9 @@ Level Editor path page
 | `PathRoutePlanner.load_level` | `(level_resource: LevelResource) -> void` | 替换候选手工路径集并清理调试线。 |
 | `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered: bool, found: bool, path: PathDefinition, cells: Array[Vector3i], cost: int, join_cell: Vector3i}`；选不含导航阻碍的最短后缀，平分按路径序列化顺序。 |
 | `LevelResource.validate_m4` | `() -> Array[String]` | 只读检查据点边界，路径长度/边界/逐段相邻/终点，出生点边界，以及波次组数量、间隔和引用；空数组表示通过。 |
-| `TileEditorPanel._on_path_canvas_clicked` | `(cell: Vector3i) -> void` | 仅在记录开启时追加首格或相邻格；拒绝非相邻点击并保留原路径。 |
+| `TileEditorCanvas._record_path_between` | `(from: Vector2, to: Vector2) -> void` | 按屏幕轨迹采样鼠标拖动，为路径页依次发送经过格。 |
+| `TileEditorPanel._on_path_canvas_clicked` | `(cell: Vector3i) -> void` | 仅在记录开启时追加格；四边形同行/同列跳格会补全中间格，其它非相邻落点仍拒绝。 |
+| `TileEditorPanel._normalize_square_path_gaps` | `(level: LevelResource) -> int` | 加载时将旧四边形路径中同行/同列的首尾段补成逐格路径，返回新增格数。 |
 | `TileEditorPanel._sync_spawn_for_path` | `(path: PathDefinition, known_spawn: SpawnPointDefinition = null) -> SpawnPointDefinition` | 为路径复用或创建唯一出生点并同步命名/起点。 |
 | `TileEditorPanel._get_path_option_label` / `_get_spawn_option_label` | `(...Definition) -> String` | 为路径页和波次页生成同一套“显示名 `[ID]`”标签。 |
 

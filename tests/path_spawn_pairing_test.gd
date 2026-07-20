@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TileEditorPanel := preload("res://addons/mirror_tile_editor/tile_editor_panel.gd")
+const TileEditorCanvas := preload("res://addons/mirror_tile_editor/tile_editor_canvas.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -12,6 +13,7 @@ func _run() -> void:
 	print("[PathSpawnPairing] running")
 	_test_definition_naming()
 	_test_legacy_pair_lookup()
+	await _test_square_continuous_path_recording()
 	await _test_editor_creation_and_wave_binding()
 	if _failures == 0:
 		print("[PathSpawnPairing] PASS: %d checks" % _checks)
@@ -55,10 +57,55 @@ func _test_legacy_pair_lookup() -> void:
 	_expect(level.get_spawn_point_candidates_for_path(path).size() == 2, "legacy duplicate candidates are exposed as ambiguous")
 	_expect(level.get_spawn_point_for_path(path) == null, "ambiguous legacy spawns are not guessed")
 
+func _test_square_continuous_path_recording() -> void:
+	var level := LevelResource.new()
+	level.grid_shape = GridManager.Shape.SQUARE
+	level.grid_size = Vector2i(20, 7)
+	var canvas: Control = TileEditorCanvas.new()
+	root.add_child(canvas)
+	canvas.size = Vector2(1200.0, 700.0)
+	canvas.call("set_level", level)
+	canvas.call("reset_view")
+	var recorded_cells: Array[Vector3i] = []
+	canvas.path_cell_clicked.connect(func(cell: Vector3i) -> void: recorded_cells.append(cell))
+	var start_cell := Vector3i(19, 3, 0)
+	var end_cell := Vector3i(0, 3, 0)
+	var start_screen: Vector2 = canvas.call("_cell_center_screen", start_cell)
+	var end_screen: Vector2 = canvas.call("_cell_center_screen", end_cell)
+	canvas.call("_record_path_between", start_screen, end_screen)
+	_expect(recorded_cells.size() == 20, "square path drag records every crossed tile instead of only endpoints")
+	_expect(not recorded_cells.is_empty() and recorded_cells.front() == start_cell and recorded_cells.back() == end_cell, "square path drag preserves start-to-end order")
+	var shape := SquareGridShape.new()
+	shape.setup(level.grid_cell_size)
+	var all_adjacent := true
+	for index in range(1, recorded_cells.size()):
+		if not shape.get_neighbors(recorded_cells[index - 1]).has(recorded_cells[index]):
+			all_adjacent = false
+			break
+	_expect(all_adjacent, "every recorded square path pair is edge-adjacent")
+	var path := _make_path(&"square_drag", "四边形连续路径", start_cell)
+	path.cells = recorded_cells
+	var spawn := SpawnPointDefinition.new()
+	spawn.sync_with_path(path)
+	level.paths = [path]
+	level.spawn_points = [spawn]
+	level.base_cell = end_cell
+	_expect(level.validate_runtime().is_empty(), "recorded square path passes runtime continuity validation")
+	canvas.queue_free()
+	await process_frame
+
 func _test_editor_creation_and_wave_binding() -> void:
 	var panel: Control = TileEditorPanel.new()
 	root.add_child(panel)
 	await process_frame
+	var legacy_square := LevelResource.new()
+	legacy_square.grid_shape = GridManager.Shape.SQUARE
+	legacy_square.grid_size = Vector2i(20, 7)
+	var legacy_path := _make_path(&"legacy_square", "旧四边形路径", Vector3i(19, 3, 0))
+	legacy_path.cells = [Vector3i(19, 3, 0), Vector3i(0, 3, 0)]
+	legacy_square.paths = [legacy_path]
+	_expect(panel.call("_normalize_square_path_gaps", legacy_square) == 18, "editor migrates a straight square endpoint pair into adjacent cells")
+	_expect(legacy_path.cells.size() == 20 and legacy_path.cells[1] == Vector3i(18, 3, 0), "square path migration preserves direction and fills every intermediate tile")
 	var tile_canvas: Control = panel.get("_canvas")
 	_expect(tile_canvas != null and tile_canvas.has_method("set_level"), "editor canvas exposes set_level after tool-script loading")
 	_expect(tile_canvas != null and tile_canvas.has_method("reset_view"), "editor canvas exposes reset_view after tool-script loading")
