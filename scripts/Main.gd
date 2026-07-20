@@ -26,7 +26,9 @@ const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd"
 const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
 const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
 const MirrorManagerScript := preload("res://scripts/mirror/MirrorManager.gd")
+const LevelReflectionSurfaceScript := preload("res://scripts/fx/LevelReflectionSurface.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
+const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
 
@@ -54,6 +56,7 @@ var tile_effect_system: TileEffectSystem
 var path_route_planner: PathRoutePlanner
 var edge_occupancy_registry: EdgeOccupancyRegistry
 var mirror_manager: MirrorManager
+var level_reflection_surface: LevelReflectionSurfaceScript
 var _wave_status_panel: WaveStatusPanel
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
@@ -67,6 +70,9 @@ func _ready() -> void:
 	tile_manager.set_grid(grid)
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
+	level_reflection_surface = LevelReflectionSurfaceScript.new()
+	add_child(level_reflection_surface)
+	level_reflection_surface.configure(grid, tile_manager, _camera, LevelReflectionDefinitionResource)
 	building_manager.barrier = BarrierDefinitionResource
 	building_manager.edge_barrier = EdgeBarrierDefinitionResource
 	edge_occupancy_registry = EdgeOccupancyRegistryScript.new()

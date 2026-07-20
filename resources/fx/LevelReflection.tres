@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="LevelReflectionDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/LevelReflectionDefinition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+feature_enabled = true
+vertical_offset = 0.18
+edge_margin_cells = 1.5
+surface_tint = Color(0.12, 0.24, 0.3, 1)
+reflectivity = 0.82
+reflection_brightness = 0.92
+reflection_blur_pixels = 0.65
+fresnel_strength = 0.24
+ripple_enabled = true
+ripple_strength = 0.0028
+ripple_scale = 9.0
+ripple_speed = 0.45
+ripple_highlight_strength = 0.06
+reflection_resolution = 768
+update_interval_frames = 1
