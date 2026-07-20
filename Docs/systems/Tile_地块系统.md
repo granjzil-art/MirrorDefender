@@ -15,7 +15,7 @@
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
-- **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 或滚轮缩放观察。
+- **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 调俯仰，仅用滚轮缩放观察。
 - **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
 ## 关键参数
@@ -92,7 +92,7 @@ Level Editor M4 pages
 - 地块高度只改变 Tile 顶面与崖壁的 Y；Grid 几何仍定义在 Y=0 平面，M6 的低层激光可据 `TileManager.get_world_height()` 判定遮挡。
 - `height_color_low`、`height_color_middle`、`height_color_high` 是关卡资源的一部分；当高度档数多于 3 时，编辑器在下→中与中→上两个区间线性插值。
 - 同一组高度色同时驱动编辑器和运行时的非路面地形；`TileRenderer` 经 TileManager 查询颜色，避免渲染层直接读取关卡资源；不可建造路面由渲染器的 `blocked_color` 灰色覆盖。
-- 地块编辑画布的键盘控制只在画布获得焦点后生效：WASD 沿当前视角平移、QE 绕关卡焦点旋转、X 放大、C 缩小，滚轮同样可缩放。
+- 地块编辑画布的键盘控制只在画布获得焦点后生效：WASD 沿当前视角平移、QE 绕关卡焦点旋转、X 降低/C 提高俯仰角；缩放仅使用滚轮，最大画布倍率为 300。
 - 镜子挂在 Grid Edge，不占 Tile；地块类型不限制 M5/M6 的边镜放置。
 
 ## 函数索引
@@ -166,7 +166,7 @@ Level Editor M4 pages
 | `tile_editor_canvas.gd` | `set_brush_preset(value: String) -> void` / `_paint_between(from: Vector2, to: Vector2) -> void` | 设置当前画笔；按固定像素采样补齐鼠标路径，连续覆盖经过的格子。 |
 | `tile_editor_canvas.gd` | `set_path_edit_enabled(value: bool) -> void` / `set_m4_overlay(paths: Array, spawn_points: Array, base_cell: Vector3i, selected_path: PathDefinition) -> void` | 切换到不改地块的路径点选模式，并绘制路径、入口和据点叠加层。 |
 | `tile_editor_canvas.gd` | `set_height_brush(value: int) -> void` / `_apply_height_to_cell(cell: Vector3i, height_level: int) -> bool` | 进入独立高度刷模式；隐式默认格会按需创建，且仅更新高度，不改地块类型或清障状态。 |
-| `tile_editor_canvas.gd` | `reset_view() -> void` / `_process(delta: float) -> void` | 复位斜俯视投影；在画布焦点内消费 WASD/QE/XC 控制视角。 |
+| `tile_editor_canvas.gd` | `reset_view() -> void` / `_process(delta: float) -> void` | 复位斜俯视投影；在画布焦点内消费 WASD/QE/XC 平移、旋转和俯仰，仅由滚轮修改倍率。 |
 | `tile_editor_canvas.gd` | `_height_color(tile: Resource) -> Color` / `_draw_cell(cell: Vector3i) -> void` | 以三色高度插值绘制顶面；缺失资源按默认格绘制，并只对更低邻格绘制加深的台阶墙面。 |
 | `tile_editor_canvas.gd` | `_can_drop_data` / `_drop_data` | 判定目标格，读取 TilePreset 参数并覆盖该格，同时将预制设为后续画笔。 |
 | `tile_editor_panel.gd` | `_on_brush_selected(preset_path: String) -> void` / `_on_height_brush_changed(index: int) -> void` | 切换类型画笔或独立高度刷，两个模式互斥。 |

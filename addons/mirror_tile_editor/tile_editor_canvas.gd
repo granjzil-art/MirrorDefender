@@ -13,13 +13,15 @@ const SELECTED_PATH_COLOR := Color(1.0, 0.46, 0.18, 1.0)
 const SPAWN_COLOR := Color(0.28, 0.92, 0.55, 0.95)
 const BASE_COLOR := Color(0.32, 0.72, 1.0, 0.95)
 const WALL_DARKEN := 0.62
-const CAMERA_PITCH := deg_to_rad(52.0)
+const DEFAULT_PITCH := deg_to_rad(52.0)
+const MIN_PITCH := deg_to_rad(18.0)
+const MAX_PITCH := deg_to_rad(82.0)
 const DEFAULT_YAW := deg_to_rad(-35.0)
 const MIN_ZOOM := 6.0
-const MAX_ZOOM := 180.0
+const MAX_ZOOM := 300.0
 const CAMERA_MOVE_SPEED := 7.0
 const CAMERA_ROTATE_SPEED := deg_to_rad(72.0)
-const CAMERA_ZOOM_SPEED := 80.0
+const CAMERA_PITCH_SPEED := deg_to_rad(55.0)
 const WHEEL_ZOOM_STEP := 10.0
 const BRUSH_SAMPLE_SPACING := 4.0
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
@@ -45,6 +47,7 @@ var _shape: IGridShape
 var _ordered_cells: Array[Vector3i] = []
 var _camera_target := Vector3.ZERO
 var _camera_yaw: float = DEFAULT_YAW
+var _camera_pitch: float = DEFAULT_PITCH
 var _view_zoom: float = 48.0
 var _brush_mode: int = BrushMode.NONE
 var _brush_preset_path := ""
@@ -90,11 +93,13 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_E):
 		_camera_yaw -= CAMERA_ROTATE_SPEED * delta
 		did_change = true
+	var pitch_input := 0.0
 	if Input.is_key_pressed(KEY_X):
-		_view_zoom = clampf(_view_zoom + CAMERA_ZOOM_SPEED * delta, MIN_ZOOM, MAX_ZOOM)
-		did_change = true
+		pitch_input -= 1.0
 	if Input.is_key_pressed(KEY_C):
-		_view_zoom = clampf(_view_zoom - CAMERA_ZOOM_SPEED * delta, MIN_ZOOM, MAX_ZOOM)
+		pitch_input += 1.0
+	if pitch_input != 0.0:
+		_camera_pitch = clampf(_camera_pitch + CAMERA_PITCH_SPEED * delta * pitch_input, MIN_PITCH, MAX_PITCH)
 		did_change = true
 	if did_change:
 		_refresh_draw_order()
@@ -147,6 +152,7 @@ func refresh() -> void:
 
 func reset_view() -> void:
 	_camera_yaw = DEFAULT_YAW
+	_camera_pitch = DEFAULT_PITCH
 	if _ordered_cells.is_empty():
 		queue_redraw()
 		return
@@ -190,9 +196,9 @@ func _sort_cells_by_depth(a: Vector3i, b: Vector3i) -> bool:
 
 func _cell_depth(cell: Vector3i) -> float:
 	var camera_back := Vector3(
-		sin(_camera_yaw) * cos(CAMERA_PITCH),
-		sin(CAMERA_PITCH),
-		cos(_camera_yaw) * cos(CAMERA_PITCH)
+		sin(_camera_yaw) * cos(_camera_pitch),
+		sin(_camera_pitch),
+		cos(_camera_yaw) * cos(_camera_pitch)
 	)
 	return _shape.cell_to_world(cell).dot(camera_back)
 
@@ -462,9 +468,9 @@ func _top_polygon(cell: Vector3i) -> PackedVector2Array:
 func _project_world(world: Vector3) -> Vector2:
 	var right := Vector3(cos(_camera_yaw), 0.0, -sin(_camera_yaw))
 	var up := Vector3(
-		-sin(_camera_yaw) * sin(CAMERA_PITCH),
-		cos(CAMERA_PITCH),
-		-cos(_camera_yaw) * sin(CAMERA_PITCH)
+		-sin(_camera_yaw) * sin(_camera_pitch),
+		cos(_camera_pitch),
+		-cos(_camera_yaw) * sin(_camera_pitch)
 	)
 	var relative := world - _camera_target
 	return Vector2(

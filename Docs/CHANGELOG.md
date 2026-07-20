@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## CameraInput / Editor · XC 俯仰与更大滚轮倍率 — 2026-07-20
+**模块**：CameraInput / Main / Godot 关卡编辑器 / Tests。
+
+- 删除 `cam_zoom_in/out` 键盘缩放动作，新增 `cam_pitch_lower/raise`：X 将俯仰降至最低 18°，C 将俯仰提高至最高 82°，默认 50°，速度 55°/秒；鼠标滚轮成为唯一缩放输入。
+- 运行时相机最近距离由 5.0 降至 2.0，关卡编辑器最大画布倍率由 180 提高至 300；编辑器同步改为 XC 调俯仰、滚轮缩放，重置视角会恢复默认俯仰。
+- 新增 CameraInput 回归，覆盖动作替换、俯仰限位、俯仰不改变缩放、滚轮最大倍率、gimbal 距离和编辑器参数。
+
 ## Mirror / Visual · 提高复制镜默认高度 — 2026-07-20
 **模块**：Mirror / Tests。
 

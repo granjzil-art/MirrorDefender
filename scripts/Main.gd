@@ -4,7 +4,7 @@
 ## 这是 M3 的验收入口场景。
 ##
 ## 操作：
-##   WASD 平移镜头 / QE 旋转镜头 / XC + 滚轮 缩放
+##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放
 ##   T    切换 六边形 <-> 正方形
 ##   鼠标悬停：高亮格；靠近边时高亮边（并显示 canonical_edge_id）
 ##   左键：执行 M3 面板当前模式（选择 / 建塔 / 放靶标）
@@ -311,7 +311,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | 左键执行模式 | 右键选择模式 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | 右上开始波次"
+	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键执行模式 | 右键选择模式 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | 右上开始波次"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):

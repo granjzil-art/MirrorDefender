@@ -1,12 +1,12 @@
 ## CameraController —— 斜俯视 gimbal 相机
 ##
 ## 结构：本节点 = pivot（焦点，可平移 + 绕 Y 旋转 yaw）。
-##       子 Camera3D 以固定 pitch 俯视、沿 -forward 后退 zoom_distance。
+##       子 Camera3D 以可调 pitch 俯视、沿 -forward 后退 zoom_distance。
 ## 操作（InputMap）：
 ##   WASD  cam_move_*   —— 沿当前 yaw 朝向在 XZ 平面平移焦点
 ##   QE    cam_rotate_* —— 绕 Y 轴旋转 yaw
-##   XC    cam_zoom_*   —— 拉近/拉远
-##   鼠标滚轮           —— 缩放
+##   XC    cam_pitch_*  —— 降低/提高俯仰角
+##   鼠标滚轮           —— 唯一缩放输入
 ## 铁律「参数化」：速度/角度/缩放范围全 @export，运行时可调。
 class_name CameraController
 extends Node3D
@@ -22,21 +22,27 @@ extends Node3D
 
 @export_group("Zoom")
 @export var zoom_distance: float = 16.0
-@export var zoom_min: float = 5.0
+@export var zoom_min: float = 2.0
 @export var zoom_max: float = 30.0
-@export var zoom_speed: float = 20.0       # XC 持续缩放速度
 @export var zoom_wheel_step: float = 1.5   # 滚轮每格步进
-@export var pitch_angle: float = 50.0      # 俯仰角(度)，固定
+
+@export_group("Pitch")
+@export var pitch_angle: float = 50.0
+@export var pitch_min: float = 18.0
+@export var pitch_max: float = 82.0
+@export var pitch_speed: float = 55.0
 
 @onready var _camera: Camera3D = $Camera3D
 
 func _ready() -> void:
+	zoom_distance = clampf(zoom_distance, zoom_min, zoom_max)
+	pitch_angle = clampf(pitch_angle, pitch_min, pitch_max)
 	_apply_camera_transform()
 
 func _process(delta: float) -> void:
 	_handle_move(delta)
 	_handle_rotate(delta)
-	_handle_zoom_keys(delta)
+	_handle_pitch(delta)
 
 func _handle_move(delta: float) -> void:
 	var input := Vector2(
@@ -72,10 +78,10 @@ func _handle_rotate(delta: float) -> void:
 	if r != 0.0:
 		rotation.y -= deg_to_rad(rotate_speed * delta) * r
 
-func _handle_zoom_keys(delta: float) -> void:
-	var z := Input.get_action_strength("cam_zoom_out") - Input.get_action_strength("cam_zoom_in")
-	if z != 0.0:
-		_set_zoom(zoom_distance + zoom_speed * delta * z)
+func _handle_pitch(delta: float) -> void:
+	var value := Input.get_action_strength("cam_pitch_raise") - Input.get_action_strength("cam_pitch_lower")
+	if value != 0.0:
+		_set_pitch(pitch_angle + pitch_speed * delta * value)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
@@ -86,6 +92,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _set_zoom(v: float) -> void:
 	zoom_distance = clampf(v, zoom_min, zoom_max)
+	_apply_camera_transform()
+
+func _set_pitch(v: float) -> void:
+	pitch_angle = clampf(v, pitch_min, pitch_max)
 	_apply_camera_transform()
 
 ## 依据 pitch + zoom 把子相机放到焦点后上方并俯视焦点。
@@ -100,3 +110,9 @@ func _apply_camera_transform() -> void:
 
 func get_camera() -> Camera3D:
 	return _camera
+
+func get_zoom_distance() -> float:
+	return zoom_distance
+
+func get_pitch_angle() -> float:
+	return pitch_angle
