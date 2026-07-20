@@ -6,6 +6,7 @@ var stable_key: String = ""
 var copy_kind: StringName = &""
 var display_name: String = ""
 var source_cell: Vector3i = Vector3i.ZERO
+var root_source_cell: Vector3i = Vector3i.ZERO
 var projected_cell: Vector3i = Vector3i.ZERO
 var root_source: Object
 var tile_effect: TileEffect
@@ -37,6 +38,7 @@ func copy_through(
 	next.copy_kind = copy_kind
 	next.display_name = display_name
 	next.source_cell = projected_cell if chain_depth > 0 else source_cell
+	next.root_source_cell = root_source_cell
 	next.projected_cell = target_cell
 	next.root_source = root_source
 	next.tile_effect = tile_effect
@@ -55,6 +57,19 @@ func transform_point(point: Vector3) -> Vector3:
 		if axis.size() == 2:
 			transformed = reflect_point_across_line(transformed, axis[0], axis[1])
 	return transformed
+
+func get_composed_transform() -> Transform3D:
+	var origin := transform_point(Vector3.ZERO)
+	var axis_x := transform_point(Vector3.RIGHT) - origin
+	var axis_y := transform_point(Vector3.UP) - origin
+	var axis_z := transform_point(Vector3.BACK) - origin
+	return Transform3D(Basis(axis_x, axis_y, axis_z), origin)
+
+func transform_transform(source_transform: Transform3D) -> Transform3D:
+	return get_composed_transform() * source_transform
+
+func transform_direction(direction: Vector3) -> Vector3:
+	return transform_point(direction) - transform_point(Vector3.ZERO)
 
 static func reflect_point_across_line(point: Vector3, axis_start: Vector3, axis_end: Vector3) -> Vector3:
 	var start := Vector2(axis_start.x, axis_start.z)

@@ -27,6 +27,9 @@ var _resource_manager: ResourceManager
 var _combat_manager: CombatManager
 var _building_manager: BuildingManager
 var _edge_occupancy_registry: EdgeOccupancyRegistry
+var _tile_visual_snapshot_resolver: Callable
+var _reflection_camera: Camera3D
+var _reflection_cursor: int = 0
 
 var _mirrors: Dictionary = {}
 var _projections: Array[MirrorProjection] = []
@@ -40,6 +43,9 @@ var _preview_mirror: CopyMirror
 var _preview_projections: Array[MirrorProjection] = []
 var _preview_info: Dictionary = {}
 var _preview_active_from_side: bool = true
+
+func _process(_delta: float) -> void:
+	_update_reflection_views()
 
 func configure(
 	grid_manager: GridManager,
@@ -70,6 +76,17 @@ func configure(
 		_tile_manager.obstacle_destroyed.connect(_on_obstacle_destroyed)
 	queue_rebuild()
 
+func set_tile_visual_snapshot_resolver(resolver: Callable) -> void:
+	_tile_visual_snapshot_resolver = resolver
+	queue_rebuild()
+
+func set_reflection_camera(camera: Camera3D) -> void:
+	_reflection_camera = camera
+	for mirror in get_mirrors():
+		mirror.set_reflection_camera(camera)
+	if _preview_mirror != null and is_instance_valid(_preview_mirror):
+		_preview_mirror.set_reflection_camera(camera)
+
 func place_copy_mirror(
 	from_cell: Vector3i,
 	edge_index: int,
@@ -93,6 +110,7 @@ func place_copy_mirror(
 		_tile_manager,
 		resolved_side
 	)
+	mirror.set_reflection_camera(_reflection_camera)
 	if not _resource_manager.try_register_mirror(definition.cost):
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "资源不足或达到镜子上限")
@@ -237,6 +255,17 @@ func get_projections(cell: Variant = null) -> Array[MirrorProjection]:
 		return by_cell
 	return _projections.duplicate()
 
+func set_inspected_cell(cell: Variant = null) -> void:
+	for projection in _projections:
+		if is_instance_valid(projection):
+			projection.set_inspection_active(cell is Vector3i and projection.payload.projected_cell == cell)
+
+func get_projection_inspection_lines(cell: Vector3i) -> Array[String]:
+	var lines: Array[String] = []
+	for projection in get_projections(cell):
+		lines.append(projection.get_inspection_text())
+	return lines
+
 func get_projected_effects(cell: Vector3i) -> Array[TileEffect]:
 	var effects: Array[TileEffect] = []
 	for projection in get_projections(cell):
@@ -278,6 +307,7 @@ func update_preview(from_cell: Vector3i, edge_index: int) -> bool:
 			_preview_active_from_side,
 			true
 		)
+		_preview_mirror.set_reflection_camera(_reflection_camera)
 	_refresh_preview_projection()
 	return true
 
@@ -323,7 +353,15 @@ func rebuild_now() -> void:
 		stack_counts[payload.projected_cell] = stack_index + 1
 		var projection := MirrorProjection.new()
 		add_child(projection)
-		projection.configure(payload, _grid, _tile_manager, copy_mirror_definition, stack_index)
+		projection.configure(
+			payload,
+			_grid,
+			_tile_manager,
+			copy_mirror_definition,
+			stack_index,
+			false,
+			_tile_visual_snapshot_resolver
+		)
 		_projections.append(projection)
 		if not _projections_by_cell.has(payload.projected_cell):
 			_projections_by_cell[payload.projected_cell] = []
@@ -399,6 +437,7 @@ func _build_base_content_map() -> Dictionary:
 			payload.copy_kind = kind
 			payload.display_name = building.get_copy_display_name()
 			payload.source_cell = building.cell
+			payload.root_source_cell = building.cell
 			payload.projected_cell = building.cell
 			payload.root_source = building
 			payload.primary_color = building.get_copy_color()
@@ -416,6 +455,7 @@ func _build_base_content_map() -> Dictionary:
 			payload.copy_kind = kind
 			payload.display_name = effect.get_copy_display_name()
 			payload.source_cell = tile.cell
+			payload.root_source_cell = tile.cell
 			payload.projected_cell = tile.cell
 			payload.tile_effect = effect
 			payload.primary_color = effect.get_copy_color()
@@ -445,7 +485,15 @@ func _refresh_preview_projection() -> void:
 		_preview_info.types.append(payload.display_name)
 		var projection := MirrorProjection.new()
 		add_child(projection)
-		projection.configure(payload, _grid, _tile_manager, copy_mirror_definition, stack_index, true)
+		projection.configure(
+			payload,
+			_grid,
+			_tile_manager,
+			copy_mirror_definition,
+			stack_index,
+			true,
+			_tile_visual_snapshot_resolver
+		)
 		_preview_projections.append(projection)
 		stack_index += 1
 	preview_updated.emit(_preview_info)
@@ -462,6 +510,31 @@ func _clear_preview_projections() -> void:
 		if is_instance_valid(projection):
 			projection.queue_free()
 	_preview_projections.clear()
+
+func _update_reflection_views() -> void:
+	if not feature_enabled or copy_mirror_definition == null or not copy_mirror_definition.reflection_enabled:
+		return
+	if _reflection_camera == null or not is_instance_valid(_reflection_camera):
+		return
+	var interval := maxi(1, copy_mirror_definition.reflection_update_interval_frames)
+	if Engine.get_process_frames() % interval != 0:
+		return
+	var candidates: Array[CopyMirror] = get_mirrors()
+	if _preview_mirror != null and is_instance_valid(_preview_mirror):
+		candidates.append(_preview_mirror)
+	if candidates.is_empty():
+		_reflection_cursor = 0
+		return
+	_reflection_cursor %= candidates.size()
+	var updated := 0
+	var checked := 0
+	var maximum_updates := maxi(1, copy_mirror_definition.reflection_max_updates_per_frame)
+	while checked < candidates.size() and updated < maximum_updates:
+		var index := (_reflection_cursor + checked) % candidates.size()
+		if candidates[index].request_reflection_refresh():
+			updated += 1
+		checked += 1
+	_reflection_cursor = (_reflection_cursor + maxi(1, checked)) % candidates.size()
 
 func _append_content(content: Dictionary, cell: Vector3i, payload: MirrorCopyPayload) -> void:
 	if not content.has(cell):
@@ -531,7 +604,7 @@ func _on_copy_attack_triggered(
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"laser" and projection.payload.copy_kind == &"laser_tower":
-			projection.show_laser(end)
+			projection.show_laser(start, end)
 			for target in _combat_manager.get_targets_on_segment(start, end):
 				if building.affects_target(target):
 					target.take_damage(damage)
@@ -554,6 +627,10 @@ func _on_obstacle_destroyed(_cell: Vector3i) -> void:
 	queue_rebuild()
 
 func _on_definition_changed() -> void:
+	for mirror in get_mirrors():
+		mirror.refresh_visual()
+	if _preview_mirror != null and is_instance_valid(_preview_mirror):
+		_preview_mirror.refresh_visual()
 	rebuild_now()
 
 func _on_mirror_side_changed(mirror: CopyMirror) -> void:

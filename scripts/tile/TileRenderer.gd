@@ -83,6 +83,39 @@ func _on_level_loaded(_level_resource: LevelResource) -> void:
 func _on_tile_changed(_cell: Vector3i, _tile: TileCellData) -> void:
 	_rebuild()
 
+func create_tile_visual_snapshot(cell: Vector3i) -> Node3D:
+	if not feature_enabled or _grid == null or _tile_manager == null:
+		return null
+	var tile := _tile_manager.get_tile(cell)
+	if tile == null:
+		return null
+	var snapshot := Node3D.new()
+	snapshot.name = "TileVisualSnapshot"
+	var terrain_mesh := ImmediateMesh.new()
+	terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	if _add_tile_geometry(terrain_mesh, tile, _get_terrain_color(tile)):
+		terrain_mesh.surface_end()
+		_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material)
+	if tile.is_destructible():
+		var obstacle_mesh := ImmediateMesh.new()
+		obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+		_add_obstacle_geometry(obstacle_mesh, tile)
+		obstacle_mesh.surface_end()
+		_add_snapshot_instance(snapshot, obstacle_mesh, _obstacle_material)
+	if tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
+		var element_mesh := ImmediateMesh.new()
+		element_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+		if _add_element_geometry(element_mesh, tile):
+			element_mesh.surface_end()
+			_add_snapshot_instance(snapshot, element_mesh, _element_material)
+	return snapshot
+
+func _add_snapshot_instance(parent: Node3D, mesh: Mesh, source_material: Material) -> void:
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.material_override = source_material.duplicate() if source_material != null else null
+	parent.add_child(instance)
+
 func _rebuild() -> void:
 	if not feature_enabled or _grid == null or _tile_manager == null or _terrain_instance == null:
 		return

@@ -383,6 +383,18 @@ func clear_attack_visual() -> void:
 	if _attack_line_instance != null:
 		_attack_line_instance.mesh = null
 
+func create_copy_visual_snapshot() -> Node3D:
+	if _visual_root == null or not is_instance_valid(_visual_root):
+		return null
+	var snapshot := _visual_root.duplicate(0) as Node3D
+	if snapshot == null:
+		return null
+	_sanitize_copy_visual_snapshot(snapshot)
+	return snapshot
+
+func get_copy_visual_transform() -> Transform3D:
+	return global_transform * (_visual_root.transform if _visual_root != null else Transform3D.IDENTITY)
+
 func notify_attack(target: CombatTarget, damage: float, continuous: bool) -> void:
 	if damage > 0.0:
 		attack_performed.emit(self, target, damage, continuous)
@@ -489,6 +501,16 @@ func _apply_preview_materials(node: Node) -> void:
 		mesh_instance.material_override = _make_material(_stats.tower_color, false)
 	for child in node.get_children():
 		_apply_preview_materials(child)
+
+func _sanitize_copy_visual_snapshot(node: Node) -> void:
+	for child in node.get_children():
+		if child is Label3D or child is Control or child is AnimationPlayer or child is AudioStreamPlayer3D:
+			child.free()
+		else:
+			_sanitize_copy_visual_snapshot(child)
+	node.process_mode = Node.PROCESS_MODE_DISABLED
+	if node.get_script() != null:
+		node.set_script(null)
 
 func _get_tower_height() -> float:
 	return _grid.cell_size * tower_height_ratio if _grid != null else tower_height_ratio

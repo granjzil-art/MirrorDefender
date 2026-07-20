@@ -83,6 +83,8 @@ func _ready() -> void:
 		building_manager,
 		edge_occupancy_registry
 	)
+	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_visual_snapshot"))
+	mirror_manager.set_reflection_camera(_camera)
 	building_manager.building_selected.connect(_on_building_selected_for_exclusivity)
 	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
@@ -141,6 +143,7 @@ func _update_pick() -> void:
 
 	var edge := grid.pick_edge(_camera, mp)
 	var cell := grid.pick_cell(_camera, mp)
+	mirror_manager.set_inspected_cell(cell.cell if cell.hit else null)
 	_update_building_preview(cell, edge)
 
 	# 边优先高亮（靠近边时），否则高亮格。
@@ -203,6 +206,9 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 				lines.append("占位对象: %s" % occupant.name)
 			if tile.is_destructible():
 				lines.append("按 F 清除障碍，转为可建造")
+		var projection_lines := mirror_manager.get_projection_inspection_lines(cell.cell)
+		if not projection_lines.is_empty():
+			lines.append("重叠虚像 %d 个：%s" % [projection_lines.size(), "；".join(projection_lines)])
 		var preview := building_manager.get_preview_building()
 		if preview != null and preview.cell == cell.cell:
 			if preview.is_edge_placement():

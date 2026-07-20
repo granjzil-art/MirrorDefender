@@ -19,11 +19,23 @@ extends Resource
 @export var mirror_color: Color = Color(0.2, 0.78, 1.0, 0.92)
 @export_range(0.02, 0.5, 0.01) var mirror_thickness_ratio: float = 0.08
 @export_range(0.1, 2.0, 0.01) var mirror_height_ratio: float = 0.72
+@export var reflection_enabled: bool = true
+@export_range(64, 1024, 64) var reflection_resolution: int = 256
+@export_range(64, 512, 64) var reflection_preview_resolution: int = 128
+@export_range(1, 12, 1) var reflection_update_interval_frames: int = 2
+@export_range(1, 6, 1) var reflection_max_updates_per_frame: int = 2
+@export_range(0.0, 1.0, 0.01) var mirror_reflectivity: float = 0.92
+@export var mirror_surface_tint: Color = Color(0.80, 0.94, 1.0, 1.0)
+@export var mirror_back_face_color: Color = Color(0.07, 0.10, 0.16, 1.0)
 
 @export_group("Projection Visual")
 @export var projection_tint: Color = Color(0.12, 0.85, 1.0, 1.0)
-@export_range(0.05, 1.0, 0.01) var projection_alpha: float = 0.46
-@export_range(0.0, 0.25, 0.005) var projection_layer_offset_ratio: float = 0.035
+@export_range(0.05, 1.0, 0.01) var projection_alpha: float = 0.76
+@export_range(0.0, 1.0, 0.01) var projection_tint_strength: float = 0.24
+@export_range(0.0, 8.0, 0.1) var projection_emission_energy: float = 2.8
+@export_range(0.0, 1.0, 0.01) var projection_rim_alpha: float = 0.42
+@export_range(0.0, 0.20, 0.005) var projection_ring_spacing_ratio: float = 0.045
+@export_range(0.01, 0.10, 0.005) var projection_ring_thickness_ratio: float = 0.022
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
@@ -35,4 +47,8 @@ func validate_configuration() -> Array[String]:
 		errors.append("复制镜退款必须为有限非负数")
 	if copy_chain_max < 1:
 		errors.append("复制链上限至少为 1")
+	if reflection_resolution < 64 or reflection_preview_resolution < 64:
+		errors.append("镜面反射分辨率不得低于 64")
+	if reflection_update_interval_frames < 1 or reflection_max_updates_per_frame < 1:
+		errors.append("镜面反射更新参数必须为正数")
 	return errors

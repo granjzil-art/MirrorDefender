@@ -72,7 +72,31 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var projections := mirror_manager.get_projections(target_cell)
 	_expect(projections.size() == 2, "one mirror projects the source tile's tower and spike as one group")
 	_expect(_has_projection_kind(projections, &"arrow_tower") and _has_projection_kind(projections, &"spike"), "whole-tile projection preserves both source content kinds")
+	var tower_projection := _find_projection_kind(projections, &"arrow_tower")
+	var tile_projection := _find_projection_kind(projections, &"spike")
+	_expect(tower_projection.get_visual_snapshot() != null, "tower projection reuses a snapshot of the source Building visual")
+	_expect(tile_projection.get_visual_snapshot() != null, "tile-effect projection reuses a snapshot of the complete source tile visual")
+	var source_center := grid.cell_to_world(source_cell)
+	var mirrored_source_center := tile_projection.payload.transform_point(source_center)
+	var rendered_source_center := tile_projection.get_visual_snapshot().global_transform * source_center
+	_expect(rendered_source_center.distance_to(mirrored_source_center) < 0.001, "tile snapshot geometry receives the exact mirror transform without substitute offsets")
+	_expect(tower_projection.global_position.distance_to(tile_projection.global_position) < 0.001, "overlapping projections remain on the same exact target transform")
+	_expect(_snapshot_uses_immediate_mesh(tile_projection.get_visual_snapshot()), "tile projection keeps TileRenderer terrain and element geometry instead of a primitive substitute")
 	_expect(tile_manager.get_occupant(target_cell) == null, "default projections do not write TileCellData occupancy")
+	var reflection_camera := Camera3D.new()
+	host.add_child(reflection_camera)
+	reflection_camera.global_position = grid.cell_to_world(Vector3i(2, 2, 0)) + Vector3(0.0, 4.0, 3.0)
+	reflection_camera.look_at(mirror.global_position + Vector3.UP * 0.35)
+	reflection_camera.current = true
+	mirror_manager.set_reflection_camera(reflection_camera)
+	_expect(mirror.get_reflection_surface() != null and mirror.get_reflection_surface().mesh is QuadMesh, "copy mirror active face owns a dedicated reflection surface")
+	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99, "reflection surface front normal follows the configured active side")
+	_expect(mirror.request_reflection_refresh(), "visible active mirror face schedules one shared-world reflection refresh")
+	_expect(mirror.get_reflection_camera() != null and mirror.get_reflection_camera().projection == Camera3D.PROJECTION_FRUSTUM, "reflection camera uses an off-axis frustum fitted to the physical mirror")
+	var previous_active_normal := mirror.get_active_normal()
+	mirror.flip_side()
+	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99 and mirror.get_active_normal().dot(previous_active_normal) < -0.99, "flipping the mirror moves the only reflection surface to the opposite active face")
+	mirror.flip_side()
 	var effect_system := TileEffectSystem.new()
 	host.add_child(effect_system)
 	effect_system.configure(tile_manager)
@@ -165,6 +189,10 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	var recursive := rock_mirrors.get_projections(Vector3i(6, 2, 0))
 	_expect(not recursive.is_empty() and recursive[0].payload.chain_depth == 2, "an existing projection can be copied through a second mirror")
 	_expect(recursive[0].payload.lineage.size() == 2, "recursive payload records a finite two-mirror lineage")
+	_expect(recursive[0].get_visual_snapshot() != null and _snapshot_uses_immediate_mesh(recursive[0].get_visual_snapshot()), "recursive tile projection keeps the original complete tile snapshot")
+	var original_rock_center := rock_grid.cell_to_world(Vector3i(2, 2, 0))
+	var recursive_rendered_center := recursive[0].get_visual_snapshot().global_transform * original_rock_center
+	_expect(recursive_rendered_center.distance_to(recursive[0].payload.transform_point(original_rock_center)) < 0.001, "recursive tile snapshot applies every mirror axis to the original geometry")
 	rock_host.queue_free()
 	await process_frame
 
@@ -196,6 +224,10 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	var tile_manager := TileManager.new()
 	host.add_child(tile_manager)
 	tile_manager.set_grid(grid)
+	var tile_renderer := TileRenderer.new()
+	host.add_child(tile_renderer)
+	tile_renderer.set_grid(grid)
+	tile_renderer.set_tile_manager(tile_manager)
 	var resource_manager := ResourceManager.new()
 	host.add_child(resource_manager)
 	resource_manager.apply_level_configuration(level)
@@ -219,6 +251,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	)
 	mirror_manager.copy_mirror_definition = definition as CopyMirrorDefinition
 	mirror_manager.configure(grid, tile_manager, resource_manager, combat_manager, building_manager, registry)
+	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_visual_snapshot"))
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
 	var loader := LevelLoader.new()
@@ -287,6 +320,22 @@ func _make_target(host: Node, world_position: Vector3) -> CombatTarget:
 func _has_projection_kind(projections: Array[MirrorProjection], kind: StringName) -> bool:
 	for projection in projections:
 		if projection.payload.copy_kind == kind:
+			return true
+	return false
+
+func _find_projection_kind(projections: Array[MirrorProjection], kind: StringName) -> MirrorProjection:
+	for projection in projections:
+		if projection.payload.copy_kind == kind:
+			return projection
+	return null
+
+func _snapshot_uses_immediate_mesh(snapshot: Node3D) -> bool:
+	if snapshot == null:
+		return false
+	for child in snapshot.get_children():
+		if child is MeshInstance3D and child.mesh is ImmediateMesh:
+			return true
+		if child is Node3D and _snapshot_uses_immediate_mesh(child):
 			return true
 	return false
 
