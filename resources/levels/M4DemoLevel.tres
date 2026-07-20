@@ -4,9 +4,13 @@
 [ext_resource type="Script" path="res://scripts/path/PathDefinition.gd" id="2_path"]
 [ext_resource type="Script" path="res://scripts/path/SpawnPointDefinition.gd" id="3_spawn"]
 [ext_resource type="Script" path="res://scripts/wave/SpawnGroupDefinition.gd" id="4_group"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/Rock.tres" id="4_rn6pj"]
+[ext_resource type="Script" path="res://scripts/tile/TileCellData.gd" id="5_4ts1b"]
 [ext_resource type="Script" path="res://scripts/wave/WaveDefinition.gd" id="5_wave"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="6_ednn7"]
 [ext_resource type="Resource" path="res://resources/enemies/Grunt.tres" id="6_grunt"]
 [ext_resource type="Resource" path="res://resources/enemies/Runner.tres" id="7_runner"]
+[ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="7_hamgp"]
 [ext_resource type="Resource" path="res://resources/enemies/Archer.tres" id="8_archer"]
 
 [sub_resource type="Resource" id="Path_Main"]
@@ -15,11 +19,40 @@ path_id = &"main"
 display_name = "中央进攻路线"
 cells = Array[Vector3i]([Vector3i(-4, 0, 4), Vector3i(-3, 0, 3), Vector3i(-2, 0, 2), Vector3i(-1, 0, 1), Vector3i(0, 0, 0), Vector3i(1, 0, -1), Vector3i(2, 0, -2), Vector3i(3, 0, -3), Vector3i(4, 0, -4)])
 
+[sub_resource type="Resource" id="Resource_tvkb7"]
+script = ExtResource("2_path")
+path_id = &"path_3"
+display_name = "路径 3"
+cells = Array[Vector3i]([Vector3i(-1, 0, 1), Vector3i(-1, 1, 0), Vector3i(0, 1, -1), Vector3i(1, 1, -2), Vector3i(1, 0, -1), Vector3i(2, 0, -2), Vector3i(3, 0, -3), Vector3i(4, 0, -4)])
+
 [sub_resource type="Resource" id="Spawn_North"]
 script = ExtResource("3_spawn")
 spawn_id = &"north"
 display_name = "北侧入口"
 cell = Vector3i(-4, 0, 4)
+
+[sub_resource type="Resource" id="Resource_liyv7"]
+script = ExtResource("5_4ts1b")
+tile_type = 2
+definition = ExtResource("4_rn6pj")
+
+[sub_resource type="Resource" id="Resource_jg0p8"]
+script = ExtResource("5_4ts1b")
+cell = Vector3i(-1, 0, 1)
+tile_type = 2
+definition = ExtResource("6_ednn7")
+
+[sub_resource type="Resource" id="Resource_82nxy"]
+script = ExtResource("5_4ts1b")
+cell = Vector3i(-1, 1, 0)
+tile_type = 2
+definition = ExtResource("6_ednn7")
+
+[sub_resource type="Resource" id="Resource_ed7b5"]
+script = ExtResource("5_4ts1b")
+cell = Vector3i(0, -1, 1)
+tile_type = 2
+definition = ExtResource("7_hamgp")
 
 [sub_resource type="Resource" id="Group_One"]
 script = ExtResource("4_group")
@@ -68,6 +101,7 @@ spawn_groups = Array[ExtResource("4_group")]([SubResource("Group_Two_A"), SubRes
 
 [resource]
 script = ExtResource("1_level")
+tiles = [SubResource("Resource_liyv7"), SubResource("Resource_jg0p8"), SubResource("Resource_82nxy"), SubResource("Resource_ed7b5")]
 grid_shape = 0
 grid_cell_size = 1.0
 grid_size = Vector2i(6, 6)
@@ -77,6 +111,6 @@ mirror_cap = 6
 base_resource_per_second = 1.0
 base_cell = Vector3i(4, 0, -4)
 base_max_hp = 100.0
-paths = Array[ExtResource("2_path")]([SubResource("Path_Main")])
+paths = Array[ExtResource("2_path")]([SubResource("Path_Main"), SubResource("Resource_tvkb7")])
 spawn_points = Array[ExtResource("3_spawn")]([SubResource("Spawn_North")])
 waves = Array[ExtResource("5_wave")]([SubResource("Wave_One"), SubResource("Wave_Two")])

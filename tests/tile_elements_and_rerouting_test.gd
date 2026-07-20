@@ -210,6 +210,19 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	definition.move_speed = 10.0
 	var enemy := EnemyUnit.new()
 	enemy.debug_visual_enabled = false
+	var reroute_events: Array[Dictionary] = []
+	enemy.rerouted.connect(func(
+		_unit: EnemyUnit,
+		from_path: PathDefinition,
+		to_path: PathDefinition,
+		join_cell: Vector3i
+	) -> void:
+		reroute_events.append({
+			"from_path": from_path,
+			"to_path": to_path,
+			"join_cell": join_cell,
+		})
+	)
 	enemy.configure_unit(
 		definition,
 		points,
@@ -226,7 +239,15 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	enemy._process(0.05)
 	_expect(enemy.global_position != points[0], "enemy follows its unchanged initial authored path before the preceding rock cell")
 	enemy._process(0.2)
-	_expect(grid.world_to_cell(enemy.global_position) != original.cells[2], "enemy reroutes only after reaching the cell immediately before the rock")
+	_expect(reroute_events.size() == 1, "enemy installs one runtime detour at the cell immediately before the rock")
+	_expect(
+		reroute_events.size() == 1
+		and reroute_events[0]["from_path"] == original
+		and reroute_events[0]["to_path"] == level.paths[2],
+		"runtime detour switches from the blocked path to the shortest adjacent path"
+	)
+	_expect(enemy.global_position != points[1], "enemy continues moving after installing the runtime detour")
+	_expect(grid.world_to_cell(enemy.global_position) != original.cells[2], "enemy never enters the rock cell after rerouting")
 	_expect(original.cells == original_cells, "runtime rerouting never mutates the serialized PathDefinition")
 
 	var no_route_level := _make_level(GridManager.Shape.SQUARE)

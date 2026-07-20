@@ -98,6 +98,7 @@ BuildingPlacementRules
 - 候选只是其他手工 `PathDefinition`；必须包含当前格（接入代价 0）或有一格与当前格相邻（代价 1）。线条在二维投影中相交不算路径相交。
 - 选择分数为“接入边 + 候选路径后缀边数”；最低分优先，平分时按 `LevelResource.paths` 的序列化顺序稳定决胜。
 - 候选后缀每格必须在边界内、路径相邻且 `can_use_for_reroute = true`。建筑屏障仍是可攻击目标，不会使候选路径失效。
+- 候选后缀中只要有一格是大石头或空洞，整个接入点即不可用；若所有接入点都被淘汰，`find_detour` 返回 `triggered=true, found=false`，敌人原地等待。
 - 换路只替换单个敌人的运行时数组，不修改 `LevelResource` 或 `PathDefinition`。后续再遇石头可再次选路。
 
 ## 已知限制
