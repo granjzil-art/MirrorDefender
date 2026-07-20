@@ -76,6 +76,9 @@ func get_effect() -> TileEffect:
 func get_visual_kind() -> int:
 	return int(definition.visual_kind) if definition != null else TileDefinition.VisualKind.NONE
 
+func get_visual_tag() -> StringName:
+	return definition.get_visual_tag() if definition != null else &"none"
+
 func get_visual_color() -> Color:
 	return definition.visual_color if definition != null else Color.WHITE
 

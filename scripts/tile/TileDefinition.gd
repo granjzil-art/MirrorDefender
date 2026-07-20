@@ -55,6 +55,18 @@ func blocks_enemy_navigation() -> bool:
 func can_use_for_reroute() -> bool:
 	return effect == null or effect.can_use_for_reroute()
 
+## Stable presentation contract for editor tools that should not depend on
+## this runtime Resource's global enum being registered during hot reload.
+func get_visual_tag() -> StringName:
+	match visual_kind:
+		VisualKind.SPIKES:
+			return &"spikes"
+		VisualKind.HOLE:
+			return &"hole"
+		VisualKind.ROCK:
+			return &"rock"
+	return &"none"
+
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	if tile_id.is_empty():

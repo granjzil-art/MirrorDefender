@@ -23,6 +23,9 @@ const CAMERA_ZOOM_SPEED := 80.0
 const WHEEL_ZOOM_STEP := 10.0
 const BRUSH_SAMPLE_SPACING := 4.0
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
+const VISUAL_SPIKES: StringName = &"spikes"
+const VISUAL_HOLE: StringName = &"hole"
+const VISUAL_ROCK: StringName = &"rock"
 
 enum BrushMode {
 	NONE,
@@ -244,14 +247,14 @@ func _draw_tile_marker(cell: Vector3i, tile: Resource, world_height: float) -> v
 	var center_world := _shape.cell_to_world(cell)
 	var center := _project_world(Vector3(center_world.x, world_height, center_world.z))
 	var marker_radius := clampf(_view_zoom * 0.12, 4.0, 12.0)
-	var visual_kind: int = int(tile.call("get_visual_kind")) if tile.has_method("get_visual_kind") else 0
+	var visual_tag: StringName = tile.call("get_visual_tag") if tile.has_method("get_visual_tag") else &"none"
 	var visual_color: Color = tile.call("get_visual_color") if tile.has_method("get_visual_color") else BLOCKED_MARKER_COLOR
-	if visual_kind == TileDefinition.VisualKind.SPIKES:
+	if visual_tag == VISUAL_SPIKES:
 		_draw_spike_marker(center, marker_radius, visual_color)
-	elif visual_kind == TileDefinition.VisualKind.HOLE:
+	elif visual_tag == VISUAL_HOLE:
 		draw_circle(center, marker_radius * 1.25, visual_color)
 		draw_arc(center, marker_radius * 1.25, 0.0, TAU, 24, OUTLINE_COLOR.darkened(0.45), 1.5, true)
-	elif visual_kind == TileDefinition.VisualKind.ROCK:
+	elif visual_tag == VISUAL_ROCK:
 		var rock := PackedVector2Array([
 			center + Vector2(-marker_radius, marker_radius * 0.55),
 			center + Vector2(-marker_radius * 0.72, -marker_radius * 0.58),

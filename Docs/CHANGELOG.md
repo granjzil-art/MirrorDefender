@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile Editor · 修复画布热重载后接口失效 — 2026-07-20
+**模块**：Tile / Godot 编辑器工具 / Tests。
+
+- 编辑器画布不再直接依赖运行时 `TileDefinition.VisualKind` 全局枚举，避免 Godot 脚本热重载时因全局类注册顺序导致画布脚本仅部分加载。
+- `TileDefinition` / `TileCellData` 新增稳定的 `get_visual_tag()` 展示契约；尖刺、空洞、大石头继续使用原颜色与灰盒图形，不改玩法和数值。
+- 编辑器回归扩展至 24 项断言，显式验证画布在 tool 脚本加载后提供 `set_level` 与 `reset_view`。
+
 ## Tile / Path · 关卡地块元素与手工路径换路 — 2026-07-19
 **模块**：Tile / Level / Path / Unit / Combat / Building / Wave / Main / Godot 编辑器工具 / Tests。
 

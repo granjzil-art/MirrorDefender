@@ -79,6 +79,7 @@ BuildingPlacementRules
 |---|---|---|
 | `TileDefinition.blocks_enemy_navigation` | `() -> bool` | 委托效果策略判断是否永久阻断敌人。 |
 | `TileDefinition.can_use_for_reroute` | `() -> bool` | 判断该格是否可用于候选路径后缀。 |
+| `TileDefinition.get_visual_tag` / `TileCellData.get_visual_tag` | `() -> StringName` | 向编辑器工具提供稳定的灰盒类型标签，避免 tool 脚本热重载直接依赖运行时全局枚举。 |
 | `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
 | `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
@@ -103,4 +104,5 @@ BuildingPlacementRules
 
 - 当前不做自由格网 A*，也不同时串联多条路径；每次阻挡事件只选一条候选路径的一个后缀。
 - `visual_scene` 为正式美术资产预留接口，当前编辑器与运行时使用 `visual_kind` 灰盒绘制。
+- 编辑器画布通过 `get_visual_tag()` 读取灰盒类型；新增可视类型时需同步扩展标签映射与画布图形。
 - 大石头当前是关卡地形，永久且不可破坏；若未来要可攻击岩石，应新建可生命结构策略，不在本资源上增加 Building 状态。

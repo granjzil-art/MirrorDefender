@@ -59,6 +59,9 @@ func _test_editor_creation_and_wave_binding() -> void:
 	var panel: Control = TileEditorPanel.new()
 	root.add_child(panel)
 	await process_frame
+	var tile_canvas: Control = panel.get("_canvas")
+	_expect(tile_canvas != null and tile_canvas.has_method("set_level"), "editor canvas exposes set_level after tool-script loading")
+	_expect(tile_canvas != null and tile_canvas.has_method("reset_view"), "editor canvas exposes reset_view after tool-script loading")
 	panel.call("_add_path")
 	panel.call("_on_path_canvas_clicked", Vector3i(0, 0, 0))
 	var level := panel.get("_level") as LevelResource
