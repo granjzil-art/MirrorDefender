@@ -84,7 +84,7 @@ func get_mirror_width() -> float:
 	return maxf(0.01, get_edge_direction().length())
 
 func get_mirror_height() -> float:
-	return _grid.cell_size * definition.mirror_height_ratio if _grid != null and definition != null else 0.72
+	return _grid.cell_size * definition.mirror_height_ratio if _grid != null and definition != null else 1.20
 
 func get_mirror_thickness() -> float:
 	return _grid.cell_size * definition.mirror_thickness_ratio if _grid != null and definition != null else 0.08

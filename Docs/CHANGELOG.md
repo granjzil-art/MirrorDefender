@@ -1,5 +1,11 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Mirror / Visual · 提高复制镜默认高度 — 2026-07-20
+**模块**：Mirror / Tests。
+
+- `mirror_height_ratio` 默认值由 0.72 格提高到 1.20 格；镜框、生效面、离轴反射视锥、顶部生效侧标识及操作按钮锚点统一使用该参数，不改变镜子玩法、造价或占位规则。
+- 复制镜回归扩展至 55 项，覆盖默认高度与网格尺寸的参数化关系。
+
 ## Mirror / Visual · 实时生效面与严格真实虚像 — 2026-07-20
 **模块**：Mirror / Building / Tile / UI / Main / Tests。
 

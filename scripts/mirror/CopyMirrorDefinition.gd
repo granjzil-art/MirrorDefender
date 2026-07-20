@@ -18,7 +18,7 @@ extends Resource
 @export_group("Mirror Visual")
 @export var mirror_color: Color = Color(0.2, 0.78, 1.0, 0.92)
 @export_range(0.02, 0.5, 0.01) var mirror_thickness_ratio: float = 0.08
-@export_range(0.1, 2.0, 0.01) var mirror_height_ratio: float = 0.72
+@export_range(0.1, 2.0, 0.01) var mirror_height_ratio: float = 1.20
 @export var reflection_enabled: bool = true
 @export_range(64, 1024, 64) var reflection_resolution: int = 256
 @export_range(64, 512, 64) var reflection_preview_resolution: int = 128

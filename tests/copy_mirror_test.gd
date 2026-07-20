@@ -69,6 +69,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(preview.types.size() == 2, "preview includes every copyable item on the source tile")
 	var mirror := mirror_manager.place_copy_mirror(from_cell, edge_index, true)
 	_expect(mirror != null, "copy mirror is placed on the previewed physical edge")
+	_expect(is_equal_approx(mirror.get_mirror_height(), grid.cell_size * 1.20), "default copy mirror height is raised to 1.20 cells")
 	var projections := mirror_manager.get_projections(target_cell)
 	_expect(projections.size() == 2, "one mirror projects the source tile's tower and spike as one group")
 	_expect(_has_projection_kind(projections, &"arrow_tower") and _has_projection_kind(projections, &"spike"), "whole-tile projection preserves both source content kinds")
