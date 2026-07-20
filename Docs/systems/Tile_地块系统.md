@@ -11,7 +11,8 @@
 - **不可建造路面**：`tile_type = 2`，不可破坏、普通建筑不可建造；M4 路径通常使用该类型明确道路，屏障可通过专用路径占位接口放置。
 - **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
-- **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；不可建造路面固定使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁，未清除障碍仍显示灰色岩石占位。
+- **路径基底**：只要至少一条 `PathDefinition` 经过某格，运行时、关卡编辑器和镜像快照都将该格的地块基底显示为 `LevelResource.path_terrain_color`（默认 `#FFB93B`）；多条路径重叠仍只计一个路径格。
+- **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；非路径的不可建造路面使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁。建筑 occupant 和石头/尖刺/空洞元素只绘制在内容层，不改写地块基底色。
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
@@ -28,6 +29,7 @@
 | LevelResource | `height_levels` | 3 | 本关卡可用的高度档数。 |
 | LevelResource | `height_step` | 0.45 | 每档对应的世界 Y 高度。 |
 | LevelResource | `height_color_low` / `height_color_middle` / `height_color_high` | 绿 / 黄 / 红 | 编辑器与运行时共用的下/中/上高度色标，保存到关卡 `.tres`。 |
+| LevelResource | `path_terrain_color` | `#FFB93B` | 所有路径经过格共用的地块基底色。 |
 | TileManager | `feature_enabled` | true | 地块模块总开关；关闭时不加载布局。 |
 | TileRenderer | `feature_enabled` | true | 地块灰盒表现总开关。 |
 | TileRenderer | `blocked_color` | 灰 | 运行时不可建造路面的颜色，覆盖该格的高度色。 |
@@ -45,7 +47,7 @@
 | `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 单格可序列化状态、占用规则与清障规则。 |
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 调色板预制参数，显式预加载 TileCellData 脚本创建地块。 |
 | `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | **运行时唯一 Tile 查询入口**；按 `Vector3i` 索引格子并发信号。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，以高度顶点色生成三维灰盒地形和障碍岩石。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，以路径/高度顶点色生成三维灰盒基底，并在独立内容层绘制障碍与地块元素。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 地块布局的持久化容器；完整说明见 Level 文档。 |
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |
 | `resources/tiles/DestructibleTile.tres` | `TilePreset` | 可破坏障碍调色板预制。 |
@@ -54,6 +56,7 @@
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 三页工具栏、地图/路径/波次数据编辑与统一保存加载。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 可旋转斜俯视地形预览、连续画笔、路径叠加、选格与拖拽落点处理。 |
 | `addons/mirror_tile_editor/tile_palette_item.gd` | `Button` | 选择画笔预制并从 TilePreset 路径发起拖拽数据。 |
+| `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 路径并集、基底/内容分层、镜像快照与编辑器颜色回归。 |
 
 ### 模块调用关系 / 数据流
 
@@ -64,13 +67,14 @@ Main (scene composition)
   │     └─ validated serialized tiles -> cloned runtime Dictionary[Vector3i, TileCellData]
   ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
-        └─ height-color ImmediateMesh terrain + obstacle marker
+        ├─ LevelResource.paths union -> path_terrain_color base
+        └─ base ImmediateMesh terrain + independent obstacle / element meshes
 
 Mirror Tile Editor (Godot editor)
   TilePreset .tres click / drag path -> TileEditorCanvas
   -> implicit default cells remain sparse until edited
   -> left-drag brush / height edit / drop -> new TileCellData -> LevelResource.store_tile(cell-keyed)
-  -> LevelResource height_color_low / middle / high -> oblique editor projection
+  -> LevelResource paths union / path_terrain_color + height colors -> oblique editor projection
   -> ResourceSaver.save(LevelResource, res://.../*.tres)
 
 Level Editor M4 pages
@@ -91,7 +95,8 @@ Level Editor M4 pages
 - `place_path_occupant` 只放宽 BLOCKED 路面的普通建造限制，不放宽未清障 DESTRUCTIBLE 或已有占位；路径/保护格规则不属于 Tile，由 BuildingManager 持有。
 - 地块高度只改变 Tile 顶面与崖壁的 Y；Grid 几何仍定义在 Y=0 平面，M6 的低层激光可据 `TileManager.get_world_height()` 判定遮挡。
 - `height_color_low`、`height_color_middle`、`height_color_high` 是关卡资源的一部分；当高度档数多于 3 时，编辑器在下→中与中→上两个区间线性插值。
-- 同一组高度色同时驱动编辑器和运行时的非路面地形；`TileRenderer` 经 TileManager 查询颜色，避免渲染层直接读取关卡资源；不可建造路面由渲染器的 `blocked_color` 灰色覆盖。
+- 地块基底色优先级是：任一路径经过格的 `path_terrain_color` > 非 `ELEMENT` 定义的 `override_terrain_color` > 非路径不可建造路面的 `blocked_color` > 高度三色插值。`ELEMENT` 始终保留外部解析的基底色。
+- 建筑占位从不参与基底颜色解析；石头、尖刺、空洞使用 `visual_color` 绘制独立几何，不得以 `terrain_color` 代替地块基底。
 - 地块编辑画布的键盘控制只在画布获得焦点后生效：WASD 沿当前视角平移、QE 绕关卡焦点旋转、X 降低/C 提高俯仰角；缩放仅使用滚轮，最大画布倍率为 300。
 - 镜子挂在 Grid Edge，不占 Tile；地块类型不限制 M5/M6 的边镜放置。
 
@@ -114,6 +119,13 @@ Level Editor M4 pages
 | `set_height_level` | `(value: int, height_levels: int) -> void` | 按关卡档数钳制高度。 |
 | `set_tile_type` | `(value: int) -> void` | 切换类型并恢复未清障状态。 |
 | `get_display_name` | `() -> String` | 返回 HUD 用中文状态文本。 |
+| `get_terrain_color` | `(fallback: Color) -> Color` | 通过 TileDefinition 解析基底色；元素格直接保留回退色。 |
+
+### TileDefinition.gd
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `get_base_terrain_color` | `(fallback: Color) -> Color` | 非元素可应用自定义基底覆盖；`SurfaceKind.ELEMENT` 永返回路径/路面/高度回退色。 |
 
 ### TilePreset.gd
 
@@ -129,6 +141,7 @@ Level Editor M4 pages
 | `load_level` | `(level_resource: LevelResource) -> bool` | 要求资源校验通过且 Grid 配置一致；先构造独立运行时副本和默认格，再原子替换索引。失败保留当前状态。 |
 | `get_tile` | `(cell: Vector3i) -> TileCellData` | 按格坐标返回运行时单格，界外/未索引返回 null。 |
 | `get_tiles` | `() -> Array[TileCellData]` | 按当前 Grid 枚举顺序返回完整布局。 |
+| `get_level_resource` | `() -> LevelResource` | 为只读表现层暴露当前已安装关卡，不允许调用者改写运行时格。 |
 | `get_world_height` | `(cell: Vector3i) -> float` | 返回该格顶面世界 Y。 |
 | `get_height_color` | `(cell: Vector3i) -> Color` | 按关卡的下/中/上色标返回该格运行时高度色。 |
 | `can_place` | `(cell: Vector3i) -> bool` | M3 建筑放置入口。 |
@@ -151,8 +164,9 @@ Level Editor M4 pages
 |---|---|---|
 | `set_grid` | `(value: GridManager) -> void` | 订阅 Grid 的 `grid_changed` 并重建表现。 |
 | `set_tile_manager` | `(value: TileManager) -> void` | 订阅 TileManager 的布局/单格变化。 |
-| `_rebuild` | `() -> void` | 使用 TileManager 高度色、并对不可建造路面覆盖 `blocked_color`，重建一组顶点色 terrain mesh 与一组障碍 mesh；无顶点批次清空实例，不调用 `surface_end()`。 |
-| `_get_terrain_color` | `(tile: TileCellData) -> Color` | 不可建造路面返回 `blocked_color`；其它地块返回 TileManager 高度色。 |
+| `_rebuild` | `() -> void` | 以路径并集、路面和高度色解析基底，重建地形、障碍和元素独立 mesh；无顶点批次清空实例，不调用 `surface_end()`。 |
+| `is_path_terrain_cell` | `(cell: Vector3i) -> bool` | 查询该格是否属于任一手工路径的并集。 |
+| `get_base_terrain_color` | `(cell: Vector3i) -> Color` | 按路径 > 非元素覆盖 > 路面/高度规则返回单格基底色，供主地形和镜像快照共用。 |
 | `_add_tile_geometry` | `(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool` | 添加指定高度色的顶面；只向更低相邻格或边界生成崖壁，并返回是否实际写入顶点。 |
 | `_add_triangle` | `(mesh: ImmediateMesh, color: Color, a: Vector3, b: Vector3, c: Vector3) -> void` | 为三角形的每个顶点写入同一高度色。 |
 | `_add_obstacle_geometry` | `(mesh: ImmediateMesh, tile: TileCellData) -> void` | 添加一个四面岩石占位。 |
@@ -167,7 +181,7 @@ Level Editor M4 pages
 | `tile_editor_canvas.gd` | `set_path_edit_enabled(value: bool) -> void` / `set_m4_overlay(paths: Array, spawn_points: Array, base_cell: Vector3i, selected_path: PathDefinition) -> void` | 切换到不改地块的路径点选模式，并绘制路径、入口和据点叠加层。 |
 | `tile_editor_canvas.gd` | `set_height_brush(value: int) -> void` / `_apply_height_to_cell(cell: Vector3i, height_level: int) -> bool` | 进入独立高度刷模式；隐式默认格会按需创建，且仅更新高度，不改地块类型或清障状态。 |
 | `tile_editor_canvas.gd` | `reset_view() -> void` / `_process(delta: float) -> void` | 复位斜俯视投影；在画布焦点内消费 WASD/QE/XC 平移、旋转和俯仰，仅由滚轮修改倍率。 |
-| `tile_editor_canvas.gd` | `_height_color(tile: Resource) -> Color` / `_draw_cell(cell: Vector3i) -> void` | 以三色高度插值绘制顶面；缺失资源按默认格绘制，并只对更低邻格绘制加深的台阶墙面。 |
+| `tile_editor_canvas.gd` | `_terrain_color(cell: Vector3i, tile: Resource) -> Color` / `_rebuild_path_cells() -> void` | 从全部路径构建格并集，在高度色之上优先绘制 `path_terrain_color`；元素继续作为独立上层图形。 |
 | `tile_editor_canvas.gd` | `_can_drop_data` / `_drop_data` | 判定目标格，读取 TilePreset 参数并覆盖该格，同时将预制设为后续画笔。 |
 | `tile_editor_panel.gd` | `_on_brush_selected(preset_path: String) -> void` / `_on_height_brush_changed(index: int) -> void` | 切换类型画笔或独立高度刷，两个模式互斥。 |
 | `tile_editor_panel.gd` | `_refresh_height_brush_options() -> void` / `_on_height_color_changed(color: Color, color_stop: int) -> void` | 按关卡档数生成高度刷选项，并同步三档关卡颜色。 |

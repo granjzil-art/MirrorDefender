@@ -26,6 +26,8 @@ var _obstacle_instance: MeshInstance3D
 var _obstacle_material: StandardMaterial3D
 var _element_instance: MeshInstance3D
 var _element_material: StandardMaterial3D
+var _path_cells: Dictionary = {}
+var _path_terrain_color: Color = Color("ffb93b")
 
 func _ready() -> void:
 	_setup_instances()
@@ -49,6 +51,7 @@ func set_tile_manager(value: TileManager) -> void:
 	if is_node_ready() and _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 		_tile_manager.tile_changed.connect(_on_tile_changed)
+		_cache_path_terrain(_tile_manager.get_level_resource())
 		_rebuild()
 
 func _setup_instances() -> void:
@@ -77,11 +80,24 @@ func _make_terrain_material() -> StandardMaterial3D:
 	material.vertex_color_use_as_albedo = true
 	return material
 
-func _on_level_loaded(_level_resource: LevelResource) -> void:
+func _on_level_loaded(level_resource: LevelResource) -> void:
+	_cache_path_terrain(level_resource)
 	_rebuild()
 
 func _on_tile_changed(_cell: Vector3i, _tile: TileCellData) -> void:
 	_rebuild()
+
+func is_path_terrain_cell(cell: Vector3i) -> bool:
+	return _path_cells.has(cell)
+
+func get_base_terrain_color(cell: Vector3i) -> Color:
+	var tile := _tile_manager.get_tile(cell) if _tile_manager != null else null
+	if tile == null:
+		return Color.WHITE
+	if is_path_terrain_cell(cell):
+		return _path_terrain_color
+	var fallback := blocked_color if tile.is_blocked() else _tile_manager.get_height_color(cell)
+	return tile.get_terrain_color(fallback)
 
 func create_tile_visual_snapshot(cell: Vector3i) -> Node3D:
 	if not feature_enabled or _grid == null or _tile_manager == null:
@@ -93,7 +109,7 @@ func create_tile_visual_snapshot(cell: Vector3i) -> Node3D:
 	snapshot.name = "TileVisualSnapshot"
 	var terrain_mesh := ImmediateMesh.new()
 	terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	if _add_tile_geometry(terrain_mesh, tile, _get_terrain_color(tile)):
+	if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
 		terrain_mesh.surface_end()
 		_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material)
 	if tile.is_destructible():
@@ -132,7 +148,7 @@ func _rebuild() -> void:
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
 			continue
-		var terrain_color := _get_terrain_color(tile)
+		var terrain_color := get_base_terrain_color(tile.cell)
 		var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
 		has_terrain_geometry = has_terrain_geometry or did_add_terrain
 		if tile.is_destructible():
@@ -156,13 +172,17 @@ func _rebuild() -> void:
 	else:
 		_element_instance.mesh = null
 
-func _get_terrain_color(tile: TileCellData) -> Color:
-	var fallback: Color
-	if tile.is_blocked():
-		fallback = blocked_color
-	else:
-		fallback = _tile_manager.get_height_color(tile.cell)
-	return tile.get_terrain_color(fallback)
+func _cache_path_terrain(level_resource: LevelResource) -> void:
+	_path_cells.clear()
+	_path_terrain_color = Color("ffb93b")
+	if level_resource == null:
+		return
+	_path_terrain_color = level_resource.path_terrain_color
+	for path in level_resource.paths:
+		if path == null:
+			continue
+		for cell in path.cells:
+			_path_cells[cell] = true
 
 func _add_tile_geometry(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool:
 	var corners := _grid.get_corners(tile.cell)

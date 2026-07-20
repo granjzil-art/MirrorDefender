@@ -81,6 +81,9 @@ func get_tiles() -> Array[TileCellData]:
 			out.append(tile)
 	return out
 
+func get_level_resource() -> LevelResource:
+	return _get_level()
+
 func get_world_height(cell: Vector3i) -> float:
 	var tile := get_tile(cell)
 	var level_data := _get_level()

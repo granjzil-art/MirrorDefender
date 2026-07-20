@@ -13,6 +13,7 @@
 - **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
+- **基底/元素分层**：尖刺、空洞和大石头只用 `visual_color` / `visual_scene` 绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
 - **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影不修改目标 TileCellData；TileEffectSystem 叠加进入/停留效果，TileManager 叠加岩石导航阻断，并继续按源效果 `affects_airborne` 过滤。
 
 ## 编辑器使用
@@ -32,7 +33,7 @@
 | `TileDefinition` | `allows_tile_building` | 是否允许普通块建筑和路径块建筑。 |
 | `TileDefinition` | `allows_edge_building` | 是否允许该格参与的共享边放置边建筑。 |
 | `TileDefinition` | `effect` | 敌人遍历效果策略，可替换为新 `TileEffect` 变种。 |
-| `TileDefinition` | `override_terrain_color` / `terrain_color` | 是否覆盖高度分层底色及覆盖色。 |
+| `TileDefinition` | `override_terrain_color` / `terrain_color` | 非 `ELEMENT` 表面可用的基底覆盖；元素表面始终忽略此覆盖并保留路径/高度基底。 |
 | `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式美术场景接口。 |
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
 | `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
@@ -62,13 +63,14 @@
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐格分发效果，在阻碍前一格安装临时路由。 |
 | `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 地块权限、双网格换路、高速跨格和资源不变性回归。 |
 | `tests/airborne_effects_test.gd` | 无 / `SceneTree` | 地块效果与导航阻挡的空中适用性回归。 |
+| `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 三类元素的基底/内容分层与路径色回归。 |
 
 ### 数据流
 
 ```text
 Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
   -> TileManager 克隆运行时格
-     -> TileRenderer 灰盒表现
+     -> TileRenderer 路径/高度基底 + 独立元素灰盒
      -> TileEffectSystem -> TileEffect.affects_target -> damage/defeat or ignore
      -> PathRoutePlanner(target) -> 目标可用的 PathDefinition 后缀 -> EnemyUnit 临时路由
 
@@ -87,6 +89,7 @@ BuildingPlacementRules
 |---|---|---|
 | `TileDefinition.blocks_enemy_navigation` | `(target: Node = null) -> bool` | 委托效果策略判断是否阻断指定敌人；null 保留旧的无分类查询。 |
 | `TileDefinition.can_use_for_reroute` | `(target: Node = null) -> bool` | 判断该格是否可用于指定敌人的候选路径后缀。 |
+| `TileDefinition.get_base_terrain_color` | `(fallback: Color) -> Color` | 元素表面返回外部解析的路径/路面/高度基底，非元素才能应用自定义覆盖。 |
 | `TileEffect.affects_target` | `(target: Node) -> bool` | 依据 `affects_airborne` 与目标分类返回效果是否适用。 |
 | `TileEffect.can_use_for_reroute` | `(target: Node = null) -> bool` | 仅返回该效果是否未对指定目标阻断导航；不评估尖刺/空洞等危害。 |
 | `TileDefinition.get_visual_tag` / `TileCellData.get_visual_tag` | `() -> StringName` | 向编辑器工具提供稳定的灰盒类型标签，避免 tool 脚本热重载直接依赖运行时全局枚举。 |

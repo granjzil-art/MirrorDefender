@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tile / Path / Editor · 路径基底色与地块内容分层 — 2026-07-20
+**模块**：Tile / Path / Level / Mirror / Godot 关卡编辑器 / Tests。
+
+- `LevelResource` 新增 `path_terrain_color`，默认 `#FFB93B`；`TileRenderer` 与编辑器画布从全部手工路径构建格并集，任一路径经过的格都使用该基底色。
+- 建筑占位和石头/尖刺/空洞不再改写基底色；`SurfaceKind.ELEMENT` 保留路径或高度基底，仅用 `visual_color` / `visual_scene` 显示独立内容。
+- 镜像地块快照复用同一基底色解析；新增 18 项 Godot 4.7.1 回归，覆盖路径重叠、三档高度元素、建筑占位、镜像快照和编辑器一致性。
+
 ## CameraInput / Editor · XC 俯仰与更大滚轮倍率 — 2026-07-20
 **模块**：CameraInput / Main / Godot 关卡编辑器 / Tests。
 

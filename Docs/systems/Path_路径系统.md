@@ -14,7 +14,7 @@
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
 - **地形换路**：大石头是不可攻击的导航阻碍。EnemyUnit 抵达其前一格中心时，PathRoutePlanner 在其他手工路径中选择“当前格相交/相邻 + 后缀可通行”的最短候选；无候选时原地等待。
-- **表现**：PathManager 绘制黄色线路与绿色出生点标记；BaseCore 绘制据点标记。可通过 `feature_enabled` 或 `show_paths` 关闭。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
+- **表现**：全部 `PathDefinition.cells` 的并集使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，运行时与关卡编辑器一致。PathManager 另行绘制可关闭的路线与出生点调试标记；BaseCore 绘制据点标记。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，记录首格时建立同编号出生点，避免空路径在坐标零点显示伪入口。记录中只接受与末格相邻的格，非相邻点击会显示两端坐标且不修改数据。波次页只编辑路径，出生点为随路径自动绑定的只读项。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
 
@@ -26,6 +26,7 @@
 | PathDefinition | `cells` | 起点到据点的有序 `Array[Vector3i]`。 |
 | SpawnPointDefinition | `spawn_id` / `display_name` | 由对应路径派生：`path_N -> spawn_path_N`、`路径 N -> 路径 N 出生点`。 |
 | SpawnPointDefinition | `cell` | 入口所在格，校验时必须在地图内。 |
+| LevelResource | `path_terrain_color` | 所有路径经过格共用的地块基底色，默认 `#FFB93B`。 |
 | PathManager | `show_paths` | 路线和出生点调试表现开关。 |
 | PathManager | `path_color` / `spawn_color` / `line_lift` | 运行时灰盒颜色和抬升高度。 |
 | PathRoutePlanner | `feature_enabled` | 大石头动态换路开关。 |
@@ -44,12 +45,14 @@
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 复用地形斜俯视投影绘制 M4 路线/入口/据点。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
 | `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 1:1 命名、旧关卡关联识别和波次自动绑定回归。 |
+| `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 路径格并集、默认色和运行时/编辑器一致性回归。 |
 
 ### 数据流
 
 ```text
 LevelResource.paths / spawn_points
   -> PathManager.load_level -> path_id index + runtime line markers
+  -> TileRenderer / Level Editor canvas -> path-cell union -> path_terrain_color base
   -> WaveManager SpawnGroupDefinition.path
   -> PathManager.get_world_points + PathDefinition.cells -> EnemyUnit initial movement/blocker order
   -> rock at next cell -> PathRoutePlanner.find_detour
@@ -93,6 +96,7 @@ Level Editor path page
 ## 约定事实源
 
 - 路径顺序是出生点到据点，敌人不可反向解释。
+- 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色与 PathManager 调试线色是两个独立表现参数。
 - 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
 - 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
 - 候选后缀只排除大石头等导航阻碍；空洞与尖刺均可被选中，敌人进入后再结算地块效果。建筑屏障不使路径失效，仍由敌人停步攻击。

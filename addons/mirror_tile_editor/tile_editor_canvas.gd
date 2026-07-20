@@ -61,6 +61,7 @@ var _overlay_spawn_points: Array[SpawnPointDefinition] = []
 var _overlay_selected_path: PathDefinition
 var _overlay_base_cell: Vector3i = Vector3i.ZERO
 var _overlay_has_base: bool = false
+var _path_cells: Dictionary = {}
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
@@ -107,6 +108,7 @@ func _process(delta: float) -> void:
 
 func set_level(value: LevelResource) -> void:
 	level = value
+	_rebuild_path_cells()
 	has_selected_cell = false
 	_brush_mode = BrushMode.NONE
 	_brush_preset_path = ""
@@ -145,6 +147,7 @@ func set_m4_overlay(
 	_overlay_base_cell = base_cell
 	_overlay_has_base = true
 	_overlay_selected_path = selected_path
+	_rebuild_path_cells()
 	queue_redraw()
 
 func refresh() -> void:
@@ -218,7 +221,7 @@ func _draw() -> void:
 
 func _draw_cell(cell: Vector3i) -> void:
 	var tile: Resource = level.get_tile(cell)
-	var top_color := _height_color(tile)
+	var top_color := _terrain_color(cell, tile)
 	var corners := _shape.get_corners(cell)
 	var current_height := _tile_world_height(tile)
 	for edge_index in range(corners.size()):
@@ -492,6 +495,21 @@ func _height_color(tile: Resource) -> Color:
 	if tile != null and tile.has_method("get_terrain_color"):
 		return tile.call("get_terrain_color", fallback)
 	return fallback
+
+func _terrain_color(cell: Vector3i, tile: Resource) -> Color:
+	if level != null and _path_cells.has(cell):
+		return level.path_terrain_color
+	return _height_color(tile)
+
+func _rebuild_path_cells() -> void:
+	_path_cells.clear()
+	if level == null:
+		return
+	for path in level.paths:
+		if path == null:
+			continue
+		for cell in path.cells:
+			_path_cells[cell] = true
 
 func _wall_color(top_color: Color) -> Color:
 	return Color(

@@ -55,6 +55,11 @@ func blocks_enemy_navigation(target: Node = null) -> bool:
 func can_use_for_reroute(target: Node = null) -> bool:
 	return effect == null or effect.can_use_for_reroute(target)
 
+func get_base_terrain_color(fallback: Color) -> Color:
+	if surface_kind == SurfaceKind.ELEMENT:
+		return fallback
+	return terrain_color if override_terrain_color else fallback
+
 ## Stable presentation contract for editor tools that should not depend on
 ## this runtime Resource's global enum being registered during hot reload.
 func get_visual_tag() -> StringName:

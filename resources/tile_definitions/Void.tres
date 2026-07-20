@@ -10,7 +10,5 @@ display_name = "空洞格子"
 surface_kind = 3
 allows_tile_building = false
 effect = ExtResource("2_effect")
-override_terrain_color = true
-terrain_color = Color(0.025, 0.035, 0.055, 1)
 visual_kind = 2
 visual_color = Color(0.01, 0.015, 0.025, 1)

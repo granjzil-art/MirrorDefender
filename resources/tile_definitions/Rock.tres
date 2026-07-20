@@ -10,7 +10,5 @@ display_name = "大石头障碍"
 surface_kind = 3
 allows_tile_building = false
 effect = ExtResource("2_effect")
-override_terrain_color = true
-terrain_color = Color(0.18, 0.19, 0.20, 1)
 visual_kind = 3
 visual_color = Color(0.08, 0.085, 0.09, 1)

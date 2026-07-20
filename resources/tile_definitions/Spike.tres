@@ -10,7 +10,5 @@ display_name = "尖刺格子"
 surface_kind = 3
 allows_tile_building = false
 effect = ExtResource("2_effect")
-override_terrain_color = true
-terrain_color = Color(0.42, 0.12, 0.10, 1)
 visual_kind = 1
 visual_color = Color(0.95, 0.28, 0.20, 1)

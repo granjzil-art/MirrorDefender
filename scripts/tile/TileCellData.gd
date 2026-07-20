@@ -83,9 +83,7 @@ func get_visual_color() -> Color:
 	return definition.visual_color if definition != null else Color.WHITE
 
 func get_terrain_color(fallback: Color) -> Color:
-	if definition != null and definition.override_terrain_color:
-		return definition.terrain_color
-	return fallback
+	return definition.get_base_terrain_color(fallback) if definition != null else fallback
 
 func can_place() -> bool:
 	return is_buildable() and allows_tile_building() and occupant == null

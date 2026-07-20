@@ -24,6 +24,7 @@ const GEOMETRY_TAG_SQUARE: StringName = &"square"
 @export var height_color_low: Color = Color(0.18, 0.60, 0.31, 1.0)
 @export var height_color_middle: Color = Color(0.95, 0.76, 0.18, 1.0)
 @export var height_color_high: Color = Color(0.84, 0.24, 0.20, 1.0)
+@export var path_terrain_color: Color = Color("ffb93b")
 
 @export_group("M3 Economy")
 @export_range(0, 100000, 1, "or_greater") var initial_resource: int = 200
