@@ -8,7 +8,7 @@ extends TileEffect
 @export var ignores_armor: bool = true
 
 func apply_stay(target: Node, duration: float) -> void:
-	if target == null or not is_instance_valid(target) or duration <= 0.0:
+	if target == null or not is_instance_valid(target) or duration <= 0.0 or not affects_target(target):
 		return
 	if ignores_armor and target.has_method("take_unmitigated_damage"):
 		target.call("take_unmitigated_damage", damage_per_second * duration)

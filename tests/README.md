@@ -25,3 +25,9 @@
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/tile_elements_and_rerouting_test.gd
 ```
+
+飞行敌人分类/离地表现，以及尖刺、空洞、岩石换路、单体塔、激光和屏障的 `affects_airborne` 回归测试：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/airborne_effects_test.gd
+```

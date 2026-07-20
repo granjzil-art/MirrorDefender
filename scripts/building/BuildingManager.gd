@@ -308,23 +308,23 @@ func get_definition(kind: int) -> BuildingDefinition:
 		return laser_tower
 	return arrow_tower
 
-func get_path_blocker(cell: Vector3i) -> Node:
+func get_path_blocker(cell: Vector3i, target: Node = null) -> Node:
 	var building := get_building(cell)
-	if building == null or not building.is_path_blocker() or not building.is_structure_alive():
+	if building == null or not building.is_path_blocker() or not building.is_structure_alive() or not building.affects_target(target):
 		return null
 	return building
 
 ## Unified enemy-facing blocker contract. Directed edge blockers are checked
 ## before the tile blocker at the destination cell of the same route segment.
-func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i) -> Node:
+func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node:
 	if _grid == null:
 		return null
 	var edge_index := _grid.find_edge_index(from_cell, to_cell)
 	if edge_index >= 0:
 		var edge_building := get_edge_building(_grid.canonical_edge_id(from_cell, edge_index))
-		if edge_building != null and edge_building.blocks_edge_traversal(from_cell, to_cell) and edge_building.is_structure_alive():
+		if edge_building != null and edge_building.blocks_edge_traversal(from_cell, to_cell) and edge_building.is_structure_alive() and edge_building.affects_target(target):
 			return edge_building
-	return get_path_blocker(to_cell)
+	return get_path_blocker(to_cell, target)
 
 func is_path_cell(cell: Vector3i) -> bool:
 	return _placement_rules.is_path_cell(cell)

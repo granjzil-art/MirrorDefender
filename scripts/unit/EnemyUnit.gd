@@ -25,6 +25,7 @@ var _path_index: int = 0
 var _active_path: PathDefinition
 var _reached_base: bool = false
 var _grid_cell_size: float = 1.0
+var _flight_height: float = 0.0
 var _blocker_resolver: Callable
 var _route_resolver: Callable
 var _cell_world_resolver: Callable
@@ -91,7 +92,7 @@ func configure_unit(
 	navigation_blocker_resolver: Callable = Callable()
 ) -> void:
 	definition = enemy_definition
-	_path_points = path_points
+	_path_points.clear()
 	_path_cells.clear()
 	_path_cells.append_array(path_cells)
 	_path_index = 0
@@ -108,6 +109,8 @@ func configure_unit(
 	_is_waiting_for_route = false
 	_attack_target = null
 	_attack_strategy = EnemyAttackStrategyScript.new()
+	airborne = definition != null and definition.is_airborne
+	_flight_height = maxf(0.0, definition.flight_height) if airborne else 0.0
 	if definition != null:
 		max_hp = maxf(1.0, definition.max_hp)
 		current_hp = max_hp
@@ -121,6 +124,8 @@ func configure_unit(
 		_attack_damage = maxf(0.0, definition.attack_damage)
 		_attacks_per_second = maxf(0.01, definition.attacks_per_second)
 		_attack_range_world = maxf(0.1, definition.attack_range * _grid_cell_size)
+	for point in path_points:
+		_path_points.append(_with_flight_height(point))
 	if not _path_points.is_empty():
 		# Configured before add_child() so CombatTarget._ready() uses definition visuals.
 		position = _path_points[0]
@@ -200,7 +205,7 @@ func _resolve_next_terrain_blocker() -> int:
 		return 0
 	var current_cell := _path_cells[_path_index]
 	var blocked_cell := _path_cells[_path_index + 1]
-	var resolution: Variant = _route_resolver.call(_active_path, current_cell, blocked_cell)
+	var resolution: Variant = _route_resolver.call(_active_path, current_cell, blocked_cell, self)
 	if not resolution is Dictionary or not bool(resolution.get("triggered", false)):
 		_is_waiting_for_route = false
 		return 0
@@ -225,7 +230,7 @@ func _resolve_next_terrain_blocker() -> int:
 			var point: Variant = _cell_world_resolver.call(cell)
 			if not point is Vector3:
 				return -1
-			route_points.append(point)
+			route_points.append(_with_flight_height(point))
 		else:
 			route_points.append(global_position if cell == current_cell else Vector3.ZERO)
 	if not _cell_world_resolver.is_valid():
@@ -263,9 +268,9 @@ func _find_first_path_blocker() -> Dictionary:
 	for segment_index in range(clampi(_path_index, 0, last_segment), last_segment):
 		var from_cell := _path_cells[segment_index]
 		var to_cell := _path_cells[segment_index + 1]
-		if _navigation_blocker_resolver.is_valid() and bool(_navigation_blocker_resolver.call(to_cell)):
+		if _navigation_blocker_resolver.is_valid() and bool(_navigation_blocker_resolver.call(to_cell, self)):
 			break
-		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell)
+		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell, self)
 		if not candidate is Node:
 			continue
 		var blocker: Node = candidate
@@ -388,6 +393,9 @@ func _get_attack_range_epsilon() -> float:
 
 func _is_within_attack_range(world_position: Vector3) -> bool:
 	return _horizontal_distance_to(world_position) <= _attack_range_world + _get_attack_range_epsilon()
+
+func _with_flight_height(world_position: Vector3) -> Vector3:
+	return world_position + Vector3.UP * _flight_height
 
 func _enter_attack_state(target: Node) -> void:
 	if _attack_target == target:

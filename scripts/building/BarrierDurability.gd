@@ -38,14 +38,15 @@ func tick(delta: float) -> void:
 		regeneration_delta = _time_since_damage - _stats.regeneration_delay
 	restore(_stats.regeneration_per_second * maxf(0.0, regeneration_delta))
 
-func take_damage(amount: float, attacker: Node = null) -> float:
+func take_damage(amount: float, attacker: Node = null, can_reflect_to_attacker: bool = true) -> float:
 	if not is_alive() or amount <= 0.0:
 		return 0.0
 	var applied_damage := minf(amount, current)
 	current -= applied_damage
 	_time_since_damage = 0.0
 	durability_changed.emit(current, maximum)
-	_apply_reflection(applied_damage, attacker)
+	if can_reflect_to_attacker:
+		_apply_reflection(applied_damage, attacker)
 	if current <= 0.0:
 		_depleted = true
 		depleted.emit(attacker)

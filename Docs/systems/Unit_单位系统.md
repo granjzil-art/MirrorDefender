@@ -1,6 +1,6 @@
 # 单位系统 · Unit
 
-> 实现状态：M4 已完成敌人数值定义、固定路径移动、屏障攻击状态、近战/远程攻击、护甲、据点伤害和死亡资源掉落。
+> 实现状态：M4 已完成敌人数值定义、地面/飞行分类、固定路径移动、屏障攻击状态、近战/远程攻击、护甲、据点伤害和死亡资源掉落。
 
 ## 职责
 
@@ -9,6 +9,8 @@
 ## 分类 / 做法
 
 - **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击伤害、攻速、射程、投射物和灰盒颜色。
+- **飞行分类**：`is_airborne` 是敌人类别事实源；EnemyUnit 将它复制到 CombatTarget 的运行时 `airborne` 标签。飞行单位仍沿波次指定的手工路径移动，但路径点会增加 `flight_height` 形成可辨识的离地表现。
+- **效果适用性**：EnemyUnit 作为 `target` 传给地块导航、换路和建筑屏障解析器；地块效果与建筑当前等级可分别用 `affects_airborne` 决定是否作用于飞行敌人。
 - **固定路径移动**：EnemyUnit 同时接收 `PackedVector3Array` 世界点和 `Array[Vector3i]` 路径格；前者驱动移动，后者按顺序查询前方屏障。
 - **路径阻挡**：阻挡查询是 Main 注入的 `Callable(BuildingManager.resolve_path_blocker)`，参数为当前有向路径段 `(from_cell, to_cell)`。Unit 不导入 Building 类型，只依赖 `is_structure_alive/get_structure_target_position/take_structure_damage` 方法契约。
 - **攻击状态**：前方第一个屏障进入 `attack_range` 后，近战和远程敌人都停止移动；屏障移除后立即退出攻击状态并继续原路径。
@@ -20,7 +22,7 @@
 
 ## 参数编辑入口
 
-在 `resources/enemies/*.tres` 编辑敌人。当前示例：`Grunt.tres`、`Runner.tres`、`Archer.tres`。
+在 `resources/enemies/*.tres` 编辑敌人。当前示例：`Grunt.tres`、`Runner.tres`、`Archer.tres`、`Flyer.tres`。关卡编辑器的波次敌人下拉框会自动扫描该目录。
 
 | 分组 | 参数 | 说明 |
 |---|---|---|
@@ -28,6 +30,8 @@
 | Stats | `max_hp` / `move_speed` / `armor` | 最大生命、路径移动速度、单次固定减伤。 |
 | Stats | `base_damage` | 抵达据点时造成的伤害，不是攻击屏障的伤害。 |
 | Stats | `reward` / `hit_radius` | 被击杀掉落资源 / 我方攻击命中半径。 |
+| Movement | `is_airborne` | 是否属于飞行敌人；供地块与建筑效果过滤。 |
+| Movement | `flight_height` | 飞行敌人相对每个手工路径世界点的离地高度。地面敌人忽略。 |
 | Attack | `attack_damage` | 每次对屏障造成的原始伤害。 |
 | Attack | `attacks_per_second` | 每秒攻击次数。 |
 | Attack | `attack_range` | 攻击射程，单位为格；生成时乘本关 `grid_cell_size`。 |
@@ -50,7 +54,9 @@
 | `resources/enemies/Grunt.tres` | `EnemyDefinition` | 近战步兵示例。 |
 | `resources/enemies/Runner.tres` | `EnemyDefinition` | 高频近战疾行者示例。 |
 | `resources/enemies/Archer.tres` | `EnemyDefinition` | 3.2 格射程的远程弓箭手示例。 |
+| `resources/enemies/Flyer.tres` | `EnemyDefinition` | 带空中标签和离地表现的飞行侦察兵测试资源。 |
 | `scripts/wave/WaveManager.gd` | `WaveManager` / `Node` | 注入路径格/点和阻挡查询，生成单位并处理奖励/据点。 |
+| `tests/airborne_effects_test.gd` | 无 / `SceneTree` | 飞行分类、地块/建筑过滤和离地表现回归。 |
 
 ### 数据流
 
@@ -61,7 +67,8 @@ SpawnGroup.enemy + PathDefinition.cells
   -> EnemyUnit.configure_unit -> CombatManager.register_target
 
 EnemyUnit._process
-  -> scan remaining directed path segments through blocker Callable
+  -> pass self into terrain/navigation/building blocker Callables
+  -> scan remaining directed path segments through target-aware blocker Callable
   -> outside range: solve first path/range-circle intersection and move to it
   -> inside range: stop -> EnemyAttackStrategy
        ├─ melee -> blocker.take_structure_damage
@@ -84,6 +91,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | `EnemyUnit.get_attack_target` | `() -> Node` | 返回策略可攻击的当前屏障或 null。 |
 | `EnemyUnit.perform_attack` | `(target: Node) -> bool` | 根据 `projectile_speed` 选择即时近战或 EnemyProjectile；成功发起才返回 true。 |
 | `EnemyUnit.take_damage` | `(amount: float) -> float` | 应用固定护甲并返回实际伤害。 |
+| `CombatTarget.is_airborne_unit` | `() -> bool` | 返回效果系统使用的运行时空中分类。 |
 | `EnemyUnit._find_first_path_blocker` | `() -> Dictionary` | 逐有向路径段扫描，返回 `{node, segment_index, segment_ratio, position}`；无阻挡返回空字典。 |
 | `EnemyUnit._get_path_distance_until_attack_range` | `(blocker_info: Dictionary) -> float` | 沿折线路径计算首次进入攻击圆前可移动的真实路径距离。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |
@@ -95,6 +103,8 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 ## 约定事实源
 
 - EnemyDefinition 是敌人数值事实源；EnemyUnit 是运行时生命、位置、路径进度和攻击状态事实源。
+- `is_airborne` 只描述单位类别，不替换波次路径；所有飞行敌人仍从 SpawnGroup 原始路径出生并按路径推进。
+- 是否作用于飞行敌人由效果拥有者配置，不在 EnemyUnit 中硬编码免疫列表。
 - `base_damage` 只伤害据点；`attack_damage` 只用于攻击路径屏障，两者禁止混用。
 - `attack_range` 以格为单位，EnemyUnit 生成时固定换算为当前关卡世界距离。
 - PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障，不绕路、不回头。边屏障默认双向生效，关闭双向参数后才按放置方向匹配。
@@ -103,6 +113,6 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 
 ## 已知限制 / 初版不做的部分
 
-- 不做自动寻路、绕障、飞行层、仇恨选建筑、技能、群体队形或对象池。
+- 飞行单位当前只有单一离地高度层，不做多高度航道、空中碰撞、起降或编队。
 - 敌人当前只攻击路径屏障，不主动攻击路外塔；远程投射物为追踪直线，不做抛物线。
 - 护甲为单次固定减伤，不做百分比、穿甲或抗性类型。

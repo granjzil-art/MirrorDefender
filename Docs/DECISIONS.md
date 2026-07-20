@@ -90,3 +90,10 @@
 **约束**：出生点和据点不可放屏障；未清障格不可特殊占位；屏障战斗摧毁不退款，玩家主动删除按等级退款；所有敌人在攻击状态停止移动。
 
 > 本条中的单参数 `get_path_blocker(cell)` 继续描述地块屏障；2026-07-19 的边屏障扩展把 EnemyUnit 注入入口升级为 `resolve_path_blocker(from_cell, to_cell)`，并在内部兼容查询终点地块屏障。
+## 2026-07-20 · 效果拥有空中适用性，目标只拥有分类
+
+**决策**：EnemyDefinition / CombatTarget 只定义 `is_airborne` / `airborne` 类别事实；TileEffect 和每级 BuildingLevelStats 各自通过 `affects_airborne` 决定效果是否对空中目标生效。EnemyUnit 把自身作为可选 target 传入地块导航、换路和建筑阻挡解析，攻击策略使用 Building 的统一过滤入口。
+
+**理由**：“飞行”是目标属性，但“能否命中飞行”是效果属性。将免疫表写在 EnemyUnit 会让新地块/建筑变种持续修改单位模块；让策略各自判定则易产生箭塔、激光和屏障行为不一致。
+
+**兼容策略**：新增 `affects_airborne` 默认 `true`，旧 `.tres` 缺少字段时保持原有效果。调用解析器时 target 为可选参数，旧直接查询仍按原行为返回。飞行单位仍使用波次手工路径，本决策不引入自由空域寻路。

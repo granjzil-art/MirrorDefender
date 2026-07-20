@@ -11,6 +11,7 @@
 - **尖刺格子**：可通行；敌人占据该格的时间按秒造成持续伤害。默认 20 伤害/秒且忽略护甲。
 - **空洞格子**：导航上可通行，初始路径和动态换路都可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。
 - **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
+- **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
 
 ## 编辑器使用
@@ -18,7 +19,7 @@
 1. 打开 Godot 主屏的 Mirror 关卡编辑器，进入“地块”页。
 2. 在“地块调色板”选择“尖刺格子”、“空洞格子”或“大石头障碍”，左键单击/拖动涂刷；也可拖放预设到单格。
 3. 类型刷只替换地块定义，保留该格当前高度；高度刷只改高度。
-4. 路径页仍手工绘制全部候选路径。大石头可直接画在初始路径上；候选路径必须与触发格相交或相邻，且从接入格到据点的后缀不含石头或空洞。
+4. 路径页仍手工绘制全部候选路径。大石头可直接画在初始路径上；候选路径必须与触发格相交或相邻，且从接入格到据点的后缀不含对该敌人有效的导航阻碍。尖刺和空洞仍可被选择。
 5. 调色板会自动扫描 `resources/tiles/*.tres`；新增 `TilePreset` 资源后无需修改编辑器脚本。
 
 ## 关键参数
@@ -33,6 +34,7 @@
 | `TileDefinition` | `override_terrain_color` / `terrain_color` | 是否覆盖高度分层底色及覆盖色。 |
 | `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式美术场景接口。 |
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
+| `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
 | `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |
 | `VoidTileEffect` | `reward_multiplier` | 空洞击杀时的敌人掉落倍率。 |
 | `PathRoutePlanner` | `feature_enabled` | 动态换路功能开关。 |
@@ -57,6 +59,7 @@
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 提供不受护甲伤害和指定掉落倍率的击杀入口。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐格分发效果，在阻碍前一格安装临时路由。 |
 | `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 地块权限、双网格换路、高速跨格和资源不变性回归。 |
+| `tests/airborne_effects_test.gd` | 无 / `SceneTree` | 地块效果与导航阻挡的空中适用性回归。 |
 
 ### 数据流
 
@@ -64,8 +67,8 @@
 Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
   -> TileManager 克隆运行时格
      -> TileRenderer 灰盒表现
-     -> TileEffectSystem -> EnemyUnit enter/stay -> damage/defeat
-     -> PathRoutePlanner -> 其他 PathDefinition 可用后缀 -> EnemyUnit 临时路由
+     -> TileEffectSystem -> TileEffect.affects_target -> damage/defeat or ignore
+     -> PathRoutePlanner(target) -> 目标可用的 PathDefinition 后缀 -> EnemyUnit 临时路由
 
 BuildingPlacementRules
   -> TileManager.allows_edge_building(边两侧)
@@ -76,16 +79,17 @@ BuildingPlacementRules
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `TileDefinition.blocks_enemy_navigation` | `() -> bool` | 委托效果策略判断是否永久阻断敌人。 |
-| `TileDefinition.can_use_for_reroute` | `() -> bool` | 判断该格是否可用于候选路径后缀。 |
-| `TileEffect.can_use_for_reroute` | `() -> bool` | 仅返回该效果是否未阻断导航；不评估尖刺/空洞等危害。 |
+| `TileDefinition.blocks_enemy_navigation` | `(target: Node = null) -> bool` | 委托效果策略判断是否阻断指定敌人；null 保留旧的无分类查询。 |
+| `TileDefinition.can_use_for_reroute` | `(target: Node = null) -> bool` | 判断该格是否可用于指定敌人的候选路径后缀。 |
+| `TileEffect.affects_target` | `(target: Node) -> bool` | 依据 `affects_airborne` 与目标分类返回效果是否适用。 |
+| `TileEffect.can_use_for_reroute` | `(target: Node = null) -> bool` | 仅返回该效果是否未对指定目标阻断导航；不评估尖刺/空洞等危害。 |
 | `TileDefinition.get_visual_tag` / `TileCellData.get_visual_tag` | `() -> StringName` | 向编辑器工具提供稳定的灰盒类型标签，避免 tool 脚本热重载直接依赖运行时全局枚举。 |
 | `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
 | `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
 | `TileEffectSystem.apply_enter` | `(target: Node, cell: Vector3i) -> void` | 解析指定格并分发进入效果。 |
 | `TileEffectSystem.apply_stay` | `(target: Node, cell: Vector3i, duration: float) -> void` | 解析指定格并分发持续效果。 |
-| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell}`；只在 `blocked_cell` 为导航阻碍时触发。 |
+| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell}`；只在 `blocked_cell` 对该目标为导航阻碍时触发。 |
 | `CombatTarget.take_unmitigated_damage` | `(amount: float) -> float` | 不经 EnemyUnit 护甲覆写的环境伤害入口。 |
 | `CombatTarget.take_damage_over_time` | `(damage_per_second: float, duration: float) -> float` | 帧率无关的持续伤害入口；EnemyUnit 以护甲扣减每秒伤害率。 |
 | `CombatTarget.defeat` | `(reward_multiplier: float = 1.0) -> bool` | 立即击杀并按倍率发出掉落值。 |
@@ -97,7 +101,7 @@ BuildingPlacementRules
 - 只在敌人位于当前格中心且下一格为导航阻碍时安装临时路由。
 - 候选只是其他手工 `PathDefinition`；必须包含当前格（接入代价 0）或有一格与当前格相邻（代价 1）。线条在二维投影中相交不算路径相交。
 - 选择分数为“接入边 + 候选路径后缀边数”；最低分优先，平分时按 `LevelResource.paths` 的序列化顺序稳定决胜。
-- 候选后缀每格必须在边界内、路径相邻且不阻断导航。地块过滤的唯一规则是 `blocks_enemy_navigation() == false`；空洞和尖刺均可选。建筑屏障仍是可攻击目标，不会使候选路径失效。
+- 候选后缀每格必须在边界内、路径相邻且不对当前敌人阻断导航。地块过滤的唯一规则是 `blocks_enemy_navigation(target) == false`；空洞和尖刺均可选。建筑屏障仍是可攻击目标，不会使候选路径失效。
 - 换路只替换单个敌人的运行时数组，不修改 `LevelResource` 或 `PathDefinition`。后续再遇石头可再次选路。
 
 ## 已知限制

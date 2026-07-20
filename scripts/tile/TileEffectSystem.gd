@@ -15,14 +15,14 @@ func apply_enter(target: Node, cell: Vector3i) -> void:
 	if not feature_enabled or target == null or not is_instance_valid(target):
 		return
 	var effect := _get_effect(cell)
-	if effect != null:
+	if effect != null and effect.affects_target(target):
 		effect.apply_enter(target)
 
 func apply_stay(target: Node, cell: Vector3i, duration: float) -> void:
 	if not feature_enabled or target == null or not is_instance_valid(target) or duration <= 0.0:
 		return
 	var effect := _get_effect(cell)
-	if effect != null:
+	if effect != null and effect.affects_target(target):
 		effect.apply_stay(target, duration)
 
 func _get_effect(cell: Vector3i) -> TileEffect:

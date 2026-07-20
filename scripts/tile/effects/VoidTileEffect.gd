@@ -10,7 +10,7 @@ func _init() -> void:
 	enemy_traversal = EnemyTraversal.PASSABLE
 
 func apply_enter(target: Node) -> void:
-	if target != null and is_instance_valid(target) and target.has_method("defeat"):
+	if target != null and is_instance_valid(target) and affects_target(target) and target.has_method("defeat"):
 		target.call("defeat", reward_multiplier)
 
 func validate_configuration() -> Array[String]:

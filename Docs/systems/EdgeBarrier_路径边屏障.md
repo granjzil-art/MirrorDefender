@@ -20,6 +20,7 @@
 | 分组 | 参数 | 说明 |
 |---|---|---|
 | Economy | `cost` / `refund_amount` / `resource_per_second` | 建造或升级费用、当前级删除退款、每秒资源。 |
+| Combat | `affects_airborne` | 本级边屏障是否阻挡飞行敌人；默认 true 兼容旧资源。 |
 | Defense | `max_durability` | 当前等级最大耐久；升级增加最大值并保留已有损伤。 |
 | Defense | `regeneration_delay` / `regeneration_per_second` | 脱战等待时间与每秒回血。 |
 | Defense | `damage_reflection_ratio` | 对攻击者反伤比例，范围 0..1。 |
@@ -54,7 +55,7 @@ Main edge pick + “边障”模式
 
 WaveManager
   -> EnemyUnit(path cells + BuildingManager.resolve_path_blocker Callable)
-  -> 每段 resolve_path_blocker(from, to)
+  -> 每段 resolve_path_blocker(from, to, enemy)
        ├─ 该物理边的边屏障（默认双向；可配置单向）
        └─ 该段终点的地块屏障
   -> 进入射程后 EnemyAttackStrategy -> 结构承伤接口
@@ -85,7 +86,7 @@ WaveManager
 | `BuildingManager.gd` | `place_edge_building(from_cell: Vector3i, placement_edge_index: int, definition: BuildingDefinition) -> Building` | 原子放置边建筑，失败返回 null。 |
 | `BuildingManager.gd` | `update_edge_preview(from_cell: Vector3i, placement_edge_index: int, definition: BuildingDefinition) -> bool` | 创建贴边且不占位的合法预览。 |
 | `BuildingManager.gd` | `get_edge_building(edge_id: String) -> Building` | 按物理边唯一键读取边建筑。 |
-| `BuildingManager.gd` | `resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i) -> Node` | 先查同向边屏障，再查终点地块屏障。 |
+| `BuildingManager.gd` | `resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node` | 先查对目标有效的边屏障，再查终点地块屏障。 |
 
 ## 使用入口
 

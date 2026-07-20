@@ -64,11 +64,11 @@ func allows_tile_building() -> bool:
 func allows_edge_building() -> bool:
 	return definition == null or definition.allows_edge_building
 
-func blocks_enemy_navigation() -> bool:
-	return definition != null and definition.blocks_enemy_navigation()
+func blocks_enemy_navigation(target: Node = null) -> bool:
+	return definition != null and definition.blocks_enemy_navigation(target)
 
-func can_use_for_reroute() -> bool:
-	return definition == null or definition.can_use_for_reroute()
+func can_use_for_reroute(target: Node = null) -> bool:
+	return definition == null or definition.can_use_for_reroute(target)
 
 func get_effect() -> TileEffect:
 	return definition.effect if definition != null else null

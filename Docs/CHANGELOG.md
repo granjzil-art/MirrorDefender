@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Unit / Tile / Building · 飞行敌人与空中效果开关 — 2026-07-20
+**模块**：Unit / Combat / Tile / Path / Building / Tests。
+
+- EnemyDefinition 新增 `is_airborne` 和 `flight_height`，EnemyUnit 将分类与离地高度应用到手工路径；新增可被波次编辑器自动发现的 `Flyer.tres` 飞行侦察兵。
+- TileEffect 与 BuildingLevelStats 新增 `affects_airborne`；尖刺/空洞分发、岩石阻挡与换路、箭塔索敌、激光贯穿、地块/边屏障均通过统一目标分类过滤。新参数默认 true，不改写旧资源玩法。
+- 新增 26 项 Godot 4.7 回归断言，覆盖飞行高度、地块伤害/死亡/导航、单体/激光攻击、块/边屏障阻挡与反伤的开关双态行为。
+
 ## Path / Tile · 动态换路只排除导航阻碍 — 2026-07-20
 **模块**：Path / Tile / Level / Unit / Tests。
 

@@ -227,7 +227,16 @@ func get_durability_ratio() -> float:
 func take_structure_damage(amount: float, attacker: Node = null) -> float:
 	if not feature_enabled or _preview_mode or _durability == null:
 		return 0.0
-	return _durability.take_damage(amount, attacker)
+	return _durability.take_damage(amount, attacker, affects_target(attacker))
+
+func affects_target(target: Node) -> bool:
+	if _stats == null:
+		return false
+	if _stats.affects_airborne or target == null or not is_instance_valid(target):
+		return true
+	if not target.has_method("is_airborne_unit"):
+		return true
+	return not bool(target.call("is_airborne_unit"))
 
 func restore_durability(amount: float) -> float:
 	return _durability.restore(amount) if _durability != null else 0.0
@@ -237,12 +246,15 @@ func acquire_target() -> CombatTarget:
 		return null
 	if not is_instance_valid(_locked_target):
 		_locked_target = null
-	var candidates := _combat_manager.get_targets_in_range(get_attack_origin(), get_targeting_range_world())
+	var candidates: Array[CombatTarget] = []
+	for target in _combat_manager.get_targets_in_range(get_attack_origin(), get_targeting_range_world()):
+		if affects_target(target):
+			candidates.append(target)
 	_locked_target = _targeting_strategy.select_target(candidates, get_attack_origin(), _locked_target)
 	return _locked_target
 
 func is_target_in_attack_range(target: CombatTarget) -> bool:
-	if target == null or not is_instance_valid(target):
+	if target == null or not is_instance_valid(target) or not affects_target(target):
 		return false
 	var origin := Vector2(global_position.x, global_position.z)
 	var target_position := Vector2(target.global_position.x, target.global_position.z)

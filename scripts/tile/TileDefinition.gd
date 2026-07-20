@@ -49,11 +49,11 @@ func is_destructible(obstacle_destroyed: bool) -> bool:
 func is_blocked_surface() -> bool:
 	return surface_kind == SurfaceKind.ROAD
 
-func blocks_enemy_navigation() -> bool:
-	return effect != null and effect.blocks_enemy_navigation()
+func blocks_enemy_navigation(target: Node = null) -> bool:
+	return effect != null and effect.blocks_enemy_navigation(target)
 
-func can_use_for_reroute() -> bool:
-	return effect == null or effect.can_use_for_reroute()
+func can_use_for_reroute(target: Node = null) -> bool:
+	return effect == null or effect.can_use_for_reroute(target)
 
 ## Stable presentation contract for editor tools that should not depend on
 ## this runtime Resource's global enum being registered during hot reload.

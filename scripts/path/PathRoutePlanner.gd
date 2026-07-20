@@ -32,7 +32,12 @@ func load_level(level_resource: LevelResource) -> void:
 ## Returns {triggered, found, path, cells, cost, join_cell}. A reroute is only
 ## triggered for a navigation-blocking next tile and only searches other
 ## manually-authored paths in their serialized order.
-func find_detour(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i) -> Dictionary:
+func find_detour(
+	current_path: PathDefinition,
+	current_cell: Vector3i,
+	blocked_cell: Vector3i,
+	target: Node = null
+) -> Dictionary:
 	var result := {
 		"triggered": false,
 		"found": false,
@@ -43,7 +48,7 @@ func find_detour(current_path: PathDefinition, current_cell: Vector3i, blocked_c
 	}
 	if not feature_enabled or _grid == null or _tile_manager == null or _level == null:
 		return result
-	if not _tile_manager.blocks_enemy_navigation(blocked_cell):
+	if not _tile_manager.blocks_enemy_navigation(blocked_cell, target):
 		return result
 	result["triggered"] = true
 	var best_cost := 2147483647
@@ -53,7 +58,7 @@ func find_detour(current_path: PathDefinition, current_cell: Vector3i, blocked_c
 		for join_index in range(path.cells.size()):
 			var join_cell: Vector3i = path.cells[join_index]
 			var connector_cost := _connector_cost(current_cell, join_cell)
-			if connector_cost < 0 or not _suffix_is_usable(path, join_index):
+			if connector_cost < 0 or not _suffix_is_usable(path, join_index, target):
 				continue
 			var candidate_cost := connector_cost + path.cells.size() - 1 - join_index
 			if candidate_cost >= best_cost:
@@ -82,10 +87,10 @@ func _connector_cost(current_cell: Vector3i, join_cell: Vector3i) -> int:
 		return 0
 	return 1 if _grid.get_neighbors(current_cell).has(join_cell) else -1
 
-func _suffix_is_usable(path: PathDefinition, join_index: int) -> bool:
+func _suffix_is_usable(path: PathDefinition, join_index: int, target: Node = null) -> bool:
 	for index in range(join_index, path.cells.size()):
 		var cell: Vector3i = path.cells[index]
-		if not _grid.is_in_bounds(cell) or not _tile_manager.can_use_for_reroute(cell):
+		if not _grid.is_in_bounds(cell) or not _tile_manager.can_use_for_reroute(cell, target):
 			return false
 		if index > join_index and not _grid.get_neighbors(path.cells[index - 1]).has(cell):
 			return false

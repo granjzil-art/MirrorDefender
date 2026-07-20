@@ -10,6 +10,7 @@ extends Resource
 @export_range(0.0, 10000.0, 0.1, "or_greater") var resource_per_second: float = 0.0
 
 @export_group("Combat")
+@export var affects_airborne: bool = true
 @export_range(0.0, 100000.0, 0.1, "or_greater") var base_damage: float = 20.0
 @export_range(0.1, 100.0, 0.1, "or_greater") var targeting_range: float = 5.0
 @export_range(0.1, 100.0, 0.1, "or_greater") var attack_range: float = 4.0

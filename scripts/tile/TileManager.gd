@@ -103,13 +103,13 @@ func allows_edge_building(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.allows_edge_building()
 
-func blocks_enemy_navigation(cell: Vector3i) -> bool:
+func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.blocks_enemy_navigation()
+	return tile != null and tile.blocks_enemy_navigation(target)
 
-func can_use_for_reroute(cell: Vector3i) -> bool:
+func can_use_for_reroute(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.can_use_for_reroute()
+	return tile != null and tile.can_use_for_reroute(target)
 
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)

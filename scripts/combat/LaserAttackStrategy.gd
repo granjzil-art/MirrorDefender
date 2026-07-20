@@ -13,6 +13,8 @@ func tick(building: Node, delta: float) -> void:
 	var damage_per_second: float = building.call("get_laser_damage_per_second")
 	var damage_this_tick := damage_per_second * delta
 	for target in combat_manager.get_targets_on_segment(start, end):
+		if not bool(building.call("affects_target", target)):
+			continue
 		var applied := target.take_damage(damage_this_tick)
 		building.call("notify_attack", target, applied, true)
 

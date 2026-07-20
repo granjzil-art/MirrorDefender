@@ -5,6 +5,10 @@ extends Node3D
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Classification")
+## Runtime target tag used by effects that can opt out of affecting airborne enemies.
+@export var airborne: bool = false
+
 @export_group("Stats")
 @export_range(1.0, 100000.0, 1.0, "or_greater") var max_hp: float = 100.0
 @export_range(0.0, 1000.0, 0.1, "or_greater") var move_speed: float = 1.0
@@ -75,6 +79,9 @@ func _apply_damage(amount: float, reward_multiplier: float = 1.0) -> float:
 
 func is_alive() -> bool:
 	return _alive and current_hp > 0.0 and not is_queued_for_deletion()
+
+func is_airborne_unit() -> bool:
+	return airborne
 
 func get_target_position() -> Vector3:
 	return global_position + Vector3(0.0, debug_height * 0.55, 0.0)

@@ -12,6 +12,7 @@
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算，发射时不扣血。
 - **激光塔**：不索敌，沿世界固定朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。
+- **空中适用性**：每级 `affects_airborne` 统一控制箭塔候选、激光线段伤害、屏障阻挡与反伤是否作用于飞行敌人；升级切换到新等级自己的配置。
 - **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
 - **耐久与升级**：屏障每级独立配置 `max_durability`。升级时最大耐久的增加量同步加到当前耐久，保留升级前已经损失的绝对耐久。
 - **脱战回血**：屏障每次受伤重置计时；连续 `regeneration_delay` 秒未受伤后，按 `regeneration_per_second` 回耐久。大 delta 只结算越过延迟后的时间。
@@ -42,6 +43,7 @@
 | Economy | `refund_amount` | 删除处于该级的建筑时返还的精确主资源。 |
 | Economy | `resource_per_second` | 该建筑处于本级时每秒提供的资源。 |
 | Combat | `base_damage` | 单发攻击的基础伤害。 |
+| Combat | `affects_airborne` | 本级攻击或屏障效果是否作用于飞行敌人；默认 true 兼容旧资源。 |
 | Combat | `targeting_range` | 索敌候选半径，单位为格。 |
 | Combat | `attack_range` | 允许发射/激光长度，单位为格，与索敌范围独立。 |
 | Combat | `attacks_per_second` | 单发攻击频率。 |
@@ -111,13 +113,14 @@ Select occupied cell
 
 Arrow Building._process
   -> acquire in targeting_range
+  -> Building.affects_target filters airborne targets
   -> verify attack_range
   -> CombatManager.spawn_projectile
   -> Projectile impact -> CombatTarget.take_damage
 
 Laser Building._process
   -> fixed facing segment of attack_range
-  -> all touched CombatTarget.take_damage(final_dps * delta)
+  -> applicable touched CombatTarget.take_damage(final_dps * delta)
 
 EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
   -> enemy attack -> Building.take_structure_damage
@@ -146,6 +149,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `get_refund_amount` | `() -> float` | 返回当前级配置的精确删除退款。 |
 | `is_path_blocker` / `is_structure_alive` | `() -> bool` | 判断是否为可阻挡路径且仍有耐久的屏障。 |
 | `take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 委托耐久组件结算实际承伤、反伤和耗尽。 |
+| `affects_target` | `(target: Node) -> bool` | 依据当前级 `affects_airborne` 判断攻击或阻挡是否作用于目标。 |
 | `restore_durability` / `get_durability_ratio` | `(amount: float) -> float` / `() -> float` | 恢复耐久并返回实际值 / 返回 0~1 耐久比例。 |
 | `get_structure_target_position` / `get_structure_hit_radius` | `() -> Vector3` / `() -> float` | 为近战距离和敌方投射物提供通用结构目标契约。 |
 | `acquire_target` | `() -> CombatTarget` | 在当前级索敌范围内按优先级更新锁定目标。 |
@@ -163,7 +167,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 |---|---|---|
 | `configure` | `(stats: BuildingLevelStats, preserve_damage: bool) -> void` | 应用本级最大耐久；升级时增加最大值差并保留已有损伤。 |
 | `tick` | `(delta: float) -> void` | 计算无伤延迟后的有效回血时长。 |
-| `take_damage` | `(amount: float, attacker: Node = null) -> float` | 扣耐久、重置脱战计时、反伤并在归零时发 `depleted`。 |
+| `take_damage` | `(amount: float, attacker: Node = null, can_reflect_to_attacker: bool = true) -> float` | 扣耐久、重置脱战计时，按适用性反伤并在归零时发 `depleted`。 |
 | `restore` / `is_alive` / `get_ratio` | `(amount: float) -> float` / `() -> bool` / `() -> float` | 恢复耐久、判断有效、读取耐久比例。 |
 
 ### BuildingManager.gd
@@ -181,7 +185,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `remove_selected_building` | `() -> bool` | 按选中建筑当前级 `refund_amount` 原子删除并返还资源。 |
 | `clear_buildings` | `(update_resource_count: bool = true) -> void` | 切关时清理全部建筑和预览。 |
 | `select_at` / `rotate_selected` | `(cell: Vector3i) -> Building` / `(step: int = 1) -> bool` | 选择或旋转实际建筑。 |
-| `get_path_blocker` | `(cell: Vector3i) -> Node` | 返回该路径格仍存活的屏障；这是 EnemyUnit 唯一阻挡查询入口。 |
+| `get_path_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 返回该路径格对指定目标有效且仍存活的屏障。 |
+| `resolve_path_blocker` | `(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node` | 依次查询对指定目标有效的边屏障和终点地块屏障。 |
 | `is_path_cell` | `(cell: Vector3i) -> bool` | 查询关卡路径格缓存。 |
 | `_cache_path_cells` | `(level_resource: LevelResource) -> void` | 切关时缓存所有路径格以及出生点/据点保护格。 |
 | `_sync_building_income` | `() -> void` | 汇总所有当前级 `resource_per_second`。 |

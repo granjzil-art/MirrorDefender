@@ -15,6 +15,11 @@ extends Resource
 @export_range(0.0, 100000.0, 1.0, "or_greater") var reward: float = 5.0
 @export_range(0.05, 5.0, 0.05, "or_greater") var hit_radius: float = 0.28
 
+@export_group("Movement")
+@export var is_airborne: bool = false
+## Added to every authored path point when is_airborne is enabled.
+@export_range(0.0, 10.0, 0.05, "or_greater") var flight_height: float = 0.8
+
 @export_group("Attack")
 @export_range(0.0, 100000.0, 0.1, "or_greater") var attack_damage: float = 10.0
 @export_range(0.01, 100.0, 0.01, "or_greater") var attacks_per_second: float = 1.0
