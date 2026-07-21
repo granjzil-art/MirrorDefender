@@ -95,6 +95,9 @@ func get_reflection_surface() -> MeshInstance3D:
 func get_reflection_camera() -> Camera3D:
 	return _reflection_view.get_reflection_camera() if _reflection_view != null else null
 
+func get_reflection_viewport() -> SubViewport:
+	return _reflection_view.get_reflection_viewport() if _reflection_view != null else null
+
 func get_action_anchor() -> Vector3:
 	return global_position + Vector3(0.0, get_mirror_height() + 0.2, 0.0)
 
@@ -121,9 +124,12 @@ func _build_visual() -> void:
 	if _grid == null or definition == null or get_axis_endpoints().size() != 2:
 		return
 	var body := MeshInstance3D.new()
+	body.name = "MirrorBody"
 	var body_mesh := BoxMesh.new()
 	body_mesh.size = Vector3(get_mirror_width(), get_mirror_height(), get_mirror_thickness())
 	body.mesh = body_mesh
+	body.set_layer_mask_value(1, false)
+	body.set_layer_mask_value(MirrorReflectionViewScript.REFLECTION_VISIBILITY_LAYER, true)
 	body.position.y = get_mirror_height() * 0.5
 	body.rotation.y = -atan2(get_edge_direction().z, get_edge_direction().x)
 	_frame_material = StandardMaterial3D.new()

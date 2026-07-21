@@ -101,8 +101,33 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	mirror_manager.set_reflection_camera(reflection_camera)
 	_expect(mirror.get_reflection_surface() != null and mirror.get_reflection_surface().mesh is QuadMesh, "copy mirror active face owns a dedicated reflection surface")
 	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99, "reflection surface front normal follows the configured active side")
+	var mirror_center := mirror.global_position + Vector3.UP * mirror.get_mirror_height() * 0.5
+	var surface_depth_offset := (mirror.get_reflection_surface().global_position - mirror_center).dot(mirror.get_active_normal())
+	_expect(surface_depth_offset > mirror.get_mirror_thickness() * 0.5, "reflection surface stays outside the mirror body at distant depth precision")
 	_expect(mirror.request_reflection_refresh(), "visible active mirror face schedules one shared-world reflection refresh")
-	_expect(mirror.get_reflection_camera() != null and mirror.get_reflection_camera().projection == Camera3D.PROJECTION_FRUSTUM, "reflection camera uses an off-axis frustum fitted to the physical mirror")
+	_expect(mirror.get_reflection_camera() != null and mirror.get_reflection_camera().projection == reflection_camera.projection, "reflection camera copies the source projection without an extreme off-axis frustum")
+	var source_forward: Vector3 = -reflection_camera.global_basis.z.normalized()
+	var expected_reflected_forward: Vector3 = source_forward - 2.0 * source_forward.dot(mirror.get_active_normal()) * mirror.get_active_normal()
+	var actual_reflected_forward: Vector3 = -mirror.get_reflection_camera().global_basis.z.normalized()
+	_expect(actual_reflected_forward.dot(expected_reflected_forward.normalized()) > 0.999, "reflection camera orientation is the live source orientation mirrored across the physical plane")
+	var reflection_viewport := mirror.get_reflection_viewport()
+	var source_aspect := reflection_camera.get_viewport().get_visible_rect().size.aspect()
+	var reflection_aspect := Vector2(reflection_viewport.size).aspect()
+	_expect(is_equal_approx(reflection_aspect, source_aspect), "reflection target follows the source viewport aspect for screen-aligned sampling")
+	var reflection_material := mirror.get_reflection_surface().material_override as ShaderMaterial
+	_expect(reflection_material != null and reflection_material.shader.code.contains("SCREEN_UV"), "mirror surface samples the reflected world in stable screen space")
+	var mirror_body := mirror.get_node("MirrorBody") as MeshInstance3D
+	_expect(not mirror_body.get_layer_mask_value(1) and mirror_body.get_layer_mask_value(20), "mirror body is excluded from reflection cameras to prevent blue self-occlusion")
+	var active_camera_position := reflection_camera.global_position
+	var gameplay_active_normal := mirror.get_active_normal()
+	reflection_camera.global_position = mirror_center - gameplay_active_normal * 24.0 + Vector3.UP * 9.0
+	reflection_camera.look_at(mirror_center)
+	_expect(mirror.request_reflection_refresh(), "distant camera on the opposite observation side still refreshes the mirror")
+	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(-gameplay_active_normal) > 0.99, "the single reflection surface follows the observer-facing physical side")
+	_expect(mirror.get_active_normal().dot(gameplay_active_normal) > 0.99, "observer-side rendering never changes the gameplay active side")
+	reflection_camera.global_position = active_camera_position
+	reflection_camera.look_at(mirror_center)
+	mirror.request_reflection_refresh()
 	var previous_active_normal := mirror.get_active_normal()
 	mirror.flip_side()
 	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99 and mirror.get_active_normal().dot(previous_active_normal) < -0.99, "flipping the mirror moves the only reflection surface to the opposite active face")

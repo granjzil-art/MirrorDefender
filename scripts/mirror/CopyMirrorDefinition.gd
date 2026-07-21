@@ -20,6 +20,10 @@ extends Resource
 @export_range(0.02, 0.5, 0.01) var mirror_thickness_ratio: float = 0.08
 @export_range(0.1, 2.0, 0.01) var mirror_height_ratio: float = 1.20
 @export var reflection_enabled: bool = true
+## 仅影响镜面表现；复制来源和生效方向始终由 active_from_side 决定。
+@export var reflection_two_sided_visual: bool = true
+## 镜面相对镜体半厚度的外推比例；需大于 0.5，避免远距离深度精度遮挡。
+@export_range(0.52, 1.5, 0.01) var reflection_surface_offset_ratio: float = 0.78
 @export_range(64, 1024, 64) var reflection_resolution: int = 256
 @export_range(64, 512, 64) var reflection_preview_resolution: int = 128
 @export_range(1, 12, 1) var reflection_update_interval_frames: int = 2
@@ -51,4 +55,6 @@ func validate_configuration() -> Array[String]:
 		errors.append("镜面反射分辨率不得低于 64")
 	if reflection_update_interval_frames < 1 or reflection_max_updates_per_frame < 1:
 		errors.append("镜面反射更新参数必须为正数")
+	if not is_finite(reflection_surface_offset_ratio) or reflection_surface_offset_ratio <= 0.5:
+		errors.append("镜面外推比例必须大于镜体半厚度")
 	return errors
