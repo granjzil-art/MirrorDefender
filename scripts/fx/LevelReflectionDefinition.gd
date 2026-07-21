@@ -9,7 +9,7 @@ extends Resource
 
 @export_group("Surface")
 ## 反射面位于最低地形基线下方的距离（世界单位）。
-@export_range(0.02, 2.0, 0.01) var vertical_offset: float = 0.18
+@export_range(0.02, 20.0, 0.01) var vertical_offset: float = 0.18
 ## 反射面超出关卡包围盒的格距，保证斜视角下仍能看到边缘倒影。
 @export_range(0.0, 8.0, 0.1) var edge_margin_cells: float = 1.5
 @export_color_no_alpha var surface_tint: Color = Color(0.12, 0.24, 0.30, 1.0)

@@ -11,6 +11,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	print("[LevelReflection] running")
+	_test_definition_ranges()
 	await _test_shape(GridManager.Shape.SQUARE, Vector2i(5, 3))
 	await _test_shape(GridManager.Shape.HEX, Vector2i(2, 2))
 	if _failures == 0:
@@ -19,6 +20,17 @@ func _run() -> void:
 	else:
 		push_error("[LevelReflection] FAIL: %d/%d checks failed" % [_failures, _checks])
 		quit(1)
+
+func _test_definition_ranges() -> void:
+	var definition := LevelReflectionDefinitionScript.new()
+	var vertical_offset_hint := ""
+	for property_entry in definition.get_property_list():
+		var property_data: Dictionary = property_entry
+		var property_name: StringName = property_data.get("name", &"")
+		if property_name == &"vertical_offset":
+			vertical_offset_hint = str(property_data.get("hint_string", ""))
+			break
+	_expect(vertical_offset_hint.begins_with("0.02,20"), "vertical_offset Inspector range reaches 20 world units")
 
 func _test_shape(shape: GridManager.Shape, grid_size: Vector2i) -> void:
 	var host := Node3D.new()
