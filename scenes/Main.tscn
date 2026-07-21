@@ -1,21 +1,20 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://chkiy3o3pw5ut"]
 
-[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
-[ext_resource type="Script" path="res://scripts/grid/GridManager.gd" id="2_grid"]
-[ext_resource type="Script" path="res://scripts/grid/GridRenderer.gd" id="3_render"]
-[ext_resource type="Script" path="res://scripts/camera/CameraController.gd" id="4_cam"]
-[ext_resource type="Script" path="res://scripts/tile/TileManager.gd" id="5_tile_manager"]
-[ext_resource type="Script" path="res://scripts/tile/TileRenderer.gd" id="6_tile_renderer"]
-[ext_resource type="Resource" path="res://resources/levels/M2DemoLevel.tres" id="7_level"]
-[ext_resource type="Script" path="res://scripts/level/LevelLoader.gd" id="8_level_loader"]
-[ext_resource type="Script" path="res://scripts/level/LevelDebugPanel.gd" id="9_level_debug_panel"]
-[ext_resource type="Script" path="res://scripts/resource/ResourceManager.gd" id="10_resource_manager"]
-[ext_resource type="Script" path="res://scripts/combat/CombatManager.gd" id="11_combat_manager"]
-[ext_resource type="Script" path="res://scripts/building/BuildingManager.gd" id="12_building_manager"]
-[ext_resource type="Resource" path="res://resources/buildings/ArrowTower.tres" id="13_arrow_tower"]
-[ext_resource type="Resource" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
-[ext_resource type="Script" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
-[ext_resource type="Resource" path="res://resources/levels/M4DemoLevel.tres" id="16_m4_level"]
+[ext_resource type="Script" uid="uid://dojml67y6pbrh" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://caxah8nk12cyq" path="res://scripts/grid/GridManager.gd" id="2_grid"]
+[ext_resource type="Script" uid="uid://eghgyv50dxl1" path="res://scripts/grid/GridRenderer.gd" id="3_render"]
+[ext_resource type="Script" uid="uid://dfga457umb54x" path="res://scripts/camera/CameraController.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://bew28lvimhs27" path="res://scripts/tile/TileManager.gd" id="5_tile_manager"]
+[ext_resource type="Script" uid="uid://cdjj1ktv8i6pi" path="res://scripts/tile/TileRenderer.gd" id="6_tile_renderer"]
+[ext_resource type="Script" uid="uid://b03foyve8j5nb" path="res://scripts/level/LevelLoader.gd" id="8_level_loader"]
+[ext_resource type="Script" uid="uid://du3ppigv1d0s3" path="res://scripts/level/LevelDebugPanel.gd" id="9_level_debug_panel"]
+[ext_resource type="Script" uid="uid://dvtjsb0qfcrv2" path="res://scripts/resource/ResourceManager.gd" id="10_resource_manager"]
+[ext_resource type="Script" uid="uid://v3ocbrr2xs3k" path="res://scripts/combat/CombatManager.gd" id="11_combat_manager"]
+[ext_resource type="Script" uid="uid://65iq16m5xrrs" path="res://scripts/building/BuildingManager.gd" id="12_building_manager"]
+[ext_resource type="Resource" uid="uid://ckviv6nbdg0nv" path="res://resources/buildings/ArrowTower.tres" id="13_arrow_tower"]
+[ext_resource type="Resource" uid="uid://cdehjwm442vgl" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
+[ext_resource type="Script" uid="uid://dckm0cnlvh6k3" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
+[ext_resource type="Resource" uid="uid://c2jwklxxgif82" path="res://resources/levels/M4DemoLevel.tres" id="16_m4_level"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -24,73 +23,63 @@ ambient_light_source = 2
 ambient_light_color = Color(0.6, 0.66, 0.78, 1)
 ambient_light_energy = 0.9
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=1039988540]
 script = ExtResource("1_main")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=52634486]
 environment = SubResource("Env_1")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=981804719]
 transform = Transform3D(0.7, -0.5, 0.5, 0, 0.7, 0.7, -0.7, -0.5, 0.5, 0, 12, 0)
 light_energy = 1.1
 shadow_enabled = true
 
-[node name="GridManager" type="Node3D" parent="."]
+[node name="GridManager" type="Node3D" parent="." unique_id=1168118756]
 script = ExtResource("2_grid")
-grid_shape = 0
-cell_size = 1.0
-grid_size = Vector2i(6, 6)
-edge_pick_threshold = 0.35
 
-[node name="GridRenderer" type="Node3D" parent="."]
+[node name="GridRenderer" type="Node3D" parent="." unique_id=265656116]
 script = ExtResource("3_render")
 
-[node name="TileManager" type="Node3D" parent="."]
+[node name="TileManager" type="Node3D" parent="." unique_id=1417949125]
 script = ExtResource("5_tile_manager")
 
-[node name="TileRenderer" type="Node3D" parent="."]
+[node name="TileRenderer" type="Node3D" parent="." unique_id=93287498]
 script = ExtResource("6_tile_renderer")
 
-[node name="ResourceManager" type="Node" parent="."]
+[node name="ResourceManager" type="Node" parent="." unique_id=1674246223]
 script = ExtResource("10_resource_manager")
 
-[node name="CombatManager" type="Node3D" parent="."]
+[node name="CombatManager" type="Node3D" parent="." unique_id=396385188]
 script = ExtResource("11_combat_manager")
 
-[node name="BuildingManager" type="Node3D" parent="."]
+[node name="BuildingManager" type="Node3D" parent="." unique_id=1943652738]
 script = ExtResource("12_building_manager")
 arrow_tower = ExtResource("13_arrow_tower")
 laser_tower = ExtResource("14_laser_tower")
 
-[node name="LevelLoader" type="Node" parent="."]
+[node name="LevelLoader" type="Node" parent="." unique_id=608669261]
 script = ExtResource("8_level_loader")
 initial_level = ExtResource("16_m4_level")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." unique_id=1996595349]
 script = ExtResource("4_cam")
-move_speed = 8.0
-rotate_speed = 90.0
-zoom_distance = 16.0
-zoom_min = 5.0
-zoom_max = 30.0
-pitch_angle = 50.0
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+[node name="Camera3D" type="Camera3D" parent="CameraRig" unique_id=1126832573]
 transform = Transform3D(1, 0, 0, 0, 0.64, 0.77, 0, -0.77, 0.64, 0, 12, 10)
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=433212213]
 
-[node name="Panel" type="PanelContainer" parent="HUD"]
+[node name="Panel" type="PanelContainer" parent="HUD" unique_id=542436792]
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 360.0
 offset_bottom = 190.0
 
-[node name="Info" type="Label" parent="HUD/Panel"]
+[node name="Info" type="Label" parent="HUD/Panel" unique_id=275219984]
 layout_mode = 2
 text = "初始化中…"
 
-[node name="Hint" type="Label" parent="HUD"]
+[node name="Hint" type="Label" parent="HUD" unique_id=1666283203]
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
@@ -101,7 +90,7 @@ offset_right = -16.0
 offset_bottom = -12.0
 text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | T 切换网格 | 左键锁定"
 
-[node name="LevelDebugPanel" type="Control" parent="HUD"]
+[node name="LevelDebugPanel" type="Control" parent="HUD" unique_id=677013588]
 layout_mode = 3
 anchors_preset = 1
 anchor_left = 1.0
@@ -113,7 +102,7 @@ offset_bottom = 54.0
 grow_horizontal = 0
 script = ExtResource("9_level_debug_panel")
 
-[node name="M3DebugPanel" type="Control" parent="HUD"]
+[node name="M3DebugPanel" type="Control" parent="HUD" unique_id=959147162]
 layout_mode = 3
 anchors_preset = 1
 anchor_left = 1.0

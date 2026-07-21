@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="RockTileEffect" format=3]
+[gd_resource type="Resource" script_class="RockTileEffect" format=3 uid="uid://cwmyd2ct7p1i4"]
 
-[ext_resource type="Script" path="res://scripts/tile/effects/RockTileEffect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://dqhn3xnynigem" path="res://scripts/tile/effects/RockTileEffect.gd" id="1_effect"]
 
 [resource]
 script = ExtResource("1_effect")
+affects_airborne = false
 enemy_traversal = 1

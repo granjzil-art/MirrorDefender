@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="SpikeTileEffect" format=3]
+[gd_resource type="Resource" script_class="SpikeTileEffect" format=3 uid="uid://5hgy7c78xilg"]
 
-[ext_resource type="Script" path="res://scripts/tile/effects/SpikeTileEffect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://k7vx3d8e3njj" path="res://scripts/tile/effects/SpikeTileEffect.gd" id="1_effect"]
 
 [resource]
 script = ExtResource("1_effect")
-damage_per_second = 20.0
-ignores_armor = true
+affects_airborne = false

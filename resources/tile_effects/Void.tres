@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="VoidTileEffect" format=3]
+[gd_resource type="Resource" script_class="VoidTileEffect" format=3 uid="uid://bvj242py0trxx"]
 
-[ext_resource type="Script" path="res://scripts/tile/effects/VoidTileEffect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://du8gepodgl7da" path="res://scripts/tile/effects/VoidTileEffect.gd" id="1_effect"]
 
 [resource]
 script = ExtResource("1_effect")
-reward_multiplier = 1.0
+affects_airborne = false

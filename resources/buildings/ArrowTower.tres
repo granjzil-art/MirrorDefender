@@ -1,67 +1,39 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://ckviv6nbdg0nv"]
 
-[ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
-[ext_resource type="Script" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="1_yg2iu"]
 
-[sub_resource type="Resource" id="Level1"]
-script = ExtResource("2_stats")
-cost = 75.0
-refund_amount = 38.0
-resource_per_second = 0.0
-base_damage = 20.0
-targeting_range = 5.0
-attack_range = 4.0
-attacks_per_second = 1.0
-laser_dps = 0.0
-level_factor = 1.0
-extra_factor = 1.0
-target_priority = 0
-projectile_speed = 7.0
-projectile_length = 0.32
-projectile_width = 0.07
-tower_color = Color(0.9, 0.52, 0.16, 1)
-attack_color = Color(1, 0.82, 0.28, 1)
-
-[sub_resource type="Resource" id="Level2"]
-script = ExtResource("2_stats")
+[sub_resource type="Resource" id="Resource_bekr3"]
+script = ExtResource("1_yg2iu")
 cost = 100.0
-refund_amount = 88.0
-resource_per_second = 0.0
-base_damage = 24.0
-targeting_range = 5.5
-attack_range = 4.5
-attacks_per_second = 1.15
-laser_dps = 0.0
-level_factor = 1.2
-extra_factor = 1.0
-target_priority = 0
-projectile_speed = 8.0
-projectile_length = 0.36
-projectile_width = 0.08
-tower_color = Color(0.95, 0.66, 0.18, 1)
-attack_color = Color(1, 0.9, 0.36, 1)
+refund_amount = 60.0
+targeting_range = 3.0
+attack_range = 60.0
+attacks_per_second = 2.0
+metadata/_custom_type_script = "uid://b05t732bvub0h"
 
-[sub_resource type="Resource" id="Level3"]
-script = ExtResource("2_stats")
-cost = 150.0
-refund_amount = 163.0
-resource_per_second = 0.0
-base_damage = 28.0
-targeting_range = 6.0
-attack_range = 5.0
-attacks_per_second = 1.3
-laser_dps = 0.0
-level_factor = 1.5
-extra_factor = 1.0
-target_priority = 0
-projectile_speed = 9.0
-projectile_length = 0.42
-projectile_width = 0.09
-tower_color = Color(0.92, 0.32, 0.13, 1)
-attack_color = Color(1, 0.72, 0.22, 1)
+[sub_resource type="Resource" id="Resource_e42pe"]
+script = ExtResource("1_yg2iu")
+refund_amount = 100.0
+base_damage = 30.0
+targeting_range = 4.0
+attack_range = 60.0
+attacks_per_second = 3.0
+projectile_speed = 14.0
+projectile_length = 1.0
+projectile_width = 0.1
+metadata/_custom_type_script = "uid://b05t732bvub0h"
+
+[sub_resource type="Resource" id="Resource_wvhbo"]
+script = ExtResource("1_yg2iu")
+refund_amount = 160.0
+base_damage = 40.0
+attack_range = 60.0
+attacks_per_second = 4.0
+projectile_length = 0.4
+projectile_width = 0.1
+metadata/_custom_type_script = "uid://b05t732bvub0h"
 
 [resource]
 script = ExtResource("1_definition")
-kind = 0
-display_name = "箭塔"
-levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])
+levels = Array[ExtResource("1_yg2iu")]([SubResource("Resource_bekr3"), SubResource("Resource_e42pe"), SubResource("Resource_wvhbo")])

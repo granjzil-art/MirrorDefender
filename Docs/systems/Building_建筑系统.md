@@ -94,16 +94,16 @@ M3DebugPanel 建造模式 + Main 鼠标悬停
 
 Main 左键
   -> BuildingManager.place_building(cell, definition, preview_facing)
-     -> tower: reject path cell -> TileManager.can_place / place_occupant
-     -> barrier: require non-protected path cell -> place_path_occupant
-     -> ResourceManager.try_register_building(level_1.cost)
-     -> Building.configure(..., initial_level=1)
+	 -> tower: reject path cell -> TileManager.can_place / place_occupant
+	 -> barrier: require non-protected path cell -> place_path_occupant
+	 -> ResourceManager.try_register_building(level_1.cost)
+	 -> Building.configure(..., initial_level=1)
 
 M3DebugPanel 升级
   -> BuildingManager.upgrade_selected
-     -> spend(next_level.cost)
-     -> Building.apply_level(next_level)
-     -> sync sum(Building.current_stats.resource_per_second)
+	 -> spend(next_level.cost)
+	 -> Building.apply_level(next_level)
+	 -> sync sum(Building.current_stats.resource_per_second)
 
 Select occupied cell
   -> BuildingManager.select_at -> BuildingActionPanel projects action anchor

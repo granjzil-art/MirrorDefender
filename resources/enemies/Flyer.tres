@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://jhoves7q4q0h"]
 
-[ext_resource type="Script" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 
 [resource]
 script = ExtResource("1_enemy")
@@ -8,15 +8,12 @@ enemy_id = &"flyer"
 display_name = "飞行侦察兵"
 max_hp = 60.0
 move_speed = 1.8
-armor = 0.0
 base_damage = 6.0
-reward = 8.0
+reward = 20.0
 hit_radius = 0.24
 is_airborne = true
 flight_height = 0.9
 attack_damage = 8.0
-attacks_per_second = 1.0
-attack_range = 0.65
 body_color = Color(0.28, 0.78, 0.96, 1)
 body_height = 0.62
 attack_color = Color(0.65, 0.95, 1, 1)

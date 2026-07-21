@@ -1,4 +1,4 @@
-﻿# 关卡与存档 · Level
+# 关卡与存档 · Level
 
 > 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关、M3 经济配置，以及 M4 据点、手动路径、出生点和波次配置；局内存档与正式选关仍待后续模块扩充。
 
@@ -64,11 +64,11 @@ Main._ready
 Debug picker / future production level selection
   -> LevelLoader.load_level_path(path) or load_level(resource)
   -> LevelResource.validate_runtime() (read-only preflight)
-     └─ failure: preserve current Grid / Tile / current level
+	 └─ failure: preserve current Grid / Tile / current level
   -> GridManager.apply_configuration(shape, size, range)
   -> TileManager.load_level(level)
-       ├─ serialized tiles -> cloned runtime Dictionary[cell, TileCellData]
-       └─ TileManager.level_loaded -> TileRenderer rebuild
+	   ├─ serialized tiles -> cloned runtime Dictionary[cell, TileCellData]
+	   └─ TileManager.level_loaded -> TileRenderer rebuild
   -> LevelLoader.level_loaded
 	   ├─ ResourceManager.apply_level_configuration(level)
 	   ├─ CombatManager.clear_targets()

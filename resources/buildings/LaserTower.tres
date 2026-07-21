@@ -1,24 +1,16 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://cdehjwm442vgl"]
 
-[ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
-[ext_resource type="Script" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
-cost = 120.0
+cost = 200.0
 refund_amount = 60.0
-resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 6.0
 attack_range = 6.0
-attacks_per_second = 1.0
-laser_dps = 30.0
-level_factor = 1.0
-extra_factor = 1.0
-target_priority = 0
-projectile_speed = 7.0
-projectile_length = 0.32
-projectile_width = 0.07
+laser_dps = 20.0
 tower_color = Color(0.16, 0.55, 0.88, 1)
 attack_color = Color(0.2, 0.95, 1, 1)
 
@@ -26,15 +18,11 @@ attack_color = Color(0.2, 0.95, 1, 1)
 script = ExtResource("2_stats")
 cost = 160.0
 refund_amount = 140.0
-resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 7.0
 attack_range = 7.0
-attacks_per_second = 1.0
-laser_dps = 38.0
+laser_dps = 30.0
 level_factor = 1.2
-extra_factor = 1.0
-target_priority = 0
 projectile_speed = 8.0
 projectile_length = 0.36
 projectile_width = 0.08
@@ -45,15 +33,11 @@ attack_color = Color(0.28, 1, 0.88, 1)
 script = ExtResource("2_stats")
 cost = 220.0
 refund_amount = 250.0
-resource_per_second = 0.0
 base_damage = 0.0
 targeting_range = 8.0
 attack_range = 8.0
-attacks_per_second = 1.0
-laser_dps = 48.0
+laser_dps = 40.0
 level_factor = 1.5
-extra_factor = 1.0
-target_priority = 0
 projectile_speed = 9.0
 projectile_length = 0.42
 projectile_width = 0.09

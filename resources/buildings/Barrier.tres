@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://dh7bguuyw28k7"]
 
-[ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
-[ext_resource type="Script" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
@@ -9,9 +9,7 @@ cost = 60.0
 refund_amount = 30.0
 base_damage = 0.0
 max_durability = 240.0
-regeneration_delay = 3.0
 regeneration_per_second = 12.0
-damage_reflection_ratio = 0.0
 tower_color = Color(0.22, 0.62, 0.86, 1)
 attack_color = Color(0.55, 0.88, 1, 1)
 
@@ -23,7 +21,6 @@ base_damage = 0.0
 max_durability = 380.0
 regeneration_delay = 2.5
 regeneration_per_second = 18.0
-damage_reflection_ratio = 0.0
 tower_color = Color(0.18, 0.72, 0.92, 1)
 attack_color = Color(0.62, 0.94, 1, 1)
 

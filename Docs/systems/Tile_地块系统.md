@@ -67,8 +67,8 @@ Main (scene composition)
   │     └─ validated serialized tiles -> cloned runtime Dictionary[Vector3i, TileCellData]
   ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
-        ├─ LevelResource.paths union -> path_terrain_color base
-        └─ base ImmediateMesh terrain + independent obstacle / element meshes
+		├─ LevelResource.paths union -> path_terrain_color base
+		└─ base ImmediateMesh terrain + independent obstacle / element meshes
 
 Mirror Tile Editor (Godot editor)
   TilePreset .tres click / drag path -> TileEditorCanvas

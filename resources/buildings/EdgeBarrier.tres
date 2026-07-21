@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://v0itkwdrrh5c"]
 
-[ext_resource type="Script" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
-[ext_resource type="Script" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
@@ -9,9 +9,7 @@ cost = 50.0
 refund_amount = 25.0
 base_damage = 0.0
 max_durability = 180.0
-regeneration_delay = 3.0
 regeneration_per_second = 10.0
-damage_reflection_ratio = 0.0
 tower_color = Color(0.12, 0.55, 0.95, 1)
 attack_color = Color(0.45, 0.85, 1, 1)
 
@@ -23,8 +21,7 @@ base_damage = 0.0
 max_durability = 300.0
 regeneration_delay = 2.5
 regeneration_per_second = 16.0
-damage_reflection_ratio = 0.0
-tower_color = Color(0.10, 0.68, 1, 1)
+tower_color = Color(0.1, 0.68, 1, 1)
 attack_color = Color(0.55, 0.92, 1, 1)
 
 [sub_resource type="Resource" id="Level3"]
@@ -43,5 +40,4 @@ attack_color = Color(0.72, 0.84, 1, 1)
 script = ExtResource("1_definition")
 kind = 3
 display_name = "边屏障"
-placement_surface = 2
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])

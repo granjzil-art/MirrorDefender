@@ -22,9 +22,9 @@ WaveManager -> EnemyUnit.configure_unit(enemy, world_points, path_cells, cell_si
 
 EnemyUnit._process
   -> blocker ahead?
-     ├─ no: move path -> final point -> reached_base
-     ├─ outside range: limit movement before range boundary
-     └─ inside range: stop -> EnemyAttackStrategy -> barrier damage
+	 ├─ no: move path -> final point -> reached_base
+	 ├─ outside range: limit movement before range boundary
+	 └─ inside range: stop -> EnemyAttackStrategy -> barrier damage
 
 Barrier destroyed -> BuildingManager clears Tile occupant/dictionary
   -> next blocker query returns null/next barrier -> resume movement
