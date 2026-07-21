@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Mirror / Building · 镜面横向顺序、追踪转向与完整姿态镜像 — 2026-07-21
+**模块**：Mirror / Building / Tests / Docs。
+
+- 镜面 Shader 增加反射相机横向手性补偿：用反向屏幕 X 坐标采样同投影反射纹理，镜前右侧地块在镜中仍位于右侧，不改纵向顺序。
+- BuildingDefinition 新增 `FIXED_FACING / TRACK_TARGET` 配置化朝向能力和视觉转向速度；箭塔追踪锁定目标但不改逻辑 `facing_index`，激光塔保持手动固定攻击朝向。
+- 建筑投影不再只保留创建时姿态；每帧在原快照节点上同步源模型根变换、子节点、可见性和骨骼姿态，再作用全部镜轴的组合反射，避免重建闪烁。
+- CopyMirror 回归增至 87 项，新增横向顺序校正、追踪朝向不污染逻辑方向、固定朝向手动旋转和投影节点不重建检查。
+
 ## Architecture · 批次 1 健壮性基线 — 2026-07-21
 **模块**：Tests / Shared / Level / Grid / Building / Unit / Mirror / FX / Resource / Docs。
 

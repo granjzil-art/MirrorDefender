@@ -49,6 +49,9 @@ func _test_editable_configuration_validation() -> void:
 	_expect(not building.validate_configuration().is_empty(), "building validates every configured level")
 	building.levels = [BuildingLevelStats.new()]
 	_expect(building.validate_configuration().is_empty(), "complete building definition validates")
+	building.aim_mode = 99
+	building.visual_turn_speed_degrees = NAN
+	_expect(not building.validate_configuration().is_empty(), "building rejects invalid orientation configuration")
 
 	var enemy := EnemyDefinition.new()
 	_expect(enemy.validate_configuration().is_empty(), "default enemy definition validates")

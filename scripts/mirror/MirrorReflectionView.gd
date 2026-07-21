@@ -208,11 +208,12 @@ func _make_reflection_material(texture: Texture2D) -> ShaderMaterial:
 	shader.code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled;
-uniform sampler2D reflection_texture : source_color, filter_linear_mipmap;
+uniform sampler2D reflection_texture : source_color, filter_linear_mipmap, repeat_disable;
 uniform vec4 surface_tint : source_color = vec4(0.8, 0.94, 1.0, 1.0);
 uniform float reflectivity : hint_range(0.0, 1.0) = 0.92;
 void fragment() {
-	vec3 reflected = texture(reflection_texture, SCREEN_UV).rgb;
+	vec2 corrected_uv = vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y);
+	vec3 reflected = texture(reflection_texture, corrected_uv).rgb;
 	float rim = pow(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 2.0);
 	vec3 result = mix(surface_tint.rgb, reflected * surface_tint.rgb, reflectivity);
 	ALBEDO = result + surface_tint.rgb * rim * 0.12;

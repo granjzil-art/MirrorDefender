@@ -1,6 +1,6 @@
 # 建筑系统 · Building
 
-> 实现状态：已完成箭塔、激光塔与屏障、三级完整参数、放置虚影、升级、逐级外观/产出，以及屏障耐久、脱战回血和反伤。
+> 实现状态：已完成箭塔、激光塔与屏障、三级完整参数、放置虚影、升级、逐级外观/产出、配置化目标追踪转向，以及屏障耐久、脱战回血和反伤。
 
 ## 职责
 
@@ -10,8 +10,8 @@
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
-- **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算，发射时不扣血。
-- **激光塔**：不索敌，沿世界固定朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。
+- **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
+- **激光塔**：不索敌，使用 `FIXED_FACING`，沿玩家手动设置的世界朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。
 - **空中适用性**：每级 `affects_airborne` 统一控制箭塔候选、激光线段伤害、屏障阻挡与反伤是否作用于飞行敌人；升级切换到新等级自己的配置。
 - **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
 - **耐久与升级**：屏障每级独立配置 `max_durability`。升级时最大耐久的增加量同步加到当前耐久，保留升级前已经损失的绝对耐久。
@@ -25,7 +25,7 @@
 - **删除退款**：每级 `refund_amount` 是删除该级建筑时的精确返还额。默认数值约为累计建造/升级投入的 50%，但不从费用自动推导。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
 - **移除事务**：主动删除、战斗摧毁、切关清理和外部 `queue_free()` 共用幂等释放路径，统一解除信号、清除字典/地块占位、释放建筑上限、选择和产出；同一建筑不会重复退款或重复注销。
-- **离散朝向**：HEX 为 6 档、每档 60 度；SQUARE 为 8 档、每档 45 度。方向只取决于 Grid 形状和 `facing_index`，不读取相机 yaw。
+- **逻辑朝向与视觉朝向**：HEX 逻辑朝向为 6 档、SQUARE 为 8 档，不读取相机 yaw。`FIXED_FACING` 的逻辑和模型都跟随 `facing_index`；`TRACK_TARGET` 只在此基础上转动 `_visual_root` 追踪当前目标，失去目标后保持最后视觉朝向。
 
 ## 参数编辑入口
 
@@ -36,6 +36,13 @@
 - `resources/buildings/Barrier.tres`
 
 展开 `Levels` 数组中的三个 `BuildingLevelStats`。数组第 0/1/2 项对应建筑 1/2/3 级。
+
+Definition 根节点的 `Orientation` 分组控制通用转向能力：
+
+| 参数 | 说明 |
+|---|---|
+| `aim_mode` | `FIXED_FACING` 只跟随手动逻辑朝向；`TRACK_TARGET` 使视觉姿态追踪已锁定目标。新的转向索敌建筑应通过此字段声明能力，不在 Building 中按种类写死。 |
+| `visual_turn_speed_degrees` | 追踪模式每秒最大视觉转向角度；不影响索敌、攻击频率或发射条件。 |
 
 | 分组 | 参数 | 说明 |
 |---|---|---|
@@ -114,12 +121,14 @@ Select occupied cell
 
 Arrow Building._process
   -> acquire in targeting_range
+	-> aim_mode=TRACK_TARGET: rotate visual_root toward locked target
   -> Building.affects_target filters airborne targets
   -> verify attack_range
   -> CombatManager.spawn_projectile
   -> Projectile impact -> CombatTarget.take_damage
 
 Laser Building._process
+	-> aim_mode=FIXED_FACING: use manually editable facing_index
   -> fixed facing segment of attack_range
   -> applicable touched CombatTarget.take_damage(final_dps * delta)
 
@@ -137,7 +146,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 |---|---|---|
 | `get_level_stats` | `(value: int) -> BuildingLevelStats` | 把等级钳制到已配置范围并返回对应完整参数。 |
 | `get_max_level` | `() -> int` | 返回 `min(3, levels.size())`。 |
-| `validate_configuration` | `() -> Array[String]` | 校验身份、放置枚举、1~3 级完整性，并逐级校验全部可编辑参数。BuildingLevelStats 提供同名数值校验。 |
+| `validate_configuration` | `() -> Array[String]` | 校验身份、放置/朝向枚举、转向速度、1~3 级完整性，并逐级校验全部可编辑参数。BuildingLevelStats 提供同名数值校验。 |
 | `is_configured` | `() -> bool` | 仅当 `validate_configuration()` 无错误时返回 true。 |
 
 ### Building.gd
@@ -161,6 +170,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `launch_projectile` | `(target: CombatTarget, damage: float) -> Projectile` | 用当前级速度/尺寸/颜色通过 CombatManager 发射。 |
 | `get_action_anchor` | `() -> Vector3` | 返回悬浮操作按钮使用的建筑上方世界锚点。 |
 | `rotate_facing` / `set_facing_index` | `(step: int = 1) -> void` / `(value: int) -> void` | 更新世界固定离散朝向。 |
+| `update_visual_orientation` / `get_visual_facing_direction` | `(delta: float) -> bool` / `() -> Vector3` | 按 Definition 的追踪能力平滑更新模型姿态，并读取当前视觉前向；不改逻辑 `facing_index`。 |
+| `create_copy_visual_snapshot` / `sync_copy_visual_snapshot` | `() -> Node3D` / `(snapshot: Node3D) -> bool` | 创建无行为视觉快照，并把实体模型的子节点变换、可见性与骨骼姿态同步到既有快照。 |
 | `shutdown` | `() -> void` | 停止策略并清理锁定。 |
 
 ### BarrierDurability.gd
@@ -202,6 +213,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 - 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用；`refund_amount` 是删除当前级的精确返还，不由 `cost` 自动计算。
 - `targeting_range` 只决定候选；`attack_range` 决定是否能发射或激光长度，两者不得互相代替。
 - `BuildingDefinition.Kind` 当前固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`、`EDGE_BARRIER=3`。
+- `BuildingDefinition.AimMode` 是转向能力的事实源：`FIXED_FACING=0`、`TRACK_TARGET=1`。不得以 `Kind` 分支写死自动转向。
 - 路径格缓存来自当前 LevelResource；普通塔不得占路。屏障可覆盖 BUILDABLE 或 BLOCKED 路面，但不得覆盖未清障的 DESTRUCTIBLE 格。
 - 屏障摧毁属于战斗损失，不返还资源；主动删除属于玩家操作，按本级 `refund_amount` 返还。
 - BuildingManager 的 cell 字典、Tile occupant、ResourceManager 建筑计数和生命周期回调必须作为同一事务更新；外部释放只做无退款清理。

@@ -66,6 +66,7 @@
 - 原塔发起一次投射物或激光攻击时，所有有效投影在同一逻辑时刻复制该攻击。
 - 攻击起点、目标点、固定朝向和激光线段通过投影的复合镜像变换获得。
 - 投影不重新校正敌人，因此镜像位置没有敌人时允许打空。
+- 投影无独立转向决策；实体建筑因目标追踪或手动逻辑朝向发生任何模型姿态变化时，既有投影在原节点上实时同步完整姿态。
 - 投射物投影仍按原塔等级参数使用飞行速度、尺寸、伤害与空中目标开关；飞向镜像后的固定目标点，而不是独立追踪目标。
 - 激光投影按镜像线段逐 tick 结算，继承原塔等级的持续伤害和空中目标开关。
 
@@ -98,9 +99,9 @@
 ### 2.9 视觉规范
 
 - 复制镜的玩法生效侧仍是唯一事实源，决定最近源格、投影方向和顶部蓝色标识。默认仅在表现层启用双观察侧镜面：同一个反射 Quad 根据主相机所在侧贴到朝向观察者的实体表面，因此拉远视角跨过镜面无限平面时不会退回镜体底色，也不会增加第二个反射视口。可用 `reflection_two_sided_visual` 恢复仅生效侧可见。
-- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；镜面 Shader 使用 `SCREEN_UV` 采样屏幕对齐反射纹理，不再构造随距离产生极端偏移的法线对齐离轴视锥。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体蓝色自遮挡。
+- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体蓝色自遮挡。
 - 实际镜面刷新由 `MirrorManager` 轮询调度；镜面中心或任一矩形角点处于主相机视锥时均可刷新，并限制刷新间隔与每帧上限。放置预览使用独立低分辨率。
-- 建筑投影复制 `Building` 当前 `_visual_root` 的静态视觉快照；地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
+- 建筑投影创建 `Building._visual_root` 的无行为快照，之后每帧同步源的视觉根变换、子 `Node3D` 姿态、可见性和 `Skeleton3D` 骨骼姿态，不重建投影节点。地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
 - 所有视觉快照按 payload 的完整镜链做严格仿射反射。不得用圆盘、圆柱、方块等独立几何替代地块/建筑，也不得用位移、缩放或垂直错层拆开重叠虚像。
 - 投影保留源内容主色，叠加强度可调的半透明、发光与边缘高光；同格多项投影只通过不同强调色、同心标识环和悬停标签区分，标识不参与玩法也不替代源几何。
 - 同格透明投影按稳定的叠放序号分配 `render_priority`，且不写入深度缓冲；重建时先隐藏旧投影再延迟释放，避免新旧几何在同一帧闪烁。
@@ -195,16 +196,16 @@ MirrorProjection
 | `scripts/shared/EdgeOccupancyRegistry.gd` | `EdgeOccupancyRegistry` / `RefCounted` | 镜子、边屏障共用的规范化物理边占用表。 |
 | `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `Resource` | 经济、链深、占位开关与虚像表现参数，并通过 `validate_configuration()` 返回完整配置错误。 |
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧和程序化表现。 |
-| `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、离轴视锥和反射贴图。 |
+| `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、屏幕对齐反射与反射相机横向手性补偿。 |
 | `scripts/mirror/MirrorCopyPayload.gd` | `MirrorCopyPayload` / `RefCounted` | 稳定来源、镜子谱系和复合反射变换。 |
-| `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、稳定透明渲染顺序、严格反射标识、屏障与地块效果代理。 |
+| `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、源模型实时姿态同步、稳定透明渲染顺序、严格反射、屏障与地块效果代理。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、预览、固定点镜链和跨模块查询。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子的删除/翻面按钮。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
-| `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 提供无行为、无独立动画时钟的当前建筑视觉。 |
+| `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 69 项双网格、玩法联调、内容快照、生命周期、稳定透明顺序与远距离双观察侧反射回归。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 87 项双网格、玩法联调、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
 
 ## 六、函数索引
 
@@ -226,6 +227,8 @@ MirrorProjection
 | `MirrorCopyPayload.transform_point` | `(point) -> Vector3` | 按谱系顺序应用复合镜像，供同步攻击使用。 |
 | `MirrorCopyPayload.get_composed_transform` / `transform_transform` | `() -> Transform3D` / `(source_transform: Transform3D) -> Transform3D` | 把点反射谱系组合为仿射变换，并严格作用到源视觉姿态。 |
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
+| `Building.sync_copy_visual_snapshot` | `(snapshot: Node3D) -> bool` | 把当前子节点与骨骼姿态同步到既有无行为快照，不启动独立动画时钟。 |
+| `MirrorProjection.sync_source_visual_pose` | `() -> bool` | 不重建投影，先同步源模型姿态，再将 payload 的全部镜轴组合变换作用于视觉根。 |
 | `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 镜面矩形进入视锥时按当前观察侧更新实体表面与反射相机，并请求 SubViewport 单帧刷新。 |
 | `CopyMirror.get_reflection_viewport` | `() -> SubViewport` | 返回屏幕对齐反射目标，供调试与回归检查宽高比。 |

@@ -58,6 +58,7 @@ func _process(delta: float) -> void:
 		_durability.tick(delta)
 	elif _attack_strategy != null:
 		_attack_strategy.tick(self, delta)
+		update_visual_orientation(delta)
 
 func configure(
 	building_definition: BuildingDefinition,
@@ -291,6 +292,36 @@ func get_facing_direction() -> Vector3:
 	var hex_angle := deg_to_rad(-30.0 + 60.0 * float(facing_index))
 	return Vector3(cos(hex_angle), 0.0, sin(hex_angle)).normalized()
 
+## Updates presentation only. Logical facing_index and fixed-direction attacks
+## remain owned by set_facing_index().
+func update_visual_orientation(delta: float) -> bool:
+	if definition == null or definition.aim_mode != BuildingDefinition.AimMode.TRACK_TARGET:
+		return false
+	if _visual_root == null or not is_instance_valid(_visual_root):
+		return false
+	var target := _get_valid_visual_target()
+	if target == null:
+		return false
+	var world_direction := target.get_target_position() - get_attack_origin()
+	world_direction.y = 0.0
+	if world_direction.length_squared() <= 0.000001:
+		return false
+	var local_direction := global_basis.inverse() * world_direction.normalized()
+	var desired_yaw := atan2(-local_direction.x, -local_direction.z)
+	var current_yaw := _visual_root.rotation.y
+	var yaw_delta := wrapf(desired_yaw - current_yaw, -PI, PI)
+	var maximum_step := deg_to_rad(definition.visual_turn_speed_degrees) * maxf(0.0, delta)
+	var applied_delta := clampf(yaw_delta, -maximum_step, maximum_step)
+	if is_zero_approx(applied_delta):
+		return false
+	_visual_root.rotation.y = wrapf(current_yaw + applied_delta, -PI, PI)
+	return true
+
+func get_visual_facing_direction() -> Vector3:
+	if _visual_root == null or not is_instance_valid(_visual_root):
+		return get_facing_direction()
+	return -_visual_root.global_basis.z.normalized()
+
 func get_attack_origin() -> Vector3:
 	return global_position + Vector3(0.0, _get_tower_height() * 0.82, 0.0)
 
@@ -394,6 +425,18 @@ func create_copy_visual_snapshot() -> Node3D:
 
 func get_copy_visual_transform() -> Transform3D:
 	return global_transform * (_visual_root.transform if _visual_root != null else Transform3D.IDENTITY)
+
+## Copies the source model's live child-node pose into an existing behaviorless
+## snapshot. The snapshot root transform is applied separately by the mirror so
+## the full pose can receive the exact composed reflection matrix.
+func sync_copy_visual_snapshot(snapshot: Node3D) -> bool:
+	if snapshot == null or not is_instance_valid(snapshot):
+		return false
+	if _visual_root == null or not is_instance_valid(_visual_root):
+		return false
+	snapshot.visible = _visual_root.visible
+	_sync_copy_visual_children(_visual_root, snapshot)
+	return true
 
 func notify_attack(target: CombatTarget, damage: float, continuous: bool) -> void:
 	if damage > 0.0:
@@ -511,6 +554,36 @@ func _sanitize_copy_visual_snapshot(node: Node) -> void:
 	node.process_mode = Node.PROCESS_MODE_DISABLED
 	if node.get_script() != null:
 		node.set_script(null)
+
+func _sync_copy_visual_children(source: Node3D, snapshot: Node3D) -> void:
+	for raw_child in source.get_children():
+		if not raw_child is Node3D:
+			continue
+		var source_child := raw_child as Node3D
+		var snapshot_child := snapshot.get_node_or_null(NodePath(str(source_child.name))) as Node3D
+		if snapshot_child == null:
+			continue
+		snapshot_child.transform = source_child.transform
+		snapshot_child.visible = source_child.visible
+		if source_child is Skeleton3D and snapshot_child is Skeleton3D:
+			_sync_copy_skeleton_pose(source_child as Skeleton3D, snapshot_child as Skeleton3D)
+		_sync_copy_visual_children(source_child, snapshot_child)
+
+func _sync_copy_skeleton_pose(source: Skeleton3D, snapshot: Skeleton3D) -> void:
+	var bone_count := mini(source.get_bone_count(), snapshot.get_bone_count())
+	for bone_index in range(bone_count):
+		snapshot.set_bone_pose_position(bone_index, source.get_bone_pose_position(bone_index))
+		snapshot.set_bone_pose_rotation(bone_index, source.get_bone_pose_rotation(bone_index))
+		snapshot.set_bone_pose_scale(bone_index, source.get_bone_pose_scale(bone_index))
+
+func _get_valid_visual_target() -> CombatTarget:
+	if _locked_target == null or not is_instance_valid(_locked_target):
+		_locked_target = null
+		return null
+	if not _locked_target.is_alive():
+		_locked_target = null
+		return null
+	return _locked_target
 
 func _get_tower_height() -> float:
 	return _grid.cell_size * tower_height_ratio if _grid != null else tower_height_ratio

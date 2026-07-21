@@ -31,6 +31,12 @@ static func make_building_definition(kind: BuildingDefinition.Kind) -> BuildingD
 	definition.display_name = _building_display_name(kind)
 	definition.placement_surface = _building_placement_surface(kind)
 	definition.blocks_both_directions = true
+	definition.aim_mode = (
+		BuildingDefinition.AimMode.TRACK_TARGET
+		if kind == BuildingDefinition.Kind.ARROW_TOWER
+		else BuildingDefinition.AimMode.FIXED_FACING
+	)
+	definition.visual_turn_speed_degrees = 2160.0
 	definition.levels.append(_make_building_stats(kind))
 	return definition
 

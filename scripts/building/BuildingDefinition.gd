@@ -19,6 +19,11 @@ enum PlacementSurface {
 	PATH_EDGE,
 }
 
+enum AimMode {
+	FIXED_FACING,
+	TRACK_TARGET,
+}
+
 @export_group("Identity")
 @export var kind: Kind = Kind.ARROW_TOWER
 @export var display_name: String = "箭塔"
@@ -28,6 +33,12 @@ enum PlacementSurface {
 ## Edge buildings block both traversal directions by default. Disable this only
 ## for future one-way variants; tile buildings ignore the setting.
 @export var blocks_both_directions: bool = true
+
+@export_group("Orientation")
+## TRACK_TARGET rotates only the visual pose toward the acquired target.
+## FIXED_FACING keeps attacks and visuals on the manually selected facing.
+@export var aim_mode: AimMode = AimMode.FIXED_FACING
+@export_range(1.0, 2160.0, 1.0, "or_greater") var visual_turn_speed_degrees: float = 720.0
 
 @export_group("Levels")
 @export var levels: Array[BuildingLevelStats] = []
@@ -54,6 +65,21 @@ func validate_configuration() -> Array[String]:
 		placement_surface,
 		PlacementSurface.BUILDABLE_TILE,
 		PlacementSurface.PATH_EDGE
+	)
+	ConfigValidator.require_integer_range(
+		errors,
+		"朝向模式",
+		aim_mode,
+		AimMode.FIXED_FACING,
+		AimMode.TRACK_TARGET
+	)
+	ConfigValidator.require_number(
+		errors,
+		"视觉转向速度",
+		visual_turn_speed_degrees,
+		0.0,
+		INF,
+		false
 	)
 	if levels.is_empty():
 		errors.append("至少需要配置 1 个建筑等级")

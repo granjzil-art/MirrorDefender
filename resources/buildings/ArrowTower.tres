@@ -36,4 +36,5 @@ metadata/_custom_type_script = "uid://b05t732bvub0h"
 
 [resource]
 script = ExtResource("1_definition")
+aim_mode = 1
 levels = Array[ExtResource("1_yg2iu")]([SubResource("Resource_bekr3"), SubResource("Resource_e42pe"), SubResource("Resource_wvhbo")])

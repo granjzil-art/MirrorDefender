@@ -23,6 +23,9 @@ var _laser_line: MeshInstance3D
 var _laser_material: StandardMaterial3D
 var _inspection_label: Label3D
 
+func _process(_delta: float) -> void:
+	sync_source_visual_pose()
+
 func configure(
 	copy_payload: MirrorCopyPayload,
 	grid_manager: GridManager,
@@ -104,8 +107,8 @@ func _build_visual() -> void:
 	if _visual_snapshot != null:
 		add_child(_visual_snapshot)
 		_visual_snapshot.top_level = true
-		_visual_snapshot.global_transform = _get_snapshot_transform()
 		_apply_projection_materials(_visual_snapshot)
+		sync_source_visual_pose()
 	_build_stack_indicator()
 	_build_inspection_label()
 	if payload.copy_kind == &"laser_tower":
@@ -128,6 +131,23 @@ func _get_snapshot_transform() -> Transform3D:
 		var source_transform: Transform3D = payload.root_source.call("get_copy_visual_transform")
 		return payload.transform_transform(source_transform)
 	return payload.get_composed_transform()
+
+## Synchronizes the existing behaviorless snapshot without rebuilding the
+## projection node. Dynamic source pose is copied first, then the complete
+## source transform receives every reflection in the payload chain.
+func sync_source_visual_pose() -> bool:
+	if is_queued_for_deletion():
+		return false
+	if _visual_snapshot == null or not is_instance_valid(_visual_snapshot):
+		return false
+	if payload == null or not payload.is_source_valid():
+		visible = false
+		return false
+	visible = true
+	if payload.root_source != null and payload.root_source.has_method("sync_copy_visual_snapshot"):
+		payload.root_source.call("sync_copy_visual_snapshot", _visual_snapshot)
+	_visual_snapshot.global_transform = _get_snapshot_transform()
+	return true
 
 func _apply_projection_materials(node: Node) -> void:
 	if node is MeshInstance3D:

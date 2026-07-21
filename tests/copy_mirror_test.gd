@@ -91,10 +91,40 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var retired_projection := tile_projection
 	mirror_manager.rebuild_now()
 	_expect(not retired_projection.visible, "projection rebuild hides retired visuals before deferred deletion")
+	_expect(not retired_projection.sync_source_visual_pose() and not retired_projection.visible, "queued pose synchronization cannot reveal a retired projection")
 	projections = mirror_manager.get_projections(target_cell)
 	tower_projection = _find_projection_kind(projections, &"arrow_tower")
 	tile_projection = _find_projection_kind(projections, &"spike")
 	_expect(tile_manager.get_occupant(target_cell) == null, "default projections do not write TileCellData occupancy")
+	var logical_facing_before_aim := arrow.facing_index
+	var projection_snapshot_id := tower_projection.get_visual_snapshot().get_instance_id()
+	var aim_target := _make_target(host, grid.cell_to_world(Vector3i(2, 0, 0)))
+	combat_manager.register_target(aim_target)
+	arrow.acquire_target()
+	_expect(arrow.update_visual_orientation(1.0), "target-tracking building rotates its visual pose toward the acquired target")
+	var expected_aim_direction := aim_target.get_target_position() - arrow.get_attack_origin()
+	expected_aim_direction.y = 0.0
+	_expect(arrow.get_visual_facing_direction().dot(expected_aim_direction.normalized()) > 0.999, "tracking visual faces the live target")
+	_expect(arrow.facing_index == logical_facing_before_aim, "visual target tracking never changes the logical placement facing")
+	var first_aim_transform := arrow.get_copy_visual_transform()
+	_expect(tower_projection.sync_source_visual_pose(), "tower projection synchronizes the live source pose without rebuilding")
+	_expect(
+		tower_projection.get_visual_snapshot().global_transform.is_equal_approx(
+			tower_projection.payload.transform_transform(first_aim_transform)
+		),
+		"projection applies the exact reflection matrix to the source visual pose"
+	)
+	aim_target.global_position = grid.cell_to_world(Vector3i(2, 4, 0))
+	_expect(arrow.update_visual_orientation(1.0), "tracking visual continues following a moving target")
+	_expect(tower_projection.sync_source_visual_pose(), "projection follows a later source orientation update")
+	_expect(tower_projection.get_visual_snapshot().get_instance_id() == projection_snapshot_id, "live pose synchronization keeps the same projection snapshot node")
+	_expect(not tower_projection.get_visual_snapshot().global_transform.is_equal_approx(tower_projection.payload.transform_transform(first_aim_transform)), "projection pose changes when its source model turns")
+	_expect(
+		tower_projection.get_visual_snapshot().global_transform.is_equal_approx(
+			tower_projection.payload.transform_transform(arrow.get_copy_visual_transform())
+		),
+		"updated projection remains the source model's complete geometric mirror"
+	)
 	var reflection_camera := Camera3D.new()
 	host.add_child(reflection_camera)
 	reflection_camera.global_position = grid.cell_to_world(Vector3i(2, 2, 0)) + Vector3(0.0, 4.0, 3.0)
@@ -118,6 +148,11 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(is_equal_approx(reflection_aspect, source_aspect), "reflection target follows the source viewport aspect for screen-aligned sampling")
 	var reflection_material := mirror.get_reflection_surface().material_override as ShaderMaterial
 	_expect(reflection_material != null and reflection_material.shader.code.contains("SCREEN_UV"), "mirror surface samples the reflected world in stable screen space")
+	_expect(
+		reflection_material != null
+		and reflection_material.shader.code.contains("1.0 - SCREEN_UV.x"),
+		"mirror shader counter-corrects the reflected camera's horizontal handedness"
+	)
 	var mirror_body := mirror.get_node("MirrorBody") as MeshInstance3D
 	_expect(not mirror_body.get_layer_mask_value(1) and mirror_body.get_layer_mask_value(20), "mirror body is excluded from reflection cameras to prevent blue self-occlusion")
 	var active_camera_position := reflection_camera.global_position
@@ -158,6 +193,21 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var laser := building_manager.place_building(source_cell, building_manager.laser_tower)
 	mirror_manager.rebuild_now()
 	_expect(laser != null and _has_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower"), "source replacement dynamically rebuilds a laser projection")
+	var laser_projection := _find_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower")
+	var laser_snapshot_id := laser_projection.get_visual_snapshot().get_instance_id()
+	var laser_projection_before := laser_projection.get_visual_snapshot().global_transform
+	var laser_facing_before := laser.facing_index
+	_expect(laser.definition.aim_mode == BuildingDefinition.AimMode.FIXED_FACING, "laser tower keeps fixed-facing targeting behavior")
+	_expect(laser.rotate_facing(1) and laser.facing_index != laser_facing_before, "manual laser rotation changes its logical attack facing")
+	_expect(laser_projection.sync_source_visual_pose(), "fixed-facing projection synchronizes a manual source turn")
+	_expect(laser_projection.get_visual_snapshot().get_instance_id() == laser_snapshot_id, "manual source rotation does not rebuild its projection snapshot")
+	_expect(not laser_projection.get_visual_snapshot().global_transform.is_equal_approx(laser_projection_before), "laser projection turns when the manually rotated source turns")
+	_expect(
+		laser_projection.get_visual_snapshot().global_transform.is_equal_approx(
+			laser_projection.payload.transform_transform(laser.get_copy_visual_transform())
+		),
+		"fixed-facing source rotation receives the same strict mirror transform"
+	)
 	var laser_before := mirrored_target.current_hp
 	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 9.0)
 	_expect(is_equal_approx(mirrored_target.current_hp, laser_before - 9.0), "laser projection mirrors the source segment and damage tick without independent targeting")
