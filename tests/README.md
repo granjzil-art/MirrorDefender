@@ -28,7 +28,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/path_spawn_pairing_test.gd
 ```
 
-关卡地块元素、逐格石头耐久/清障建筑权限、共享边建筑权限、HEX/SQUARE 手工路径换路、无路近战/远程攻击、高速跨格效果与路径资源不变性回归测试：
+关卡地块元素、逐格石头耐久/清障建筑权限、共享边建筑权限、HEX/SQUARE 手工路径换路、无路近战/远程攻击、已释放阻挡目标清理、高速跨格效果与路径资源不变性回归测试：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/tile_elements_and_rerouting_test.gd

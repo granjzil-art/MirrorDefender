@@ -330,6 +330,7 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	no_route_level.store_tile(_rock_tile_with_effect(Vector3i(1, 0, 0), fragile_rock))
 	var no_route_fixture := _make_fixture(no_route_level)
 	var no_route_grid: GridManager = no_route_fixture["grid"]
+	var no_route_rock: Variant = (no_route_fixture["tile"] as TileManager).get_runtime_obstacle(Vector3i(1, 0, 0))
 	var waiting := EnemyUnit.new()
 	waiting.debug_visual_enabled = false
 	var waiting_points := PackedVector3Array()
@@ -352,8 +353,12 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	var cleared_tile := (no_route_fixture["tile"] as TileManager).get_tile(Vector3i(1, 0, 0))
 	_expect(cleared_tile.obstacle_destroyed, "enemy attacks and destroys a rock when no authored detour is available")
 	_expect(cleared_tile.can_place() and cleared_tile.allows_edge_building(), "enemy-cleared rock tile accepts tile and edge buildings")
+	# The runtime obstacle is actually freed at the end of the frame. The enemy
+	# must discard that stale fallback target before resuming its authored path.
+	await process_frame
+	_expect(not is_instance_valid(no_route_rock), "depleted rock runtime target is freed at the frame boundary")
 	waiting._process(1.0)
-	_expect(waiting.global_position != waiting_points[0], "enemy resumes its original authored path after destroying the rock")
+	_expect(waiting.global_position != waiting_points[0], "enemy safely discards a freed rock target and resumes its original authored path")
 	host.queue_free()
 	(no_route_fixture["host"] as Node).queue_free()
 	await process_frame

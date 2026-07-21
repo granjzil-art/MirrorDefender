@@ -399,8 +399,13 @@ func _get_horizontal_segment_ratio(start: Vector3, end: Vector3, point: Vector3)
 	var point_2d := Vector2(point.x, point.z)
 	return clampf((point_2d - start_2d).dot(direction) / length_squared, 0.0, 1.0)
 
-func _is_blocker_alive(blocker: Node) -> bool:
-	if blocker == null or not is_instance_valid(blocker) or blocker.is_queued_for_deletion():
+## Accepts Variant deliberately: Godot rejects a previously freed Object before
+## entering a function whose parameter is typed as Node, so the validity guard
+## must run before narrowing the blocker contract.
+func _is_blocker_alive(blocker: Variant) -> bool:
+	if typeof(blocker) != TYPE_OBJECT or blocker == null or not is_instance_valid(blocker):
+		return false
+	if blocker.is_queued_for_deletion():
 		return false
 	if not blocker.has_method("take_structure_damage") or not blocker.has_method("get_structure_target_position"):
 		return false

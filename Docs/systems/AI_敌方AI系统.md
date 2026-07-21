@@ -54,6 +54,7 @@ Rock destroyed -> TileManager clears runtime obstacle/effect and restores buildi
 | `EnemyUnit._process` | `(delta: float) -> void` | 在移动与停止攻击之间切换。 |
 | `EnemyUnit._find_first_path_blocker` | `() -> Dictionary` | 先返回前方首个普通可攻击屏障；大石头导航阻碍截断后续扫描并交给换路流程。 |
 | `EnemyUnit._get_reroute_attack_blocker_info` | `() -> Dictionary` | 把换路失败返回的大石头代理包装成复用攻击移动所需的路径段信息。 |
+| `EnemyUnit._is_blocker_alive` | `(blocker: Variant) -> bool` | 在收窄为结构攻击契约前拦截已释放对象，避免多敌人共享阻挡目标时的帧末生命周期竞态。 |
 | `PathRoutePlanner.find_detour` | `(current_path, current_cell, blocked_cell, target = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell, blocker}`；找到最短手工后缀，或在失败时返回具体石头攻击目标。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前目标有效且在射程内时返回 true。 |
 | `EnemyUnit._move_along_path` | `(remaining_distance: float) -> void` | 按距离预算推进并支持跨段。 |
