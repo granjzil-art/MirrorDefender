@@ -211,8 +211,10 @@ func _resolve_next_terrain_blocker() -> int:
 		_reroute_attack_target = null
 		_is_waiting_for_route = false
 		return 0
-	if global_position.distance_to(_path_points[_path_index]) > PATH_PROGRESS_EPSILON:
-		return 0
+	# The unit can already be partway through this logical segment after attacking
+	# a higher-priority blocker. Re-check the destination cell here so a rebuilt
+	# terrain projection cannot be bypassed merely because the unit left the
+	# preceding cell center.
 	var current_cell := _path_cells[_path_index]
 	var blocked_cell := _path_cells[_path_index + 1]
 	var resolution: Variant = _route_resolver.call(_active_path, current_cell, blocked_cell, self)

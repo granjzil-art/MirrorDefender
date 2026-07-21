@@ -14,6 +14,7 @@ func _run() -> void:
 	await _test_grid_geometry(GridManager.Shape.HEX)
 	await _test_whole_tile_preview_stacking_and_tower_attacks()
 	await _test_projected_barrier_and_shared_edge_occupancy()
+	await _test_projected_rock_after_overlapping_barrier_breaks()
 	await _test_projected_rock_void_and_recursive_copy()
 	if _failures == 0:
 		print("[CopyMirror] PASS: %d checks" % _checks)
@@ -339,6 +340,82 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	effect_system.apply_enter(falling_target, Vector3i(5, 2, 0))
 	_expect(not falling_target.is_alive(), "projected void executes the same enter-time defeat effect")
 	void_host.queue_free()
+	await process_frame
+
+func _test_projected_rock_after_overlapping_barrier_breaks() -> void:
+	var level := _make_level(true)
+	var path: PathDefinition = level.paths[0]
+	path.cells.clear()
+	for x in range(3, 7):
+		path.cells.append(Vector3i(x, 2, 0))
+	level.spawn_points[0].cell = path.get_start_cell()
+	level.base_cell = path.get_end_cell()
+	var rock := RockTileEffect.new()
+	rock.max_durability = 500.0
+	level.store_tile(_make_effect_tile(Vector3i(2, 2, 0), rock, false))
+	var fixture := _make_fixture(level)
+	var host: Node3D = fixture.host
+	var grid: GridManager = fixture.grid
+	var tile_manager: TileManager = fixture.tile
+	var building_manager: BuildingManager = fixture.building
+	var mirror_manager: MirrorManager = fixture.mirror
+	var mirror_edge := grid.find_edge_index(Vector3i(3, 2, 0), Vector3i(4, 2, 0))
+	var mirror := mirror_manager.place_copy_mirror(Vector3i(3, 2, 0), mirror_edge, true)
+	var barrier := building_manager.place_building(Vector3i(5, 2, 0), building_manager.barrier)
+	_expect(mirror != null and barrier != null, "barrier can overlap a projected rock on the same path tile")
+	_expect(
+		building_manager.resolve_path_blocker(Vector3i(4, 2, 0), Vector3i(5, 2, 0)) == barrier,
+		"ordinary barrier keeps attack priority over the overlapping projected rock"
+	)
+	var planner := PathRoutePlanner.new()
+	host.add_child(planner)
+	planner.configure(grid, tile_manager)
+	planner.load_level(level)
+	var points := PackedVector3Array()
+	for cell in path.cells:
+		points.append(grid.cell_to_world(cell))
+	var enemy_definition := EnemyDefinition.new()
+	enemy_definition.move_speed = 10.0
+	enemy_definition.attack_damage = 200.0
+	enemy_definition.attack_range = 0.65
+	var enemy := EnemyUnit.new()
+	enemy.debug_visual_enabled = false
+	enemy.configure_unit(
+		enemy_definition,
+		points,
+		path.cells,
+		1.0,
+		Callable(building_manager, "resolve_path_blocker"),
+		path,
+		Callable(planner, "find_detour"),
+		func(cell: Vector3i) -> Vector3: return grid.cell_to_world(cell),
+		Callable(),
+		Callable(),
+		Callable(tile_manager, "blocks_enemy_navigation")
+	)
+	enemy.set_process(false)
+	host.add_child(enemy)
+	var source_rock := tile_manager.get_runtime_obstacle(Vector3i(2, 2, 0))
+	var first_projected_rock := mirror_manager.resolve_projected_navigation_blocker(Vector3i(5, 2, 0))
+	var source_durability_before := float(source_rock.get("current_durability"))
+	enemy._process(5.0)
+	enemy._process(0.1)
+	_expect(building_manager.get_building(Vector3i(5, 2, 0)) == null, "enemy destroys the higher-priority overlapping barrier first")
+	var position_after_barrier := enemy.global_position
+	await process_frame
+	var rebuilt_projected_rock := mirror_manager.resolve_projected_navigation_blocker(Vector3i(5, 2, 0))
+	_expect(
+		rebuilt_projected_rock != null and rebuilt_projected_rock != first_projected_rock,
+		"barrier removal rebuilds the overlapping projected rock at the frame boundary"
+	)
+	enemy._process(0.1)
+	_expect(enemy.global_position == position_after_barrier, "projected rock still blocks the enemy after the barrier disappears mid-segment")
+	enemy._process(0.1)
+	_expect(
+		float(source_rock.get("current_durability")) < source_durability_before,
+		"enemy attacks the projected rock when every authored route remains blocked"
+	)
+	host.queue_free()
 	await process_frame
 
 func _make_fixture(level: LevelResource) -> Dictionary:
