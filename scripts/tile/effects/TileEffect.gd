@@ -42,5 +42,18 @@ func get_copy_display_name() -> String:
 func get_copy_color() -> Color:
 	return Color(0.35, 0.75, 1.0)
 
+## Runtime obstacle hooks are opt-in so passive effects remain stateless.
+func creates_runtime_obstacle() -> bool:
+	return false
+
+func get_max_durability() -> float:
+	return 0.0
+
+func allows_tile_building_after_destroyed() -> bool:
+	return false
+
+func allows_edge_building_after_destroyed() -> bool:
+	return false
+
 func validate_configuration() -> Array[String]:
 	return []

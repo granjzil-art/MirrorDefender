@@ -10,11 +10,11 @@
 
 - **尖刺格子**：可通行；敌人占据该格的时间按秒造成持续伤害。默认 20 伤害/秒且忽略护甲。
 - **空洞格子**：导航上可通行，初始路径和动态换路都可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。
-- **大石头障碍**：永久、不可攻击、不可通行。敌人到达石头前一格中心时才请求换路；没有可用路径则原地等待。
+- **大石头障碍**：存活时不可通行。敌人到达石头前一格中心时先请求换路；没有可用路径则把石头视为普通可攻击障碍。耐久归零后清除元素与阻挡，并允许块建筑和边建筑。
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
 - **基底/元素分层**：尖刺、空洞和大石头只用 `visual_color` / `visual_scene` 绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
-- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；TileEffectSystem 叠加进入/停留效果，TileManager 叠加岩石导航阻断，并继续按源效果 `affects_airborne` 过滤。
+- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；石头投影把结构伤害转发到真实源石头，直接/递归投影共享该源的运行时耐久。源石头摧毁后全部关联投影消失，镜子保留。
 
 ## 编辑器使用
 
@@ -39,6 +39,7 @@
 | `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
 | `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |
 | `VoidTileEffect` | `reward_multiplier` | 空洞击杀时的敌人掉落倍率。 |
+| `RockTileEffect` | `max_durability` | 每个真实石头运行时耐久上限；正式 `Rock.tres` 默认 500。投影不创建独立耐久。 |
 | `PathRoutePlanner` | `feature_enabled` | 动态换路功能开关。 |
 | `PathRoutePlanner` | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的运行时调试线。 |
 
@@ -52,7 +53,8 @@
 | `scripts/tile/effects/TileEffect.gd` | `TileEffect` / `Resource` | 敌人遍历策略基类。 |
 | `scripts/tile/effects/SpikeTileEffect.gd` | `SpikeTileEffect` / `TileEffect` | 按占格时间结算持续伤害。 |
 | `scripts/tile/effects/VoidTileEffect.gd` | `VoidTileEffect` / `TileEffect` | 进格时立即击杀并应用掉落倍率。 |
-| `scripts/tile/effects/RockTileEffect.gd` | `RockTileEffect` / `TileEffect` | 声明永久导航阻断。 |
+| `scripts/tile/effects/RockTileEffect.gd` | `RockTileEffect` / `TileEffect` | 声明耐久、导航阻断和摧毁后建筑权限。 |
+| `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 每个真实石头独立的运行时耐久、攻击位置和结构伤害入口。 |
 | `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem` / `Node` | 通过 TileManager 解析地块效果并分发进入/停留事件。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | 提供非占位投影效果和导航覆盖查询。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 在手工路径集中选择确定性最短可用后缀。 |
@@ -70,6 +72,7 @@
 ```text
 Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
   -> TileManager 克隆运行时格
+     -> TileObstacleRuntime(real cell) -> independent durability
      -> TileRenderer 路径/高度基底 + 独立元素灰盒
      -> TileEffectSystem -> TileEffect.affects_target -> damage/defeat or ignore
      -> PathRoutePlanner(target) -> 目标可用的 PathDefinition 后缀 -> EnemyUnit 临时路由
@@ -77,6 +80,7 @@ Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
 MirrorManager projection overlay
   -> TileEffectSystem.set_effect_overlay_resolver -> base + all projected effects
   -> TileManager.set_navigation_overlay_resolver -> projected rock blocks navigation
+  -> projected rock.take_structure_damage -> real TileObstacleRuntime
 
 BuildingPlacementRules
   -> TileManager.allows_edge_building(边两侧)
@@ -97,10 +101,14 @@ BuildingPlacementRules
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
 | `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
 | `TileEffect.get_copy_kind/get_copy_display_name/get_copy_color` | `() -> StringName/String/Color` | 以可扩展契约描述镜子复制语义与灰盒表现。 |
+| `TileEffect.creates_runtime_obstacle` | `() -> bool` | 声明该效果是否需要逐格运行时耐久；默认 false。 |
+| `TileEffect.get_max_durability` | `() -> float` | 返回运行时障碍初始/最大耐久；无耐久效果默认 0。 |
+| `TileObstacleRuntime.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 扣减单个真实石头耐久，归零时通知 TileManager 清除障碍。 |
+| `TileManager.resolve_navigation_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 返回真实石头或注入的石头投影攻击目标，真实地块内容优先。 |
 | `TileEffectSystem.set_effect_overlay_resolver` | `(value: Callable) -> void` | 注入非占位效果覆盖层，不依赖 Mirror 类型。 |
 | `TileEffectSystem.apply_enter` | `(target: Node, cell: Vector3i) -> void` | 解析指定格并分发进入效果。 |
 | `TileEffectSystem.apply_stay` | `(target: Node, cell: Vector3i, duration: float) -> void` | 解析指定格并分发持续效果。 |
-| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell}`；只在 `blocked_cell` 对该目标为导航阻碍时触发。 |
+| `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell, blocker}`；无替代路线时携带当前可攻击石头代理。 |
 | `CombatTarget.take_unmitigated_damage` | `(amount: float) -> float` | 不经 EnemyUnit 护甲覆写的环境伤害入口。 |
 | `CombatTarget.take_damage_over_time` | `(damage_per_second: float, duration: float) -> float` | 帧率无关的持续伤害入口；EnemyUnit 以护甲扣减每秒伤害率。 |
 | `CombatTarget.defeat` | `(reward_multiplier: float = 1.0) -> bool` | 立即击杀并按倍率发出掉落值。 |
@@ -114,10 +122,11 @@ BuildingPlacementRules
 - 选择分数为“接入边 + 候选路径后缀边数”；最低分优先，平分时按 `LevelResource.paths` 的序列化顺序稳定决胜。
 - 候选后缀每格必须在边界内、路径相邻且不对当前敌人阻断导航。地块过滤的唯一规则是 `blocks_enemy_navigation(target) == false`；空洞和尖刺均可选。建筑屏障仍是可攻击目标，不会使候选路径失效。
 - 换路只替换单个敌人的运行时数组，不修改 `LevelResource` 或 `PathDefinition`。后续再遇石头可再次选路。
+- 没有候选路径时不修改当前路径；敌人攻击当前石头。源耐久归零后 TileManager 把该运行时格标为已清障，隐藏元素、解除阻挡并开放两类建筑权限；重新加载关卡会从未修改的配置快照恢复石头。
 
 ## 已知限制
 
 - 当前不做自由格网 A*，也不同时串联多条路径；每次阻挡事件只选一条候选路径的一个后缀。
 - `visual_scene` 为正式美术资产预留接口，当前编辑器与运行时使用 `visual_kind` 灰盒绘制。
 - 编辑器画布通过 `get_visual_tag()` 读取灰盒类型；新增可视类型时需同步扩展标签映射与画布图形。
-- 大石头当前是关卡地形，永久且不可破坏；若未来要可攻击岩石，应新建可生命结构策略，不在本资源上增加 Building 状态。
+- 大石头虽然可被敌人攻击，但仍是关卡元素而不是 Building：不参与建筑上限、升级、退款和玩家删除事务。

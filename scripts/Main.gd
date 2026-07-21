@@ -96,6 +96,7 @@ func _ready() -> void:
 	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
+	tile_manager.set_navigation_overlay_blocker_resolver(Callable(mirror_manager, "resolve_projected_navigation_blocker"))
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)

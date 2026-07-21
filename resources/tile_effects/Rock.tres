@@ -6,3 +6,4 @@
 script = ExtResource("1_effect")
 affects_airborne = false
 enemy_traversal = 1
+max_durability = 500.0

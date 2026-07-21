@@ -28,7 +28,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/path_spawn_pairing_test.gd
 ```
 
-关卡地块元素、共享边建筑权限、HEX/SQUARE 手工路径换路、运行时换路信号/继续移动、高速跨格效果与路径资源不变性回归测试：
+关卡地块元素、逐格石头耐久/清障建筑权限、共享边建筑权限、HEX/SQUARE 手工路径换路、无路近战/远程攻击、高速跨格效果与路径资源不变性回归测试：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/tile_elements_and_rerouting_test.gd
@@ -40,7 +40,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/airborne_effects_test.gd
 ```
 
-M5 复制镜双网格几何、最近整格复制、放置预览、非占位叠加/严格占位开关、塔攻击同步、屏障共享耐久、地块覆盖效果、递归镜链与共享物理边占用回归测试：
+M5 复制镜双网格几何、最近整格复制、放置预览、非占位叠加/严格占位开关、塔攻击同步、屏障/石头共享源耐久、地块覆盖效果、递归镜链与共享物理边占用回归测试：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/copy_mirror_test.gd

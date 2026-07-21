@@ -1,6 +1,6 @@
 ﻿# 地块系统 · Tile
 
-> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口，M4 据点复用该接口占用据点格，编辑器已扩展为关卡编辑器。
+> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口，M4 据点复用该接口占用据点格，并为大石头接入逐格运行时耐久与摧毁后建筑权限；编辑器已扩展为关卡编辑器。
 
 ## 职责
 定义每个网格格子的类型、高度、障碍和运行时占用；提供查询、清障、灰盒地形渲染，以及可保存 `.tres` 关卡布局的拖拽式编辑器。
@@ -16,6 +16,7 @@
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
+- **耐久地块隔离**：声明 `creates_runtime_obstacle()` 的地块效果由 TileManager 为每格创建 `TileObstacleRuntime`；当前耐久属于运行时节点，不写入共享 TileEffect 或 LevelResource。大石头摧毁后只清除内容层/阻挡，并开放块建筑和边建筑，重新加载恢复配置状态。
 - **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 调俯仰，仅用滚轮缩放观察。
 - **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
@@ -25,7 +26,7 @@
 |---|---|---:|---|
 | TileCellData | `tile_type` | 0 | 0=可建造，1=可破坏障碍，2=路面。 |
 | TileCellData | `height_level` | 0 | 离散高度档；资源本身允许 0~15，加载时由 LevelResource 收紧。 |
-| TileCellData | `obstacle_destroyed` | false | 仅对类型 1 有效；true 时该格可建造。 |
+| TileCellData | `obstacle_destroyed` | false | 对旧类型 1 和声明运行时耐久的地块效果有效；true 时按效果配置恢复建筑权限。 |
 | LevelResource | `height_levels` | 3 | 本关卡可用的高度档数。 |
 | LevelResource | `height_step` | 0.45 | 每档对应的世界 Y 高度。 |
 | LevelResource | `height_color_low` / `height_color_middle` / `height_color_high` | 绿 / 黄 / 红 | 编辑器与运行时共用的下/中/上高度色标，保存到关卡 `.tres`。 |
@@ -47,6 +48,7 @@
 | `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 单格可序列化状态、占用规则与清障规则。 |
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 调色板预制参数，显式预加载 TileCellData 脚本创建地块。 |
 | `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | **运行时唯一 Tile 查询入口**；按 `Vector3i` 索引格子并发信号。 |
+| `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 单个真实耐久地块的当前/最大耐久、攻击位置与归零事件。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，以路径/高度顶点色生成三维灰盒基底，并在独立内容层绘制障碍与地块元素。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 地块布局的持久化容器；完整说明见 Level 文档。 |
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |
@@ -89,7 +91,7 @@ Level Editor M4 pages
 
 - `cell` 一律是 Grid 的 `Vector3i`：HEX `(q, r, s)`、且 `q+r+s=0`；SQUARE `(col, row, 0)`。
 - 同一个 `cell` 在 `LevelResource.tiles` 中至多一条记录。`store_tile()` 以 cell 覆盖旧资源，编辑器拖到同格不产生重复记录。
-- LevelResource 中的 TileCellData 是配置事实源，不是局内状态对象；每次成功加载都创建独立运行时副本，TileManager 的修改信号只描述当前实例。
+- LevelResource 中的 TileCellData 是配置事实源，不是局内状态对象；每次成功加载都创建独立运行时副本和逐格障碍耐久节点，TileManager 的修改信号只描述当前实例。
 - LevelResource 中缺失的有效格不是“空洞”，而是默认高度 0 可建造格；编辑器和运行时必须使用同一解释。编辑器只在修改时将该隐式格实体化，避免加载稀疏关卡后误写满数组。
 - `TileCellData.TileType` 的数值固定为 `0/1/2`；TilePreset `.tres` 与编辑器 OptionButton 使用同一顺序。
 - `place_path_occupant` 只放宽 BLOCKED 路面的普通建造限制，不放宽未清障 DESTRUCTIBLE 或已有占位；路径/保护格规则不属于 Tile，由 BuildingManager 持有。
@@ -115,7 +117,8 @@ Level Editor M4 pages
 | `can_place_path_occupant` | `() -> bool` | 判断无占用且不是未清障障碍，供屏障道路占位。 |
 | `place_path_occupant` | `(new_occupant: Node) -> bool` | 按路径占位规则原子写入 occupant。 |
 | `clear_occupant` | `(expected_occupant: Node = null) -> bool` | 仅在期望占用匹配时清空，避免误删其它模块占用。 |
-| `destroy_obstacle` | `() -> bool` | 清除类型 1 的障碍，保留高度。 |
+| `destroy_obstacle` | `() -> bool` | 清除类型 1 或活动的运行时耐久障碍，保留定义、高度与基底。 |
+| `get_configured_effect` | `() -> TileEffect` | 返回不受运行时摧毁状态影响的配置效果，供 TileManager 重建耐久实例。 |
 | `set_height_level` | `(value: int, height_levels: int) -> void` | 按关卡档数钳制高度。 |
 | `set_tile_type` | `(value: int) -> void` | 切换类型并恢复未清障状态。 |
 | `get_display_name` | `() -> String` | 返回 HUD 用中文状态文本。 |
@@ -150,13 +153,25 @@ Level Editor M4 pages
 | `place_path_occupant` | `(cell: Vector3i, occupant: Node) -> bool` | 允许屏障占据灰色路面并广播 occupant_changed。 |
 | `clear_occupant` | `(cell: Vector3i, expected_occupant: Node = null) -> bool` | 安全释放指定格占用并广播。 |
 | `get_occupant` | `(cell: Vector3i) -> Node` | 返回运行时占用物或 null。 |
+| `get_runtime_obstacle` | `(cell: Vector3i) -> Node` | 返回存活的真实地块障碍耐久节点；不同格永不共享当前耐久。 |
+| `resolve_navigation_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 优先返回真实地块障碍，否则调用注入覆盖解析器返回镜像障碍。 |
+| `set_navigation_overlay_blocker_resolver` | `(value: Callable) -> void` | 注入非占位导航障碍的具体攻击目标解析，不持有 MirrorManager。 |
 | `is_blocked` | `(cell: Vector3i) -> bool` | M4 路径 / M6 光路的地形阻挡查询入口。 |
 | `apply_preset` | `(cell: Vector3i, preset: TilePreset) -> bool` | 运行时用预制覆盖一格并发 tile_changed。 |
 | `update_tile_type` | `(cell: Vector3i, tile_type: int) -> bool` | 修改运行时类型并通知表现层。 |
 | `update_tile_height` | `(cell: Vector3i, height_level: int) -> bool` | 修改运行时高度并按关卡档数钳制。 |
 | `destroy_obstacle_at` | `(cell: Vector3i) -> bool` | 清障成功后发 `tile_changed` 和 `obstacle_destroyed`。 |
 
-**信号**：`level_loaded(level_resource: LevelResource)`、`tile_changed(cell: Vector3i, tile: TileCellData)`、`obstacle_destroyed(cell: Vector3i)`、`occupant_changed(cell: Vector3i, occupant: Node)`。
+**信号**：`level_loaded(level_resource: LevelResource)`、`tile_changed(cell: Vector3i, tile: TileCellData)`、`obstacle_destroyed(cell: Vector3i)`、`obstacle_durability_changed(cell: Vector3i, current: float, maximum: float)`、`occupant_changed(cell: Vector3i, occupant: Node)`。
+
+### TileObstacleRuntime.gd
+
+| 函数 | 签名 | 职责 |
+|---|---|---|
+| `configure` | `(cell: Vector3i, effect: TileEffect, grid: GridManager, tile_manager: Node) -> void` | 从配置效果初始化单格满耐久与世界攻击位置。 |
+| `take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 扣减当前耐久并在归零时发出 `depleted`。 |
+| `get_structure_target_position` | `() -> Vector3` | 返回近战/投射物共用的石头攻击点。 |
+| `get_path_blocker_response` | `() -> int` | 返回 `REROUTE_THEN_ATTACK`，与普通屏障的直接攻击策略区分。 |
 
 ### TileRenderer.gd
 
@@ -198,6 +213,6 @@ Level Editor M4 pages
 ## 已知限制 / 初版不做的部分
 
 - 编辑器支持连续画笔，但不做框选、撤销栈、选区填充或图案刷。
-- 障碍只有灰盒岩石占位；不做耐久、掉落或破坏特效。
+- 大石头已有可调耐久，但仍只使用灰盒即时消失；暂不做掉落或破坏特效。
 - 高度为离散台阶，不做斜坡、连续地形和地形变形。
 - `occupant` 只存在于当前运行时；切关时 TileManager 清空旧引用，BuildingManager 同步销毁旧建筑。

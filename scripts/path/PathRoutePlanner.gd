@@ -29,9 +29,10 @@ func load_level(level_resource: LevelResource) -> void:
 	_level = level_resource
 	_clear_debug_visual()
 
-## Returns {triggered, found, path, cells, cost, join_cell}. A reroute is only
-## triggered for a navigation-blocking next tile and only searches other
-## manually-authored paths in their serialized order.
+## Returns {triggered, found, path, cells, cost, join_cell, blocker}. A reroute
+## is only triggered for a navigation-blocking next tile and only searches
+## other manually-authored paths in their serialized order. When no detour is
+## found, blocker identifies the attackable obstruction at blocked_cell.
 func find_detour(
 	current_path: PathDefinition,
 	current_cell: Vector3i,
@@ -45,12 +46,14 @@ func find_detour(
 		"cells": [],
 		"cost": -1,
 		"join_cell": Vector3i.ZERO,
+		"blocker": null,
 	}
 	if not feature_enabled or _grid == null or _tile_manager == null or _level == null:
 		return result
 	if not _tile_manager.blocks_enemy_navigation(blocked_cell, target):
 		return result
 	result["triggered"] = true
+	result["blocker"] = _tile_manager.resolve_navigation_blocker(blocked_cell, target)
 	var best_cost := 2147483647
 	for path in _level.paths:
 		if path == null or path == current_path or path.cells.size() < 2:

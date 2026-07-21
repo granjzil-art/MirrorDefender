@@ -81,7 +81,7 @@
 
 - 尖刺投影：敌人进入或停留在投影格时，执行与源尖刺相同的持续伤害；多项尖刺投影按独立效果叠加。
 - 空洞投影：敌人进入投影格时，执行与源空洞相同的坠落死亡效果。
-- 大石头投影：目标格加入动态寻路阻挡层；敌人在阻碍前一格触发既有换路逻辑。
+- 大石头投影：目标格加入动态寻路阻挡层；敌人在阻碍前一格先触发既有换路逻辑，无可用路径时攻击该投影。投影没有独立耐久，直接/递归投影的伤害都转发给真实源石头；源石头耐久归零后全部关联投影消失，实体镜子保留。
 - 所有地块效果继承源资源参数与 `affects_airborne`。空中敌人是否受影响完全由源效果开关决定。
 - 投影不修改关卡原始 `TileCellData`，而通过独立覆盖层参与效果、导航和阻挡查询。
 
@@ -177,7 +177,7 @@ MirrorProjection
   ├─ payload / lineage / composed_transform
   ├─ Building 真实视觉快照 / TileRenderer 地块内容快照
   ├─ 不写入地块 occupant
-  └─ 屏障伤害转发与玩法代理
+  └─ 屏障/石头共享源伤害转发与玩法代理
 ```
 
 模块协作规则：
@@ -201,11 +201,12 @@ MirrorProjection
 | `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、源模型实时姿态同步、稳定透明渲染顺序、严格反射、屏障与地块效果代理。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、预览、固定点镜链和跨模块查询。 |
+| `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 镜像石头最终转发到的真实逐格耐久源。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子的删除/翻面按钮。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 87 项双网格、玩法联调、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 94 项双网格、玩法联调、共享石头耐久、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
 
 ## 六、函数索引
 
@@ -219,6 +220,7 @@ MirrorProjection
 | `MirrorManager.get_projected_effects` | `(cell) -> Array[TileEffect]` | 向 TileEffectSystem 提供同格可叠加效果。 |
 | `MirrorManager.blocks_enemy_navigation` | `(cell, target = null) -> bool` | 向 TileManager 提供投影岩石阻断。 |
 | `MirrorManager.resolve_projected_blocker` | `(cell, target = null) -> Node` | 向 BuildingManager 提供投影屏障代理。 |
+| `MirrorManager.resolve_projected_navigation_blocker` | `(cell, target = null) -> Node` | 向 TileManager 提供可攻击的投影石头代理，保持石头“先换路”与屏障“直接攻击”的入口分离。 |
 | `MirrorManager.update_preview` / `flip_preview` | `(from_cell, edge_index) -> bool` / `() -> bool` | 构建镜面、源格/目标格信息和投影虚影，翻面后重算。 |
 | `MirrorManager.set_reflection_camera` | `(camera: Camera3D) -> void` | 注入主相机并为已有/预览镜面建立共享世界反射。 |
 | `MirrorManager.set_tile_visual_snapshot_resolver` | `(resolver: Callable) -> void` | 注入不含地形基底的地块内容快照工厂，保持 Mirror/Tile 模块边界。 |
@@ -229,6 +231,7 @@ MirrorProjection
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
 | `Building.sync_copy_visual_snapshot` | `(snapshot: Node3D) -> bool` | 把当前子节点与骨骼姿态同步到既有无行为快照，不启动独立动画时钟。 |
 | `MirrorProjection.sync_source_visual_pose` | `() -> bool` | 不重建投影，先同步源模型姿态，再将 payload 的全部镜轴组合变换作用于视觉根。 |
+| `MirrorProjection.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 把屏障或石头投影承伤转发到 payload 的真实根源耐久。 |
 | `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 镜面矩形进入视锥时按当前观察侧更新实体表面与反射相机，并请求 SubViewport 单帧刷新。 |
 | `CopyMirror.get_reflection_viewport` | `() -> SubViewport` | 返回屏幕对齐反射目标，供调试与回归检查宽高比。 |

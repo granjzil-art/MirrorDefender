@@ -6,6 +6,7 @@ class_name TileManager
 extends Node3D
 
 const BUILDABLE_TILE_TYPE := 0
+const TileObstacleRuntimeScript := preload("res://scripts/tile/TileObstacleRuntime.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -16,11 +17,14 @@ const BUILDABLE_TILE_TYPE := 0
 signal level_loaded(level_resource: LevelResource)
 signal tile_changed(cell: Vector3i, tile: TileCellData)
 signal obstacle_destroyed(cell: Vector3i)
+signal obstacle_durability_changed(cell: Vector3i, current: float, maximum: float)
 signal occupant_changed(cell: Vector3i, occupant: Node)
 
 var _grid: GridManager
 var _tiles: Dictionary = {}
+var _runtime_obstacles: Dictionary = {}
 var _navigation_overlay_resolver: Callable
+var _navigation_overlay_blocker_resolver: Callable
 
 func _ready() -> void:
 	var level_data := _get_level()
@@ -36,6 +40,9 @@ func set_grid(value: GridManager) -> void:
 
 func set_navigation_overlay_resolver(value: Callable) -> void:
 	_navigation_overlay_resolver = value
+
+func set_navigation_overlay_blocker_resolver(value: Callable) -> void:
+	_navigation_overlay_blocker_resolver = value
 
 func load_level(level_resource: LevelResource) -> bool:
 	if not feature_enabled or level_resource == null or _grid == null:
@@ -61,7 +68,9 @@ func load_level(level_resource: LevelResource) -> bool:
 		if not next_tiles.has(cell):
 			next_tiles[cell] = _make_default_tile(cell)
 	level = level_resource
+	_clear_runtime_obstacles()
 	_tiles = next_tiles
+	_rebuild_runtime_obstacles()
 	level_loaded.emit(level_resource)
 	return true
 
@@ -116,6 +125,26 @@ func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 		return true
 	return bool(_navigation_overlay_resolver.call(cell, target)) if _navigation_overlay_resolver.is_valid() else false
 
+## Returns the concrete attack target responsible for a navigation obstruction.
+## Real tile obstacles take priority over projected overlays in the same cell.
+func resolve_navigation_blocker(cell: Vector3i, target: Node = null) -> Node:
+	var obstacle := get_runtime_obstacle(cell)
+	if obstacle != null and obstacle.affects_target(target):
+		return obstacle
+	if _navigation_overlay_blocker_resolver.is_valid():
+		var projected: Variant = _navigation_overlay_blocker_resolver.call(cell, target)
+		if projected is Node:
+			return projected
+	return null
+
+func get_runtime_obstacle(cell: Vector3i) -> Node:
+	if not _runtime_obstacles.has(cell):
+		return null
+	var obstacle: Node = _runtime_obstacles[cell]
+	if obstacle == null or not is_instance_valid(obstacle) or not obstacle.is_structure_alive():
+		return null
+	return obstacle
+
 func can_use_for_reroute(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
 	return tile != null and tile.can_use_for_reroute(target) and not blocks_enemy_navigation(cell, target)
@@ -164,6 +193,7 @@ func update_tile_type(cell: Vector3i, tile_type: int) -> bool:
 	if tile == null:
 		return false
 	tile.set_tile_type(tile_type)
+	_refresh_runtime_obstacle(cell)
 	_notify_tile_changed(tile)
 	return true
 
@@ -173,6 +203,9 @@ func update_tile_height(cell: Vector3i, height_level: int) -> bool:
 	if tile == null or level_data == null:
 		return false
 	tile.set_height_level(height_level, level_data.height_levels)
+	var obstacle := get_runtime_obstacle(cell)
+	if obstacle != null:
+		obstacle.refresh_world_position()
 	_notify_tile_changed(tile)
 	return true
 
@@ -180,12 +213,15 @@ func destroy_obstacle_at(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
 	if tile == null or not tile.destroy_obstacle():
 		return false
+	_remove_runtime_obstacle(cell)
 	_notify_tile_changed(tile)
 	obstacle_destroyed.emit(cell)
 	return true
 
 func _set_tile(tile: TileCellData) -> void:
+	_remove_runtime_obstacle(tile.cell)
 	_tiles[tile.cell] = tile
+	_create_runtime_obstacle(tile)
 	_notify_tile_changed(tile)
 
 func _notify_tile_changed(tile: TileCellData) -> void:
@@ -210,3 +246,52 @@ func _make_runtime_tile(source: TileCellData, height_levels: int) -> TileCellDat
 	)
 	tile.obstacle_destroyed = source.obstacle_destroyed
 	return tile
+
+func _rebuild_runtime_obstacles() -> void:
+	for tile in get_tiles():
+		_create_runtime_obstacle(tile)
+
+func _refresh_runtime_obstacle(cell: Vector3i) -> void:
+	_remove_runtime_obstacle(cell)
+	_create_runtime_obstacle(get_tile(cell))
+
+func _create_runtime_obstacle(tile: TileCellData) -> void:
+	if tile == null or tile.obstacle_destroyed or _runtime_obstacles.has(tile.cell):
+		return
+	var effect := tile.get_configured_effect()
+	if effect == null or not effect.creates_runtime_obstacle():
+		return
+	var obstacle := TileObstacleRuntimeScript.new()
+	add_child(obstacle)
+	obstacle.configure(tile.cell, effect, _grid, self)
+	obstacle.durability_changed.connect(_on_runtime_obstacle_durability_changed)
+	obstacle.depleted.connect(_on_runtime_obstacle_depleted)
+	_runtime_obstacles[tile.cell] = obstacle
+
+func _remove_runtime_obstacle(cell: Vector3i) -> void:
+	if not _runtime_obstacles.has(cell):
+		return
+	var obstacle: Node = _runtime_obstacles[cell]
+	_runtime_obstacles.erase(cell)
+	if obstacle != null and is_instance_valid(obstacle):
+		obstacle.queue_free()
+
+func _clear_runtime_obstacles() -> void:
+	for raw_cell in _runtime_obstacles.keys():
+		var cell: Vector3i = raw_cell
+		_remove_runtime_obstacle(cell)
+	_runtime_obstacles.clear()
+
+func _on_runtime_obstacle_durability_changed(
+	obstacle: Node,
+	current: float,
+	maximum: float
+) -> void:
+	if obstacle == null or not _runtime_obstacles.has(obstacle.cell):
+		return
+	obstacle_durability_changed.emit(obstacle.cell, current, maximum)
+
+func _on_runtime_obstacle_depleted(obstacle: Node, _attacker: Node) -> void:
+	if obstacle == null or not _runtime_obstacles.has(obstacle.cell):
+		return
+	destroy_obstacle_at(obstacle.cell)

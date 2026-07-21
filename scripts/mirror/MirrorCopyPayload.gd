@@ -20,7 +20,7 @@ func is_source_valid() -> bool:
 		return tile_effect != null
 	if not is_instance_valid(root_source):
 		return false
-	if root_source.has_method("is_structure_alive") and copy_kind == &"barrier":
+	if root_source.has_method("is_structure_alive") and copy_kind in [&"barrier", &"rock"]:
 		return bool(root_source.call("is_structure_alive"))
 	return not (root_source is Node and root_source.is_queued_for_deletion())
 

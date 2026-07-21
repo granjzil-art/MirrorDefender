@@ -15,7 +15,9 @@ func _run() -> void:
 	await _test_shortest_manual_detour(GridManager.Shape.HEX)
 	await _test_exact_intersection_and_no_route()
 	await _test_spike_and_void_effects()
+	await _test_rock_runtime_durability_and_buildability()
 	await _test_enemy_reroute_trigger_and_resource_immutability()
+	await _test_ranged_enemy_attacks_rock_after_failed_detour()
 	if _failures == 0:
 		print("[TileElementsAndRerouting] PASS: %d checks" % _checks)
 		call_deferred("_finish", 0)
@@ -45,6 +47,7 @@ func _test_tile_definition_contracts() -> void:
 		_expect(tile.allows_edge_building(), "%s allows edge buildings" % preset.display_name)
 	var rock := (ResourceLoader.load("res://resources/tiles/RockTile.tres") as TilePreset).make_tile(Vector3i.ZERO, 3) as TileCellData
 	_expect(rock.blocks_enemy_navigation() and not rock.can_use_for_reroute(), "rock blocks navigation and is excluded from detours")
+	_expect((rock.get_effect() as RockTileEffect).max_durability > 0.0, "rock exposes positive editable durability")
 	var void_tile := (ResourceLoader.load("res://resources/tiles/VoidTile.tres") as TilePreset).make_tile(Vector3i.ZERO, 3) as TileCellData
 	_expect(not void_tile.blocks_enemy_navigation() and void_tile.can_use_for_reroute(), "void is navigation-passable and remains eligible for detours")
 
@@ -163,6 +166,7 @@ func _test_exact_intersection_and_no_route() -> void:
 	(fixture["planner"] as PathRoutePlanner).load_level(level)
 	var missing := (fixture["planner"] as PathRoutePlanner).find_detour(original, Vector3i(1, 1, 0), Vector3i(2, 1, 0))
 	_expect(bool(missing["triggered"]) and not bool(missing["found"]), "a rock with no eligible authored path reports a stable no-route result")
+	_expect(missing["blocker"] is TileObstacleRuntime, "a failed rock detour returns its concrete attack target")
 	(fixture["host"] as Node).queue_free()
 	await process_frame
 
@@ -225,6 +229,37 @@ func _test_spike_and_void_effects() -> void:
 	_expect(not enemy.is_alive(), "high-speed movement cannot skip a void tile crossed in one frame")
 	_expect(rewards.size() == 1 and is_equal_approx(rewards[0], 7.0), "void defeat uses its configurable reward multiplier")
 	host.queue_free()
+	await process_frame
+
+func _test_rock_runtime_durability_and_buildability() -> void:
+	var level := _make_level(GridManager.Shape.SQUARE)
+	var shared_effect := RockTileEffect.new()
+	shared_effect.max_durability = 30.0
+	var first_cell := Vector3i(1, 1, 0)
+	var second_cell := Vector3i(2, 1, 0)
+	level.store_tile(_rock_tile_with_effect(first_cell, shared_effect))
+	level.store_tile(_rock_tile_with_effect(second_cell, shared_effect))
+	var fixture := _make_fixture(level)
+	var tile_manager: TileManager = fixture["tile"]
+	var first := tile_manager.get_runtime_obstacle(first_cell)
+	var second := tile_manager.get_runtime_obstacle(second_cell)
+	_expect(first is TileObstacleRuntime and second is TileObstacleRuntime, "each configured rock creates a runtime attack target")
+	first.call("take_structure_damage", 10.0, null)
+	_expect(
+		is_equal_approx(float(first.get("current_durability")), 20.0)
+		and is_equal_approx(float(second.get("current_durability")), 30.0),
+		"rocks sharing one effect resource keep independent runtime durability"
+	)
+	first.call("take_structure_damage", 20.0, null)
+	var cleared := tile_manager.get_tile(first_cell)
+	_expect(tile_manager.get_runtime_obstacle(first_cell) == null, "depleted rock removes its runtime obstacle")
+	_expect(not cleared.blocks_enemy_navigation() and cleared.can_use_for_reroute(), "depleted rock restores navigation and detour eligibility")
+	_expect(cleared.can_place() and cleared.allows_edge_building(), "depleted rock allows tile and edge buildings")
+	_expect(cleared.get_effect() == null and cleared.get_visual_kind() == TileDefinition.VisualKind.NONE, "depleted rock clears only its active effect and element visual")
+	_expect(tile_manager.load_level(level), "reloading the source level restores runtime rock state")
+	var restored := tile_manager.get_runtime_obstacle(first_cell)
+	_expect(restored != null and is_equal_approx(float(restored.get("current_durability")), 30.0), "level reload restores the rock at full configured durability")
+	(fixture["host"] as Node).queue_free()
 	await process_frame
 
 func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
@@ -290,7 +325,9 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	var blocked_path := _make_path(&"only", [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(2, 0, 0)])
 	no_route_level.base_cell = blocked_path.get_end_cell()
 	no_route_level.paths = [blocked_path]
-	no_route_level.store_tile(_rock_tile(Vector3i(1, 0, 0)))
+	var fragile_rock := RockTileEffect.new()
+	fragile_rock.max_durability = 10.0
+	no_route_level.store_tile(_rock_tile_with_effect(Vector3i(1, 0, 0), fragile_rock))
 	var no_route_fixture := _make_fixture(no_route_level)
 	var no_route_grid: GridManager = no_route_fixture["grid"]
 	var waiting := EnemyUnit.new()
@@ -310,9 +347,61 @@ func _test_enemy_reroute_trigger_and_resource_immutability() -> void:
 	)
 	(no_route_fixture["host"] as Node).add_child(waiting)
 	waiting._process(5.0)
-	_expect(waiting.global_position == waiting_points[0] and waiting.is_alive(), "enemy idles in place when no authored detour is available")
+	_expect(waiting.global_position == waiting_points[0] and waiting.get_attack_target() == null, "enemy first resolves the failed detour at the cell before the rock")
+	waiting._process(0.1)
+	var cleared_tile := (no_route_fixture["tile"] as TileManager).get_tile(Vector3i(1, 0, 0))
+	_expect(cleared_tile.obstacle_destroyed, "enemy attacks and destroys a rock when no authored detour is available")
+	_expect(cleared_tile.can_place() and cleared_tile.allows_edge_building(), "enemy-cleared rock tile accepts tile and edge buildings")
+	waiting._process(1.0)
+	_expect(waiting.global_position != waiting_points[0], "enemy resumes its original authored path after destroying the rock")
 	host.queue_free()
 	(no_route_fixture["host"] as Node).queue_free()
+	await process_frame
+
+func _test_ranged_enemy_attacks_rock_after_failed_detour() -> void:
+	var level := _make_level(GridManager.Shape.SQUARE)
+	var path := _make_path(&"ranged_only", [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(2, 0, 0)])
+	level.paths = [path]
+	level.base_cell = path.get_end_cell()
+	var rock := RockTileEffect.new()
+	rock.max_durability = 10.0
+	level.store_tile(_rock_tile_with_effect(Vector3i(1, 0, 0), rock))
+	var fixture := _make_fixture(level)
+	var host: Node3D = fixture["host"]
+	var grid: GridManager = fixture["grid"]
+	var points := PackedVector3Array()
+	for cell in path.cells:
+		points.append(grid.cell_to_world(cell))
+	var definition := EnemyDefinition.new()
+	definition.move_speed = 10.0
+	definition.attack_damage = 10.0
+	definition.attack_range = 1.5
+	definition.projectile_speed = 10.0
+	var enemy := EnemyUnit.new()
+	enemy.debug_visual_enabled = false
+	enemy.configure_unit(
+		definition,
+		points,
+		path.cells,
+		1.0,
+		Callable(),
+		path,
+		Callable(fixture["planner"], "find_detour"),
+		func(cell: Vector3i) -> Vector3: return grid.cell_to_world(cell)
+	)
+	host.add_child(enemy)
+	enemy._process(0.1)
+	enemy._process(0.1)
+	var projectile: EnemyProjectile
+	for child in host.get_children():
+		if child is EnemyProjectile:
+			projectile = child
+			break
+	_expect(projectile != null, "ranged enemy launches a projectile at a rock after detour failure")
+	if projectile != null:
+		projectile._process(1.0)
+	_expect((fixture["tile"] as TileManager).get_tile(Vector3i(1, 0, 0)).obstacle_destroyed, "ranged projectile damage depletes the shared rock source")
+	host.queue_free()
 	await process_frame
 
 func _make_fixture(level: LevelResource) -> Dictionary:
@@ -374,6 +463,12 @@ func _make_path(path_id: StringName, cells: Array[Vector3i]) -> PathDefinition:
 
 func _rock_tile(cell: Vector3i) -> TileCellData:
 	return (ResourceLoader.load("res://resources/tiles/RockTile.tres") as TilePreset).make_tile(cell, 3) as TileCellData
+
+func _rock_tile_with_effect(cell: Vector3i, effect: RockTileEffect) -> TileCellData:
+	var definition := _make_definition(&"runtime_rock", true, effect)
+	definition.visual_kind = TileDefinition.VisualKind.ROCK
+	definition.visual_color = Color(0.08, 0.085, 0.09, 1.0)
+	return _make_tile(cell, definition)
 
 func _make_tile(cell: Vector3i, definition: TileDefinition) -> TileCellData:
 	var tile := TileCellData.new()

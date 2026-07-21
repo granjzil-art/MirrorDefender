@@ -40,6 +40,8 @@ func configure(
 	emit_changed()
 
 func is_buildable() -> bool:
+	if _uses_destroyed_obstacle_permissions():
+		return get_configured_effect().allows_tile_building_after_destroyed()
 	if definition != null:
 		return definition.is_buildable(obstacle_destroyed)
 	return tile_type == TileType.BUILDABLE or (
@@ -57,27 +59,36 @@ func is_blocked() -> bool:
 	return tile_type == TileType.BLOCKED
 
 func allows_tile_building() -> bool:
+	if _uses_destroyed_obstacle_permissions():
+		return get_configured_effect().allows_tile_building_after_destroyed()
 	if definition != null:
 		return definition.allows_tile_building
 	return tile_type != TileType.DESTRUCTIBLE or obstacle_destroyed
 
 func allows_edge_building() -> bool:
+	if _uses_destroyed_obstacle_permissions():
+		return get_configured_effect().allows_edge_building_after_destroyed()
 	return definition == null or definition.allows_edge_building
 
 func blocks_enemy_navigation(target: Node = null) -> bool:
-	return definition != null and definition.blocks_enemy_navigation(target)
+	return not _has_destroyed_runtime_obstacle() and definition != null and definition.blocks_enemy_navigation(target)
 
 func can_use_for_reroute(target: Node = null) -> bool:
-	return definition == null or definition.can_use_for_reroute(target)
+	return _has_destroyed_runtime_obstacle() or definition == null or definition.can_use_for_reroute(target)
 
 func get_effect() -> TileEffect:
+	return null if _has_destroyed_runtime_obstacle() else get_configured_effect()
+
+func get_configured_effect() -> TileEffect:
 	return definition.effect if definition != null else null
 
 func get_visual_kind() -> int:
+	if _has_destroyed_runtime_obstacle():
+		return TileDefinition.VisualKind.NONE
 	return int(definition.visual_kind) if definition != null else TileDefinition.VisualKind.NONE
 
 func get_visual_tag() -> StringName:
-	return definition.get_visual_tag() if definition != null else &"none"
+	return definition.get_visual_tag() if definition != null and not _has_destroyed_runtime_obstacle() else &"none"
 
 func get_visual_color() -> Color:
 	return definition.visual_color if definition != null else Color.WHITE
@@ -112,11 +123,22 @@ func clear_occupant(expected_occupant: Node = null) -> bool:
 
 ## Converts the stone obstacle to a buildable cell while preserving terrain height.
 func destroy_obstacle() -> bool:
-	if not is_destructible():
+	if not is_destructible() and not _has_active_runtime_obstacle():
 		return false
 	obstacle_destroyed = true
 	emit_changed()
 	return true
+
+func _has_active_runtime_obstacle() -> bool:
+	var configured_effect := get_configured_effect()
+	return not obstacle_destroyed and configured_effect != null and configured_effect.creates_runtime_obstacle()
+
+func _has_destroyed_runtime_obstacle() -> bool:
+	var configured_effect := get_configured_effect()
+	return obstacle_destroyed and configured_effect != null and configured_effect.creates_runtime_obstacle()
+
+func _uses_destroyed_obstacle_permissions() -> bool:
+	return _has_destroyed_runtime_obstacle()
 
 func set_height_level(value: int, height_levels: int) -> void:
 	height_level = clampi(value, 0, maxi(0, height_levels - 1))
@@ -135,6 +157,8 @@ func set_definition(value: TileDefinition, fallback_tile_type: int = TileType.BU
 	emit_changed()
 
 func get_display_name() -> String:
+	if _has_destroyed_runtime_obstacle():
+		return "%s（已摧毁，可建造）" % definition.display_name
 	if definition != null:
 		return definition.display_name
 	match tile_type:

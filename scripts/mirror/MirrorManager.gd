@@ -290,6 +290,14 @@ func resolve_projected_blocker(cell: Vector3i, target: Node = null) -> Node:
 			return projection
 	return null
 
+## Projected terrain blockers remain separate from direct-attack building
+## blockers so EnemyUnit can run authored-path rerouting before attacking them.
+func resolve_projected_navigation_blocker(cell: Vector3i, target: Node = null) -> Node:
+	for projection in get_projections(cell):
+		if projection.payload.copy_kind == &"rock" and projection.is_structure_alive() and projection.affects_target(target):
+			return projection
+	return null
+
 func update_preview(from_cell: Vector3i, edge_index: int) -> bool:
 	var validation := validate_placement(from_cell, edge_index, false)
 	if not validation.failure.is_empty():
@@ -461,6 +469,8 @@ func _build_base_content_map() -> Dictionary:
 			payload.source_cell = tile.cell
 			payload.root_source_cell = tile.cell
 			payload.projected_cell = tile.cell
+			if effect.creates_runtime_obstacle():
+				payload.root_source = _tile_manager.get_runtime_obstacle(tile.cell)
 			payload.tile_effect = effect
 			payload.primary_color = effect.get_copy_color()
 			_append_content(content, tile.cell, payload)

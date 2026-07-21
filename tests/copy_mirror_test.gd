@@ -287,6 +287,15 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	var first_edge := rock_grid.find_edge_index(Vector3i(3, 2, 0), Vector3i(4, 2, 0))
 	rock_mirrors.place_copy_mirror(Vector3i(3, 2, 0), first_edge, true)
 	_expect(rock_tile.blocks_enemy_navigation(Vector3i(5, 2, 0)), "projected rock joins the dynamic-navigation obstruction query")
+	var source_rock := rock_tile.get_runtime_obstacle(Vector3i(2, 2, 0))
+	var projected_rock := rock_mirrors.resolve_projected_navigation_blocker(Vector3i(5, 2, 0))
+	_expect(source_rock != null and projected_rock is MirrorProjection, "projected rock exposes the mirrored attack target")
+	var source_durability_before := float(source_rock.get("current_durability"))
+	projected_rock.call("take_structure_damage", 11.0, null)
+	_expect(
+		is_equal_approx(float(source_rock.get("current_durability")), source_durability_before - 11.0),
+		"projected rock damage is forwarded to the real source durability"
+	)
 	var second_edge := rock_grid.find_edge_index(Vector3i(5, 2, 0), Vector3i(6, 2, 0))
 	rock_mirrors.place_copy_mirror(Vector3i(5, 2, 0), second_edge, true)
 	rock_mirrors.rebuild_now()
@@ -298,6 +307,17 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	var original_rock_center := rock_grid.cell_to_world(Vector3i(2, 2, 0))
 	var recursive_rendered_center := recursive[0].get_visual_snapshot().global_transform * original_rock_center
 	_expect(recursive_rendered_center.distance_to(recursive[0].payload.transform_point(original_rock_center)) < 0.001, "recursive tile snapshot applies every mirror axis to the original geometry")
+	var durability_before_recursive_hit := float(source_rock.get("current_durability"))
+	recursive[0].take_structure_damage(13.0, null)
+	_expect(
+		is_equal_approx(float(source_rock.get("current_durability")), durability_before_recursive_hit - 13.0),
+		"recursive rock projection forwards damage to the same real source"
+	)
+	recursive[0].take_structure_damage(100000.0, null)
+	_expect(rock_tile.get_runtime_obstacle(Vector3i(2, 2, 0)) == null, "destroying any rock projection depletes the real source")
+	_expect(rock_tile.can_place(Vector3i(2, 2, 0)) and rock_tile.allows_edge_building(Vector3i(2, 2, 0)), "destroyed source rock restores both building permissions")
+	_expect(rock_mirrors.get_projections(Vector3i(5, 2, 0)).is_empty() and rock_mirrors.get_projections(Vector3i(6, 2, 0)).is_empty(), "source rock destruction removes all direct and recursive projections")
+	_expect(rock_mirrors.get_mirrors().size() == 2, "shared rock destruction leaves every physical mirror intact")
 	rock_host.queue_free()
 	await process_frame
 
@@ -354,6 +374,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
+	tile_manager.set_navigation_overlay_blocker_resolver(Callable(mirror_manager, "resolve_projected_navigation_blocker"))
 	var loader := LevelLoader.new()
 	host.add_child(loader)
 	loader.configure(grid, tile_manager)

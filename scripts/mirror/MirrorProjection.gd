@@ -5,6 +5,7 @@ extends Node3D
 
 static var _shared_rim_shader: Shader
 
+const PathBlockerPolicyScript := preload("res://scripts/path/PathBlockerPolicy.gd")
 const PROJECTION_PRIORITY_BASE := 8
 const PROJECTION_PRIORITY_STRIDE := 2
 const PREVIEW_PRIORITY_OFFSET := 64
@@ -48,7 +49,7 @@ func configure(
 	_build_visual()
 
 func is_structure_alive() -> bool:
-	return payload != null and payload.copy_kind == &"barrier" and payload.is_source_valid()
+	return payload != null and payload.copy_kind in [&"barrier", &"rock"] and payload.is_source_valid()
 
 func get_structure_target_position() -> Vector3:
 	if payload != null and payload.root_source != null and payload.root_source.has_method("get_structure_target_position"):
@@ -65,6 +66,11 @@ func take_structure_damage(amount: float, attacker: Node = null) -> float:
 	if not is_structure_alive() or not payload.root_source.has_method("take_structure_damage"):
 		return 0.0
 	return float(payload.root_source.call("take_structure_damage", amount, attacker))
+
+func get_path_blocker_response() -> int:
+	if payload != null and payload.root_source != null and payload.root_source.has_method("get_path_blocker_response"):
+		return int(payload.root_source.call("get_path_blocker_response"))
+	return PathBlockerPolicyScript.Response.DIRECT_ATTACK
 
 func affects_target(target: Node) -> bool:
 	if payload == null or not payload.is_source_valid():

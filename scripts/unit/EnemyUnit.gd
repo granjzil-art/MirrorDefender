@@ -35,6 +35,7 @@ var _navigation_blocker_resolver: Callable
 var _tile_effects_initialized: bool = false
 var _waiting_blocked_cell: Vector3i = Vector3i.ZERO
 var _is_waiting_for_route: bool = false
+var _reroute_attack_target: Node
 var _attack_target: Node
 var _attack_strategy: EnemyAttackStrategy
 var _attack_damage: float = 0.0
@@ -54,6 +55,8 @@ func _process(delta: float) -> void:
 		_apply_current_tile_stay(delta)
 		return
 	var blocker_info := _find_first_path_blocker()
+	if blocker_info.is_empty():
+		blocker_info = _get_reroute_attack_blocker_info()
 	if not blocker_info.is_empty():
 		var blocker: Node = blocker_info["node"]
 		var blocker_position := _get_blocker_position(blocker)
@@ -107,6 +110,7 @@ func configure_unit(
 	_navigation_blocker_resolver = navigation_blocker_resolver
 	_tile_effects_initialized = false
 	_is_waiting_for_route = false
+	_reroute_attack_target = null
 	_attack_target = null
 	_attack_strategy = EnemyAttackStrategyScript.new()
 	airborne = definition != null and definition.is_airborne
@@ -196,9 +200,15 @@ func _move_along_path(remaining_distance: float) -> float:
 		_reach_base()
 	return movement_duration
 
-## -1 waits, 0 continues on the current route, 1 installed a new route.
+## -1 remains blocked/prepares the fallback attack, 0 continues on the current
+## route, 1 installed a new route.
 func _resolve_next_terrain_blocker() -> int:
+	if _is_blocker_alive(_reroute_attack_target):
+		# A failed detour has promoted this terrain blocker to a normal attack
+		# target. Limited approach movement may now enter its attack circle.
+		return 0
 	if not _route_resolver.is_valid() or _path_index >= _path_cells.size() - 1:
+		_reroute_attack_target = null
 		_is_waiting_for_route = false
 		return 0
 	if global_position.distance_to(_path_points[_path_index]) > PATH_PROGRESS_EPSILON:
@@ -207,6 +217,7 @@ func _resolve_next_terrain_blocker() -> int:
 	var blocked_cell := _path_cells[_path_index + 1]
 	var resolution: Variant = _route_resolver.call(_active_path, current_cell, blocked_cell, self)
 	if not resolution is Dictionary or not bool(resolution.get("triggered", false)):
+		_reroute_attack_target = null
 		_is_waiting_for_route = false
 		return 0
 	if not bool(resolution.get("found", false)):
@@ -214,6 +225,8 @@ func _resolve_next_terrain_blocker() -> int:
 			route_blocked.emit(self, blocked_cell)
 		_waiting_blocked_cell = blocked_cell
 		_is_waiting_for_route = true
+		var blocker_value: Variant = resolution.get("blocker")
+		_reroute_attack_target = blocker_value as Node if blocker_value is Node else null
 		return -1
 	var route_value: Variant = resolution.get("cells", [])
 	if not route_value is Array or route_value.size() < 2:
@@ -240,6 +253,7 @@ func _resolve_next_terrain_blocker() -> int:
 	_path_points = route_points
 	_path_index = 0
 	_active_path = resolution.get("path") as PathDefinition
+	_reroute_attack_target = null
 	_is_waiting_for_route = false
 	rerouted.emit(self, previous_path, _active_path, resolution.get("join_cell", current_cell))
 	return 1
@@ -268,35 +282,52 @@ func _find_first_path_blocker() -> Dictionary:
 	for segment_index in range(clampi(_path_index, 0, last_segment), last_segment):
 		var from_cell := _path_cells[segment_index]
 		var to_cell := _path_cells[segment_index + 1]
+		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell, self)
+		if candidate is Node:
+			var blocker: Node = candidate
+			if _is_blocker_alive(blocker):
+				var blocker_position := _get_blocker_position(blocker)
+				var segment_ratio := _get_horizontal_segment_ratio(
+					_path_points[segment_index],
+					_path_points[segment_index + 1],
+					blocker_position
+			)
+				if segment_index == _path_index:
+					var current_ratio := _get_horizontal_segment_ratio(
+						_path_points[segment_index],
+						_path_points[segment_index + 1],
+						global_position
+					)
+					if segment_ratio + PATH_PROGRESS_EPSILON < current_ratio:
+						continue
+				return {
+					"node": blocker,
+					"segment_index": segment_index,
+					"segment_ratio": segment_ratio,
+					"position": blocker_position,
+				}
 		if _navigation_blocker_resolver.is_valid() and bool(_navigation_blocker_resolver.call(to_cell, self)):
 			break
-		var candidate: Variant = _blocker_resolver.call(from_cell, to_cell, self)
-		if not candidate is Node:
-			continue
-		var blocker: Node = candidate
-		if not _is_blocker_alive(blocker):
-			continue
-		var blocker_position := _get_blocker_position(blocker)
-		var segment_ratio := _get_horizontal_segment_ratio(
+	return {}
+
+func _get_reroute_attack_blocker_info() -> Dictionary:
+	if not _is_blocker_alive(_reroute_attack_target):
+		_reroute_attack_target = null
+		return {}
+	if _path_points.size() < 2 or _path_index >= _path_points.size() - 1:
+		return {}
+	var blocker_position := _get_blocker_position(_reroute_attack_target)
+	var segment_index := clampi(_path_index, 0, _path_points.size() - 2)
+	return {
+		"node": _reroute_attack_target,
+		"segment_index": segment_index,
+		"segment_ratio": _get_horizontal_segment_ratio(
 			_path_points[segment_index],
 			_path_points[segment_index + 1],
 			blocker_position
-		)
-		if segment_index == _path_index:
-			var current_ratio := _get_horizontal_segment_ratio(
-				_path_points[segment_index],
-				_path_points[segment_index + 1],
-				global_position
-			)
-			if segment_ratio + PATH_PROGRESS_EPSILON < current_ratio:
-				continue
-		return {
-			"node": blocker,
-			"segment_index": segment_index,
-			"segment_ratio": segment_ratio,
-			"position": blocker_position,
-		}
-	return {}
+		),
+		"position": blocker_position,
+	}
 
 ## Returns travel distance along the authored polyline until the unit first
 ## enters the horizontal attack circle. This avoids chord-distance stalls at
