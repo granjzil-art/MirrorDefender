@@ -2,6 +2,8 @@
 class_name BuildingDefinition
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 const MAX_LEVEL := 3
 
 enum Kind {
@@ -40,7 +42,34 @@ func get_max_level() -> int:
 	return mini(MAX_LEVEL, levels.size())
 
 func is_configured() -> bool:
-	return get_max_level() > 0 and get_level_stats(1) != null
+	return validate_configuration().is_empty()
+
+func validate_configuration() -> Array[String]:
+	var errors: Array[String] = []
+	ConfigValidator.require_text(errors, "建筑显示名", display_name)
+	ConfigValidator.require_integer_range(errors, "建筑类型", kind, Kind.ARROW_TOWER, Kind.EDGE_BARRIER)
+	ConfigValidator.require_integer_range(
+		errors,
+		"放置表面",
+		placement_surface,
+		PlacementSurface.BUILDABLE_TILE,
+		PlacementSurface.PATH_EDGE
+	)
+	if levels.is_empty():
+		errors.append("至少需要配置 1 个建筑等级")
+	if levels.size() > MAX_LEVEL:
+		errors.append("建筑等级不能超过 %d 级" % MAX_LEVEL)
+	for index in range(levels.size()):
+		var stats := levels[index]
+		if stats == null:
+			errors.append("第 %d 级参数为空" % (index + 1))
+			continue
+		ConfigValidator.append_prefixed(
+			errors,
+			"第 %d 级" % (index + 1),
+			stats.validate_configuration()
+		)
+	return errors
 
 func is_defensive_structure() -> bool:
 	return kind == Kind.BARRIER or kind == Kind.EDGE_BARRIER

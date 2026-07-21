@@ -38,6 +38,7 @@ var _selected_mirror: CopyMirror
 var _next_placement_order: int = 0
 var _rebuild_queued: bool = false
 var _mirror_exit_callbacks: Dictionary = {}
+var _attack_sources: Dictionary = {}
 
 var _preview_mirror: CopyMirror
 var _preview_projections: Array[MirrorProjection] = []
@@ -46,6 +47,9 @@ var _preview_active_from_side: bool = true
 
 func _process(_delta: float) -> void:
 	_update_reflection_views()
+
+func _exit_tree() -> void:
+	_disconnect_dependencies()
 
 func configure(
 	grid_manager: GridManager,
@@ -573,8 +577,23 @@ func _has_enemy_on_adjacent_cell(from_cell: Vector3i, to_cell: Vector3i) -> bool
 	return false
 
 func _connect_attack_source(building: Building) -> void:
-	if building != null and not building.copy_attack_triggered.is_connected(_on_copy_attack_triggered):
+	if building == null or not is_instance_valid(building):
+		return
+	if not building.copy_attack_triggered.is_connected(_on_copy_attack_triggered):
 		building.copy_attack_triggered.connect(_on_copy_attack_triggered)
+	_attack_sources[building] = true
+
+func _disconnect_attack_source(building: Building) -> void:
+	if building != null and is_instance_valid(building):
+		if building.copy_attack_triggered.is_connected(_on_copy_attack_triggered):
+			building.copy_attack_triggered.disconnect(_on_copy_attack_triggered)
+	_attack_sources.erase(building)
+
+func _disconnect_attack_sources() -> void:
+	for source in _attack_sources.keys():
+		if source is Building:
+			_disconnect_attack_source(source)
+	_attack_sources.clear()
 
 func _on_copy_attack_triggered(
 	building: Building,
@@ -616,7 +635,8 @@ func _on_building_placed(building: Building) -> void:
 	_connect_attack_source(building)
 	rebuild_now()
 
-func _on_building_removed(_building: Building) -> void:
+func _on_building_removed(building: Building) -> void:
+	_disconnect_attack_source(building)
 	queue_rebuild()
 
 func _on_building_upgraded(_building: Building, _previous_level: int, _new_level: int) -> void:
@@ -668,6 +688,7 @@ func _on_level_loaded(_level_resource: LevelResource) -> void:
 	clear_mirrors(true)
 
 func _disconnect_dependencies() -> void:
+	_disconnect_attack_sources()
 	if copy_mirror_definition != null and copy_mirror_definition.changed.is_connected(_on_definition_changed):
 		copy_mirror_definition.changed.disconnect(_on_definition_changed)
 	if _building_manager != null:

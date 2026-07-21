@@ -4,8 +4,7 @@
 ## 不直接 new 具体形状。
 ## 铁律「参数化」：cell_size / grid_shape / grid_size 均 @export，运行时可调。
 ##
-## 拾取：地面视为 y=0 平面，用相机射线求交得世界点，再 world_to_cell 反算格；
-## 边拾取 = 在命中格及其邻格候选边中，取"点到边中点最近且 < edge_pick_threshold"的边。
+## 拾取：与每个地块的可见顶面求交，支持运行时高低地形；边拾取使用相同顶面高度。
 class_name GridManager
 extends Node3D
 
@@ -39,6 +38,7 @@ enum Shape { HEX, SQUARE }
 signal grid_changed
 
 var shape: IGridShape
+var _cell_height_resolver: Callable
 
 func _ready() -> void:
 	_rebuild_shape()
@@ -148,6 +148,11 @@ func enumerate_cells() -> Array[Vector3i]:
 func is_in_bounds(cell: Vector3i) -> bool:
 	return shape.is_in_bounds(cell, grid_size)
 
+## Injects a read-only `func(cell: Vector3i) -> float` height query without
+## creating a Grid -> Tile module dependency.
+func set_cell_height_resolver(resolver: Callable) -> void:
+	_cell_height_resolver = resolver
+
 ## Applies level-owned grid data through GridManager, preserving its public API.
 func apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void:
 	grid_shape = p_shape
@@ -160,6 +165,9 @@ func apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i
 func raycast_ground(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 	var origin := camera.project_ray_origin(screen_pos)
 	var dir := camera.project_ray_normal(screen_pos)
+	return raycast_ground_from_ray(origin, dir)
+
+func raycast_ground_from_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	if absf(dir.y) < 1e-6:
 		return {"hit": false, "pos": Vector3.ZERO}
 	var t := -origin.y / dir.y
@@ -167,32 +175,59 @@ func raycast_ground(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 		return {"hit": false, "pos": Vector3.ZERO}
 	return {"hit": true, "pos": origin + dir * t}
 
-## 拾取格：返回 {hit, cell}。
+## Returns the nearest visible tile-top intersection for an arbitrary ray.
+func raycast_grid_surface(origin: Vector3, direction: Vector3) -> Dictionary:
+	if shape == null or direction.is_zero_approx() or absf(direction.y) < 1e-6:
+		return {"hit": false, "pos": Vector3.ZERO, "cell": Vector3i.ZERO}
+	var nearest_distance := INF
+	var nearest_cell := Vector3i.ZERO
+	var nearest_position := Vector3.ZERO
+	for cell in enumerate_cells():
+		var surface_height := _resolve_cell_height(cell)
+		var distance := (surface_height - origin.y) / direction.y
+		if distance < 0.0 or distance >= nearest_distance:
+			continue
+		var position := origin + direction * distance
+		if not _is_point_inside_cell(position, cell):
+			continue
+		nearest_distance = distance
+		nearest_cell = cell
+		nearest_position = position
+	if not is_finite(nearest_distance):
+		return {"hit": false, "pos": Vector3.ZERO, "cell": Vector3i.ZERO}
+	return {"hit": true, "pos": nearest_position, "cell": nearest_cell}
+
+## 拾取格：返回 {hit, cell, pos}。
 func pick_cell(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
-	var g := raycast_ground(camera, screen_pos)
-	if not g.hit:
-		return {"hit": false, "cell": Vector3i.ZERO}
-	var hit_pos: Vector3 = g.pos
-	var cell: Vector3i = world_to_cell(hit_pos)
-	if not is_in_bounds(cell):
-		return {"hit": false, "cell": cell}
-	return {"hit": true, "cell": cell, "pos": hit_pos}
+	return pick_cell_from_ray(
+		camera.project_ray_origin(screen_pos),
+		camera.project_ray_normal(screen_pos)
+	)
+
+func pick_cell_from_ray(origin: Vector3, direction: Vector3) -> Dictionary:
+	return raycast_grid_surface(origin, direction.normalized())
 
 ## 拾取边：返回 {hit, cell, edge_index, id}。
 ## 在命中格的所有边里找离光标世界点最近的一条，且距离 < 阈值。
 func pick_edge(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
-	var g := raycast_ground(camera, screen_pos)
+	return pick_edge_from_ray(
+		camera.project_ray_origin(screen_pos),
+		camera.project_ray_normal(screen_pos)
+	)
+
+func pick_edge_from_ray(origin: Vector3, direction: Vector3) -> Dictionary:
+	var g := raycast_grid_surface(origin, direction.normalized())
 	if not g.hit:
 		return {"hit": false}
 	var hit_pos: Vector3 = g.pos
-	var cell: Vector3i = world_to_cell(hit_pos)
-	if not is_in_bounds(cell):
-		return {"hit": false}
+	var cell: Vector3i = g.cell
+	var surface_height := _resolve_cell_height(cell)
 	var best_i: int = -1
 	var best_d: float = INF
 	var n: int = edge_count()
 	for i in range(n):
 		var mid: Vector3 = shape.get_edge_midpoint(cell, i)
+		mid.y = surface_height
 		var d: float = hit_pos.distance_to(mid)
 		if d < best_d:
 			best_d = d
@@ -205,3 +240,18 @@ func pick_edge(camera: Camera3D, screen_pos: Vector2) -> Dictionary:
 		"edge_index": best_i,
 		"id": canonical_edge_id(cell, best_i),
 	}
+
+func _resolve_cell_height(cell: Vector3i) -> float:
+	if not _cell_height_resolver.is_valid():
+		return 0.0
+	var resolved: Variant = _cell_height_resolver.call(cell)
+	if resolved is float or resolved is int:
+		var height := float(resolved)
+		return height if is_finite(height) else 0.0
+	return 0.0
+
+func _is_point_inside_cell(world_position: Vector3, cell: Vector3i) -> bool:
+	var polygon := PackedVector2Array()
+	for corner in get_corners(cell):
+		polygon.append(Vector2(corner.x, corner.z))
+	return Geometry2D.is_point_in_polygon(Vector2(world_position.x, world_position.z), polygon)

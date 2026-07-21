@@ -7,10 +7,10 @@
 - 初版**同时支持两种网格**，各做一个示意关卡：
   - **六边形(flat-top)**：使用**立方体坐标(cube coord)** `(q, r, s)`，`q + r + s = 0`。
   - **正方形**：使用**行列坐标** `(row, col)`。
-- 网格形状抽象为接口 `IGridShape`，六边形/正方形各为一个实现；**未来扩展三角形**只需新增实现，不改上层逻辑。
+- 网格几何数学抽象为 `IGridShape`，六边形/正方形各为一个实现。当前形状枚举、LevelResource 和编辑器仍显式支持两种形状；新增第三种形状还需同步这些选择/序列化边界，不能只增加一个 Shape 脚本。
 - **边(Edge)** 是一等公民：六边形每格 6 条边，正方形每格 4 条边。每条边以 `(cell, edge_index)` 标识，可被镜子挂载（不受地块类型限制）。
 - **边共享与唯一键（已确认）**：相邻两格共享同一条物理边。系统需提供**规范化边键** `canonical_edge_id`（两格视角映射到同一 id），供镜子做"**一条边至多一面镜**"的占用校验。
-- **拾取与高亮**：提供 `pick_cell(screen_pos)` 与 `pick_edge(screen_pos)`，悬停/选中时对**格**和**边**分别高亮（供 UI/镜子放置用）。
+- **拾取与高亮**：Main 以只读 Callable 注入 Tile 世界高度；`pick_cell` / `pick_edge` 与全部地块顶面求交并选择射线最近命中，斜视角下不会穿过高地误选 `Y=0` 的后方格。
 - 提供统一 API：`get_neighbors`、`distance`、`cell_to_world`、`world_to_cell`、`get_edges`、`canonical_edge_id`。
 
 ## 关键参数
@@ -46,7 +46,8 @@
 ```
 Main（场景装配）
  ├─ GridManager  ──(signal grid_changed)──▶ GridRenderer._rebuild_grid_lines()
- │     └─ shape: IGridShape  (HEX / SQUARE，运行时可换)
+│     └─ shape: IGridShape  (HEX / SQUARE，运行时可换)
+ ├─ TileManager.get_world_height ──(只读 Callable)──▶ GridManager 顶面拾取
  └─ 每帧: grid.pick_edge/pick_cell(camera, mouse)
           └─▶ renderer.highlight_edge / highlight_cell
 其它模块(Tile/Mirror/Path/UI) 一律只依赖 GridManager，不直接 new 具体 shape。
@@ -105,12 +106,17 @@ Main（场景装配）
 - **有向边与方向 API**：`directed_edge_id(from_cell: Vector3i, to_cell: Vector3i) -> String`；`find_edge_index(from_cell: Vector3i, to_cell: Vector3i) -> int`；`get_geometry_tag() -> StringName`；`get_tile_building_facing_count() -> int`；`get_edge_building_facing_count() -> int`。
 - **镜像离散几何 API**：`get_mirror_cell_pair(from_cell, edge_index, active_from_side, distance_from_edge) -> Dictionary` 返回 `{valid, source_cell, target_cell}`；方形/六边形坐标步进只存在于 GridManager，Mirror 不读取具体坐标布局。
 - **关卡装配 API**：`apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void`。LevelResource 只传数据，仍由 GridManager 自己触发 shape 重建和 `grid_changed`；Tile 模块不直接 new 具体 shape。
+- **高度查询注入**：`set_cell_height_resolver(resolver: Callable) -> void`，契约为 `(cell: Vector3i) -> float`；无效返回值安全回退为 0，GridManager 不持有 TileManager。
 - **拾取**（供放置/UI）：
   | 函数 | 签名 | 返回 Dictionary 结构 |
   |---|---|---|
   | `raycast_ground` | `(camera: Camera3D, screen_pos: Vector2) -> Dictionary` | `{hit: bool, pos: Vector3}` |
+  | `raycast_ground_from_ray` | `(origin: Vector3, direction: Vector3) -> Dictionary` | 兼容/测试用 `Y=0` 平面交点。 |
+  | `raycast_grid_surface` | `(origin: Vector3, direction: Vector3) -> Dictionary` | `{hit, cell, pos}`；返回最近地块顶面交点。 |
   | `pick_cell` | `(camera, screen_pos) -> Dictionary` | `{hit, cell: Vector3i, pos: Vector3}`（未命中 hit=false） |
+  | `pick_cell_from_ray` | `(origin: Vector3, direction: Vector3) -> Dictionary` | 不依赖 Camera 的同一顶面拾取契约，供测试/工具复用。 |
   | `pick_edge` | `(camera, screen_pos) -> Dictionary` | `{hit, cell, edge_index: int, id: String}`（最近边中点距离 < `edge_pick_threshold` 才 hit） |
+  | `pick_edge_from_ray` | `(origin: Vector3, direction: Vector3) -> Dictionary` | 使用命中格真实顶面高度的边拾取。 |
 
 ### LevelResource.gd（几何标签 API）
 
@@ -141,4 +147,4 @@ Main（场景装配）
 ## 已知限制 / 初版不做的部分
 - 初版仅实现 hex(flat-top) 与 square；三角形仅预留接口，不实现。
 - 不做无限滚动网格 / 运行时动态改变网格拓扑；M1 已支持以 T 切换 HEX/SQUARE 作验收观察。
-- 不做寻路（路径由 Path 系统手动指定）。
+- 拾取以地块水平顶面为选择面，不单独选择竖直崖壁；路径与换路由 Path 系统负责。

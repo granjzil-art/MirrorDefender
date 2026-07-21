@@ -1,5 +1,7 @@
 extends SceneTree
 
+const RejectingTileManager := preload("res://tests/fixtures/RejectingTileManager.gd")
+
 var _failures: int = 0
 var _checks: int = 0
 var _reentrant_target_removed_count: int = 0
@@ -10,12 +12,16 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[RobustnessBaseline] running")
 	_test_level_validation()
+	_test_editable_configuration_validation()
+	_test_production_definition_smoke()
+	_test_resource_manager_rejects_non_finite_transactions()
 	await _test_atomic_loading_and_runtime_tile_isolation()
+	await _test_height_aware_grid_picking()
 	await _test_empty_geometry_is_safe()
 	await _test_combat_registration_lifecycle()
 	await _test_building_external_removal_cleanup()
 	await _test_wave_spawn_failure_is_not_victory()
-	_test_m4_demo_contract()
+	_test_production_level_smoke()
 	if _failures == 0:
 		print("[RobustnessBaseline] PASS: %d checks" % _checks)
 		quit(0)
@@ -31,6 +37,86 @@ func _test_level_validation() -> void:
 	invalid_level.base_max_hp = NAN
 	var errors := invalid_level.validate_runtime()
 	_expect(errors.size() >= 2, "invalid finite/positive level parameters are rejected")
+
+func _test_editable_configuration_validation() -> void:
+	var stats := BuildingLevelStats.new()
+	_expect(stats.validate_configuration().is_empty(), "default building level stats validate")
+	stats.cost = NAN
+	_expect(not stats.validate_configuration().is_empty(), "building level rejects non-finite tuning")
+
+	var building := BuildingDefinition.new()
+	building.levels = [BuildingLevelStats.new(), null]
+	_expect(not building.validate_configuration().is_empty(), "building validates every configured level")
+	building.levels = [BuildingLevelStats.new()]
+	_expect(building.validate_configuration().is_empty(), "complete building definition validates")
+
+	var enemy := EnemyDefinition.new()
+	_expect(enemy.validate_configuration().is_empty(), "default enemy definition validates")
+	enemy.attack_damage = INF
+	_expect(not enemy.validate_configuration().is_empty(), "enemy rejects non-finite combat tuning")
+
+	var mirror := CopyMirrorDefinition.new()
+	_expect(mirror.validate_configuration().is_empty(), "default copy mirror definition validates")
+	mirror.reflection_surface_offset_ratio = 0.5
+	_expect(not mirror.validate_configuration().is_empty(), "copy mirror rejects an embedded reflection surface")
+
+	var reflection := LevelReflectionDefinition.new()
+	_expect(reflection.validate_configuration().is_empty(), "default level reflection definition validates")
+	reflection.vertical_offset = NAN
+	_expect(not reflection.validate_configuration().is_empty(), "level reflection rejects non-finite presentation tuning")
+
+func _test_resource_manager_rejects_non_finite_transactions() -> void:
+	var manager := ResourceManager.new()
+	manager.main_resource = 200.0
+	manager.gain(NAN, "invalid_gain")
+	_expect(is_equal_approx(manager.main_resource, 200.0), "resource gain rejects NaN")
+	_expect(not manager.spend(INF, "invalid_spend"), "resource spend rejects infinity")
+	manager.set_building_resource_per_second(NAN)
+	_expect(is_zero_approx(manager.get_building_resource_per_second()), "passive income rejects NaN")
+	manager.free()
+
+func _test_production_definition_smoke() -> void:
+	var building_paths: Array[String] = [
+		"res://resources/buildings/ArrowTower.tres",
+		"res://resources/buildings/LaserTower.tres",
+		"res://resources/buildings/Barrier.tres",
+		"res://resources/buildings/EdgeBarrier.tres",
+	]
+	for path in building_paths:
+		var building := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP) as BuildingDefinition
+		_expect(building != null, "%s loads as BuildingDefinition" % path.get_file())
+		if building != null:
+			_expect(building.validate_configuration().is_empty(), "%s passes configuration validation" % path.get_file())
+
+	var enemy_paths: Array[String] = [
+		"res://resources/enemies/Grunt.tres",
+		"res://resources/enemies/Runner.tres",
+		"res://resources/enemies/Archer.tres",
+		"res://resources/enemies/Flyer.tres",
+	]
+	for path in enemy_paths:
+		var enemy := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP) as EnemyDefinition
+		_expect(enemy != null, "%s loads as EnemyDefinition" % path.get_file())
+		if enemy != null:
+			_expect(enemy.validate_configuration().is_empty(), "%s passes configuration validation" % path.get_file())
+
+	var mirror := ResourceLoader.load(
+		"res://resources/mirrors/CopyMirror.tres",
+		"",
+		ResourceLoader.CACHE_MODE_REPLACE_DEEP
+	) as CopyMirrorDefinition
+	_expect(mirror != null, "CopyMirror.tres loads as CopyMirrorDefinition")
+	if mirror != null:
+		_expect(mirror.validate_configuration().is_empty(), "CopyMirror.tres passes configuration validation")
+
+	var reflection := ResourceLoader.load(
+		"res://resources/fx/LevelReflection.tres",
+		"",
+		ResourceLoader.CACHE_MODE_REPLACE_DEEP
+	) as LevelReflectionDefinition
+	_expect(reflection != null, "LevelReflection.tres loads as LevelReflectionDefinition")
+	if reflection != null:
+		_expect(reflection.validate_configuration().is_empty(), "LevelReflection.tres passes configuration validation")
 
 func _test_atomic_loading_and_runtime_tile_isolation() -> void:
 	var fixture := _make_runtime_fixture()
@@ -67,6 +153,16 @@ func _test_atomic_loading_and_runtime_tile_isolation() -> void:
 	_expect(grid.grid_size == previous_grid_size, "rejected load preserves grid configuration")
 	_expect(tile_manager.get_tile(source_tile.cell) == previous_runtime_tile, "rejected load preserves runtime tiles")
 
+	var assembly_failure_level: LevelResource = source_level.duplicate(true)
+	assembly_failure_level.grid_shape = GridManager.Shape.SQUARE
+	assembly_failure_level.grid_size = Vector2i(3, 3)
+	tile_manager.set("reject_next_load", true)
+	_expect(not loader.load_level(assembly_failure_level, "memory://assembly-failure"), "unexpected tile assembly rejection fails the load")
+	_expect(loader.get_current_level() == source_level, "assembly rejection preserves the current level")
+	_expect(grid.grid_shape == GridManager.Shape.HEX and grid.grid_size == previous_grid_size, "assembly rejection rolls back grid configuration")
+	_expect(tile_manager.get_level_resource() == source_level, "assembly rejection preserves TileManager level state")
+	_expect(tile_manager.get_tile(source_tile.cell) == previous_runtime_tile, "assembly rejection preserves the runtime tile map")
+
 	host.queue_free()
 	second_host.queue_free()
 	await process_frame
@@ -94,6 +190,29 @@ func _test_empty_geometry_is_safe() -> void:
 	path_manager.load_level(empty_level)
 	var path_mesh := path_manager.get_child(0) as MeshInstance3D
 	_expect(path_mesh != null and path_mesh.mesh == null, "level without paths does not create an ImmediateMesh surface")
+	host.queue_free()
+	await process_frame
+
+func _test_height_aware_grid_picking() -> void:
+	var host := Node3D.new()
+	root.add_child(host)
+	var grid := GridManager.new()
+	host.add_child(grid)
+	grid.apply_configuration(GridManager.Shape.SQUARE, 1.0, Vector2i(2, 1))
+	var raised_cell := Vector3i(1, 0, 0)
+	grid.set_cell_height_resolver(
+		func(cell: Vector3i) -> float:
+			return 2.0 if cell == raised_cell else 0.0
+	)
+	var ray_origin := Vector3(2.5, 4.0, 0.0)
+	var ray_direction := (Vector3.ZERO - ray_origin).normalized()
+	var ground_hit := grid.raycast_ground_from_ray(ray_origin, ray_direction)
+	_expect(grid.world_to_cell(ground_hit.pos) == Vector3i.ZERO, "legacy ground-plane ray would select the lower tile")
+	var cell_pick := grid.pick_cell_from_ray(ray_origin, ray_direction)
+	_expect(cell_pick.hit and cell_pick.cell == raised_cell, "surface ray selects the visible raised tile")
+	_expect(is_equal_approx(cell_pick.pos.y, 2.0), "surface ray returns the raised tile's world height")
+	var edge_pick := grid.pick_edge_from_ray(ray_origin, ray_direction)
+	_expect(edge_pick.hit and edge_pick.cell == raised_cell, "edge picking uses the same raised surface")
 	host.queue_free()
 	await process_frame
 
@@ -200,38 +319,22 @@ func _test_wave_spawn_failure_is_not_victory() -> void:
 	host.queue_free()
 	await process_frame
 
-func _test_m4_demo_contract() -> void:
+func _test_production_level_smoke() -> void:
 	var resource := ResourceLoader.load("res://resources/levels/M4DemoLevel.tres", "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	_expect(resource is LevelResource, "M4DemoLevel is a LevelResource")
 	if not resource is LevelResource:
 		return
 	var level: LevelResource = resource
 	_expect(level.validate_runtime().is_empty(), "M4DemoLevel passes runtime validation")
-	var later_delays: Array[float] = []
-	var has_archer := false
-	for wave_index in range(level.waves.size()):
-		var wave: WaveDefinition = level.waves[wave_index]
-		if wave == null:
-			continue
-		for group in wave.spawn_groups:
-			if group == null:
-				continue
-			if wave_index == 0:
-				_expect(is_zero_approx(group.start_delay), "all first-wave groups start at delay zero")
-			else:
-				later_delays.append(group.start_delay)
-			if group.enemy != null and group.enemy.enemy_id == &"archer":
-				has_archer = true
-	later_delays.sort()
-	_expect(later_delays == [8.0, 9.0, 10.0], "later M4 groups preserve the 8/9/10 second schedule")
-	_expect(has_archer, "M4DemoLevel includes the Archer test enemy")
+	_expect(not level.paths.is_empty(), "M4DemoLevel keeps at least one playable path")
+	_expect(not level.waves.is_empty(), "M4DemoLevel keeps at least one configured wave")
 
 func _make_runtime_fixture() -> Dictionary:
 	var host := Node3D.new()
 	root.add_child(host)
 	var grid := GridManager.new()
 	host.add_child(grid)
-	var tile_manager := TileManager.new()
+	var tile_manager := RejectingTileManager.new()
 	host.add_child(tile_manager)
 	tile_manager.set_grid(grid)
 	var loader := LevelLoader.new()

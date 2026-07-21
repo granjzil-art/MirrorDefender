@@ -72,6 +72,7 @@
 |---|---|---|
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 一项建筑等级的完整可编辑参数。 |
 | `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名和最多三项等级数据。 |
+| `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | BuildingDefinition/BuildingLevelStats 共用的有限数、范围、颜色和嵌套错误校验。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |
 | `scripts/building/BarrierDurability.gd` | `BarrierDurability` / `RefCounted` | 屏障耐久、升级保伤、脱战回血、反伤和耗尽信号。 |
 | `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | **建筑唯一入口**；放置事务、预览、升级、占用、选择、旋转、移除和产出汇总。 |
@@ -136,7 +137,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 |---|---|---|
 | `get_level_stats` | `(value: int) -> BuildingLevelStats` | 把等级钳制到已配置范围并返回对应完整参数。 |
 | `get_max_level` | `() -> int` | 返回 `min(3, levels.size())`。 |
-| `is_configured` | `() -> bool` | 至少存在有效 1 级参数时返回 true。 |
+| `validate_configuration` | `() -> Array[String]` | 校验身份、放置枚举、1~3 级完整性，并逐级校验全部可编辑参数。BuildingLevelStats 提供同名数值校验。 |
+| `is_configured` | `() -> bool` | 仅当 `validate_configuration()` 无错误时返回 true。 |
 
 ### Building.gd
 
@@ -199,7 +201,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 - 当前等级事实源是 `Building.level + Building._stats`；禁止把等级差写成隐式全局倍率。
 - 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用；`refund_amount` 是删除当前级的精确返还，不由 `cost` 自动计算。
 - `targeting_range` 只决定候选；`attack_range` 决定是否能发射或激光长度，两者不得互相代替。
-- `BuildingDefinition.Kind` 固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`。
+- `BuildingDefinition.Kind` 当前固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`、`EDGE_BARRIER=3`。
 - 路径格缓存来自当前 LevelResource；普通塔不得占路。屏障可覆盖 BUILDABLE 或 BLOCKED 路面，但不得覆盖未清障的 DESTRUCTIBLE 格。
 - 屏障摧毁属于战斗损失，不返还资源；主动删除属于玩家操作，按本级 `refund_amount` 返还。
 - BuildingManager 的 cell 字典、Tile occupant、ResourceManager 建筑计数和生命周期回调必须作为同一事务更新；外部释放只做无退款清理。
@@ -213,4 +215,4 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 
 - 当前正式美术为空时使用逐级颜色灰盒；`visual_scene` 已预留，但资产制作与动画不属于 M3。
 - 暂无分支升级树或降级；删除只使用每级固定退款，不支持全局售卖比例或确认弹窗。
-- 投影镜像与 ICopyable 在 M5 接入；M6 再加入地形/障碍/镜面光路阻挡。
+- M5 投影镜像已覆盖塔、地块屏障和地块元素；当前由 MirrorManager 枚举复制来源，尚未形成 CONTRIBUTING 所述统一 `ICopyable` 契约，该扩展点在架构治理批次 5 处理。M6 再加入反射镜与镜面光路。

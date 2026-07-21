@@ -49,7 +49,7 @@ func apply_level_configuration(level_resource: LevelResource) -> void:
 	income_rates_changed.emit(base_resource_per_second, _building_resource_per_second)
 
 func can_afford(cost: float) -> bool:
-	return feature_enabled and cost >= 0.0 and main_resource >= cost
+	return feature_enabled and is_finite(cost) and cost >= 0.0 and is_finite(main_resource) and main_resource >= cost
 
 func spend(cost: float, reason: String = "spend") -> bool:
 	if not can_afford(cost):
@@ -59,7 +59,7 @@ func spend(cost: float, reason: String = "spend") -> bool:
 	return true
 
 func gain(amount: float, reason: String = "gain") -> void:
-	if not feature_enabled or amount <= 0.0:
+	if not feature_enabled or not is_finite(amount) or amount <= 0.0 or not is_finite(main_resource):
 		return
 	main_resource += amount
 	resource_changed.emit(main_resource, amount, reason)
@@ -97,6 +97,8 @@ func unregister_mirror(refund: float = 0.0) -> void:
 	_emit_limits_changed()
 
 func set_building_resource_per_second(value: float) -> void:
+	if not is_finite(value):
+		return
 	_building_resource_per_second = maxf(0.0, value)
 	income_rates_changed.emit(base_resource_per_second, _building_resource_per_second)
 

@@ -4,6 +4,8 @@
 class_name LevelReflectionDefinition
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -32,3 +34,21 @@ extends Resource
 @export_range(128, 2048, 64) var reflection_resolution: int = 768
 ## 1 表示每帧刷新；可提高此值换取性能。
 @export_range(1, 12, 1) var update_interval_frames: int = 1
+
+
+func validate_configuration() -> Array[String]:
+	var errors: Array[String] = []
+	ConfigValidator.require_number(errors, "垂直偏移", vertical_offset, 0.02, 20.0)
+	ConfigValidator.require_number(errors, "边缘扩展格数", edge_margin_cells, 0.0, 8.0)
+	ConfigValidator.require_color(errors, "反射面颜色", surface_tint)
+	ConfigValidator.require_number(errors, "反射率", reflectivity, 0.0, 1.0)
+	ConfigValidator.require_number(errors, "反射亮度", reflection_brightness, 0.1, 2.0)
+	ConfigValidator.require_number(errors, "反射柔化", reflection_blur_pixels, 0.0, 4.0)
+	ConfigValidator.require_number(errors, "菲涅尔强度", fresnel_strength, 0.0, 1.0)
+	ConfigValidator.require_number(errors, "涟漪强度", ripple_strength, 0.0, 0.02)
+	ConfigValidator.require_number(errors, "涟漪尺度", ripple_scale, 2.0, 40.0)
+	ConfigValidator.require_number(errors, "涟漪速度", ripple_speed, 0.0, 4.0)
+	ConfigValidator.require_number(errors, "涟漪高光", ripple_highlight_strength, 0.0, 0.5)
+	ConfigValidator.require_integer_range(errors, "反射分辨率", reflection_resolution, 128, 2048)
+	ConfigValidator.require_integer_range(errors, "更新间隔帧", update_interval_frames, 1, 12)
+	return errors

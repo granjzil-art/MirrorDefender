@@ -43,12 +43,16 @@ func load_level(level_resource: LevelResource, source_path: String = "") -> bool
 	if not _tile_manager.feature_enabled:
 		_report_failure(resolved_path, "TileManager 已关闭，无法装配关卡")
 		return false
+	var previous_grid_shape := _grid.grid_shape
+	var previous_cell_size := _grid.cell_size
+	var previous_grid_size := _grid.grid_size
 	_grid.apply_configuration(
 		level_resource.grid_shape,
 		level_resource.grid_cell_size,
 		level_resource.grid_size
 	)
 	if not _tile_manager.load_level(level_resource):
+		_grid.apply_configuration(previous_grid_shape, previous_cell_size, previous_grid_size)
 		_report_failure(resolved_path, "TileManager 拒绝加载关卡")
 		return false
 	_current_level = level_resource

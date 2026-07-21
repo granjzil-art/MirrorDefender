@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_definition")
-cost = 80.0
+cost = 70.0
 copy_chain_max = 6
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false

@@ -48,10 +48,10 @@ CameraController (本节点 = pivot 焦点)
 - **移动方向随 yaw 旋转**：WASD 输入向量按当前 `rotation.y` 变换到世界方向，保证"往屏幕上方走"符合视角。
 - **场景装配**：`Main.tscn` 中节点名 `CameraRig`（挂本脚本），其下有一个 `Camera3D` 子节点；`Main.gd` 通过 `cam_rig.get_camera()` 拿相机做拾取。
 
-### 输入现状（M3）
+### 输入现状（M5）
 - **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理移动、旋转和俯仰；`_unhandled_input` 独占滚轮缩放。关卡编辑画布保持相同的 XC/滚轮语义。
-- **Main 场景路由**：`place_select` 根据 M3DebugPanel 模式选择建筑、放箭塔/激光塔或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 在有建造定义时调 `BuildingManager.rotate_preview()`，否则调 `rotate_selected()`。
-- **世界固定朝向**：建筑方向只读 Grid 形状与 facing_index；CameraRig yaw 不参与计算。镜子输入在 M5/M6 接入同一动作时再抽出独立 InputRouter。
+- **Main 场景路由**：`place_select` 根据面板模式选择/放置块建筑、边屏障、复制镜或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。
+- **世界固定朝向**：建筑与镜子方向只读 Grid 形状及自身 facing/active side；CameraRig yaw 不参与玩法方向计算。独立 InputRouter 尚未拆分。
 
 ## 函数索引
 > gimbal 结构：本节点=焦点（可平移+yaw），子 Camera3D 使用可调 pitch 俯视。
@@ -86,7 +86,7 @@ CameraController (本节点 = pivot 焦点)
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_pitch_lower/raise` | X/C | 降低/提高相机俯仰角 | CameraController |
 | `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
-| `rotate_facing` | R | 建造模式转塔虚影，否则转选中塔；M5/M6 再接镜子 | Main -> BuildingManager |
+| `rotate_facing` | R | 镜子预览/实体翻面，或建筑预览/实体顺时针旋转 | Main -> MirrorManager / BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择/建塔/靶标模式 | Main.gd（M3） |
 | `cancel_action` | 鼠标右键 | 回到选择模式 | Main.gd -> M3DebugPanel |
 

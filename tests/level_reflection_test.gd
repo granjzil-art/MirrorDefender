@@ -76,6 +76,10 @@ func _test_shape(shape: GridManager.Shape, grid_size: Vector2i) -> void:
 	camera.look_at(Vector3.ZERO)
 	reflection.refresh_now()
 	_expect(reflected_camera.global_position.distance_to(previous_eye) > 0.1, "%s camera movement immediately changes the reflected viewpoint" % grid.get_geometry_tag())
+	var previous_surface_y := reflection.get_surface_y()
+	definition.vertical_offset += 0.25
+	definition.emit_changed()
+	_expect(reflection.get_surface_y() < previous_surface_y, "%s live definition changes rebuild the reflection surface" % grid.get_geometry_tag())
 	_expect(_count_collision_nodes(reflection) == 0, "%s presentation node creates no collision or gameplay occupancy" % grid.get_geometry_tag())
 	host.queue_free()
 	await process_frame

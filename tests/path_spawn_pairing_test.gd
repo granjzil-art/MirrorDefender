@@ -2,6 +2,7 @@ extends SceneTree
 
 const TileEditorPanel := preload("res://addons/mirror_tile_editor/tile_editor_panel.gd")
 const TileEditorCanvas := preload("res://addons/mirror_tile_editor/tile_editor_canvas.gd")
+const TileEditorPlugin := preload("res://addons/mirror_tile_editor/tile_editor_plugin.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -12,6 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[PathSpawnPairing] running")
 	_test_definition_naming()
+	_expect(TileEditorPlugin != null, "level editor plugin entry script parses without starting external services")
 	_test_legacy_pair_lookup()
 	await _test_square_continuous_path_recording()
 	await _test_editor_creation_and_wave_binding()

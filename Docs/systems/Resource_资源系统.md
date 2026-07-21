@@ -86,12 +86,12 @@ resource_changed / limits_changed / income_rates_changed
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `apply_level_configuration` | `(level_resource: LevelResource) -> void` | 复制初始资源、cap 和基础产出，清零计数、建筑产出与缓冲。 |
-| `can_afford` | `(cost: float) -> bool` | 判断模块开启、费用非负且余额充足。 |
+| `can_afford` | `(cost: float) -> bool` | 判断模块开启、费用和余额均为有限数、费用非负且余额充足。 |
 | `spend` | `(cost: float, reason: String = "spend") -> bool` | 原子扣费并广播；失败不改余额。 |
-| `gain` | `(amount: float, reason: String = "gain") -> void` | 增加正数资源并广播。 |
+| `gain` | `(amount: float, reason: String = "gain") -> void` | 增加有限正数资源并广播；NaN/Infinity 不改变余额。 |
 | `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 检查 cap、扣费并增加相应计数。 |
 | `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选退款。 |
-| `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的逐秒产出总和。 |
+| `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的有限逐秒产出总和；非有限值被拒绝。 |
 | `grant_enemy_drop` | `(amount: float) -> void` | 以 `enemy_drop` 原因入账；M4 敌人死亡调用。 |
 | `get_building_resource_per_second` | `() -> float` | 返回建筑产出总和。 |
 | `get_total_resource_per_second` | `() -> float` | 返回基础产出与建筑产出之和。 |
@@ -107,6 +107,7 @@ resource_changed / limits_changed / income_rates_changed
 - 敌人掉落数值属于 EnemyDefinition，不复用 M3 调试靶标的 reward 作为正式配置；WaveManager 的类型收窄是防止靶标误入账的唯一连接点。
 - `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
 - 实体复制镜通过 `try_register_mirror(copy_mirror_definition.cost)` 与 `unregister_mirror(refund)` 参与镜子上限和经济；虚像不注册建筑/镜子、不产出资源、不计任何 cap。
+- 所有公开交易入口拒绝 NaN/Infinity，防止一次非法配置永久污染余额或被动产出缓冲。
 
 ## 已知限制 / 初版不做的部分
 

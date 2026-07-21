@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Architecture · 批次 1 健壮性基线 — 2026-07-21
+**模块**：Tests / Shared / Level / Grid / Building / Unit / Mirror / FX / Resource / Docs。
+
+- 行为测试改用独立内存夹具，正式建筑、敌人、镜子、倒影和 M4 关卡只做加载/配置冒烟；新增单命令全量入口，并把 Godot 脚本错误、引擎错误和泄漏警告纳入失败条件。
+- 新增共享 ConfigurationValidator；建筑全部等级、敌人、复制镜和关卡倒影提供完整配置校验，LevelResource 同步校验波次使用的敌人；ResourceManager 拒绝 NaN/Infinity 交易和产出。
+- LevelLoader 在 TileManager 预检后仍拒绝装配时恢复旧网格；MirrorManager 重配会解除旧建筑攻击信号；LevelReflectionSurface 可安全重连依赖并实时响应定义变化。
+- GridManager 通过注入只读高度查询执行最近地块顶面拾取，四边形/六边形斜视角不再穿过高地误选 Y=0 后方格；未改变玩法数值和正式资源内容。
+
 ## Mirror / Visual · 修复拉远视角后复制镜失去反射 — 2026-07-21
 **模块**：Mirror / FX / Tests。
 

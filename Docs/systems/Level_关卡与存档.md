@@ -7,11 +7,11 @@
 
 ## 分类 / 做法
 - **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济，以及 M4 据点、路径、出生点和波次。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
-- **运行时完整校验**：`validate_runtime()` 是只读预检，统一验证网格、地块类型/坐标/高度、经济与据点数值、路径长度/边界/逐段连续性/终点、出生点，以及波次组参数和资源引用。`validate_m4()` 是同一检查的兼容入口；两者都不保存、不加载、不修复关卡。
+- **运行时完整校验**：`validate_runtime()` 是只读预检，统一验证网格、地块类型/坐标/高度、经济与据点数值、路径、出生点、波次引用及波次使用的 EnemyDefinition。`validate_m4()` 是同一检查的兼容入口；两者都不保存、不加载、不修复关卡。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：关卡编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径。未保存的新建/加载、会清空地块的网格重建均需确认；网格重建可撤销/重做；校验失败的未完成关卡仅可经二次确认保存。
-- **运行期加载**：LevelLoader 是唯一装配入口。它先完整校验 LevelResource，成功后才配置 Grid 并让 TileManager 构造下一份运行时布局；失败不替换当前关卡。缺失格自动补默认可建造数据。
+- **运行期加载**：LevelLoader 是唯一装配入口。它先完整校验 LevelResource，成功后才配置 Grid 并让 TileManager 构造下一份运行时布局；TileManager 若仍意外拒绝装配，Loader 会恢复旧 Grid 配置，旧 Tile 字典和当前关卡保持不变。缺失格自动补默认可建造数据。
 - **调试选关**：运行时 LevelDebugPanel 可从 `res://` 选择 LevelResource `.tres`，调用与后续正式选关相同的 `LevelLoader.load_level_path()`；面板由独立 feature flag 控制。
 
 ## 关键参数
@@ -48,6 +48,7 @@
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济和 M4 据点/路径/波次的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
+| `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | 跨资源共享、无副作用的有限数/范围/颜色/嵌套错误校验。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | M2 地块编辑示例。 |
 | `resources/levels/M4DemoLevel.tres` | `LevelResource` | 两波 M4 可运行示例，含路径、出生点、据点和敌人配置。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 三页关卡资源编辑、读取和保存入口。 |
@@ -68,6 +69,7 @@ Debug picker / future production level selection
   -> GridManager.apply_configuration(shape, size, range)
   -> TileManager.load_level(level)
 	   ├─ serialized tiles -> cloned runtime Dictionary[cell, TileCellData]
+	   ├─ unexpected rejection -> restore previous Grid; keep previous Tile/current level
 	   └─ TileManager.level_loaded -> TileRenderer rebuild
   -> LevelLoader.level_loaded
 	   ├─ ResourceManager.apply_level_configuration(level)

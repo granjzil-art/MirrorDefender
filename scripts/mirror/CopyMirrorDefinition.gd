@@ -3,6 +3,8 @@
 class_name CopyMirrorDefinition
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 @export_group("Identity")
 @export var display_name: String = "复制镜"
 
@@ -43,18 +45,26 @@ extends Resource
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
-	if display_name.strip_edges().is_empty():
-		errors.append("复制镜显示名不能为空")
-	if not is_finite(cost) or cost < 0.0:
-		errors.append("复制镜造价必须为有限非负数")
-	if not is_finite(refund) or refund < 0.0:
-		errors.append("复制镜退款必须为有限非负数")
-	if copy_chain_max < 1:
-		errors.append("复制链上限至少为 1")
-	if reflection_resolution < 64 or reflection_preview_resolution < 64:
-		errors.append("镜面反射分辨率不得低于 64")
-	if reflection_update_interval_frames < 1 or reflection_max_updates_per_frame < 1:
-		errors.append("镜面反射更新参数必须为正数")
-	if not is_finite(reflection_surface_offset_ratio) or reflection_surface_offset_ratio <= 0.5:
-		errors.append("镜面外推比例必须大于镜体半厚度")
+	ConfigValidator.require_text(errors, "复制镜显示名", display_name)
+	ConfigValidator.require_number(errors, "复制镜造价", cost, 0.0)
+	ConfigValidator.require_number(errors, "复制镜退款", refund, 0.0)
+	ConfigValidator.require_integer_range(errors, "复制链上限", copy_chain_max, 1, 16)
+	ConfigValidator.require_color(errors, "镜体颜色", mirror_color)
+	ConfigValidator.require_number(errors, "镜体厚度比例", mirror_thickness_ratio, 0.02, 0.5)
+	ConfigValidator.require_number(errors, "镜体高度比例", mirror_height_ratio, 0.1, 2.0)
+	ConfigValidator.require_number(errors, "镜面外推比例", reflection_surface_offset_ratio, 0.5, 1.5, false)
+	ConfigValidator.require_integer_range(errors, "镜面分辨率", reflection_resolution, 64, 1024)
+	ConfigValidator.require_integer_range(errors, "预览分辨率", reflection_preview_resolution, 64, 512)
+	ConfigValidator.require_integer_range(errors, "镜面更新间隔", reflection_update_interval_frames, 1, 12)
+	ConfigValidator.require_integer_range(errors, "每帧镜面更新上限", reflection_max_updates_per_frame, 1, 6)
+	ConfigValidator.require_number(errors, "镜面反射率", mirror_reflectivity, 0.0, 1.0)
+	ConfigValidator.require_color(errors, "镜面染色", mirror_surface_tint)
+	ConfigValidator.require_color(errors, "镜面背面颜色", mirror_back_face_color)
+	ConfigValidator.require_color(errors, "虚像染色", projection_tint)
+	ConfigValidator.require_number(errors, "虚像透明度", projection_alpha, 0.05, 1.0)
+	ConfigValidator.require_number(errors, "虚像染色强度", projection_tint_strength, 0.0, 1.0)
+	ConfigValidator.require_number(errors, "虚像发光强度", projection_emission_energy, 0.0, 8.0)
+	ConfigValidator.require_number(errors, "虚像轮廓透明度", projection_rim_alpha, 0.0, 1.0)
+	ConfigValidator.require_number(errors, "虚像环间距", projection_ring_spacing_ratio, 0.0, 0.2)
+	ConfigValidator.require_number(errors, "虚像环宽度", projection_ring_thickness_ratio, 0.01, 0.1)
 	return errors

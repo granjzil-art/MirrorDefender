@@ -88,7 +88,7 @@ offset_left = 16.0
 offset_top = -40.0
 offset_right = -16.0
 offset_bottom = -12.0
-text = "WASD 平移 | QE 旋转 | XC/滚轮 缩放 | T 切换网格 | 左键锁定"
+text = "WASD 平移 | QE 旋转 | XC 调俯仰 | 滚轮缩放 | T 切换网格 | 左键锁定"
 
 [node name="LevelDebugPanel" type="Control" parent="HUD" unique_id=677013588]
 layout_mode = 3

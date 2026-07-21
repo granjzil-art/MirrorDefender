@@ -68,6 +68,7 @@ func _ready() -> void:
 	_camera = cam_rig.get_camera()
 	renderer.set_grid(grid)
 	tile_manager.set_grid(grid)
+	grid.set_cell_height_resolver(Callable(tile_manager, "get_world_height"))
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
 	level_reflection_surface = LevelReflectionSurfaceScript.new()

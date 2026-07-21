@@ -62,7 +62,7 @@
 | 7 | 索敌战斗 Combat | 无克制，固定伤害公式；箭塔瞬伤/激光持续伤害 | `systems/Combat_索敌与战斗.md` |
 | 8 | 路径 Path | 不自动寻路，设计者手动指定路径 | `systems/Path_路径系统.md` |
 | 9 | 镜子 Mirror | 复制镜 + 反射镜（核心） | `systems/Mirror_镜子系统.md` |
-| 10 | 相机输入 CameraInput | WASD 移镜/QE 旋镜/XC 缩放/R 旋物/鼠标操作 | `systems/CameraInput_相机与输入.md` |
+| 10 | 相机输入 CameraInput | WASD 移镜/QE 旋镜/XC 俯仰/滚轮缩放/R 旋物/鼠标操作 | `systems/CameraInput_相机与输入.md` |
 | 11 | UI/HUD | 沿用原型；顶部改【我方据点血量｜本波剩余 x/y】 | `systems/UI_界面系统.md` |
 | 12 | 敌方 AI | 纯脚本波次，生成→沿路径→触据点消失并扣血 | `systems/AI_敌方AI系统.md` |
 | 13 | 关卡存档 Level | 数据资源驱动，与逻辑解耦 | `systems/Level_关卡与存档.md` |

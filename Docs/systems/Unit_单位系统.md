@@ -85,7 +85,8 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `EnemyUnit.configure_unit` | `(enemy_definition: EnemyDefinition, path_points: PackedVector3Array, path_cells: Array[Vector3i] = [], grid_cell_size: float = 1.0, blocker_resolver: Callable = Callable()) -> void` | 在入树前装配数值、路径、射程换算和阻挡接口。 |
+| `EnemyDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、移动、战斗、投射物和表现数值；空数组表示配置可用。 |
+| `EnemyUnit.configure_unit` | `(enemy_definition, path_points, path_cells = [], grid_cell_size = 1.0, blocker_resolver = Callable(), path_definition = null, route_resolver = Callable(), cell_world_resolver = Callable(), tile_enter_resolver = Callable(), tile_stay_resolver = Callable(), navigation_blocker_resolver = Callable()) -> void` | 在入树前装配数值、手工路径、换路、地块效果和阻挡接口。 |
 | `EnemyUnit._process` | `(delta: float) -> void` | 查询前方屏障，在移动/攻击状态间切换；攻击时不移动。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前屏障有效且仍在射程内时返回 true。 |
 | `EnemyUnit.get_attack_target` | `() -> Node` | 返回策略可攻击的当前屏障或 null。 |
@@ -107,7 +108,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 - 是否作用于飞行敌人由效果拥有者配置，不在 EnemyUnit 中硬编码免疫列表。
 - `base_damage` 只伤害据点；`attack_damage` 只用于攻击路径屏障，两者禁止混用。
 - `attack_range` 以格为单位，EnemyUnit 生成时固定换算为当前关卡世界距离。
-- PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障，不绕路、不回头。边屏障默认双向生效，关闭双向参数后才按放置方向匹配。
+- PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障。永久地块障碍只允许切换到可连接且后缀无阻碍的其他手工路径，不执行自由格网寻路。边屏障默认双向生效，关闭双向参数后才按放置方向匹配。
 - PathManager 路径点、EnemyUnit 和动态建筑共用 Main 局部坐标空间。
 - `reward` 只在敌人被击杀时入账；抵达据点消失不掉资源。
 

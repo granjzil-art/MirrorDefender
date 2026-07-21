@@ -8,7 +8,7 @@
 [ext_resource type="Script" uid="uid://vc7p6g6lerdp" path="res://scripts/tile/TileCellData.gd" id="5_4ts1b"]
 [ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="5_wave"]
 [ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="6_ednn7"]
-[ext_resource type="Resource" path="res://resources/enemies/Grunt.tres" id="6_grunt"]
+[ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="6_grunt"]
 [ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="7_hamgp"]
 [ext_resource type="Resource" uid="uid://cnwwdb4wfo5ur" path="res://resources/enemies/Archer.tres" id="8_archer"]
 [ext_resource type="Resource" uid="uid://jhoves7q4q0h" path="res://resources/enemies/Flyer.tres" id="10_4ts1b"]

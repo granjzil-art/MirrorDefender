@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFactory.gd")
+
 var _failures: int = 0
 var _checks: int = 0
 
@@ -69,7 +71,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(preview.types.size() == 2, "preview includes every copyable item on the source tile")
 	var mirror := mirror_manager.place_copy_mirror(from_cell, edge_index, true)
 	_expect(mirror != null, "copy mirror is placed on the previewed physical edge")
-	_expect(is_equal_approx(mirror.get_mirror_height(), grid.cell_size * 1.20), "default copy mirror height is raised to 1.20 cells")
+	_expect(is_equal_approx(mirror.get_mirror_height(), grid.cell_size * 1.20), "test copy mirror uses the fixture's 1.20-cell height")
 	var projections := mirror_manager.get_projections(target_cell)
 	_expect(projections.size() == 2, "one mirror projects the source tile's tower and spike as one group")
 	_expect(_has_projection_kind(projections, &"arrow_tower") and _has_projection_kind(projections, &"spike"), "whole-tile projection preserves both source content kinds")
@@ -169,6 +171,23 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(mirror_manager.get_projections(target_cell).is_empty(), "strict occupancy switch suppresses the mirror's whole projection group")
 	mirror_manager.copy_mirror_definition.projection_ignores_occupancy = true
 	_expect(resource_manager.get_mirror_count() == 1, "only the physical mirror consumes mirror cap")
+	var replacement_building_manager := BuildingManager.new()
+	host.add_child(replacement_building_manager)
+	replacement_building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
+	var health_before_reconfigure_attack := mirrored_target.current_hp
+	mirror_manager.configure(
+		grid,
+		tile_manager,
+		resource_manager,
+		combat_manager,
+		replacement_building_manager,
+		fixture.registry
+	)
+	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 9.0)
+	_expect(
+		is_equal_approx(mirrored_target.current_hp, health_before_reconfigure_attack),
+		"mirror manager reconfiguration disconnects attacks from the previous building module"
+	)
 	host.queue_free()
 	await process_frame
 
@@ -272,20 +291,15 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	var registry := EdgeOccupancyRegistry.new()
 	var building_manager := BuildingManager.new()
 	host.add_child(building_manager)
-	building_manager.arrow_tower = _load_building("res://resources/buildings/ArrowTower.tres")
-	building_manager.laser_tower = _load_building("res://resources/buildings/LaserTower.tres")
-	building_manager.barrier = _load_building("res://resources/buildings/Barrier.tres")
-	building_manager.edge_barrier = _load_building("res://resources/buildings/EdgeBarrier.tres")
+	building_manager.arrow_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
+	building_manager.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
+	building_manager.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
+	building_manager.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	building_manager.set_edge_occupancy_registry(registry)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	var mirror_manager := MirrorManager.new()
 	host.add_child(mirror_manager)
-	var definition: Resource = ResourceLoader.load(
-		"res://resources/mirrors/CopyMirror.tres",
-		"",
-		ResourceLoader.CACHE_MODE_REPLACE_DEEP
-	)
-	mirror_manager.copy_mirror_definition = definition as CopyMirrorDefinition
+	mirror_manager.copy_mirror_definition = TestDefinitionFactory.make_copy_mirror_definition()
 	mirror_manager.configure(grid, tile_manager, resource_manager, combat_manager, building_manager, registry)
 	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
@@ -302,6 +316,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 		"combat": combat_manager,
 		"building": building_manager,
 		"mirror": mirror_manager,
+		"registry": registry,
 	}
 
 func _make_level(with_path: bool) -> LevelResource:
@@ -349,10 +364,6 @@ func _make_effect_tile(cell: Vector3i, effect: TileEffect, allows_building: bool
 	var tile := TileCellData.new()
 	tile.configure(cell, TileCellData.TileType.BUILDABLE, 0, definition)
 	return tile
-
-func _load_building(path: String) -> BuildingDefinition:
-	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
-	return resource as BuildingDefinition
 
 func _make_target(host: Node, world_position: Vector3) -> CombatTarget:
 	var target := CombatTarget.new()

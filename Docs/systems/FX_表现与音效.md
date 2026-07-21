@@ -16,7 +16,7 @@
 
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
-| `scripts/fx/LevelReflectionDefinition.gd` | `LevelReflectionDefinition / Resource` | 保存关卡倒影的开关、外观与性能预算。 |
+| `scripts/fx/LevelReflectionDefinition.gd` | `LevelReflectionDefinition / Resource` | 保存并校验关卡倒影的开关、外观与性能预算。 |
 | `scripts/fx/LevelReflectionSurface.gd` | `LevelReflectionSurface / Node3D` | 计算关卡水平包围盒，维护反射面、共享世界视口和离轴反射相机。 |
 | `resources/fx/LevelReflection.gdshader` | Spatial Shader | 实时反射采样、五点柔化、Fresnel 与稀疏雨滴波纹。 |
 | `resources/fx/LevelReflection.tres` | `LevelReflectionDefinition` 数据 | 运行时默认倒影配置，可在 Godot Inspector 中直接编辑。 |
@@ -26,20 +26,20 @@
 
 参数入口：Godot FileSystem → `resources/fx/LevelReflection.tres` → Inspector。
 
-| 参数 | 默认值 | 说明 |
+| 参数 | 当前正式资源值 | 说明 |
 |---|---:|---|
 | `feature_enabled` | `true` | 总开关；关闭后不创建/刷新倒影视口。 |
-| `vertical_offset` | `0.18` | 反射面低于最低地形基线的世界距离，可调范围 `0.02–20.0`。 |
-| `edge_margin_cells` | `1.5` | 反射面超出关卡包围盒的格距。 |
-| `surface_tint` | `(0.12, 0.24, 0.30)` | 水面暗部颜色。 |
-| `reflectivity` | `0.82` | 基础反射占比。 |
-| `reflection_brightness` | `0.92` | 反射画面亮度。 |
-| `reflection_blur_pixels` | `0.65` | 五点柔化采样半径，单位为反射纹理像素。 |
-| `fresnel_strength` | `0.24` | 掠射角反射增强幅度。 |
-| `ripple_enabled` | `true` | 程序化雨滴微波纹开关。 |
+| `vertical_offset` | `8.0` | 反射面低于最低地形基线的世界距离，可调范围 `0.02–20.0`。 |
+| `edge_margin_cells` | `8.0` | 反射面超出关卡包围盒的格距。 |
+| `surface_tint` | `(0.404, 0.733, 0.933)` | 水面暗部颜色。 |
+| `reflectivity` | `0.85` | 基础反射占比。 |
+| `reflection_brightness` | `1.0` | 反射画面亮度。 |
+| `reflection_blur_pixels` | `0.6` | 五点柔化采样半径，单位为反射纹理像素。 |
+| `fresnel_strength` | `0.37` | 掠射角反射增强幅度。 |
+| `ripple_enabled` | `false` | 程序化雨滴微波纹开关。 |
 | `ripple_strength` | `0.0028` | 波纹对倒影 UV 的扰动幅度。 |
-| `ripple_scale` | `9.0` | 波纹分布密度。 |
-| `ripple_speed` | `0.45` | 波纹动画速度。 |
+| `ripple_scale` | `20.0` | 波纹分布密度。 |
+| `ripple_speed` | `1.0` | 波纹动画速度。 |
 | `ripple_highlight_strength` | `0.06` | 稀疏环形波纹高光强度。 |
 | `reflection_resolution` | `768` | 反射纹理较长边分辨率，短边自动匹配关卡长宽比。 |
 | `update_interval_frames` | `1` | 刷新帧间隔；`1` 为每帧实时刷新。 |
@@ -50,6 +50,7 @@
 Main Camera ──位置/视点──> LevelReflectionSurface
 GridManager ──grid_changed──> 自动重算四边形/六边形关卡包围盒
 TileManager ──level_loaded / tile_changed──> 自动重算最低地形基线
+LevelReflectionDefinition ──changed──> 重建高度、尺寸、材质与刷新预算
 LevelReflectionSurface ──共享 World3D──> SubViewport + 水平镜像 Camera3D
 SubViewportTexture ──五点柔化/波纹/Fresnel──> 水平 PlaneMesh
 ```
@@ -70,6 +71,11 @@ SubViewportTexture ──五点柔化/波纹/Fresnel──> 水平 PlaneMesh
 - `get_reflection_camera() -> Camera3D`：返回虚拟反射相机。
 - `get_surface_y() -> float`：返回当前反射面世界高度。
 - `get_surface_size() -> Vector2`：返回自动计算的 XZ 平面尺寸。
+
+### `LevelReflectionDefinition`
+
+- `validate_configuration() -> Array[String]`：校验全部数值范围、有限数和颜色分量；空数组表示配置可用。
+- 运行时调用 `emit_changed()` 后，LevelReflectionSurface 会立即应用高度、范围、材质和刷新参数；重新 `configure()` 会先解除旧 Grid/Tile/Definition 信号。
 
 ## 约定与限制
 

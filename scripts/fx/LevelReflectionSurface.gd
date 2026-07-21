@@ -30,12 +30,16 @@ func configure(
 	source_camera: Camera3D,
 	definition: LevelReflectionDefinitionScript
 ) -> void:
+	_disconnect_dependencies()
 	_grid = grid
 	_tile_manager = tile_manager
 	_source_camera = source_camera
 	_definition = definition
 	_connect_dependencies()
 	_apply_feature_state()
+
+func _exit_tree() -> void:
+	_disconnect_dependencies()
 
 func set_source_camera(camera: Camera3D) -> void:
 	_source_camera = camera
@@ -74,6 +78,8 @@ func _process(_delta: float) -> void:
 	refresh_now()
 
 func _connect_dependencies() -> void:
+	if _definition != null and not _definition.changed.is_connected(_on_definition_changed):
+		_definition.changed.connect(_on_definition_changed)
 	if _grid != null and not _grid.grid_changed.is_connected(_on_grid_changed):
 		_grid.grid_changed.connect(_on_grid_changed)
 	if _tile_manager == null:
@@ -82,6 +88,18 @@ func _connect_dependencies() -> void:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 	if not _tile_manager.tile_changed.is_connected(_on_tile_changed):
 		_tile_manager.tile_changed.connect(_on_tile_changed)
+
+func _disconnect_dependencies() -> void:
+	if _definition != null and _definition.changed.is_connected(_on_definition_changed):
+		_definition.changed.disconnect(_on_definition_changed)
+	if _grid != null and _grid.grid_changed.is_connected(_on_grid_changed):
+		_grid.grid_changed.disconnect(_on_grid_changed)
+	if _tile_manager == null:
+		return
+	if _tile_manager.level_loaded.is_connected(_on_level_loaded):
+		_tile_manager.level_loaded.disconnect(_on_level_loaded)
+	if _tile_manager.tile_changed.is_connected(_on_tile_changed):
+		_tile_manager.tile_changed.disconnect(_on_tile_changed)
 
 func _apply_feature_state() -> void:
 	var enabled := _definition != null and _definition.feature_enabled
@@ -254,3 +272,10 @@ func _on_level_loaded(_level: LevelResource) -> void:
 func _on_tile_changed(_cell: Vector3i, _tile: TileCellData) -> void:
 	_rebuild_surface_bounds()
 	refresh_now()
+
+func _on_definition_changed() -> void:
+	_apply_feature_state()
+	if _definition == null or not _definition.feature_enabled or _surface == null:
+		return
+	if _viewport != null:
+		_surface.material_override = _make_reflection_material(_viewport.get_texture())

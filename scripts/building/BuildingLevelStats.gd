@@ -2,6 +2,8 @@
 class_name BuildingLevelStats
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 @export_group("Economy")
 ## Level 1 uses this as construction cost; later levels use it as upgrade cost.
 @export_range(0.0, 100000.0, 1.0, "or_greater") var cost: float = 75.0
@@ -35,3 +37,28 @@ extends Resource
 @export var visual_scene: PackedScene
 @export var tower_color: Color = Color(0.90, 0.52, 0.16, 1.0)
 @export var attack_color: Color = Color(1.0, 0.82, 0.28, 1.0)
+
+
+func validate_configuration() -> Array[String]:
+	var errors: Array[String] = []
+	ConfigValidator.require_number(errors, "造价", cost, 0.0)
+	ConfigValidator.require_number(errors, "退款", refund_amount, 0.0)
+	ConfigValidator.require_number(errors, "每秒资源产出", resource_per_second, 0.0)
+	ConfigValidator.require_number(errors, "基础伤害", base_damage, 0.0)
+	ConfigValidator.require_number(errors, "索敌范围", targeting_range, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "攻击射程", attack_range, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "每秒攻击次数", attacks_per_second, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "激光每秒伤害", laser_dps, 0.0)
+	ConfigValidator.require_number(errors, "等级因子", level_factor, 0.0)
+	ConfigValidator.require_number(errors, "额外因子", extra_factor, 0.0)
+	ConfigValidator.require_integer_range(errors, "索敌优先级", target_priority, 0, 6)
+	ConfigValidator.require_number(errors, "最大耐久", max_durability, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "脱战回血延迟", regeneration_delay, 0.0)
+	ConfigValidator.require_number(errors, "每秒回血", regeneration_per_second, 0.0)
+	ConfigValidator.require_number(errors, "反伤比例", damage_reflection_ratio, 0.0, 1.0)
+	ConfigValidator.require_number(errors, "投射物速度", projectile_speed, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "投射物长度", projectile_length, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "投射物宽度", projectile_width, 0.0, INF, false)
+	ConfigValidator.require_color(errors, "建筑颜色", tower_color)
+	ConfigValidator.require_color(errors, "攻击颜色", attack_color)
+	return errors

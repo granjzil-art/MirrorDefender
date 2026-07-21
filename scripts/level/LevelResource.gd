@@ -6,6 +6,8 @@
 class_name LevelResource
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
 
@@ -272,6 +274,7 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		spawn_ids[spawn_point.spawn_id] = true
 		if not _is_valid_cell_coordinate(spawn_point.cell) or not shape.is_in_bounds(spawn_point.cell, grid_size):
 			errors.append("出生点 %s 位于地图外" % spawn_point.display_name)
+	var validated_enemies: Dictionary = {}
 	for wave in waves:
 		if wave == null:
 			errors.append("存在空波次")
@@ -282,6 +285,14 @@ func _validate_m4_content(errors: Array[String]) -> void:
 			if group == null or group.enemy == null or group.spawn_point == null or group.path == null:
 				errors.append("波次 %s 存在未完整配置的出怪组" % wave.display_name)
 				continue
+			var enemy_instance_id := group.enemy.get_instance_id()
+			if not validated_enemies.has(enemy_instance_id):
+				validated_enemies[enemy_instance_id] = true
+				ConfigValidator.append_prefixed(
+					errors,
+					"敌人 %s" % group.enemy.display_name,
+					group.enemy.validate_configuration()
+				)
 			if group.count < 1 or not is_finite(group.interval) or group.interval <= 0.0:
 				errors.append("波次 %s 的数量或间隔无效" % wave.display_name)
 			if not is_finite(group.start_delay) or group.start_delay < 0.0:
