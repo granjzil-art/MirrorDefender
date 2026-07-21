@@ -93,6 +93,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | `EnemyUnit.perform_attack` | `(target: Node) -> bool` | 根据 `projectile_speed` 选择即时近战或 EnemyProjectile；成功发起才返回 true。 |
 | `EnemyUnit.take_damage` | `(amount: float) -> float` | 应用固定护甲并返回实际伤害。 |
 | `CombatTarget.is_airborne_unit` | `() -> bool` | 返回效果系统使用的运行时空中分类。 |
+| `CombatTarget.get_current_hp` | `() -> float` | 返回当前生命，供黑洞等可扩展效果执行确定性优先级选择。 |
 | `EnemyUnit._find_first_path_blocker` | `() -> Dictionary` | 逐有向路径段扫描，返回 `{node, segment_index, segment_ratio, position}`；无阻挡返回空字典。 |
 | `EnemyUnit._get_path_distance_until_attack_range` | `(blocker_info: Dictionary) -> float` | 沿折线路径计算首次进入攻击圆前可移动的真实路径距离。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |

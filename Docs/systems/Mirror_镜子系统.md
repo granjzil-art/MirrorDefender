@@ -80,7 +80,7 @@
 ### 2.7 地块元素投影
 
 - 尖刺投影：敌人进入或停留在投影格时，执行与源尖刺相同的持续伤害；多项尖刺投影按独立效果叠加。
-- 空洞投影：敌人进入投影格时，执行与源空洞相同的坠落死亡效果。
+- 空洞投影：敌人仅在源空洞的周期检查时刻仍在投影格上才可能被吞噬；真实格、直接投影和递归投影共享根源格的容量、恢复和吞噬检查时钟。
 - 大石头投影：目标格加入动态寻路阻挡层；敌人在阻碍前一格对应路径段先触发既有换路逻辑，无可用路径时攻击该投影。同格普通屏障保持更高的直接攻击优先级；屏障摧毁导致投影重建后，敌人必须重新解析新石头代理，不得穿过。投影没有独立耐久，直接/递归投影的伤害都转发给真实源石头；源石头耐久归零后全部关联投影消失，实体镜子保留。
 - 所有地块效果继承源资源参数与 `affects_airborne`。空中敌人是否受影响完全由源效果开关决定。
 - 投影不修改关卡原始 `TileCellData`，而通过独立覆盖层参与效果、导航和阻挡查询。
@@ -206,7 +206,7 @@ MirrorProjection
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 101 项双网格、玩法联调、屏障/石头投影重叠优先级、共享石头耐久、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 104 项双网格、玩法联调、屏障/石头投影重叠优先级、空洞共享容量/深度、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
 
 ## 六、函数索引
 
@@ -218,6 +218,7 @@ MirrorProjection
 | `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、经济、链深、镜面预算、颜色与全部虚像表现范围。 |
 | `MirrorManager.rebuild_now` | `() -> void` | 从实体来源计算稳定有限镜链并重建投影覆盖层。 |
 | `MirrorManager.get_projected_effects` | `(cell) -> Array[TileEffect]` | 向 TileEffectSystem 提供同格可叠加效果。 |
+| `MirrorManager.get_projected_effect_bindings` | `(cell: Vector3i) -> Array[Dictionary]` | 返回 `{effect, source_cell, state_key}` 列表，使有状态地块投影归并到真实根源。 |
 | `MirrorManager.blocks_enemy_navigation` | `(cell, target = null) -> bool` | 向 TileManager 提供投影岩石阻断。 |
 | `MirrorManager.resolve_projected_blocker` | `(cell, target = null) -> Node` | 向 BuildingManager 提供投影屏障代理。 |
 | `MirrorManager.resolve_projected_navigation_blocker` | `(cell, target = null) -> Node` | 向 TileManager 提供可攻击的投影石头代理，保持石头“先换路”与屏障“直接攻击”的入口分离。 |

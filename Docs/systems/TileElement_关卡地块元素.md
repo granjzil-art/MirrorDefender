@@ -1,6 +1,6 @@
 # 关卡地块元素 · Tile Element
 
-> 实现状态：已完成尖刺、空洞、大石头障碍，以及基于手工路径的动态换路。支持正方形与六边形关卡。
+> 实现状态：已完成尖刺、带容量的周期吞噬黑洞、大石头障碍，以及基于手工路径的动态换路。支持正方形与六边形关卡。
 
 ## 职责
 
@@ -9,12 +9,12 @@
 ## 分类 / 玩法
 
 - **尖刺格子**：可通行；敌人占据该格的时间按秒造成持续伤害。默认 20 伤害/秒且忽略护甲。
-- **空洞格子**：导航上可通行，初始路径和动态换路都可以经过；敌人进入时立即死亡。默认按 1.0 倍发放该敌人的掉落资源。
+- **空洞格子**：导航上可通行，初始路径和动态换路都可以经过。每隔 `swallow_interval` 检查当时仍在格上的敌人，有剩余容量时吞噬其中“当前生命最高”的一个；快速通过且错过检查时刻的敌人可以逃脱。每次吞噬增加 1 点装填，满载停止吞噬，每过 `recovery_seconds_per_point` 秒恢复 1 点容量。
 - **大石头障碍**：存活时不可通行。敌人到达石头前一格中心时先请求换路；没有可用路径则把石头视为普通可攻击障碍。耐久归零后清除元素与阻挡，并允许块建筑和边建筑。
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
 - **基底/元素分层**：尖刺、空洞和大石头只用 `visual_color` / `visual_scene` 绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
-- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；石头投影把结构伤害转发到真实源石头，直接/递归投影共享该源的运行时耐久。源石头摧毁后全部关联投影消失，镜子保留。
+- **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；空洞直接/递归投影与真实源格共享装填量、恢复时钟和吞噬检查时钟，其坑洞深度同步更新；石头投影把结构伤害转发到真实源石头。
 
 ## 编辑器使用
 
@@ -23,6 +23,7 @@
 3. 类型刷只替换地块定义，保留该格当前高度；高度刷只改高度。
 4. 路径页仍手工绘制全部候选路径。大石头可直接画在初始路径上；候选路径必须与触发格相交或相邻，且从接入格到据点的后缀不含对该敌人有效的导航阻碍。尖刺和空洞仍可被选择。
 5. 调色板会自动扫描 `resources/tiles/*.tres`；新增 `TilePreset` 资源后无需修改编辑器脚本。
+6. 黑洞玩法参数入口为 `resources/tile_effects/Void.tres`：在 Inspector 的 **Capacity** 组调整容量/恢复/吞噬频率，在 **Presentation** 组调整空载与满载坑深。
 
 ## 关键参数
 
@@ -38,7 +39,11 @@
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
 | `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
 | `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |
-| `VoidTileEffect` | `reward_multiplier` | 空洞击杀时的敌人掉落倍率。 |
+| `VoidTileEffect` | `reward_multiplier` | 黑洞吞噬击杀时的敌人掉落倍率。 |
+| `VoidTileEffect` | `max_capacity` | 最大装填数；每吞噬一个敌人增加 1，默认 3。 |
+| `VoidTileEffect` | `recovery_seconds_per_point` | 自动减少 1 点装填所需秒数，默认 5.0。 |
+| `VoidTileEffect` | `swallow_interval` | 检查格上敌人和剩余容量的时间间隔，默认 1.0 秒。 |
+| `VoidTileEffect` | `empty_depth_ratio` / `full_depth_ratio` | 空载/满载时坑底相对格宽的深度，默认 0.30 / 0.03；满载值必须小于空载值。 |
 | `RockTileEffect` | `max_durability` | 每个真实石头运行时耐久上限；正式 `Rock.tres` 默认 500。投影不创建独立耐久。 |
 | `PathRoutePlanner` | `feature_enabled` | 动态换路功能开关。 |
 | `PathRoutePlanner` | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的运行时调试线。 |
@@ -52,10 +57,11 @@
 | `scripts/tile/TileDefinition.gd` | `TileDefinition` / `Resource` | 整合地块表面、建筑权限、效果与表现配置。 |
 | `scripts/tile/effects/TileEffect.gd` | `TileEffect` / `Resource` | 敌人遍历策略基类。 |
 | `scripts/tile/effects/SpikeTileEffect.gd` | `SpikeTileEffect` / `TileEffect` | 按占格时间结算持续伤害。 |
-| `scripts/tile/effects/VoidTileEffect.gd` | `VoidTileEffect` / `TileEffect` | 进格时立即击杀并应用掉落倍率。 |
+| `scripts/tile/effects/VoidTileEffect.gd` | `VoidTileEffect` / `TileEffect` | 配置吞噬容量、恢复、间隔、掉落与坑洞深度。 |
+| `scripts/tile/VoidCapacityRuntime.gd` | `VoidCapacityRuntime` / `RefCounted` | 一个真实源空洞的装填量、恢复时钟和周期检查时钟。 |
 | `scripts/tile/effects/RockTileEffect.gd` | `RockTileEffect` / `TileEffect` | 声明耐久、导航阻断和摧毁后建筑权限。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 每个真实石头独立的运行时耐久、攻击位置和结构伤害入口。 |
-| `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem` / `Node` | 通过 TileManager 解析地块效果并分发进入/停留事件。 |
+| `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem` / `Node` | 分发进入/停留事件，跟踪目标所在格并驱动有状态的黑洞定时结算。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | 提供非占位投影效果和导航覆盖查询。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 在手工路径集中选择确定性最短可用后缀。 |
 | `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 引用 TileDefinition，保留旧 `tile_type` 兼容分支。 |
@@ -63,7 +69,7 @@
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 绘制地形与三种元素灰盒。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 提供不受护甲伤害和指定掉落倍率的击杀入口。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐格分发效果，在阻碍前一格安装临时路由。 |
-| `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 地块权限、双网格换路、高速跨格和资源不变性回归。 |
+| `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 81 项地块权限、双网格换路、黑洞容量/间隔/优先级/深度、高速跨格和资源不变性回归。 |
 | `tests/airborne_effects_test.gd` | 无 / `SceneTree` | 地块效果与导航阻挡的空中适用性回归。 |
 | `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 三类元素的基底/内容分层与路径色回归。 |
 
@@ -74,11 +80,14 @@ Level Editor -> TilePreset -> TileCellData.definition -> LevelResource.tiles
   -> TileManager 克隆运行时格
      -> TileObstacleRuntime(real cell) -> independent durability
      -> TileRenderer 路径/高度基底 + 独立元素灰盒
-     -> TileEffectSystem -> TileEffect.affects_target -> damage/defeat or ignore
+     -> TileEffectSystem -> TileEffect.affects_target
+        -> immediate/stay effect or VoidCapacityRuntime periodic swallow
      -> PathRoutePlanner(target) -> 目标可用的 PathDefinition 后缀 -> EnemyUnit 临时路由
 
 MirrorManager projection overlay
-  -> TileEffectSystem.set_effect_overlay_resolver -> base + all projected effects
+  -> TileEffectSystem.set_effect_overlay_binding_resolver
+     -> projected effect + root source cell/state key
+     -> source/projections share VoidCapacityRuntime
   -> TileManager.set_navigation_overlay_resolver -> projected rock blocks navigation
   -> projected rock.take_structure_damage -> real TileObstacleRuntime
 
@@ -100,14 +109,21 @@ BuildingPlacementRules
 | `TileCellData.allows_tile_building` / `allows_edge_building` | `() -> bool` | 返回当前格的两类建筑权限。 |
 | `TileEffect.apply_enter` | `(target: Node) -> void` | 敌人进入格子时的策略入口。 |
 | `TileEffect.apply_stay` | `(target: Node, duration: float) -> void` | 敌人占格持续时间的策略入口。 |
+| `TileEffect.uses_timed_runtime` | `() -> bool` | 声明效果是否由 TileEffectSystem 的定时运行时驱动；默认 false。 |
+| `TileEffect.get_runtime_state_key` | `(source_cell: Vector3i) -> String` | 以效果类型和真实源格生成运行时状态键。 |
 | `TileEffect.get_copy_kind/get_copy_display_name/get_copy_color` | `() -> StringName/String/Color` | 以可扩展契约描述镜子复制语义与灰盒表现。 |
 | `TileEffect.creates_runtime_obstacle` | `() -> bool` | 声明该效果是否需要逐格运行时耐久；默认 false。 |
 | `TileEffect.get_max_durability` | `() -> float` | 返回运行时障碍初始/最大耐久；无耐久效果默认 0。 |
 | `TileObstacleRuntime.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 扣减单个真实石头耐久，归零时通知 TileManager 清除障碍。 |
 | `TileManager.resolve_navigation_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 返回真实石头或注入的石头投影攻击目标，真实地块内容优先。 |
 | `TileEffectSystem.set_effect_overlay_resolver` | `(value: Callable) -> void` | 注入非占位效果覆盖层，不依赖 Mirror 类型。 |
+| `TileEffectSystem.set_effect_overlay_binding_resolver` | `(value: Callable) -> void` | 注入带根源格/状态键的投影效果绑定，用于共享有状态效果。 |
 | `TileEffectSystem.apply_enter` | `(target: Node, cell: Vector3i) -> void` | 解析指定格并分发进入效果。 |
 | `TileEffectSystem.apply_stay` | `(target: Node, cell: Vector3i, duration: float) -> void` | 解析指定格并分发持续效果。 |
+| `TileEffectSystem.get_void_current_fill` | `(source_cell: Vector3i) -> int` | 返回真实源黑洞当前装填数。 |
+| `TileEffectSystem.get_void_fill_ratio` | `(source_cell: Vector3i) -> float` | 返回 0~1 装填比，供真实/投影坑深表现共用。 |
+| `VoidCapacityRuntime.advance` | `(delta: float) -> int` | 推进恢复与吞噬时钟；到期返回 1，长帧丢弃错过的多次检查，不在同一帧突发吞噬多个敌人。 |
+| `VoidCapacityRuntime.record_swallow` | `() -> bool` | 容量未满时增加 1 点装填并发出 `fill_changed`。 |
 | `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell, blocker}`；无替代路线时携带当前可攻击石头代理。 |
 | `CombatTarget.take_unmitigated_damage` | `(amount: float) -> float` | 不经 EnemyUnit 护甲覆写的环境伤害入口。 |
 | `CombatTarget.take_damage_over_time` | `(damage_per_second: float, duration: float) -> float` | 帧率无关的持续伤害入口；EnemyUnit 以护甲扣减每秒伤害率。 |
@@ -128,5 +144,6 @@ BuildingPlacementRules
 
 - 当前不做自由格网 A*，也不同时串联多条路径；每次阻挡事件只选一条候选路径的一个后缀。
 - `visual_scene` 为正式美术资产预留接口，当前编辑器与运行时使用 `visual_kind` 灰盒绘制。
+- 黑洞吞噬检查时钟归属真实源格，不是每个敌人独立计时；一次运行时更新最多吞噬一个敌人，长帧不回放错过的检查。
 - 编辑器画布通过 `get_visual_tag()` 读取灰盒类型；新增可视类型时需同步扩展标签映射与画布图形。
 - 大石头虽然可被敌人攻击，但仍是关卡元素而不是 Building：不参与建筑上限、升级、退款和玩家删除事务。

@@ -33,6 +33,14 @@ func apply_enter(_target: Node) -> void:
 func apply_stay(_target: Node, _duration: float) -> void:
 	pass
 
+## Timed effects are dispatched by TileEffectSystem instead of firing directly
+## from per-unit enter/stay callbacks.
+func uses_timed_runtime() -> bool:
+	return false
+
+func get_runtime_state_key(source_cell: Vector3i) -> String:
+	return "%s:%d:%d:%d" % [str(get_copy_kind()), source_cell.x, source_cell.y, source_cell.z]
+
 func get_copy_kind() -> StringName:
 	return &""
 

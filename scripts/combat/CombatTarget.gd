@@ -80,6 +80,9 @@ func _apply_damage(amount: float, reward_multiplier: float = 1.0) -> float:
 func is_alive() -> bool:
 	return _alive and current_hp > 0.0 and not is_queued_for_deletion()
 
+func get_current_hp() -> float:
+	return current_hp
+
 func is_airborne_unit() -> bool:
 	return airborne
 

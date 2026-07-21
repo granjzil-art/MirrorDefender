@@ -114,6 +114,9 @@ func _ready() -> void:
 	add_child(tile_effect_system)
 	tile_effect_system.configure(tile_manager)
 	tile_effect_system.set_effect_overlay_resolver(Callable(mirror_manager, "get_projected_effects"))
+	tile_effect_system.set_effect_overlay_binding_resolver(Callable(mirror_manager, "get_projected_effect_bindings"))
+	tile_renderer.set_effect_visual_state_resolver(Callable(tile_effect_system, "get_void_fill_ratio"))
+	tile_effect_system.effect_visual_state_changed.connect(_on_effect_visual_state_changed)
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
 	path_route_planner.configure(grid, tile_manager)
@@ -455,6 +458,10 @@ func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> vo
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
 	m3_debug_panel.cancel_to_select()
+
+func _on_effect_visual_state_changed(source_cell: Vector3i, fill_ratio: float) -> void:
+	tile_renderer.refresh_effect_visual(source_cell, fill_ratio)
+	mirror_manager.rebuild_now()
 
 func _on_building_selected_for_exclusivity(building: Building) -> void:
 	if building != null and mirror_manager.get_selected_mirror() != null:

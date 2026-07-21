@@ -28,6 +28,7 @@ var _element_instance: MeshInstance3D
 var _element_material: StandardMaterial3D
 var _path_cells: Dictionary = {}
 var _path_terrain_color: Color = Color("ffb93b")
+var _effect_visual_state_resolver: Callable
 
 func _ready() -> void:
 	_setup_instances()
@@ -53,6 +54,13 @@ func set_tile_manager(value: TileManager) -> void:
 		_tile_manager.tile_changed.connect(_on_tile_changed)
 		_cache_path_terrain(_tile_manager.get_level_resource())
 		_rebuild()
+
+func set_effect_visual_state_resolver(value: Callable) -> void:
+	_effect_visual_state_resolver = value
+	_rebuild()
+
+func refresh_effect_visual(_source_cell: Vector3i = Vector3i.ZERO, _fill_ratio: float = 0.0) -> void:
+	_rebuild()
 
 func _setup_instances() -> void:
 	_terrain_instance = MeshInstance3D.new()
@@ -276,15 +284,25 @@ func _add_hole(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> bool:
 	var corners := _grid.get_corners(tile.cell)
 	if corners.size() < 3:
 		return false
+	var effect := tile.get_effect() as VoidTileEffect
+	var fill_ratio := 0.0
+	if _effect_visual_state_resolver.is_valid():
+		var resolved: Variant = _effect_visual_state_resolver.call(tile.cell)
+		if resolved is float or resolved is int:
+			fill_ratio = clampf(float(resolved), 0.0, 1.0)
+	var empty_depth := effect.empty_depth_ratio if effect != null else 0.30
+	var full_depth := effect.full_depth_ratio if effect != null else 0.03
+	var depth := lerpf(empty_depth, full_depth, fill_ratio) * _grid.cell_size
 	var base_y := _tile_manager.get_world_height(tile.cell) + TOP_LIFT * 2.0
+	var rim_y := base_y + empty_depth * _grid.cell_size
 	var world_center := _grid.cell_to_world(tile.cell)
-	var center := Vector3(world_center.x, base_y, world_center.z)
+	var center := Vector3(world_center.x, rim_y - depth, world_center.z)
 	for index in range(corners.size()):
 		var corner_a := corners[index]
 		var corner_b := corners[(index + 1) % corners.size()]
-		var a := center.lerp(Vector3(corner_a.x, base_y, corner_a.z), 0.58)
-		var b := center.lerp(Vector3(corner_b.x, base_y, corner_b.z), 0.58)
-		_add_triangle(mesh, color, center, a, b)
+		var a := Vector3(world_center.x, rim_y, world_center.z).lerp(Vector3(corner_a.x, rim_y, corner_a.z), 0.58)
+		var b := Vector3(world_center.x, rim_y, world_center.z).lerp(Vector3(corner_b.x, rim_y, corner_b.z), 0.58)
+		_add_triangle(mesh, color.lightened(fill_ratio * 0.16), center, a, b)
 	return true
 
 func _add_rock(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> void:

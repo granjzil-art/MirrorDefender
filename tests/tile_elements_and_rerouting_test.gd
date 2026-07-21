@@ -15,6 +15,7 @@ func _run() -> void:
 	await _test_shortest_manual_detour(GridManager.Shape.HEX)
 	await _test_exact_intersection_and_no_route()
 	await _test_spike_and_void_effects()
+	await _test_void_capacity_timing_priority_and_visual()
 	await _test_rock_runtime_durability_and_buildability()
 	await _test_enemy_reroute_trigger_and_resource_immutability()
 	await _test_ranged_enemy_attacks_rock_after_failed_detour()
@@ -161,7 +162,7 @@ func _test_exact_intersection_and_no_route() -> void:
 	)
 	(fixture["host"] as Node).add_child(enemy)
 	enemy._process(1.0)
-	_expect(selected_paths == [&"exact"] and not enemy.is_alive(), "enemy can select a void detour and then resolves the void defeat effect")
+	_expect(selected_paths == [&"exact"], "enemy can select a void detour without treating its hazard as a navigation blocker")
 	level.paths = [original]
 	(fixture["planner"] as PathRoutePlanner).load_level(level)
 	var missing := (fixture["planner"] as PathRoutePlanner).find_detour(original, Vector3i(1, 1, 0), Vector3i(2, 1, 0))
@@ -226,8 +227,83 @@ func _test_spike_and_void_effects() -> void:
 	enemy.died.connect(func(_target: CombatTarget, amount: float) -> void: rewards.append(amount))
 	host.add_child(enemy)
 	enemy._process(0.1)
-	_expect(not enemy.is_alive(), "high-speed movement cannot skip a void tile crossed in one frame")
-	_expect(rewards.size() == 1 and is_equal_approx(rewards[0], 7.0), "void defeat uses its configurable reward multiplier")
+	_expect(not enemy.is_alive(), "high-speed enemy completes the short authored path in one frame")
+	_expect(rewards.is_empty(), "an enemy that leaves between periodic checks can escape the void without a defeat reward")
+	host.queue_free()
+	await process_frame
+
+func _test_void_capacity_timing_priority_and_visual() -> void:
+	var level := _make_level(GridManager.Shape.SQUARE)
+	var primary_cell := Vector3i(1, 1, 0)
+	var independent_cell := Vector3i(2, 1, 0)
+	var effect := VoidTileEffect.new()
+	effect.max_capacity = 2
+	effect.recovery_seconds_per_point = 2.0
+	effect.swallow_interval = 0.5
+	effect.reward_multiplier = 2.0
+	level.store_tile(_void_tile_with_effect(primary_cell, effect))
+	level.store_tile(_void_tile_with_effect(independent_cell, effect))
+	var fixture := _make_fixture(level)
+	var host: Node3D = fixture["host"]
+	var grid: GridManager = fixture["grid"]
+	var tile_manager: TileManager = fixture["tile"]
+	var effects := TileEffectSystem.new()
+	host.add_child(effects)
+	effects.configure(tile_manager)
+	var renderer := TileRenderer.new()
+	host.add_child(renderer)
+	renderer.set_grid(grid)
+	renderer.set_tile_manager(tile_manager)
+	renderer.set_effect_visual_state_resolver(Callable(effects, "get_void_fill_ratio"))
+	effects.effect_visual_state_changed.connect(renderer.refresh_effect_visual)
+
+	var empty_snapshot := renderer.create_tile_content_visual_snapshot(primary_cell)
+	var empty_depth := _snapshot_element_min_y(empty_snapshot)
+	empty_snapshot.free()
+	var fast := _make_health_target(host, grid.cell_to_world(primary_cell), 30.0, 3.0)
+	effects.apply_enter(fast, primary_cell)
+	effects.apply_enter(fast, Vector3i.ZERO)
+	effects._process(0.5)
+	_expect(fast.is_alive() and effects.get_void_current_fill(primary_cell) == 0, "fast enemy can leave before a swallow check without consuming capacity")
+
+	var low := _make_health_target(host, grid.cell_to_world(primary_cell), 40.0, 3.0)
+	var high := _make_health_target(host, grid.cell_to_world(primary_cell), 90.0, 3.0)
+	var middle := _make_health_target(host, grid.cell_to_world(primary_cell), 70.0, 3.0)
+	var high_rewards: Array[float] = []
+	high.died.connect(func(_target: CombatTarget, amount: float) -> void: high_rewards.append(amount))
+	for target in [low, high, middle]:
+		effects.apply_enter(target, primary_cell)
+	effects._process(0.49)
+	_expect(low.is_alive() and middle.is_alive() and high.is_alive(), "void does not swallow before its configurable interval")
+	effects._process(0.01)
+	_expect(not high.is_alive() and low.is_alive() and middle.is_alive(), "each due check swallows the enemy with the highest current health")
+	_expect(high_rewards == [6.0], "periodic void defeat applies its configurable reward multiplier")
+	effects._process(0.5)
+	_expect(not middle.is_alive() and effects.get_void_current_fill(primary_cell) == 2, "each swallowed enemy adds one load up to the configured capacity")
+	var filled_snapshot := renderer.create_tile_content_visual_snapshot(primary_cell)
+	var filled_depth := _snapshot_element_min_y(filled_snapshot)
+	filled_snapshot.free()
+	_expect(filled_depth > empty_depth + 0.1, "the void center rises visibly as its load fills")
+	effects._process(0.5)
+	_expect(low.is_alive() and effects.get_void_current_fill(primary_cell) == 2, "a full void stops swallowing enemies that remain on its tile")
+	_expect(effects.get_void_current_fill(independent_cell) == 0, "different source void tiles keep independent capacity")
+
+	effects.apply_enter(low, Vector3i.ZERO)
+	effects._process(1.0)
+	_expect(effects.get_void_current_fill(primary_cell) == 1, "load automatically recovers by one after the configured recovery time")
+	var recovered_snapshot := renderer.create_tile_content_visual_snapshot(primary_cell)
+	var recovered_depth := _snapshot_element_min_y(recovered_snapshot)
+	recovered_snapshot.free()
+	_expect(recovered_depth < filled_depth - 0.05, "the void center sinks again as capacity recovers")
+	effects.apply_enter(low, primary_cell)
+	effects._process(0.5)
+	_expect(not low.is_alive() and effects.get_void_current_fill(primary_cell) == 2, "a partially recovered void can swallow again on the next due check")
+	var burst_high := _make_health_target(host, grid.cell_to_world(independent_cell), 60.0, 0.0)
+	var burst_low := _make_health_target(host, grid.cell_to_world(independent_cell), 20.0, 0.0)
+	effects.apply_enter(burst_high, independent_cell)
+	effects.apply_enter(burst_low, independent_cell)
+	effects._process(5.0)
+	_expect(not burst_high.is_alive() and burst_low.is_alive(), "a delayed update performs only one highest-health swallow instead of replaying missed checks as a burst")
 	host.queue_free()
 	await process_frame
 
@@ -474,6 +550,32 @@ func _rock_tile_with_effect(cell: Vector3i, effect: RockTileEffect) -> TileCellD
 	definition.visual_kind = TileDefinition.VisualKind.ROCK
 	definition.visual_color = Color(0.08, 0.085, 0.09, 1.0)
 	return _make_tile(cell, definition)
+
+func _void_tile_with_effect(cell: Vector3i, effect: VoidTileEffect) -> TileCellData:
+	var definition := _make_definition(&"runtime_void", true, effect)
+	definition.visual_kind = TileDefinition.VisualKind.HOLE
+	definition.visual_color = Color(0.01, 0.015, 0.025, 1.0)
+	return _make_tile(cell, definition)
+
+func _make_health_target(host: Node, world_position: Vector3, hp: float, reward: float) -> CombatTarget:
+	var target := CombatTarget.new()
+	target.debug_visual_enabled = false
+	host.add_child(target)
+	target.configure_debug_target(world_position, hp, 0.0, reward)
+	return target
+
+func _snapshot_element_min_y(snapshot: Node3D) -> float:
+	if snapshot == null:
+		return INF
+	var element := snapshot.get_node_or_null(NodePath("Element")) as MeshInstance3D
+	if element == null or element.mesh == null or element.mesh.get_surface_count() == 0:
+		return INF
+	var arrays := element.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var minimum := INF
+	for vertex in vertices:
+		minimum = minf(minimum, vertex.y)
+	return minimum
 
 func _make_tile(cell: Vector3i, definition: TileDefinition) -> TileCellData:
 	var tile := TileCellData.new()

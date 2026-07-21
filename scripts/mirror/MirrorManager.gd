@@ -278,6 +278,21 @@ func get_projected_effects(cell: Vector3i) -> Array[TileEffect]:
 			effects.append(effect)
 	return effects
 
+## Stateful tile effects retain the real source cell as their runtime identity,
+## so every direct/recursive projection shares source capacity and cooldown.
+func get_projected_effect_bindings(cell: Vector3i) -> Array[Dictionary]:
+	var bindings: Array[Dictionary] = []
+	for projection in get_projections(cell):
+		var effect := projection.get_tile_effect()
+		if effect == null or projection.payload == null:
+			continue
+		bindings.append({
+			"effect": effect,
+			"source_cell": projection.payload.root_source_cell,
+			"state_key": effect.get_runtime_state_key(projection.payload.root_source_cell),
+		})
+	return bindings
+
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	for effect in get_projected_effects(cell):
 		if effect.blocks_enemy_navigation(target):

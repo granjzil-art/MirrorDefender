@@ -12,7 +12,7 @@
 - **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **路径基底**：只要至少一条 `PathDefinition` 经过某格，运行时和关卡编辑器都将该格的地块基底显示为 `LevelResource.path_terrain_color`（默认 `#FFB93B`）；多条路径重叠仍只计一个路径格。复制镜只复制格内容，不复制该基底。
-- **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；非路径的不可建造路面使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁。建筑 occupant 和石头/尖刺/空洞元素只绘制在内容层，不改写地块基底色。
+- **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；非路径的不可建造路面使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁。建筑 occupant 和石头/尖刺/空洞元素只绘制在内容层，不改写地块基底色；空洞内容几何按运行时装填比升降坑底。
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
@@ -179,6 +179,8 @@ Level Editor M4 pages
 |---|---|---|
 | `set_grid` | `(value: GridManager) -> void` | 订阅 Grid 的 `grid_changed` 并重建表现。 |
 | `set_tile_manager` | `(value: TileManager) -> void` | 订阅 TileManager 的布局/单格变化。 |
+| `set_effect_visual_state_resolver` | `(value: Callable) -> void` | 注入单格有状态效果的 0~1 表现比例查询，不持有 TileEffectSystem。 |
+| `refresh_effect_visual` | `(source_cell: Vector3i = Vector3i.ZERO, fill_ratio: float = 0.0) -> void` | 响应效果状态信号重建内容几何。 |
 | `_rebuild` | `() -> void` | 以路径并集、路面和高度色解析基底，重建地形、障碍和元素独立 mesh；无顶点批次清空实例，不调用 `surface_end()`。 |
 | `is_path_terrain_cell` | `(cell: Vector3i) -> bool` | 查询该格是否属于任一手工路径的并集。 |
 | `get_base_terrain_color` | `(cell: Vector3i) -> Color` | 按路径 > 非元素覆盖 > 路面/高度规则返回单格基底色，供主地形和完整地块快照共用。 |
@@ -187,6 +189,7 @@ Level Editor M4 pages
 | `_add_tile_geometry` | `(mesh: ImmediateMesh, tile: TileCellData, terrain_color: Color) -> bool` | 添加指定高度色的顶面；只向更低相邻格或边界生成崖壁，并返回是否实际写入顶点。 |
 | `_add_triangle` | `(mesh: ImmediateMesh, color: Color, a: Vector3, b: Vector3, c: Vector3) -> void` | 为三角形的每个顶点写入同一高度色。 |
 | `_add_obstacle_geometry` | `(mesh: ImmediateMesh, tile: TileCellData) -> void` | 添加一个四面岩石占位。 |
+| `_add_hole` | `(mesh: ImmediateMesh, tile: TileCellData, color: Color) -> bool` | 按空洞装填比在空载/满载深度间插值坑底，真实与镜像快照复用同一几何。 |
 
 ### Godot 编辑器插件
 

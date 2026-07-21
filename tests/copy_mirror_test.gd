@@ -324,21 +324,40 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 
 	var void_level := _make_level(false)
 	var void_effect := VoidTileEffect.new()
+	void_effect.max_capacity = 1
+	void_effect.recovery_seconds_per_point = 100.0
+	void_effect.swallow_interval = 0.25
 	void_level.store_tile(_make_effect_tile(Vector3i(2, 2, 0), void_effect, false))
 	var void_fixture := _make_fixture(void_level)
 	var void_host: Node3D = void_fixture.host
 	var void_grid: GridManager = void_fixture.grid
 	var void_tile: TileManager = void_fixture.tile
 	var void_mirrors: MirrorManager = void_fixture.mirror
+	var void_renderer: TileRenderer = void_fixture.renderer
 	var edge_index := void_grid.find_edge_index(Vector3i(3, 2, 0), Vector3i(4, 2, 0))
 	void_mirrors.place_copy_mirror(Vector3i(3, 2, 0), edge_index, true)
 	var effect_system := TileEffectSystem.new()
 	void_host.add_child(effect_system)
 	effect_system.configure(void_tile)
-	effect_system.set_effect_overlay_resolver(Callable(void_mirrors, "get_projected_effects"))
+	effect_system.set_effect_overlay_binding_resolver(Callable(void_mirrors, "get_projected_effect_bindings"))
+	void_renderer.set_effect_visual_state_resolver(Callable(effect_system, "get_void_fill_ratio"))
+	effect_system.effect_visual_state_changed.connect(func(source_cell: Vector3i, fill_ratio: float) -> void:
+		void_renderer.refresh_effect_visual(source_cell, fill_ratio)
+		void_mirrors.rebuild_now()
+	)
+	var empty_projection := void_mirrors.get_projections(Vector3i(5, 2, 0))[0]
+	var empty_depth := _snapshot_element_min_y(empty_projection.get_visual_snapshot())
 	var falling_target := _make_target(void_host, void_grid.cell_to_world(Vector3i(5, 2, 0)))
 	effect_system.apply_enter(falling_target, Vector3i(5, 2, 0))
-	_expect(not falling_target.is_alive(), "projected void executes the same enter-time defeat effect")
+	effect_system._process(0.25)
+	_expect(not falling_target.is_alive(), "projected void executes the same periodic swallow effect")
+	_expect(effect_system.get_void_current_fill(Vector3i(2, 2, 0)) == 1, "projected void consumes the real source tile's shared capacity")
+	var filled_projection := void_mirrors.get_projections(Vector3i(5, 2, 0))[0]
+	_expect(_snapshot_element_min_y(filled_projection.get_visual_snapshot()) > empty_depth + 0.1, "projected void rebuilds with the source's shallower filled geometry")
+	var source_target := _make_target(void_host, void_grid.cell_to_world(Vector3i(2, 2, 0)))
+	effect_system.apply_enter(source_target, Vector3i(2, 2, 0))
+	effect_system._process(0.25)
+	_expect(source_target.is_alive(), "a full projected/source void pair cannot consume a second enemy")
 	void_host.queue_free()
 	await process_frame
 
@@ -464,6 +483,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 		"combat": combat_manager,
 		"building": building_manager,
 		"mirror": mirror_manager,
+		"renderer": tile_renderer,
 		"registry": registry,
 	}
 
@@ -548,6 +568,19 @@ func _snapshot_has_named_mesh(snapshot: Node3D, mesh_name: String) -> bool:
 		return false
 	var child := snapshot.get_node_or_null(NodePath(mesh_name))
 	return child is MeshInstance3D and child.mesh is ImmediateMesh
+
+func _snapshot_element_min_y(snapshot: Node3D) -> float:
+	if snapshot == null:
+		return INF
+	var element := snapshot.get_node_or_null(NodePath("Element")) as MeshInstance3D
+	if element == null or element.mesh == null or element.mesh.get_surface_count() == 0:
+		return INF
+	var arrays := element.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var minimum := INF
+	for vertex in vertices:
+		minimum = minf(minimum, vertex.y)
+	return minimum
 
 func _projection_materials_have_stable_order(projections: Array[MirrorProjection]) -> bool:
 	var priorities: Dictionary = {}

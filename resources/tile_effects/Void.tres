@@ -5,3 +5,8 @@
 [resource]
 script = ExtResource("1_effect")
 affects_airborne = false
+max_capacity = 3
+recovery_seconds_per_point = 5.0
+swallow_interval = 1.0
+empty_depth_ratio = 0.3
+full_depth_ratio = 0.03
