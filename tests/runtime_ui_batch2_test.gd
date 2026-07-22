@@ -56,6 +56,10 @@ func _test_inspection_model(fixture: Dictionary) -> void:
 	_expect(bool(projection_entry.get("has_source")), "projection entry exposes a root source")
 	_expect(projection_entry.get("source_cell") == source_cell, "projection entry reports the real root cell")
 	_expect(not String(projection_entry.get("mirror_edge_id", "")).is_empty(), "projection entry reports its producing mirror")
+	var source_tower_entry: Dictionary = _find_entry(source_entries, &"building")
+	for combat_fragment in ["索敌 8.0 · 射程 7.0", "攻速 1.00/s · 产出 0.0/s", "对空中敌人：有效"]:
+		_expect(_lines_contain(source_tower_entry, combat_fragment), "real tower exposes %s" % combat_fragment)
+		_expect(_lines_contain(projection_entry, combat_fragment), "copied tower keeps source combat information: %s" % combat_fragment)
 
 	var spike_entry: Dictionary = _find_entry(service.inspect_cell(spike_cell).entries, &"tile_element")
 	_expect(_lines_contain(spike_entry, "持续伤害"), "spike entry exposes its live DPS parameters")

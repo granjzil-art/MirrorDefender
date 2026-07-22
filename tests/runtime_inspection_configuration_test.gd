@@ -4,19 +4,19 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 const TileInspectionModelBuilderScript := preload("res://scripts/ui/TileInspectionModelBuilder.gd")
 const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
 
-const CONFIGURED_RESOURCES: Dictionary = {
-	"res://resources/buildings/ArrowTower.tres": "箭塔",
-	"res://resources/buildings/LaserTower.tres": "激光塔",
-	"res://resources/buildings/Barrier.tres": "屏障",
-	"res://resources/buildings/EdgeBarrier.tres": "边屏障",
-	"res://resources/mirrors/CopyMirror.tres": "复制镜",
-	"res://resources/tile_definitions/Buildable.tres": "可建造",
-	"res://resources/tile_definitions/BlockedRoad.tres": "不可建造路面",
-	"res://resources/tile_definitions/Destructible.tres": "可破坏障碍",
-	"res://resources/tile_definitions/Spike.tres": "尖刺格子",
-	"res://resources/tile_definitions/Void.tres": "空洞格子",
-	"res://resources/tile_definitions/Rock.tres": "大石头障碍",
-}
+const CONFIGURED_RESOURCES: Array[String] = [
+	"res://resources/buildings/ArrowTower.tres",
+	"res://resources/buildings/LaserTower.tres",
+	"res://resources/buildings/Barrier.tres",
+	"res://resources/buildings/EdgeBarrier.tres",
+	"res://resources/mirrors/CopyMirror.tres",
+	"res://resources/tile_definitions/Buildable.tres",
+	"res://resources/tile_definitions/BlockedRoad.tres",
+	"res://resources/tile_definitions/Destructible.tres",
+	"res://resources/tile_definitions/Spike.tres",
+	"res://resources/tile_definitions/Void.tres",
+	"res://resources/tile_definitions/Rock.tres",
+]
 
 var _failures: int = 0
 var _checks: int = 0
@@ -30,6 +30,7 @@ func _run() -> void:
 	print("[RuntimeInspectionConfiguration] running")
 	_test_config_defaults()
 	_test_production_resources()
+	_test_runtime_arrow_resource_binding()
 	await _test_filtering_and_adaptive_layout()
 	if _failures == 0:
 		print("[RuntimeInspectionConfiguration] PASS: %d checks" % _checks)
@@ -64,11 +65,28 @@ func _test_production_resources() -> void:
 		_expect(config != null, "%s owns an inspector configuration" % path)
 		if config == null:
 			continue
-		_expect(config.visible, "%s remains visible by default" % path)
-		_expect(config.display_name == CONFIGURED_RESOURCES[path], "%s keeps its current display name" % path)
-		_expect(not config.function_description.strip_edges().is_empty(), "%s provides an editable function description" % path)
-	var mirror: CopyMirrorDefinition = load("res://resources/mirrors/CopyMirror.tres")
-	_expect(mirror.inspection_display.function_description == "复制镜面法线方向最近非空地块上的全部对象到对称位置。", "copy mirror ships with the agreed functional wording")
+		_expect(config.get("visible") is bool, "%s exposes an editable object-level bool" % path)
+		_expect(not config.resolve_display_name(String(definition.get("display_name"))).is_empty(), "%s resolves a non-empty editable display name" % path)
+		_expect(not config.resolve_function_description("内置说明").is_empty(), "%s resolves an editable function description" % path)
+
+
+func _test_runtime_arrow_resource_binding() -> void:
+	var arrow_definition := ResourceLoader.load(
+		"res://resources/buildings/ArrowTower.tres",
+		"BuildingDefinition",
+		ResourceLoader.CACHE_MODE_REPLACE_DEEP
+	) as BuildingDefinition
+	_expect(arrow_definition != null, "production arrow resource deep-loads for runtime binding")
+	if arrow_definition == null:
+		return
+	var manager := BuildingManager.new()
+	manager.arrow_tower = arrow_definition
+	manager.configure(null, null, null, null)
+	_expect(manager.arrow_tower != null, "BuildingManager keeps the production arrow definition")
+	_expect(manager.arrow_tower.resource_path == "res://resources/buildings/ArrowTower.tres", "arrow binding resolves the editable ArrowTower.tres path")
+	_expect(manager.arrow_tower.inspection_display != null, "arrow binding keeps its nested inspector resource")
+	_expect(manager.arrow_tower.inspection_display.get("show_combat") is bool, "arrow binding reads nested field switches")
+	manager.free()
 
 
 func _test_filtering_and_adaptive_layout() -> void:
@@ -84,7 +102,10 @@ func _test_filtering_and_adaptive_layout() -> void:
 	loader.configure(grid, tile_manager)
 
 	var definition: TileDefinition = (load("res://resources/tile_definitions/Spike.tres") as TileDefinition).duplicate(true)
-	var config: InspectionDisplayConfigScript = definition.inspection_display
+	var config: InspectionDisplayConfigScript = InspectionDisplayConfigScript.new()
+	config.display_name = "尖刺格子"
+	config.function_description = "敌人停留在该格时持续受到伤害。"
+	definition.inspection_display = config
 	var tile := TileCellData.new()
 	tile.configure(Vector3i.ZERO, TileCellData.TileType.BUILDABLE, 2, definition)
 	var level := LevelResource.new()

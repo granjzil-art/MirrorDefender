@@ -109,20 +109,7 @@ func _make_building_entry(building: Building) -> Dictionary:
 	if not building.is_edge_placement() and _shows(config, &"show_orientation"):
 		lines.append("朝向：%d / %d" % [building.facing_index + 1, building.get_facing_slot_count()])
 	var stats: BuildingLevelStats = building.get_level_stats()
-	if building.is_path_blocker():
-		if _shows(config, &"show_durability"):
-			lines.append("耐久：%d / %d" % [ceili(building.current_durability), ceili(building.maximum_durability)])
-		if stats != null and _shows(config, &"show_combat"):
-			lines.append("脱战 %.1fs · 回血 %.1f/s · 反伤 %.0f%%" % [stats.regeneration_delay, stats.regeneration_per_second, stats.damage_reflection_ratio * 100.0])
-	elif stats != null:
-		if _shows(config, &"show_combat"):
-			lines.append("索敌 %.1f · 射程 %.1f" % [stats.targeting_range, stats.attack_range])
-		if _shows(config, &"show_combat") and _shows(config, &"show_economy"):
-			lines.append("攻速 %.2f/s · 产出 %.1f/s" % [stats.attacks_per_second, stats.resource_per_second])
-		elif _shows(config, &"show_combat"):
-			lines.append("攻速 %.2f/s" % stats.attacks_per_second)
-		elif _shows(config, &"show_economy"):
-			lines.append("产出 %.1f/s" % stats.resource_per_second)
+	_append_building_gameplay_lines(lines, building, config, false)
 	var icon: Texture2D = definition.card_icon if definition != null else null
 	var accent := stats.tower_color if stats != null else Color(0.35, 0.75, 1.0)
 	var fallback_name := definition.display_name if definition != null else "建筑"
@@ -220,10 +207,9 @@ func _make_projection_entry(projection: MirrorProjection) -> Dictionary:
 		description = _building_description(source_building.definition)
 		if _shows(config, &"show_level"):
 			lines.append("等级：L%d / L%d" % [source_building.level, source_building.get_max_level()])
-		if source_building.is_path_blocker() and _shows(config, &"show_durability"):
-			lines.append("共享耐久：%d / %d" % [ceili(source_building.current_durability), ceili(source_building.maximum_durability)])
-		elif _shows(config, &"show_orientation"):
+		if not source_building.is_path_blocker() and _shows(config, &"show_orientation"):
 			lines.append("源逻辑朝向：%d / %d" % [source_building.facing_index + 1, source_building.get_facing_slot_count()])
+		_append_building_gameplay_lines(lines, source_building, config, true)
 	else:
 		_append_tile_effect_lines(lines, payload.root_source_cell, payload.tile_effect, config, true)
 	if icon == null and source_tile != null and source_tile.definition != null:
@@ -234,6 +220,37 @@ func _make_projection_entry(projection: MirrorProjection) -> Dictionary:
 	entry["source_cell"] = payload.root_source_cell
 	entry["mirror_edge_id"] = producing_mirror
 	return entry
+
+
+## Entity and projection entries share this exact gameplay-row contract so a
+## copied tower never loses source combat/economy information.
+func _append_building_gameplay_lines(
+	lines: Array[String],
+	building: Building,
+	config: InspectionDisplayConfigScript,
+	shared_runtime_state: bool
+) -> void:
+	var stats: BuildingLevelStats = building.get_level_stats()
+	if building.is_path_blocker():
+		if _shows(config, &"show_durability"):
+			lines.append("%s耐久：%d / %d" % [
+				"共享" if shared_runtime_state else "",
+				ceili(building.current_durability),
+				ceili(building.maximum_durability),
+			])
+		if stats != null and _shows(config, &"show_combat"):
+			lines.append("脱战 %.1fs · 回血 %.1f/s · 反伤 %.0f%%" % [stats.regeneration_delay, stats.regeneration_per_second, stats.damage_reflection_ratio * 100.0])
+	elif stats != null:
+		if _shows(config, &"show_combat"):
+			lines.append("索敌 %.1f · 射程 %.1f" % [stats.targeting_range, stats.attack_range])
+		if _shows(config, &"show_combat") and _shows(config, &"show_economy"):
+			lines.append("攻速 %.2f/s · 产出 %.1f/s" % [stats.attacks_per_second, stats.resource_per_second])
+		elif _shows(config, &"show_combat"):
+			lines.append("攻速 %.2f/s" % stats.attacks_per_second)
+		elif _shows(config, &"show_economy"):
+			lines.append("产出 %.1f/s" % stats.resource_per_second)
+	if stats != null and _shows(config, &"show_airborne_effect"):
+		lines.append("对空中敌人：%s" % ("有效" if stats.affects_airborne else "无效"))
 
 
 func _make_entry(kind: StringName, display_name: String, category: String, state: String,
