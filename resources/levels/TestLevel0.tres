@@ -9,6 +9,11 @@
 [ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="6_rvx6p"]
 [ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="7_he8ce"]
 [ext_resource type="Resource" path="res://resources/tile_definitions/Rock.tres" id="8_at6og"]
+[ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="10_mgx0u"]
+[ext_resource type="Resource" uid="uid://cnwwdb4wfo5ur" path="res://resources/enemies/Archer.tres" id="11_85tdc"]
+[ext_resource type="Resource" uid="uid://chkijuvf231f" path="res://resources/enemies/Runner.tres" id="11_nyinw"]
+[ext_resource type="Resource" uid="uid://jhoves7q4q0h" path="res://resources/enemies/Flyer.tres" id="12_nyinw"]
+[ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="12_secn5"]
 
 [sub_resource type="Resource" id="Resource_iejpy"]
 script = ExtResource("1_iejpy")
@@ -734,6 +739,49 @@ cell = Vector3i(10, 10, 0)
 definition = ExtResource("4_rvx6p")
 height_level = 2
 
+[sub_resource type="Resource" id="Resource_0ark0"]
+script = ExtResource("10_mgx0u")
+enemy = ExtResource("11_nyinw")
+spawn_point = SubResource("Resource_he8ce")
+path = SubResource("Resource_iejpy")
+
+[sub_resource type="Resource" id="Resource_curqb"]
+script = ExtResource("6_at6og")
+spawn_groups = Array[ExtResource("10_mgx0u")]([SubResource("Resource_0ark0")])
+
+[sub_resource type="Resource" id="Resource_pxji8"]
+script = ExtResource("10_mgx0u")
+enemy = ExtResource("12_secn5")
+spawn_point = SubResource("Resource_at6og")
+path = SubResource("Resource_6ktc2")
+
+[sub_resource type="Resource" id="Resource_mj0i7"]
+script = ExtResource("6_at6og")
+display_name = "第 2 波"
+spawn_groups = Array[ExtResource("10_mgx0u")]([SubResource("Resource_pxji8")])
+
+[sub_resource type="Resource" id="Resource_2avl5"]
+script = ExtResource("10_mgx0u")
+enemy = ExtResource("11_85tdc")
+spawn_point = SubResource("Resource_mgx0u")
+path = SubResource("Resource_nx1oq")
+
+[sub_resource type="Resource" id="Resource_whvxq"]
+script = ExtResource("6_at6og")
+display_name = "第 3 波"
+spawn_groups = Array[ExtResource("10_mgx0u")]([SubResource("Resource_2avl5")])
+
+[sub_resource type="Resource" id="Resource_vr5ym"]
+script = ExtResource("10_mgx0u")
+enemy = ExtResource("12_nyinw")
+spawn_point = SubResource("Resource_85tdc")
+path = SubResource("Resource_rvx6p")
+
+[sub_resource type="Resource" id="Resource_4ice8"]
+script = ExtResource("6_at6og")
+display_name = "第 4 波"
+spawn_groups = Array[ExtResource("10_mgx0u")]([SubResource("Resource_vr5ym")])
+
 [resource]
 script = ExtResource("2_6ktc2")
 grid_shape = 1
@@ -742,5 +790,7 @@ tiles = [SubResource("Resource_nyinw"), SubResource("Resource_secn5"), SubResour
 initial_resource = 2000
 mirror_cap = 10
 base_cell = Vector3i(5, 5, 0)
+base_max_hp = 10000.0
 paths = Array[ExtResource("1_iejpy")]([SubResource("Resource_iejpy"), SubResource("Resource_6ktc2"), SubResource("Resource_nx1oq"), SubResource("Resource_rvx6p")])
 spawn_points = Array[ExtResource("3_nx1oq")]([SubResource("Resource_he8ce"), SubResource("Resource_at6og"), SubResource("Resource_mgx0u"), SubResource("Resource_85tdc")])
+waves = Array[ExtResource("6_at6og")]([SubResource("Resource_curqb"), SubResource("Resource_mj0i7"), SubResource("Resource_whvxq"), SubResource("Resource_4ice8")])

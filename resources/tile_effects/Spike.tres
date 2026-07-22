@@ -4,4 +4,5 @@
 
 [resource]
 script = ExtResource("1_effect")
+damage_per_second = 40.0
 affects_airborne = false

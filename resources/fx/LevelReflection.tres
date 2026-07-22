@@ -11,6 +11,5 @@ reflectivity = 0.85
 reflection_brightness = 1.0
 reflection_blur_pixels = 0.6
 fresnel_strength = 0.37
-ripple_enabled = false
 ripple_scale = 20.0
 ripple_speed = 1.0

@@ -11,8 +11,8 @@
 [ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="8_sy835"]
 [ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="9_penar"]
 [ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="11_s0je5"]
-[ext_resource type="Resource" path="res://resources/enemies/Grunt.tres" id="12_xd8eg"]
-[ext_resource type="Resource" path="res://resources/enemies/Runner.tres" id="13_kd0x3"]
+[ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="12_xd8eg"]
+[ext_resource type="Resource" uid="uid://chkijuvf231f" path="res://resources/enemies/Runner.tres" id="13_kd0x3"]
 
 [sub_resource type="Resource" id="Resource_s0je5"]
 script = ExtResource("1_n8aa0")
@@ -26,11 +26,23 @@ path_id = &"path_2"
 display_name = "路径 2"
 cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(14, 5, 0), Vector3i(14, 6, 0), Vector3i(14, 7, 0), Vector3i(13, 7, 0), Vector3i(12, 7, 0), Vector3i(12, 8, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(7, 7, 0), Vector3i(7, 6, 0), Vector3i(7, 5, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
 
+[sub_resource type="Resource" id="Resource_yno3c"]
+script = ExtResource("1_n8aa0")
+path_id = &"path_3"
+display_name = "路径 3"
+cells = Array[Vector3i]([Vector3i(0, 4, 0), Vector3i(1, 4, 0), Vector3i(2, 4, 0), Vector3i(3, 4, 0), Vector3i(4, 4, 0), Vector3i(5, 4, 0), Vector3i(5, 3, 0), Vector3i(5, 2, 0), Vector3i(5, 1, 0), Vector3i(6, 1, 0), Vector3i(7, 1, 0), Vector3i(8, 1, 0), Vector3i(9, 1, 0), Vector3i(10, 1, 0), Vector3i(11, 1, 0), Vector3i(12, 1, 0), Vector3i(13, 1, 0), Vector3i(14, 1, 0), Vector3i(14, 2, 0), Vector3i(14, 3, 0), Vector3i(14, 4, 0), Vector3i(14, 5, 0), Vector3i(14, 6, 0), Vector3i(14, 7, 0), Vector3i(13, 7, 0), Vector3i(12, 7, 0), Vector3i(12, 8, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(7, 7, 0), Vector3i(7, 6, 0), Vector3i(7, 5, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+
 [sub_resource type="Resource" id="Resource_kd0x3"]
 script = ExtResource("3_8d6oa")
 spawn_id = &"spawn_path_2"
 display_name = "路径 2 出生点"
 cell = Vector3i(19, 4, 0)
+
+[sub_resource type="Resource" id="Resource_nn7g8"]
+script = ExtResource("3_8d6oa")
+spawn_id = &"spawn_path_3"
+display_name = "路径 3 出生点"
+cell = Vector3i(0, 4, 0)
 
 [sub_resource type="Resource" id="Resource_qdqby"]
 script = ExtResource("5_le22b")
@@ -1072,6 +1084,6 @@ initial_resource = 100000
 building_cap = 2
 mirror_cap = 10
 base_cell = Vector3i(0, 4, 0)
-paths = Array[ExtResource("1_n8aa0")]([SubResource("Resource_s0je5"), SubResource("Resource_xd8eg")])
-spawn_points = Array[ExtResource("3_8d6oa")]([SubResource("Resource_kd0x3")])
+paths = Array[ExtResource("1_n8aa0")]([SubResource("Resource_s0je5"), SubResource("Resource_xd8eg"), SubResource("Resource_yno3c")])
+spawn_points = Array[ExtResource("3_8d6oa")]([SubResource("Resource_kd0x3"), SubResource("Resource_nn7g8")])
 waves = Array[ExtResource("6_e42lb")]([SubResource("Resource_dnsgk"), SubResource("Resource_mjtg5"), SubResource("Resource_r3fko"), SubResource("Resource_nh5j2")])
