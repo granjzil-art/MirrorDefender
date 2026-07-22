@@ -57,9 +57,16 @@ func _test_inspection_model(fixture: Dictionary) -> void:
 	_expect(projection_entry.get("source_cell") == source_cell, "projection entry reports the real root cell")
 	_expect(not String(projection_entry.get("mirror_edge_id", "")).is_empty(), "projection entry reports its producing mirror")
 	var source_tower_entry: Dictionary = _find_entry(source_entries, &"building")
+	_expect(String(source_tower_entry.get("description")) == "测试箭塔自定义说明。", "building entry uses the definition's editable function description verbatim")
 	for combat_fragment in ["索敌 8.0 · 射程 7.0", "攻速 1.00/s · 产出 0.0/s", "对空中敌人：有效"]:
 		_expect(_lines_contain(source_tower_entry, combat_fragment), "real tower exposes %s" % combat_fragment)
 		_expect(_lines_contain(projection_entry, combat_fragment), "copied tower keeps source combat information: %s" % combat_fragment)
+	var laser_cell := Vector3i(3, 3, 0)
+	var laser := building_manager.place_building(laser_cell, building_manager.laser_tower)
+	_expect(laser != null, "fixture places a laser tower for combat-summary regression")
+	var laser_entry: Dictionary = _find_entry(service.inspect_cell(laser_cell).entries, &"building")
+	_expect(_lines_contain(laser_entry, "DPS 12.0"), "laser tower displays its final continuous DPS")
+	_expect(not _lines_contain(laser_entry, "攻速"), "laser tower does not display the unused projectile attack rate")
 
 	var spike_entry: Dictionary = _find_entry(service.inspect_cell(spike_cell).entries, &"tile_element")
 	_expect(_lines_contain(spike_entry, "持续伤害"), "spike entry exposes its live DPS parameters")
@@ -213,6 +220,9 @@ func _make_fixture() -> Dictionary:
 	var building_manager := BuildingManager.new()
 	host.add_child(building_manager)
 	building_manager.arrow_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
+	var arrow_inspection := InspectionDisplayConfig.new()
+	arrow_inspection.function_description = "测试箭塔自定义说明。"
+	building_manager.arrow_tower.inspection_display = arrow_inspection
 	building_manager.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
 	building_manager.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
 	building_manager.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)

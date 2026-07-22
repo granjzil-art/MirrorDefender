@@ -243,10 +243,15 @@ func _append_building_gameplay_lines(
 	elif stats != null:
 		if _shows(config, &"show_combat"):
 			lines.append("索敌 %.1f · 射程 %.1f" % [stats.targeting_range, stats.attack_range])
+		var attack_rate_text: String
+		if building.definition != null and building.definition.kind == BuildingDefinition.Kind.LASER_TOWER:
+			attack_rate_text = "DPS %.1f" % building.get_laser_damage_per_second()
+		else:
+			attack_rate_text = "攻速 %.2f/s" % stats.attacks_per_second
 		if _shows(config, &"show_combat") and _shows(config, &"show_economy"):
-			lines.append("攻速 %.2f/s · 产出 %.1f/s" % [stats.attacks_per_second, stats.resource_per_second])
+			lines.append("%s · 产出 %.1f/s" % [attack_rate_text, stats.resource_per_second])
 		elif _shows(config, &"show_combat"):
-			lines.append("攻速 %.2f/s" % stats.attacks_per_second)
+			lines.append(attack_rate_text)
 		elif _shows(config, &"show_economy"):
 			lines.append("产出 %.1f/s" % stats.resource_per_second)
 	if stats != null and _shows(config, &"show_airborne_effect"):
