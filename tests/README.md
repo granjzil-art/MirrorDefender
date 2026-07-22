@@ -6,7 +6,7 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps1
 ```
 
-可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 12 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
+可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 13 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
 
 M6 批次 1 的正式卡槽、单卡单次放置、成功/资源/上限/非法格/非法边退出语义，以及 `暂停 > 战术慢放 > 2x > 1x` 时间优先级回归测试：
 
@@ -18,6 +18,12 @@ M6 批次 2 的地块只读模型、实体/虚像/根源/耐久/朝向/元素动
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch2_test.gd
+```
+
+M6 批次 3 的全局信息信号、资源滚动/独立弹字、时间优先级、暂停模态、设置持久化、关卡深重载和三档分辨率回归测试：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch3_test.gd
 ```
 
 右侧详情的对象级/字段级显示开关、默认兼容、可编辑名称和功能说明、自适应紧凑排版及全部正式定义配置回归测试：

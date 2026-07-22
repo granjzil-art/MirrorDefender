@@ -80,13 +80,13 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		root.add_child(hud)
 		await process_frame
 		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal bottom card bar")
-		_expect(hud.get_node_or_null("TacticalSlowButton") != null, "runtime HUD owns the automatic slow toggle")
+		_expect(hud.get_node_or_null("TimeControlPanel/Controls/TacticalSlowButton") != null, "runtime HUD owns the automatic slow toggle")
 		var original_window_size := root.size
 		for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
 			root.size = resolution
 			await process_frame
 			var cards_row := hud.get_node("BuildCardBar/Layout/Cards") as Control
-			var slow_button := hud.get_node("TacticalSlowButton") as Control
+			var slow_button := hud.get_node("TimeControlPanel/Controls/TacticalSlowButton") as Control
 			# canvas_items keeps the authored 1600x900 logical viewport while the
 			# Window scales it to each physical 16:9 resolution.
 			var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)

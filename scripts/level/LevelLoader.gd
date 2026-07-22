@@ -14,6 +14,7 @@ signal level_load_failed(source_path: String, reason: String)
 var _grid: GridManager
 var _tile_manager: TileManager
 var _current_level: LevelResource
+var _current_source_path: String = ""
 
 func configure(grid_manager: GridManager, tile_manager: TileManager) -> void:
 	_grid = grid_manager
@@ -56,6 +57,7 @@ func load_level(level_resource: LevelResource, source_path: String = "") -> bool
 		_report_failure(resolved_path, "TileManager 拒绝加载关卡")
 		return false
 	_current_level = level_resource
+	_current_source_path = resolved_path
 	level_loaded.emit(level_resource, resolved_path)
 	return true
 
@@ -79,6 +81,26 @@ func load_level_path(path: String) -> bool:
 
 func get_current_level() -> LevelResource:
 	return _current_level
+
+
+func get_current_source_path() -> String:
+	return _current_source_path
+
+
+## Recreates the current level resource before loading it so every runtime
+## subsystem receives a fresh level_loaded transaction.
+func reload_current_level() -> bool:
+	if _current_level == null:
+		_report_failure(_current_source_path, "当前没有可重载的关卡")
+		return false
+	var path := _current_source_path.strip_edges()
+	if path.begins_with("res://") and path.ends_with(".tres"):
+		return load_level_path(path)
+	var duplicated := _current_level.duplicate(true) as LevelResource
+	if duplicated == null:
+		_report_failure(path, "当前关卡无法深度复制")
+		return false
+	return load_level(duplicated, path)
 
 func _report_failure(source_path: String, reason: String) -> void:
 	level_load_failed.emit(source_path, reason)

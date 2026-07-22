@@ -12,12 +12,14 @@
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
 - **编辑器保存**：关卡编辑器调用 `ResourceSaver.save(level, path)` 写出 `.tres`；仅允许 `res://` 路径。未保存的新建/加载、会清空地块的网格重建均需确认；网格重建可撤销/重做；校验失败的未完成关卡仅可经二次确认保存。
 - **运行期加载**：LevelLoader 是唯一装配入口。它先完整校验 LevelResource，成功后才配置 Grid 并让 TileManager 构造下一份运行时布局；TileManager 若仍意外拒绝装配，Loader 会恢复旧 Grid 配置，旧 Tile 字典和当前关卡保持不变。缺失格自动补默认可建造数据。
+- **局内重启**：暂停菜单只发出高层请求，`Main` 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新走 `load_level_path()` 完整事务，内存关卡先深复制；所有 Manager 统一由新的 `level_loaded` 事件重置。
 - **调试选关**：运行时 LevelDebugPanel 可从 `res://` 选择 LevelResource `.tres`，调用与后续正式选关相同的 `LevelLoader.load_level_path()`；面板由独立 feature flag 控制。
 
 ## 关键参数
 
 | 参数 | 默认 | 说明 |
 |---|---:|---|
+| `display_name` | `""` | M6 右上全局信息的玩家可见关卡名；空值回退到关卡资源文件名。 |
 | `grid_shape` | 0 | 0=HEX，1=SQUARE；与 `GridManager.Shape` 顺序一致。 |
 | `grid_cell_size` | 1.0 | 交给 GridManager 的单格尺寸。 |
 | `grid_size` | `(6, 6)` | HEX 取 x 为半径；SQUARE 取 `(列, 行)`。 |
@@ -46,7 +48,7 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济、M4 据点/路径/波次和 M6 HUD 槽数的统一关卡定义。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济、M4 据点/路径/波次和 M6 HUD 关卡名/槽数的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | 跨资源共享、无副作用的有限数/范围/颜色/嵌套错误校验。 |
@@ -77,7 +79,7 @@ Debug picker / future production level selection
 	   ├─ CombatManager.clear_targets()
 	   ├─ PathManager.load_level(level) -> BaseCore.load_level(level)
 	   ├─ WaveManager.load_level(level)
-	   ├─ RuntimeHud.apply_level_configuration(level) -> 建筑卡槽数量
+	   ├─ RuntimeHud.apply_level_configuration(level, source_path) -> 建筑卡槽数量 + 关卡显示名
 	   └─ debug status / Main clears stale selection
 
 Mirror Level Editor
@@ -111,6 +113,8 @@ Mirror Level Editor
 | `load_level` | `(level_resource: LevelResource, source_path: String = "") -> bool` | 先只读预检，再应用 Grid 配置、原子安装 Tile 布局并广播成功；失败不改变当前关卡。 |
 | `load_level_path` | `(path: String) -> bool` | 从 `res://` 读取 `.tres`，校验 LevelResource 后交给 `load_level()`。 |
 | `get_current_level` | `() -> LevelResource` | 返回当前成功装配的关卡。 |
+| `get_current_source_path` | `() -> String` | 返回当前关卡的资源路径或内存标识。 |
+| `reload_current_level` | `() -> bool` | 通过完整 Loader 事务重载当前关卡；内存关卡使用新的深复制对象。 |
 | `_report_failure` | `(source_path: String, reason: String) -> void` | 统一发送加载失败信号。 |
 
 **信号**：`level_loaded(level_resource: LevelResource, source_path: String)`、`level_load_failed(source_path: String, reason: String)`。
@@ -133,6 +137,7 @@ Mirror Level Editor
 - `grid_shape` 与 GridManager 枚举的数值顺序必须保持一致；若未来扩展三角形，先扩展 Grid 枚举与迁移策略，再使用新数值。
 - 关卡编辑器生成的是可追踪 `.tres`，不是外部表格；符合“配置优先在 Godot 检视面板/资源内完成”的项目规范。
 - LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
+- 局内重启也必须经过 LevelLoader，UI 不能直接重置 Grid、Tile 或各个 Manager。
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
 - `building_card_slot_count` 缺省为 6，旧关卡无需迁移；范围由 `validate_runtime()` 校验。复制镜固定槽不占此数量。

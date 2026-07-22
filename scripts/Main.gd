@@ -113,6 +113,9 @@ func _ready() -> void:
 		building_manager,
 		mirror_manager
 	)
+	runtime_hud.restart_level_requested.connect(_on_restart_level_requested)
+	runtime_hud.exit_game_requested.connect(_on_exit_game_requested)
+	runtime_hud.modal_state_changed.connect(_on_runtime_modal_state_changed)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
@@ -157,6 +160,7 @@ func _ready() -> void:
 		Callable(tile_effect_system, "apply_stay"),
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
+	runtime_hud.configure_global_info(resource_manager, wave_manager, base_core)
 	_wave_status_panel = WaveStatusPanelScript.new()
 	$HUD.add_child(_wave_status_panel)
 	_wave_status_panel.position = Vector2(1240.0, 270.0)
@@ -169,12 +173,19 @@ func _ready() -> void:
 	_update_hint()
 
 func _process(_delta: float) -> void:
+	if runtime_hud != null and runtime_hud.is_modal_open():
+		return
 	_update_pick()
 
 
 ## Cancellation is global and intentionally runs before GUI dispatch so a
 ## right-click over any HUD control still returns to SELECT.
 func _input(event: InputEvent) -> void:
+	if runtime_hud != null and runtime_hud.is_modal_open():
+		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):
+			runtime_hud.close_pause_menu()
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("cancel_action"):
 		runtime_interaction.cancel_to_select(true)
 		get_viewport().set_input_as_handled()
@@ -356,6 +367,8 @@ func _update_hint() -> void:
 	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
 
 func _unhandled_input(event: InputEvent) -> void:
+	if runtime_hud != null and runtime_hud.is_modal_open():
+		return
 	if event.is_action_pressed("toggle_grid_shape"):
 		if grid.grid_shape == GridManager.Shape.HEX:
 			grid.grid_shape = GridManager.Shape.SQUARE
@@ -418,14 +431,14 @@ func _destroy_selected_obstacle() -> void:
 		return
 	tile_manager.destroy_obstacle_at(_selected_cell)
 
-func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> void:
+func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
 	resource_manager.apply_level_configuration(level_resource)
 	combat_manager.clear_targets()
 	path_manager.load_level(level_resource)
 	path_route_planner.load_level(level_resource)
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
-	runtime_hud.apply_level_configuration(level_resource)
+	runtime_hud.apply_level_configuration(level_resource, source_path)
 	_has_selected_cell = false
 	_has_selected_edge = false
 	renderer.highlight_cell(Vector3i.ZERO, false)
@@ -457,3 +470,22 @@ func _on_world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String
 		if grid.canonical_edge_id(_selected_cell, edge_index) == _selected_edge_id:
 			_selected_edge_index = edge_index
 			return
+
+
+func _on_restart_level_requested() -> void:
+	if level_loader.reload_current_level():
+		runtime_hud.close_pause_menu()
+
+
+func _on_exit_game_requested() -> void:
+	get_tree().quit()
+
+
+func _on_runtime_modal_state_changed(open: bool) -> void:
+	cam_rig.set_input_enabled(not open)
+	if not open:
+		return
+	building_manager.clear_preview(false)
+	mirror_manager.clear_preview()
+	renderer.highlight_cell(Vector3i.ZERO, false)
+	renderer.highlight_edge(Vector3i.ZERO, 0, false)

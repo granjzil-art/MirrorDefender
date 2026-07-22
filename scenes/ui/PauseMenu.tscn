@@ -1,0 +1,161 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/PauseMenu.gd" id="1_pause"]
+
+[sub_resource type="StyleBoxFlat" id="Style_modal"]
+bg_color = Color(0.035, 0.065, 0.085, 0.98)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.38, 0.72, 0.82, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+
+[node name="PauseMenu" type="Control"]
+visible = false
+z_index = 100
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_pause")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.015, 0.025, 0.035, 0.72)
+
+[node name="ModalPanel" type="PanelContainer" parent="Shade"]
+custom_minimum_size = Vector2(650, 0)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -325.0
+offset_top = -205.0
+offset_right = 325.0
+offset_bottom = 205.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("Style_modal")
+
+[node name="Content" type="VBoxContainer" parent="Shade/ModalPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Shade/ModalPanel/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 38
+text = "已暂停"
+horizontal_alignment = 1
+
+[node name="Separator" type="HSeparator" parent="Shade/ModalPanel/Content"]
+layout_mode = 2
+
+[node name="ActionButtons" type="HBoxContainer" parent="Shade/ModalPanel/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 24
+
+[node name="SettingsButton" type="Button" parent="Shade/ModalPanel/Content/ActionButtons"]
+custom_minimum_size = Vector2(150, 74)
+layout_mode = 2
+focus_mode = 0
+text = "设置"
+
+[node name="RestartButton" type="Button" parent="Shade/ModalPanel/Content/ActionButtons"]
+custom_minimum_size = Vector2(150, 74)
+layout_mode = 2
+focus_mode = 0
+text = "重启关卡"
+
+[node name="ExitButton" type="Button" parent="Shade/ModalPanel/Content/ActionButtons"]
+custom_minimum_size = Vector2(150, 74)
+layout_mode = 2
+focus_mode = 0
+text = "退出游戏"
+
+[node name="SettingsPanel" type="VBoxContainer" parent="Shade/ModalPanel/Content"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="VolumeRow" type="HBoxContainer" parent="Shade/ModalPanel/Content/SettingsPanel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/VolumeRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "主音量"
+
+[node name="VolumeSlider" type="HSlider" parent="Shade/ModalPanel/Content/SettingsPanel/VolumeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="VolumeValue" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/VolumeRow"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 2
+
+[node name="WindowRow" type="HBoxContainer" parent="Shade/ModalPanel/Content/SettingsPanel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/WindowRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "显示模式"
+
+[node name="WindowMode" type="OptionButton" parent="Shade/ModalPanel/Content/SettingsPanel/WindowRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="ScaleRow" type="HBoxContainer" parent="Shade/ModalPanel/Content/SettingsPanel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/ScaleRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "UI 缩放"
+
+[node name="UiScaleSlider" type="HSlider" parent="Shade/ModalPanel/Content/SettingsPanel/ScaleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.75
+max_value = 1.5
+step = 0.05
+value = 1.0
+
+[node name="UiScaleValue" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/ScaleRow"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+text = "1.00x"
+horizontal_alignment = 2
+
+[node name="Status" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.88, 0.94, 1)
+text = "设置保存到 user://settings.cfg"
+horizontal_alignment = 1

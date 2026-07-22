@@ -4,6 +4,10 @@
 [ext_resource type="Script" path="res://scripts/ui/BuildCardBar.gd" id="2_build_card_bar"]
 [ext_resource type="Script" path="res://scripts/ui/TileInspectionService.gd" id="3_tile_inspection"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TileInspectorPanel.tscn" id="4_tile_inspector_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/GlobalInfoPanel.tscn" id="5_global_info"]
+[ext_resource type="PackedScene" path="res://scenes/ui/EconomyPanel.tscn" id="6_economy"]
+[ext_resource type="PackedScene" path="res://scenes/ui/TimeControlPanel.tscn" id="7_time_controls"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="8_pause_menu"]
 
 [node name="RuntimeHud" type="Control"]
 layout_mode = 3
@@ -23,30 +27,55 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 210.0
 offset_top = -176.0
-offset_right = -210.0
+offset_right = -390.0
 offset_bottom = -12.0
 grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("2_build_card_bar")
 
-[node name="TacticalSlowButton" type="Button" parent="."]
-custom_minimum_size = Vector2(142, 42)
+[node name="GlobalInfoPanel" parent="." instance=ExtResource("5_global_info")]
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -372.0
+offset_top = 74.0
+offset_right = -18.0
+offset_bottom = 206.0
+grow_horizontal = 0
+grow_vertical = 1
+
+[node name="EconomyPanel" parent="." instance=ExtResource("6_economy")]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -162.0
-offset_top = -60.0
-offset_right = -16.0
+offset_left = -372.0
+offset_top = -142.0
+offset_right = -18.0
+offset_bottom = -76.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="PauseMenu" parent="." instance=ExtResource("8_pause_menu")]
+
+[node name="TimeControlPanel" parent="." instance=ExtResource("7_time_controls")]
+z_index = 101
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -372.0
+offset_top = -68.0
+offset_right = -18.0
 offset_bottom = -16.0
 grow_horizontal = 0
 grow_vertical = 0
-focus_mode = 0
-toggle_mode = true
-button_pressed = true
-text = "战术慢放 开"
 
 [node name="TileInspectionService" type="Node" parent="."]
 script = ExtResource("3_tile_inspection")

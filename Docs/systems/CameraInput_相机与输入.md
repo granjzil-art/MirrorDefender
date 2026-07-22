@@ -15,6 +15,7 @@
   - 鼠标右键：取消
 - **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。右键由 Main 的 `_input` 在 GUI 分发前全局消费，确保鼠标位于 HUD 上时也能取消。
 - **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
+- **模态输入边界**：M6 暂停菜单展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮；继续后统一解锁。
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
 - 支持屏幕边缘平移 `edge_pan`（可开关）。
 
@@ -25,6 +26,7 @@
 
 | 参数名 | 分组 | 默认值 | 说明 |
 |---|---|---|---|
+| input_enabled | Feature | true | 运行时相机输入总开关；暂停模态层开启时由 Main 暂时关闭。 |
 | move_speed | Move | 8.0 | 镜头平移速度 |
 | edge_pan | Move | false | 是否启用屏幕边缘平移 |
 | edge_pan_margin | Move | 16.0 | 边缘平移触发像素带宽 |
@@ -73,6 +75,7 @@ CameraController (本节点 = pivot 焦点)
 | `_apply_camera_transform` | `() -> void` | 依 pitch+zoom 放置子相机并俯视焦点 |
 | `get_camera` | `() -> Camera3D` | 返回子 Camera3D（供 Main 拾取用） |
 | `get_zoom_distance` / `get_pitch_angle` | `() -> float` / `() -> float` | 提供调试 UI 和回归测试所需的只读当前状态 |
+| `set_input_enabled` | `(enabled: bool) -> void` | 统一开关所有相机移动、旋转、俯仰和滚轮缩放输入。 |
 
 ### Main.gd（M6 正式输入路由）
 | 函数 | 签名 | 职责 |
@@ -81,6 +84,7 @@ CameraController (本节点 = pivot 焦点)
 | `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/R/F 到当前模块入口；GUI 已消费的左键不会到达这里。 |
 | `_handle_primary_action` | `() -> void` | 拾取格/边并交给 RuntimeInteractionController 选择或单次放置。 |
 | `_lock_current_pick` | `() -> void` | 保存当前格/边选择供 HUD 与建筑选择使用。 |
+| `_on_runtime_modal_state_changed` | `(open: bool) -> void` | 同步相机输入锁，开启模态层时清除预览和世界高亮。 |
 
 ### InputMap 动作全表（`project.godot`）
 | 动作名 | 默认键 | 用途 | M1 消费者 |

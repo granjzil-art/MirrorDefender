@@ -11,6 +11,10 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
 
+@export_group("Identity")
+## Optional player-facing level name. Runtime HUD falls back to the resource filename.
+@export var display_name: String = ""
+
 @export_group("Grid")
 @export_enum("六边形", "正方形") var grid_shape: int = 0
 @export_range(0.1, 10.0, 0.05, "or_greater") var grid_cell_size: float = 1.0

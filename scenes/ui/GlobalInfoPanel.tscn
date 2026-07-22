@@ -1,0 +1,62 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/GlobalInfoPanel.gd" id="1_global"]
+
+[sub_resource type="StyleBoxFlat" id="Style_glass"]
+bg_color = Color(0.055, 0.10, 0.14, 0.94)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.34, 0.61, 0.72, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[node name="GlobalInfoPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_global")
+
+[node name="GlassPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("Style_glass")
+
+[node name="Content" type="VBoxContainer" parent="GlassPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LevelName" type="Label" parent="GlassPanel/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.77, 0.28, 1)
+theme_override_font_sizes/font_size = 20
+text = "关卡 · 未加载关卡"
+text_overrun_behavior = 3
+
+[node name="BaseHealth" type="Label" parent="GlassPanel/Content"]
+layout_mode = 2
+text = "据点 0 / 0 HP"
+
+[node name="EnemyCount" type="Label" parent="GlassPanel/Content"]
+layout_mode = 2
+text = "场上敌人 · 0"
+
+[node name="Limits" type="Label" parent="GlassPanel/Content"]
+layout_mode = 2
+text = "建筑 0/0 · 镜子 0/0"

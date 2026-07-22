@@ -11,6 +11,9 @@
 class_name CameraController
 extends Node3D
 
+@export_group("Feature")
+@export var input_enabled: bool = true
+
 @export_group("Move")
 @export var move_speed: float = 8.0
 ## 屏幕边缘平移（可开关）。初版默认关。
@@ -40,6 +43,8 @@ func _ready() -> void:
 	_apply_camera_transform()
 
 func _process(delta: float) -> void:
+	if not input_enabled:
+		return
 	# Engine.time_scale slows gameplay simulation. Camera navigation remains
 	# responsive during tactical slow by using the reconstructed real delta.
 	var real_delta := delta
@@ -89,6 +94,8 @@ func _handle_pitch(delta: float) -> void:
 		_set_pitch(pitch_angle + pitch_speed * delta * value)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled:
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_set_zoom(zoom_distance - zoom_wheel_step)
@@ -121,3 +128,7 @@ func get_zoom_distance() -> float:
 
 func get_pitch_angle() -> float:
 	return pitch_angle
+
+
+func set_input_enabled(enabled: bool) -> void:
+	input_enabled = enabled

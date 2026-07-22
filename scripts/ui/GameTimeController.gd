@@ -13,6 +13,8 @@ const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInt
 
 signal time_scale_changed(scale: float)
 signal tactical_slow_enabled_changed(enabled: bool)
+signal fast_enabled_changed(enabled: bool)
+signal paused_changed(paused: bool)
 
 var _interaction: RuntimeInteractionControllerScript
 var _building_manager: BuildingManager
@@ -66,6 +68,7 @@ func set_fast_enabled(enabled: bool) -> void:
 	if _fast_enabled == enabled:
 		return
 	_fast_enabled = enabled
+	fast_enabled_changed.emit(enabled)
 	_refresh_scale()
 
 
@@ -77,6 +80,7 @@ func set_paused(paused: bool) -> void:
 	if _paused == paused:
 		return
 	_paused = paused
+	paused_changed.emit(paused)
 	_refresh_scale()
 
 
