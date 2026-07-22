@@ -34,6 +34,9 @@ const GEOMETRY_TAG_SQUARE: StringName = &"square"
 @export_range(0, 1000, 1, "or_greater") var mirror_cap: int = 6
 @export_range(0.0, 10000.0, 0.1, "or_greater") var base_resource_per_second: float = 0.5
 
+@export_group("M6 Runtime HUD")
+@export_range(1, 12, 1) var building_card_slot_count: int = 6
+
 @export_group("M4 Base")
 @export var base_cell: Vector3i = Vector3i.ZERO
 @export_range(1.0, 1000000.0, 1.0, "or_greater") var base_max_hp: float = 100.0
@@ -226,6 +229,8 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		errors.append("初始资源不能为负数")
 	if building_cap < 0 or mirror_cap < 0:
 		errors.append("建筑或镜面上限不能为负数")
+	if building_card_slot_count < 1 or building_card_slot_count > 12:
+		errors.append("建筑卡槽数量必须位于 1 到 12 之间")
 	if not is_finite(base_resource_per_second) or base_resource_per_second < 0.0:
 		errors.append("关卡基础资源产出必须为有限非负数")
 	if not is_finite(base_max_hp) or base_max_hp <= 0.0:

@@ -13,6 +13,8 @@
   - `R` 在建造模式旋转塔虚影；其它模式旋转选中的实际塔。镜子接入后复用同一动作。
   - 鼠标左键：放置 / 选择
   - 鼠标右键：取消
+- **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。右键由 Main 的 `_input` 在 GUI 分发前全局消费，确保鼠标位于 HUD 上时也能取消。
+- **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
 - 支持屏幕边缘平移 `edge_pan`（可开关）。
 
@@ -48,9 +50,9 @@ CameraController (本节点 = pivot 焦点)
 - **移动方向随 yaw 旋转**：WASD 输入向量按当前 `rotation.y` 变换到世界方向，保证"往屏幕上方走"符合视角。
 - **场景装配**：`Main.tscn` 中节点名 `CameraRig`（挂本脚本），其下有一个 `Camera3D` 子节点；`Main.gd` 通过 `cam_rig.get_camera()` 拿相机做拾取。
 
-### 输入现状（M5）
+### 输入现状（M6 批次 1）
 - **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理移动、旋转和俯仰；`_unhandled_input` 独占滚轮缩放。关卡编辑画布保持相同的 XC/滚轮语义。
-- **Main 场景路由**：`place_select` 根据面板模式选择/放置块建筑、边屏障、复制镜或生成靶标；`cancel_action` 回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。
+- **Main 场景路由**：`place_select` 把格/边拾取交给 RuntimeInteractionController；`cancel_action` 全局回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。
 - **世界固定朝向**：建筑与镜子方向只读 Grid 形状及自身 facing/active side；CameraRig yaw 不参与玩法方向计算。独立 InputRouter 尚未拆分。
 
 ## 函数索引
@@ -60,7 +62,7 @@ CameraController (本节点 = pivot 焦点)
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `_ready` | `() -> void` | 首次应用相机 transform |
-| `_process` | `(delta: float) -> void` | 每帧调用移动、旋转和俯仰处理 |
+| `_process` | `(delta: float) -> void` | 将非零时间倍率还原为真实 delta，再调用移动、旋转和俯仰处理 |
 | `_handle_move` | `(delta) -> void` | WASD（+可选 edge_pan）沿当前 yaw 平移焦点 |
 | `_edge_pan_input` | `() -> Vector2` | 屏幕边缘平移输入（edge_pan 开关） |
 | `_handle_rotate` | `(delta) -> void` | QE 绕 Y 轴旋转 yaw |
@@ -72,11 +74,12 @@ CameraController (本节点 = pivot 焦点)
 | `get_camera` | `() -> Camera3D` | 返回子 Camera3D（供 Main 拾取用） |
 | `get_zoom_distance` / `get_pitch_angle` | `() -> float` / `() -> float` | 提供调试 UI 和回归测试所需的只读当前状态 |
 
-### Main.gd（M3 输入路由）
+### Main.gd（M6 正式输入路由）
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/右键/R/F 到当前模块入口。 |
-| `_handle_primary_action` | `() -> void` | 拾取格并按 M3DebugPanel 模式执行选择、建塔或靶标生成。 |
+| `_input` | `(event: InputEvent) -> void` | 在 GUI 前全局消费右键取消，清除卡片、预览和实体选择。 |
+| `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/R/F 到当前模块入口；GUI 已消费的左键不会到达这里。 |
+| `_handle_primary_action` | `() -> void` | 拾取格/边并交给 RuntimeInteractionController 选择或单次放置。 |
 | `_lock_current_pick` | `() -> void` | 保存当前格/边选择供 HUD 与建筑选择使用。 |
 
 ### InputMap 动作全表（`project.godot`）
@@ -87,8 +90,8 @@ CameraController (本节点 = pivot 焦点)
 | `cam_pitch_lower/raise` | X/C | 降低/提高相机俯仰角 | CameraController |
 | `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
 | `rotate_facing` | R | 镜子预览/实体翻面，或建筑预览/实体顺时针旋转 | Main -> MirrorManager / BuildingManager |
-| `place_select` | 鼠标左键 | 执行当前选择/建塔/靶标模式 | Main.gd（M3） |
-| `cancel_action` | 鼠标右键 | 回到选择模式 | Main.gd -> M3DebugPanel |
+| `place_select` | 鼠标左键 | 执行当前选择或一次正式卡片放置 | Main.gd -> RuntimeInteractionController |
+| `cancel_action` | 鼠标右键 | 全局回到选择模式并清除选择/预览 | Main.gd -> RuntimeInteractionController |
 
 ### 实现文件
 

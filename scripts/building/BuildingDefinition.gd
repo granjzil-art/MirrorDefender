@@ -27,6 +27,8 @@ enum AimMode {
 @export_group("Identity")
 @export var kind: Kind = Kind.ARROW_TOWER
 @export var display_name: String = "箭塔"
+## Optional production-HUD artwork. The card bar provides a stable fallback.
+@export var card_icon: Texture2D
 
 @export_group("Placement")
 @export var placement_surface: PlacementSurface = PlacementSurface.BUILDABLE_TILE

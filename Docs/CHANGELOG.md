@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / UI · 批次 1 正式卡槽、单次放置与战术慢放 — 2026-07-22
+**模块**：UI / Input / Camera / Building / Mirror / Resource / Level / Main / Tests / Docs。
+
+- 新增模块化 `RuntimeHud` 与底部单行镜面卡槽：复制镜独立槽，默认 6 个建筑槽，携带箭塔/激光塔/屏障并显示 3 个空镜面；费用、资源/上限置灰、金色选中框和可选 `card_icon` 接口已接通。
+- 新增 `RuntimeInteractionController` 作为正式交互事实源；成功、资源不足、建筑上限、非法地块、非法边和未命中均只执行一次尝试，随后清卡、清预览、清实体选择并回 `SELECT`，新放置实体不保持自动选中。
+- 右键改为 GUI 分发前的全局取消；左键 UI 由控件消费，不穿透到世界。主场景默认隐藏旧 M3 建造面板，原 Manager 事务和玩法入口保持兼容。
+- 新增 `GameTimeController`，固定 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x`；选卡或选中实体建筑/边建筑/镜子自动慢放，右下按钮可关闭。CameraController 使用真实 delta 保持慢放期间镜头手感。
+- LevelResource 新增 1～12 的 `building_card_slot_count`（默认 6）；M6 批次 1 回归新增 55 项（含三档 16:9 分辨率布局），完整入口扩展为 10 个测试套件。
+
 ## M6 / Docs · 固化操作与 UI 大版本事实源 — 2026-07-22
 **模块**：Docs / UI Planning / Level Data / Tile Data / FX Data。
 

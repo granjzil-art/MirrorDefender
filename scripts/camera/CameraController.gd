@@ -40,9 +40,14 @@ func _ready() -> void:
 	_apply_camera_transform()
 
 func _process(delta: float) -> void:
-	_handle_move(delta)
-	_handle_rotate(delta)
-	_handle_pitch(delta)
+	# Engine.time_scale slows gameplay simulation. Camera navigation remains
+	# responsive during tactical slow by using the reconstructed real delta.
+	var real_delta := delta
+	if Engine.time_scale > 0.0001:
+		real_delta /= Engine.time_scale
+	_handle_move(real_delta)
+	_handle_rotate(real_delta)
+	_handle_pitch(real_delta)
 
 func _handle_move(delta: float) -> void:
 	var input := Vector2(

@@ -7,7 +7,7 @@
 ##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放
 ##   T    切换 六边形 <-> 正方形
 ##   鼠标悬停：高亮格；靠近边时高亮边（并显示 canonical_edge_id）
-##   左键：执行 M3 面板当前模式（选择 / 建塔 / 放靶标）
+##   左键：执行正式卡槽当前模式（选择 / 单次放置）
 ##   右键：回到选择模式
 ##   R    旋转选中建筑朝向
 ##   F    清除锁定的可破坏障碍
@@ -27,6 +27,9 @@ const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd"
 const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
 const MirrorManagerScript := preload("res://scripts/mirror/MirrorManager.gd")
 const LevelReflectionSurfaceScript := preload("res://scripts/fx/LevelReflectionSurface.gd")
+const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
+const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
+const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
@@ -45,6 +48,9 @@ const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBa
 @onready var hint_label: Label = $HUD/Hint
 @onready var level_debug_panel: LevelDebugPanelScript = $HUD/LevelDebugPanel
 @onready var m3_debug_panel: M3DebugPanelScript = $HUD/M3DebugPanel
+@onready var runtime_hud: RuntimeHudScript = $HUD/RuntimeHud
+@onready var runtime_interaction: RuntimeInteractionControllerScript = $RuntimeInteractionController
+@onready var game_time_controller: GameTimeControllerScript = $GameTimeController
 
 var _camera: Camera3D
 var _building_action_panel: BuildingActionPanel
@@ -97,6 +103,15 @@ func _ready() -> void:
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
 	tile_manager.set_navigation_overlay_blocker_resolver(Callable(mirror_manager, "resolve_projected_navigation_blocker"))
+	runtime_interaction.configure(building_manager, mirror_manager)
+	game_time_controller.configure(runtime_interaction, building_manager, mirror_manager)
+	runtime_hud.configure(
+		runtime_interaction,
+		game_time_controller,
+		resource_manager,
+		building_manager,
+		mirror_manager
+	)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
@@ -147,6 +162,14 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_update_pick()
+
+
+## Cancellation is global and intentionally runs before GUI dispatch so a
+## right-click over any HUD control still returns to SELECT.
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("cancel_action"):
+		runtime_interaction.cancel_to_select(true)
+		get_viewport().set_input_as_handled()
 
 func _update_pick() -> void:
 	var vp := get_viewport()
@@ -322,7 +345,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键执行模式 | 右键选择模式 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | 右上开始波次"
+	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_grid_shape"):
@@ -335,14 +358,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			tile_manager.load_level(current_level)
 	elif event.is_action_pressed("place_select"):
 		_handle_primary_action()
-	elif event.is_action_pressed("cancel_action"):
-		m3_debug_panel.cancel_to_select()
 	elif event.is_action_pressed("rotate_facing"):
-		if m3_debug_panel.is_copy_mirror_mode():
+		if runtime_interaction.is_copy_mirror_mode():
 			mirror_manager.flip_preview()
 		elif mirror_manager.get_selected_mirror() != null:
 			mirror_manager.flip_selected()
-		elif m3_debug_panel.get_selected_definition() != null:
+		elif runtime_interaction.get_selected_definition() != null:
 			building_manager.rotate_preview()
 		else:
 			building_manager.rotate_selected()
@@ -355,55 +376,12 @@ func _handle_primary_action() -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
 	var edge_pick: Dictionary = grid.pick_edge(_camera, mouse_position)
-	if not cell_pick.hit:
-		m3_debug_panel.report_no_cell()
-		return
-	var cell: Vector3i = cell_pick.cell
-	_selected_cell = cell
-	_has_selected_cell = true
-	match m3_debug_panel.get_mode():
-		M3DebugPanelScript.InteractionMode.BUILD_ARROW, M3DebugPanelScript.InteractionMode.BUILD_LASER, M3DebugPanelScript.InteractionMode.BUILD_BARRIER:
-			building_manager.place_building(
-				cell,
-				m3_debug_panel.get_selected_definition(),
-				building_manager.get_preview_facing_index()
-			)
-		M3DebugPanelScript.InteractionMode.BUILD_EDGE_BARRIER:
-			if not edge_pick.hit:
-				m3_debug_panel.report_no_cell()
-				return
-			var edge_cell: Vector3i = edge_pick.cell
-			var edge_index: int = edge_pick.edge_index
-			building_manager.place_edge_building(
-				edge_cell,
-				edge_index,
-				m3_debug_panel.get_selected_definition()
-			)
-		M3DebugPanelScript.InteractionMode.BUILD_COPY_MIRROR:
-			if not edge_pick.hit:
-				m3_debug_panel.report_no_cell()
-				return
-			mirror_manager.place_copy_mirror(
-				edge_pick.cell,
-				edge_pick.edge_index,
-				mirror_manager.get_preview_info().get("active_cell", edge_pick.cell) == edge_pick.cell
-			)
-		M3DebugPanelScript.InteractionMode.SPAWN_TARGET:
-			var target_position := grid.cell_to_world(cell)
-			target_position.y = tile_manager.get_world_height(cell) + 0.02
-			if combat_manager.spawn_debug_target(target_position) != null:
-				m3_debug_panel.report_target_spawned()
-		_:
-			_lock_current_pick()
-			var selected_mirror := mirror_manager.select_at_edge(edge_pick.id if edge_pick.hit else "")
-			if selected_mirror != null:
-				building_manager.select_building(null)
-			else:
-				mirror_manager.select_mirror(null)
-				building_manager.select_at(cell, edge_pick.id if edge_pick.hit else "")
+	if runtime_interaction.is_select_mode():
+		_lock_current_pick()
+	runtime_interaction.handle_primary(cell_pick, edge_pick)
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
-	if m3_debug_panel.is_copy_mirror_mode():
+	if runtime_interaction.is_copy_mirror_mode():
 		building_manager.clear_preview()
 		if get_viewport().gui_get_hovered_control() != null or not edge_pick.hit:
 			mirror_manager.clear_preview()
@@ -411,7 +389,7 @@ func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> v
 		mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index)
 		return
 	mirror_manager.clear_preview()
-	var definition := m3_debug_panel.get_selected_definition()
+	var definition := runtime_interaction.get_selected_definition()
 	if definition == null or get_viewport().gui_get_hovered_control() != null:
 		building_manager.clear_preview()
 		return
@@ -453,11 +431,12 @@ func _on_level_loaded(level_resource: LevelResource, _source_path: String) -> vo
 	path_route_planner.load_level(level_resource)
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
+	runtime_hud.apply_level_configuration(level_resource)
 	_has_selected_cell = false
 	_has_selected_edge = false
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
-	m3_debug_panel.cancel_to_select()
+	runtime_interaction.cancel_to_select(true)
 
 func _on_effect_visual_state_changed(source_cell: Vector3i, fill_ratio: float) -> void:
 	tile_renderer.refresh_effect_visual(source_cell, fill_ratio)

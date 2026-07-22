@@ -30,6 +30,7 @@
 | `initial_resource` | 200 | 切入关卡时的主资源。 |
 | `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
 | `base_resource_per_second` | 0.5 | 本关基础每秒资源，与建筑产出独立。 |
+| `building_card_slot_count` | 6 | M6 正式 HUD 的建筑携带槽数量，范围 1～12；复制镜独立槽不计入。 |
 | `base_cell` / `base_max_hp` | `(0,0,0)` / 100 | M4 据点所在格和最大生命。 |
 | `paths` / `spawn_points` | `[]` | M4 持有的 PathDefinition / SpawnPointDefinition 数组。 |
 | `waves` | `[]` | M4 固定波次数组，每项持有多个 SpawnGroup。 |
@@ -45,7 +46,7 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济和 M4 据点/路径/波次的统一关卡定义。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济、M4 据点/路径/波次和 M6 HUD 槽数的统一关卡定义。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | 跨资源共享、无副作用的有限数/范围/颜色/嵌套错误校验。 |
@@ -76,6 +77,7 @@ Debug picker / future production level selection
 	   ├─ CombatManager.clear_targets()
 	   ├─ PathManager.load_level(level) -> BaseCore.load_level(level)
 	   ├─ WaveManager.load_level(level)
+	   ├─ RuntimeHud.apply_level_configuration(level) -> 建筑卡槽数量
 	   └─ debug status / Main clears stale selection
 
 Mirror Level Editor
@@ -133,6 +135,7 @@ Mirror Level Editor
 - LevelLoader 是运行时关卡装配事实源；调试选关和未来正式选关共用其公共 API 与结果信号。
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
+- `building_card_slot_count` 缺省为 6，旧关卡无需迁移；范围由 `validate_runtime()` 校验。复制镜固定槽不占此数量。
 - LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 EnemyDefinition，三者禁止混写。
 - `paths`、`spawn_points` 和 `waves` 均由同一个 LevelResource 持有；SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
 - 路径顺序恒为出生点到据点；`validate_m4()` 要求每条路径终点等于 `base_cell`，并要求出怪组的出生点等于引用路径的首格。

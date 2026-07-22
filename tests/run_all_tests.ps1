@@ -25,6 +25,7 @@ $Tests = @(
 	"path_spawn_pairing_test.gd",
 	"path_terrain_color_test.gd",
 	"robustness_baseline_test.gd",
+	"runtime_ui_batch1_test.gd",
 	"tile_elements_and_rerouting_test.gd"
 )
 
