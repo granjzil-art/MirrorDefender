@@ -1,9 +1,16 @@
 [gd_resource type="Resource" script_class="TileDefinition" format=3]
 
 [ext_resource type="Script" path="res://scripts/tile/TileDefinition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/shared/InspectionDisplayConfig.gd" id="2_inspection"]
+
+[sub_resource type="Resource" id="Inspection_blocked_road"]
+script = ExtResource("2_inspection")
+display_name = "不可建造路面"
+function_description = "作为不可放置普通块建筑的道路地块。"
 
 [resource]
 script = ExtResource("1_definition")
 tile_id = &"blocked_road"
 display_name = "不可建造路面"
+inspection_display = SubResource("Inspection_blocked_road")
 surface_kind = 2

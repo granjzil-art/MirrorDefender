@@ -8,6 +8,7 @@ extends Control
 @export_group("Layout")
 @export_range(64.0, 160.0, 1.0) var preview_size: float = 82.0
 @export_range(88.0, 180.0, 1.0) var entry_minimum_height: float = 112.0
+@export_range(40.0, 120.0, 1.0) var compact_entry_minimum_height: float = 54.0
 @export_range(0, 24, 1) var entry_separation: int = 8
 
 @export_group("Fallback Visual")
@@ -115,7 +116,9 @@ func _rebuild_entries(raw_entries: Array) -> void:
 	_clear_entries()
 	for raw_entry in raw_entries:
 		if raw_entry is Dictionary:
-			_entries.add_child(_make_entry_card(raw_entry))
+			var card := _make_entry_card(raw_entry)
+			card.name = "Entry%d" % _entries.get_child_count()
+			_entries.add_child(card)
 
 
 func _clear_entries() -> void:
@@ -129,19 +132,26 @@ func _clear_entries() -> void:
 func _make_entry_card(entry: Dictionary) -> Control:
 	var accent: Color = entry.get("accent", entity_color)
 	var state := String(entry.get("state", "实体"))
+	var show_icon := bool(entry.get("show_icon", true))
+	var show_category := bool(entry.get("show_category", true))
+	var show_state := bool(entry.get("show_state", true))
+	var show_description := bool(entry.get("show_description", true))
 	if state == "虚像":
 		accent = projection_color.lerp(accent, 0.32)
 	elif StringName(entry.get("kind", &"")) == &"tile_element":
 		accent = element_color.lerp(accent, 0.35)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(0.0, entry_minimum_height)
+	card.custom_minimum_size = Vector2(0.0, entry_minimum_height if show_icon else compact_entry_minimum_height)
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.add_theme_stylebox_override("panel", _make_style(Color(0.10, 0.18, 0.23, 0.93), accent, 2, 8))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	card.add_child(row)
-	row.add_child(_make_preview(entry, accent))
+	if show_icon:
+		var preview := _make_preview(entry, accent)
+		preview.name = "Preview"
+		row.add_child(preview)
 
 	var text_layout := VBoxContainer.new()
 	text_layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -149,25 +159,46 @@ func _make_entry_card(entry: Dictionary) -> Control:
 	row.add_child(text_layout)
 
 	var heading := Label.new()
+	heading.name = "Name"
 	heading.text = String(entry.get("name", "未知内容"))
 	heading.add_theme_font_size_override("font_size", 18)
 	heading.add_theme_color_override("font_color", Color(0.94, 0.98, 1.0))
 	text_layout.add_child(heading)
 
-	var type_label := Label.new()
-	type_label.text = "%s · %s" % [String(entry.get("category", "内容")), state]
-	type_label.add_theme_font_size_override("font_size", 13)
-	type_label.add_theme_color_override("font_color", accent)
-	text_layout.add_child(type_label)
+	var identity_parts: Array[String] = []
+	if show_category:
+		identity_parts.append(String(entry.get("category", "内容")))
+	if show_state:
+		identity_parts.append(state)
+	if not identity_parts.is_empty():
+		var type_label := Label.new()
+		type_label.name = "Type"
+		type_label.text = " · ".join(identity_parts)
+		type_label.add_theme_font_size_override("font_size", 13)
+		type_label.add_theme_color_override("font_color", accent)
+		text_layout.add_child(type_label)
 
-	var detail := Label.new()
+	var description := String(entry.get("description", "")).strip_edges()
+	if show_description and not description.is_empty():
+		var function_label := Label.new()
+		function_label.name = "Function"
+		function_label.text = "功能：%s" % description
+		function_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		function_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		function_label.add_theme_font_size_override("font_size", 13)
+		function_label.add_theme_color_override("font_color", Color(0.72, 0.94, 1.0))
+		text_layout.add_child(function_label)
+
 	var raw_lines: Variant = entry.get("lines", [])
-	detail.text = "\n".join(raw_lines) if raw_lines is Array else ""
-	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail.add_theme_font_size_override("font_size", 13)
-	detail.add_theme_color_override("font_color", Color(0.78, 0.86, 0.90))
-	text_layout.add_child(detail)
+	if raw_lines is Array and not raw_lines.is_empty():
+		var detail := Label.new()
+		detail.name = "Details"
+		detail.text = "\n".join(raw_lines)
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		detail.add_theme_font_size_override("font_size", 13)
+		detail.add_theme_color_override("font_color", Color(0.78, 0.86, 0.90))
+		text_layout.add_child(detail)
 	return card
 
 

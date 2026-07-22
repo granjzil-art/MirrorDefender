@@ -10,6 +10,8 @@
 - **取消和输入消费**：左键执行肯定操作；右键在 GUI 分发前全局取消并回选择模式。正式卡片和按钮消费左键，点击 UI 不会穿透到世界。
 - **战术慢放**：选卡或选中实体建筑、实体边建筑、实体镜子时，`GameTimeController` 默认切到 0.1x。右下按钮可关闭自动慢放；优先级固定为 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x`。批次 1 已交付时间控制基础和慢放按钮，正式 2x/暂停菜单在批次 3 接入。
 - **M6 批次 2 地块详情（已实现）**：选择模式点击含实体块建筑、任一相邻边建筑/复制镜、同格虚像或关卡元素的格时，右侧展开镜面详情板；空格、取消、选卡或放置完成时收起。条目可滚动，显示类型、实体/虚像、图标灰盒、等级、耐久、朝向、根源格、产生镜子及元素运行时状态。
+- **两级显示配置（已实现）**：`InspectionDisplayConfig.visible` 是对象级开关；关闭后实体和由它产生的虚像都不进入列表。其余 `show_*` 是字段级开关，分别控制图标、类型、实体/虚像、功能、位置、高度、权限、等级、耐久、朝向、战斗、经济、容量、时序、对空及虚像谱系行。全部默认 `true`，保持已有显示。
+- **名称与功能说明**：建筑、复制镜和地块定义各自持有 `inspection_display`；可编辑 `display_name` 和 `function_description`。空值向后兼容原显示名和内置说明，面板统一增加“功能：”行；虚像使用根源对象配置。
 - **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
 - **沿用原型布局**：
   - 顶部：资源栏
@@ -48,8 +50,9 @@
 | BuildCardBar.`mirror_slot_separation` | 14 | 独立镜子槽与建筑槽组之间的间距。 |
 | TileInspectorPanel.`feature_enabled` | true | 批次 2 右侧详情板总开关。 |
 | TileInspectorPanel.`preview_size` | 82 | 每条内容的图标/灰盒预览边长。 |
-| TileInspectorPanel.`entry_minimum_height` / `entry_separation` | 112 / 8 | 动态条目最小高度与间距；超出面板高度后滚动。 |
+| TileInspectorPanel.`entry_minimum_height` / `compact_entry_minimum_height` / `entry_separation` | 112 / 54 / 8 | 有图标条目、隐藏图标后的紧凑条目最小高度及间距；超出面板高度后滚动。 |
 | TileInspectorPanel.`fallback_icon` | null | 全局条目占位图；为空时用内容名称前两字灰盒。 |
+| Definition.`inspection_display` | 独立资源 | 建筑、复制镜、地块定义的对象级开关、可编辑名称/功能说明和字段级开关。 |
 | GameTimeController.`tactical_slow_enabled` | true | 是否在选卡/选中实体时自动慢放。 |
 | GameTimeController.`tactical_slow_scale` | 0.1 | 战术慢放倍率。 |
 | GameTimeController.`fast_scale` | 2.0 | 批次 3 正式按钮使用的快速倍率。 |
@@ -64,6 +67,7 @@
 | `scripts/ui/RuntimeInteractionController.gd` | `RuntimeInteractionController` / `Node` | 正式 SELECT/块放置/边放置/镜子放置状态机和单次尝试事务。 |
 | `scripts/ui/GameTimeController.gd` | `GameTimeController` / `Node` | 统一求解暂停、战术慢放、2x 与 1x 的时间优先级。 |
 | `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 独立镜子槽、可调建筑槽、卡片可用性、选中框、空镜面和状态反馈。 |
+| `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 跨建筑、镜子、地块共享的两级只读检视显示策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
 | `scripts/ui/TileInspectorPanel.gd` | `TileInspectorPanel` / `Control` | 把检视模型渲染为右侧镜面滚动条目，不执行玩法修改。 |
@@ -76,6 +80,7 @@
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中复制镜，提供删除和生效侧翻面。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 显示据点/波次/敌人摘要，并请求 WaveManager 开始全局波次时间轴。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 48 项只读模型、动态刷新、选择语义、滚动和三档分辨率回归。 |
+| `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 90 项默认兼容、正式资源、对象/字段过滤、名称/功能说明和自适应排版回归。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -101,8 +106,10 @@ RuntimeInteractionController mode + BuildingManager/MirrorManager selection
   -> GameTimeController -> Engine.time_scale
 RuntimeInteractionController.world_selection_changed
   -> RuntimeHud -> TileInspectionService selected cell
+  -> source Definition.inspection_display
+     -> visible 过滤整个对象 / show_* 过滤字段
   -> TileInspectionModelBuilder public Manager queries
-  -> `{has_content, cell, terrain_name, height_level, permissions, entries}`
+  -> `{has_content, cell, terrain_name, height_level, permissions, entries}`；entry 含名称、功能、布局开关和可见详情行
   -> TileInspectorPanel dynamic cards / collapsed empty state
 Tile/Building/Mirror/TileEffect signals + selected source live signals
   -> TileInspectionService deferred coalesced refresh
@@ -161,8 +168,9 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 | `TileInspectionService.gd` | `configure(grid_manager, tile_manager, building_manager, mirror_manager, tile_effect_system) -> void` | 订阅内容/耐久/方向/投影/装填变化，重复配置前安全断开旧信号。 |
 | `TileInspectionService.gd` | `set_selected_cell(has_cell: bool, cell: Vector3i, edge_id: String = "") -> void` | 接收正式选择事实源并触发合并刷新。 |
 | `TileInspectionService.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 返回 Builder 的只读快照；顶层键为 `has_content/cell/selected_edge_id/terrain_name/height_level/allows_tile_building/allows_edge_building/entries`。 |
-| `TileInspectionModelBuilder.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 聚合本格 occupant、全部相邻边实体、同格投影和元素运行时数据；条目键为 `kind/name/category/state/icon/accent/lines/has_source/source_cell/mirror_edge_id`。 |
-| `TileInspectorPanel.gd` | `display_model(model: Dictionary) -> void` | 非空时重建滚动条目并展开，空模型时收起。 |
+| `InspectionDisplayConfig.gd` | `resolve_display_name(fallback: String) -> String` / `resolve_function_description(fallback: String) -> String` | 使用非空自定义文本，否则回退到当前名称或内置说明。 |
+| `TileInspectionModelBuilder.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 聚合本格 occupant、全部相邻边实体、同格投影和元素运行时数据；先按对象级 `visible` 过滤，条目键含 `kind/name/category/state/icon/accent/description/show_icon/show_category/show_state/show_description/lines/has_source/source_cell/mirror_edge_id`。 |
+| `TileInspectorPanel.gd` | `display_model(model: Dictionary) -> void` | 非空时按字段开关自适应重建滚动条目并展开，空模型时收起。 |
 | `TileInspectorPanel.gd` | `clear_inspection() -> void` | 清除当前只读快照及动态条目。 |
 
 ## 已知限制 / 初版不做的部分

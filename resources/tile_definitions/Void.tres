@@ -2,11 +2,18 @@
 
 [ext_resource type="Script" path="res://scripts/tile/TileDefinition.gd" id="1_definition"]
 [ext_resource type="Resource" path="res://resources/tile_effects/Void.tres" id="2_effect"]
+[ext_resource type="Script" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+
+[sub_resource type="Resource" id="Inspection_void"]
+script = ExtResource("3_inspection")
+display_name = "空洞格子"
+function_description = "按吞噬间隔消灭格上生命值最高且满足条件的敌人，并占用容量。"
 
 [resource]
 script = ExtResource("1_definition")
 tile_id = &"void"
 display_name = "空洞格子"
+inspection_display = SubResource("Inspection_void")
 surface_kind = 3
 allows_tile_building = false
 effect = ExtResource("2_effect")

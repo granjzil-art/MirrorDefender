@@ -1,9 +1,16 @@
 [gd_resource type="Resource" script_class="CopyMirrorDefinition" format=3 uid="uid://dfckrnd130uuf"]
 
 [ext_resource type="Script" uid="uid://rx7xjm50tfnu" path="res://scripts/mirror/CopyMirrorDefinition.gd" id="1_definition"]
+[ext_resource type="Script" path="res://scripts/shared/InspectionDisplayConfig.gd" id="2_inspection"]
+
+[sub_resource type="Resource" id="Inspection_copy_mirror"]
+script = ExtResource("2_inspection")
+display_name = "复制镜"
+function_description = "复制镜面法线方向最近非空地块上的全部对象到对称位置。"
 
 [resource]
 script = ExtResource("1_definition")
+inspection_display = SubResource("Inspection_copy_mirror")
 cost = 70.0
 copy_chain_max = 6
 mirror_height_ratio = 2.0

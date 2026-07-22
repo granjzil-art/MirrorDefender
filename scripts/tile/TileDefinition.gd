@@ -3,6 +3,8 @@
 class_name TileDefinition
 extends Resource
 
+const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
+
 enum SurfaceKind {
 	BUILDABLE,
 	DESTRUCTIBLE,
@@ -20,6 +22,9 @@ enum VisualKind {
 @export_group("Identity")
 @export var tile_id: StringName = &"buildable"
 @export var display_name: String = "可建造"
+
+@export_group("Runtime Inspector")
+@export var inspection_display: InspectionDisplayConfigScript
 
 @export_group("Surface")
 @export_enum("可建造表面", "可破坏障碍", "不可建造路面", "关卡元素") var surface_kind: int = SurfaceKind.BUILDABLE

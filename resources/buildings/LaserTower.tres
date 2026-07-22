@@ -2,6 +2,12 @@
 
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
 [ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+
+[sub_resource type="Resource" id="Inspection_laser"]
+script = ExtResource("3_inspection")
+display_name = "激光塔"
+function_description = "沿建筑当前朝向持续发射激光，对光路上的敌人造成持续伤害。"
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
@@ -48,4 +54,5 @@ attack_color = Color(0.64, 0.48, 1, 1)
 script = ExtResource("1_definition")
 kind = 1
 display_name = "激光塔"
+inspection_display = SubResource("Inspection_laser")
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])

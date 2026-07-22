@@ -4,11 +4,15 @@ class_name CopyMirrorDefinition
 extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
 @export_group("Identity")
 @export var display_name: String = "复制镜"
 ## Optional production-HUD artwork. The card bar provides a stable fallback.
 @export var card_icon: Texture2D
+
+@export_group("Runtime Inspector")
+@export var inspection_display: InspectionDisplayConfigScript
 
 @export_group("Economy")
 @export_range(0.0, 100000.0, 1.0, "or_greater") var cost: float = 120.0

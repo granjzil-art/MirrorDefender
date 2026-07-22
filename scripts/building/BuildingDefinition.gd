@@ -3,6 +3,7 @@ class_name BuildingDefinition
 extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
 const MAX_LEVEL := 3
 
@@ -29,6 +30,9 @@ enum AimMode {
 @export var display_name: String = "箭塔"
 ## Optional production-HUD artwork. The card bar provides a stable fallback.
 @export var card_icon: Texture2D
+
+@export_group("Runtime Inspector")
+@export var inspection_display: InspectionDisplayConfigScript
 
 @export_group("Placement")
 @export var placement_surface: PlacementSurface = PlacementSurface.BUILDABLE_TILE

@@ -9,6 +9,7 @@
 ## 分类 / 做法
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
+- **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑右侧详情中的显示名称、功能说明、对象可见性和字段行；不参与建筑玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **激光塔**：不索敌，使用 `FIXED_FACING`，沿玩家手动设置的世界朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。

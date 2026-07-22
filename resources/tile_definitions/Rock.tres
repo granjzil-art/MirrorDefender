@@ -2,11 +2,18 @@
 
 [ext_resource type="Script" path="res://scripts/tile/TileDefinition.gd" id="1_definition"]
 [ext_resource type="Resource" path="res://resources/tile_effects/Rock.tres" id="2_effect"]
+[ext_resource type="Script" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+
+[sub_resource type="Resource" id="Inspection_rock"]
+script = ExtResource("3_inspection")
+display_name = "大石头障碍"
+function_description = "阻挡敌人前进；敌人优先尝试换路，无路可走时攻击石头。"
 
 [resource]
 script = ExtResource("1_definition")
 tile_id = &"rock"
 display_name = "大石头障碍"
+inspection_display = SubResource("Inspection_rock")
 surface_kind = 3
 allows_tile_building = false
 effect = ExtResource("2_effect")
