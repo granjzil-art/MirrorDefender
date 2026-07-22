@@ -85,17 +85,29 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
 			root.size = resolution
 			await process_frame
-			var card_frame := hud.get_node("BuildCardBar/Layout/Frame") as Control
+			var cards_row := hud.get_node("BuildCardBar/Layout/Cards") as Control
 			var slow_button := hud.get_node("TacticalSlowButton") as Control
 			# canvas_items keeps the authored 1600x900 logical viewport while the
 			# Window scales it to each physical 16:9 resolution.
 			var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)
 			_expect(
-				viewport_rect.encloses(card_frame.get_global_rect()),
+				hud.get_node_or_null("BuildCardBar/Layout/Frame") == null,
+				"card bar has no outer frame slot at %dx%d" % [resolution.x, resolution.y]
+			)
+			_expect(
+				cards_row.get_parent() == hud.get_node("BuildCardBar/Layout"),
+				"cards are direct layout children at %dx%d" % [resolution.x, resolution.y]
+			)
+			_expect(
+				cards_row.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+				"card row gaps do not intercept world input at %dx%d" % [resolution.x, resolution.y]
+			)
+			_expect(
+				viewport_rect.encloses(cards_row.get_global_rect()),
 				"card row stays inside the %dx%d viewport" % [resolution.x, resolution.y]
 			)
 			_expect(
-				not card_frame.get_global_rect().intersects(slow_button.get_global_rect()),
+				not cards_row.get_global_rect().intersects(slow_button.get_global_rect()),
 				"card row does not overlap the slow button at %dx%d" % [resolution.x, resolution.y]
 			)
 		root.size = original_window_size

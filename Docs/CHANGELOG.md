@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / UI · 移除卡槽外层框 — 2026-07-22
+**模块**：UI / Tests / Docs。
+
+- `BuildCardBar` 去除包裹整排卡片的 `PanelContainer`、背景和边框，仅保留复制镜卡、建筑卡与空卡自身的镜框。
+- 卡片行不再拦截卡片间空白区域；单张卡仍消费输入，并保持现有卡片数量、费用、置灰、选中与单次放置逻辑。
+- 更新三档分辨率布局回归，明确断言外层 `Frame` 不再存在。
+
 ## M6 / UI · 批次 1 正式卡槽、单次放置与战术慢放 — 2026-07-22
 **模块**：UI / Input / Camera / Building / Mirror / Resource / Level / Main / Tests / Docs。
 

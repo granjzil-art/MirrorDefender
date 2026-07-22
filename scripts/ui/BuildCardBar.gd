@@ -121,18 +121,12 @@ func _build_interface() -> void:
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(_status_label)
 
-	var frame := PanelContainer.new()
-	frame.name = "Frame"
-	frame.mouse_filter = Control.MOUSE_FILTER_STOP
-	frame.add_theme_stylebox_override("panel", _make_frame_style(Color(0.04, 0.07, 0.09, 0.90), frame_color, 2))
-	layout.add_child(frame)
-
 	_cards_row = HBoxContainer.new()
 	_cards_row.name = "Cards"
 	_cards_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_cards_row.add_theme_constant_override("separation", int(card_separation))
-	_cards_row.mouse_filter = Control.MOUSE_FILTER_STOP
-	frame.add_child(_cards_row)
+	_cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(_cards_row)
 	_rebuild_cards()
 
 
