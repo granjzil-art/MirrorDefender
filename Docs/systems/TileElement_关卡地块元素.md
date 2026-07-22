@@ -35,7 +35,8 @@
 | `TileDefinition` | `allows_edge_building` | 是否允许该格参与的共享边放置边建筑。 |
 | `TileDefinition` | `effect` | 敌人遍历效果策略，可替换为新 `TileEffect` 变种。 |
 | `TileDefinition` | `override_terrain_color` / `terrain_color` | 非 `ELEMENT` 表面可用的基底覆盖；元素表面始终忽略此覆盖并保留路径/高度基底。 |
-| `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式美术场景接口。 |
+| `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式世界美术场景接口。 |
+| `TileDefinition` | `ui_icon` | M6 地块详情可选图标；为空时由面板显示稳定文字灰盒。 |
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
 | `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
 | `SpikeTileEffect` | `damage_per_second` / `ignores_armor` | 每秒伤害与是否绕过 `EnemyUnit.armor`。 |

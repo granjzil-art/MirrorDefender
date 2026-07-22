@@ -15,12 +15,16 @@ enum Mode {
 signal mode_changed(mode: Mode)
 signal placement_resolved(success: bool, reason: String)
 signal status_changed(message: String)
+signal world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String)
 
 var _building_manager: BuildingManager
 var _mirror_manager: MirrorManager
 var _mode: Mode = Mode.SELECT
 var _selected_definition: BuildingDefinition
 var _last_failure_reason: String = ""
+var _has_world_selection: bool = false
+var _world_selection_cell: Vector3i = Vector3i.ZERO
+var _world_selection_edge_id: String = ""
 
 
 func configure(building_manager: BuildingManager, mirror_manager: MirrorManager) -> void:
@@ -48,6 +52,18 @@ func is_copy_mirror_mode() -> bool:
 
 func get_selected_definition() -> BuildingDefinition:
 	return _selected_definition
+
+
+func has_world_selection() -> bool:
+	return _has_world_selection
+
+
+func get_world_selection_cell() -> Vector3i:
+	return _world_selection_cell
+
+
+func get_world_selection_edge_id() -> String:
+	return _world_selection_edge_id
 
 
 func select_building_card(definition: BuildingDefinition) -> bool:
@@ -161,6 +177,8 @@ func _select_world(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
 		_clear_world_selection()
 		return
 	var edge_id := String(edge_pick.get("id", "")) if bool(edge_pick.get("hit", false)) else ""
+	var selected_cell: Vector3i = cell_pick.get("cell", Vector3i.ZERO)
+	_set_world_selection(true, selected_cell, edge_id)
 	var mirror := _mirror_manager.select_at_edge(edge_id)
 	if mirror != null:
 		_building_manager.select_building(null)
@@ -174,6 +192,18 @@ func _clear_world_selection() -> void:
 		_building_manager.select_building(null)
 	if _mirror_manager != null:
 		_mirror_manager.select_mirror(null)
+	_set_world_selection(false, Vector3i.ZERO, "")
+
+
+func _set_world_selection(has_cell: bool, cell: Vector3i, edge_id: String) -> void:
+	_has_world_selection = has_cell
+	_world_selection_cell = cell if has_cell else Vector3i.ZERO
+	_world_selection_edge_id = edge_id if has_cell else ""
+	world_selection_changed.emit(
+		_has_world_selection,
+		_world_selection_cell,
+		_world_selection_edge_id
+	)
 
 
 func _set_mode(value: Mode) -> void:

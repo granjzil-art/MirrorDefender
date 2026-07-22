@@ -31,6 +31,8 @@ enum VisualKind {
 @export var effect: TileEffect
 
 @export_group("Presentation")
+## Optional runtime-inspector artwork. TileInspectorPanel provides a fallback.
+@export var ui_icon: Texture2D
 @export var override_terrain_color: bool = false
 @export var terrain_color: Color = Color.WHITE
 @export_enum("无", "尖刺", "空洞", "岩石") var visual_kind: int = VisualKind.NONE

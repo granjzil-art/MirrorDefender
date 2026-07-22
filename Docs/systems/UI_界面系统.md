@@ -9,6 +9,8 @@
 - **单次放置**：`RuntimeInteractionController` 是正式交互事实源。每次选卡只允许一次世界点击；成功、资源不足、上限、非法地块、非法边或未命中都会取消卡片/预览/实体选择并回 `SELECT`，成功放置的实体不会保持自动选中。
 - **取消和输入消费**：左键执行肯定操作；右键在 GUI 分发前全局取消并回选择模式。正式卡片和按钮消费左键，点击 UI 不会穿透到世界。
 - **战术慢放**：选卡或选中实体建筑、实体边建筑、实体镜子时，`GameTimeController` 默认切到 0.1x。右下按钮可关闭自动慢放；优先级固定为 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x`。批次 1 已交付时间控制基础和慢放按钮，正式 2x/暂停菜单在批次 3 接入。
+- **M6 批次 2 地块详情（已实现）**：选择模式点击含实体块建筑、任一相邻边建筑/复制镜、同格虚像或关卡元素的格时，右侧展开镜面详情板；空格、取消、选卡或放置完成时收起。条目可滚动，显示类型、实体/虚像、图标灰盒、等级、耐久、朝向、根源格、产生镜子及元素运行时状态。
+- **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
 - **沿用原型布局**：
   - 顶部：资源栏
   - 底部：卡片式建造栏
@@ -44,6 +46,10 @@
 | BuildCardBar.`card_size` | `(96,126)` | 单张卡片的基准尺寸。 |
 | BuildCardBar.`card_separation` | 6 | 建筑卡之间的像素间距。 |
 | BuildCardBar.`mirror_slot_separation` | 14 | 独立镜子槽与建筑槽组之间的间距。 |
+| TileInspectorPanel.`feature_enabled` | true | 批次 2 右侧详情板总开关。 |
+| TileInspectorPanel.`preview_size` | 82 | 每条内容的图标/灰盒预览边长。 |
+| TileInspectorPanel.`entry_minimum_height` / `entry_separation` | 112 / 8 | 动态条目最小高度与间距；超出面板高度后滚动。 |
+| TileInspectorPanel.`fallback_icon` | null | 全局条目占位图；为空时用内容名称前两字灰盒。 |
 | GameTimeController.`tactical_slow_enabled` | true | 是否在选卡/选中实体时自动慢放。 |
 | GameTimeController.`tactical_slow_scale` | 0.1 | 战术慢放倍率。 |
 | GameTimeController.`fast_scale` | 2.0 | 批次 3 正式按钮使用的快速倍率。 |
@@ -54,17 +60,22 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/Main.gd` | `Node3D` | 更新拾取/建筑 HUD，装配 M4 运行时节点并注入调试、建造和波次面板。 |
+| `scripts/Main.gd` | `Node3D` | 更新世界拾取并装配运行时 Manager、正式 HUD、悬浮操作和调试兼容面板。 |
 | `scripts/ui/RuntimeInteractionController.gd` | `RuntimeInteractionController` / `Node` | 正式 SELECT/块放置/边放置/镜子放置状态机和单次尝试事务。 |
 | `scripts/ui/GameTimeController.gd` | `GameTimeController` / `Node` | 统一求解暂停、战术慢放、2x 与 1x 的时间优先级。 |
 | `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 独立镜子槽、可调建筑槽、卡片可用性、选中框、空镜面和状态反馈。 |
-| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；将卡片和慢放按钮连接到控制器。 |
-| `scenes/ui/RuntimeHud.tscn` | `Control` 场景 | 可复用正式 HUD 场景；批次 1 含底部卡槽和右下慢放按钮。 |
+| `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
+| `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
+| `scripts/ui/TileInspectorPanel.gd` | `TileInspectorPanel` / `Control` | 把检视模型渲染为右侧镜面滚动条目，不执行玩法修改。 |
+| `scenes/ui/TileInspectorPanel.tscn` | `Control` 场景 | 右侧中部响应式详情板场景和美术资源接口。 |
+| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、慢放、检视服务和详情板。 |
+| `scenes/ui/RuntimeHud.tscn` | `Control` 场景 | 可复用正式 HUD 场景；批次 1-2 含底部卡片、慢放按钮和右侧详情。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 箭塔/激光塔/屏障模式、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中复制镜，提供删除和生效侧翻面。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 显示据点/波次/敌人摘要，并请求 WaveManager 开始全局波次时间轴。 |
+| `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 48 项只读模型、动态刷新、选择语义、滚动和三档分辨率回归。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -88,6 +99,13 @@ Main cell/edge input -> RuntimeInteractionController.handle_primary
   -> success or failure -> clear preview/selection -> SELECT
 RuntimeInteractionController mode + BuildingManager/MirrorManager selection
   -> GameTimeController -> Engine.time_scale
+RuntimeInteractionController.world_selection_changed
+  -> RuntimeHud -> TileInspectionService selected cell
+  -> TileInspectionModelBuilder public Manager queries
+  -> `{has_content, cell, terrain_name, height_level, permissions, entries}`
+  -> TileInspectorPanel dynamic cards / collapsed empty state
+Tile/Building/Mirror/TileEffect signals + selected source live signals
+  -> TileInspectionService deferred coalesced refresh
 ResourceManager resource_changed / limits_changed -> BuildCardBar availability
 LevelResource.building_card_slot_count -> RuntimeHud -> BuildCardBar slot count
 
@@ -132,18 +150,26 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 | `RuntimeInteractionController.gd` | `select_copy_mirror_card() -> bool` | 清除实体选择并进入复制镜边放置状态。 |
 | `RuntimeInteractionController.gd` | `handle_primary(cell_pick, edge_pick) -> Dictionary` | 在选择模式选实体，或执行恰好一次放置并返回稳定结果。 |
 | `RuntimeInteractionController.gd` | `cancel_to_select(clear_world_selection=true) -> void` | 清卡、清预览、按需清实体并回选择模式。 |
+| `RuntimeInteractionController.gd` | `has_world_selection() -> bool` / `get_world_selection_cell() -> Vector3i` / `get_world_selection_edge_id() -> String` | 返回正式选择模式当前锁定格/边；变化通过 `world_selection_changed(has_cell, cell, edge_id)` 广播。 |
 | `GameTimeController.gd` | `configure(interaction, building_manager, mirror_manager) -> void` | 订阅交互与实体选择，建立战术上下文。 |
 | `GameTimeController.gd` | `set_tactical_slow_enabled(enabled) -> void` | 开关自动战术慢放并立即重算倍率。 |
 | `GameTimeController.gd` | `set_fast_enabled(enabled)` / `set_paused(paused)` | 保存快速/暂停请求并按固定优先级重算。 |
 | `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count) -> void` | 构造独立镜子卡、建筑卡和空镜面并订阅经济信号。 |
 | `RuntimeHud.gd` | `configure(...) -> void` | 组合卡槽、交互和时间控制器。 |
+| `RuntimeHud.gd` | `configure_inspection(grid_manager, tile_manager, building_manager, mirror_manager, tile_effect_system) -> void` | 注入批次 2 只读检视依赖并同步现有选择。 |
 | `RuntimeHud.gd` | `apply_level_configuration(level) -> void` | 切关时应用本关建筑槽数。 |
+| `TileInspectionService.gd` | `configure(grid_manager, tile_manager, building_manager, mirror_manager, tile_effect_system) -> void` | 订阅内容/耐久/方向/投影/装填变化，重复配置前安全断开旧信号。 |
+| `TileInspectionService.gd` | `set_selected_cell(has_cell: bool, cell: Vector3i, edge_id: String = "") -> void` | 接收正式选择事实源并触发合并刷新。 |
+| `TileInspectionService.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 返回 Builder 的只读快照；顶层键为 `has_content/cell/selected_edge_id/terrain_name/height_level/allows_tile_building/allows_edge_building/entries`。 |
+| `TileInspectionModelBuilder.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 聚合本格 occupant、全部相邻边实体、同格投影和元素运行时数据；条目键为 `kind/name/category/state/icon/accent/lines/has_source/source_cell/mirror_edge_id`。 |
+| `TileInspectorPanel.gd` | `display_model(model: Dictionary) -> void` | 非空时重建滚动条目并展开，空模型时收起。 |
+| `TileInspectorPanel.gd` | `clear_inspection() -> void` | 清除当前只读快照及动态条目。 |
 
 ## 已知限制 / 初版不做的部分
 - 不做敌方据点相关 UI（已改为我方据点血量 + 剩余敌人计数）。
 - 不做设置/存档/主菜单等元界面（Level 系统另述存档数据）。
 - 当前选关面板是可关闭的开发调试入口，不代表正式选关界面与关卡解锁流程。
 - M3 面板已默认隐藏；其调试能力会在 M6 批次 6 迁移到 F1 控制台后移除正常运行依赖。
-- M6 批次 1 只完成卡槽、单次放置和战术慢放基础；地块详情、经济滚动、全局信息、正式 2x/暂停、波次时间轴、机位和控制台按 `Docs/07_M6_操作与UI大版本_需求与开发计划.md` 后续批次实现。
+- M6 批次 1-2 已完成卡片、单次放置、战术慢放基础和地块详情；经济滚动、全局信息、正式 2x/暂停、波次时间轴、机位和控制台按 `Docs/07_M6_操作与UI大版本_需求与开发计划.md` 后续批次实现。
 - WaveStatusPanel 是 M4 灰盒入口；M7 再将其整合为顶部正式 HUD 的据点血量和本波进度。
 - 小地图仅静态缩略，不做迷雾/交互点选。

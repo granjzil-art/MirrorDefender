@@ -32,6 +32,7 @@
 | LevelResource | `height_color_low` / `height_color_middle` / `height_color_high` | 绿 / 黄 / 红 | 编辑器与运行时共用的下/中/上高度色标，保存到关卡 `.tres`。 |
 | LevelResource | `path_terrain_color` | `#FFB93B` | 所有路径经过格共用的地块基底色。 |
 | TileManager | `feature_enabled` | true | 地块模块总开关；关闭时不加载布局。 |
+| TileDefinition | `ui_icon` | null | M6 地块详情中的可替换图标，不影响世界表现与玩法。 |
 | TileRenderer | `feature_enabled` | true | 地块灰盒表现总开关。 |
 | TileRenderer | `blocked_color` | 灰 | 运行时不可建造路面的颜色，覆盖该格的高度色。 |
 | TileRenderer | `obstacle_color` | 灰 | 未清除可破坏障碍的岩石占位色；其它可建造地块顶面颜色由 LevelResource 高度色决定。 |

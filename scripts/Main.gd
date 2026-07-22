@@ -104,6 +104,7 @@ func _ready() -> void:
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
 	tile_manager.set_navigation_overlay_blocker_resolver(Callable(mirror_manager, "resolve_projected_navigation_blocker"))
 	runtime_interaction.configure(building_manager, mirror_manager)
+	runtime_interaction.world_selection_changed.connect(_on_world_selection_changed)
 	game_time_controller.configure(runtime_interaction, building_manager, mirror_manager)
 	runtime_hud.configure(
 		runtime_interaction,
@@ -132,6 +133,13 @@ func _ready() -> void:
 	tile_effect_system.set_effect_overlay_binding_resolver(Callable(mirror_manager, "get_projected_effect_bindings"))
 	tile_renderer.set_effect_visual_state_resolver(Callable(tile_effect_system, "get_void_fill_ratio"))
 	tile_effect_system.effect_visual_state_changed.connect(_on_effect_visual_state_changed)
+	runtime_hud.configure_inspection(
+		grid,
+		tile_manager,
+		building_manager,
+		mirror_manager,
+		tile_effect_system
+	)
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
 	path_route_planner.configure(grid, tile_manager)
@@ -376,8 +384,6 @@ func _handle_primary_action() -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
 	var edge_pick: Dictionary = grid.pick_edge(_camera, mouse_position)
-	if runtime_interaction.is_select_mode():
-		_lock_current_pick()
 	runtime_interaction.handle_primary(cell_pick, edge_pick)
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
@@ -406,18 +412,6 @@ func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> v
 		return
 	var cell: Vector3i = cell_pick.cell
 	building_manager.update_preview(cell, definition)
-
-func _lock_current_pick() -> void:
-	var mp := get_viewport().get_mouse_position()
-	var cell: Dictionary = grid.pick_cell(_camera, mp)
-	var edge: Dictionary = grid.pick_edge(_camera, mp)
-	_has_selected_cell = cell.hit
-	if _has_selected_cell:
-		_selected_cell = cell.cell
-	_has_selected_edge = edge.hit
-	if _has_selected_edge:
-		_selected_edge_index = edge.edge_index
-		_selected_edge_id = edge.id
 
 func _destroy_selected_obstacle() -> void:
 	if not _has_selected_cell:
@@ -449,3 +443,17 @@ func _on_building_selected_for_exclusivity(building: Building) -> void:
 func _on_mirror_selected_for_exclusivity(mirror: CopyMirror) -> void:
 	if mirror != null and building_manager.get_selected_building() != null:
 		building_manager.select_building(null)
+
+
+func _on_world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String) -> void:
+	_has_selected_cell = has_cell
+	_selected_cell = cell if has_cell else Vector3i.ZERO
+	_selected_edge_id = edge_id if has_cell else ""
+	_has_selected_edge = not _selected_edge_id.is_empty()
+	_selected_edge_index = -1
+	if not _has_selected_edge:
+		return
+	for edge_index in range(grid.edge_count()):
+		if grid.canonical_edge_id(_selected_cell, edge_index) == _selected_edge_id:
+			_selected_edge_index = edge_index
+			return

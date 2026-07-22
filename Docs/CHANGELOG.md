@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / UI · 批次 2 地块详情与实体操作整合 — 2026-07-22
+**模块**：UI / Input / Tile / Building / Mirror / Main / Tests / Docs。
+
+- 新增右侧镜面地块详情板：选择非空格时以滚动条目展示实体块/边建筑、复制镜、全部同格虚像和关卡元素；空格、取消、选卡及放置完成时收起，三档 16:9 分辨率不越界且不覆盖底部卡片。
+- 新增 `TileInspectionService` 与 `TileInspectionModelBuilder`，通过只读公共查询聚合等级、耐久、朝向、根源格、产生镜子、石头耐久和黑洞装填等状态；Manager/源对象信号驱动合并刷新，Panel 不持有玩法事务。
+- `RuntimeInteractionController` 新增正式世界选择广播；实体建筑/镜子继续触发现有战术慢放和悬浮删除/升级/旋转/翻面，虚像与关卡元素只读检视不触发慢放。
+- `TileDefinition.ui_icon`、面板全局占位图及各类颜色/尺寸均预留 Inspector 接口；新增 48 项批次 2 回归，完整入口扩展为 11 个测试套件。
+
 ## M6 / UI · 移除卡槽外层框 — 2026-07-22
 **模块**：UI / Tests / Docs。
 

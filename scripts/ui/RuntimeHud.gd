@@ -1,13 +1,17 @@
-## M6 production HUD composition root. Batch 1 owns cards and tactical slow.
+## M6 production HUD composition root. Batches 1-2 own cards, time, and inspection.
 class_name RuntimeHud
 extends Control
 
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
+const TileInspectionServiceScript := preload("res://scripts/ui/TileInspectionService.gd")
+const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var tactical_slow_button: Button = $TacticalSlowButton
+@onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
+@onready var tile_inspector_panel: TileInspectorPanelScript = $TileInspectorPanel
 
 var _interaction: RuntimeInteractionControllerScript
 var _time_controller: GameTimeControllerScript
@@ -17,6 +21,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tactical_slow_button.gui_input.connect(_on_button_gui_input)
 	tactical_slow_button.pressed.connect(_on_tactical_slow_pressed)
+	tile_inspection_service.inspection_changed.connect(tile_inspector_panel.display_model)
 
 
 func configure(
@@ -47,11 +52,30 @@ func configure(
 		_interaction.mode_changed.connect(_on_mode_changed)
 		_interaction.placement_resolved.connect(_on_placement_resolved)
 		_interaction.status_changed.connect(_on_status_changed)
+		_interaction.world_selection_changed.connect(_on_world_selection_changed)
 	if _time_controller != null:
 		_time_controller.tactical_slow_enabled_changed.connect(_on_slow_enabled_changed)
 		_time_controller.time_scale_changed.connect(_on_time_scale_changed)
 	_refresh_slow_button()
 	_on_mode_changed(_interaction.get_mode() if _interaction != null else RuntimeInteractionControllerScript.Mode.SELECT)
+	_sync_world_selection()
+
+
+func configure_inspection(
+	grid_manager: GridManager,
+	tile_manager: TileManager,
+	building_manager: BuildingManager,
+	mirror_manager: MirrorManager,
+	tile_effect_system: TileEffectSystem
+) -> void:
+	tile_inspection_service.configure(
+		grid_manager,
+		tile_manager,
+		building_manager,
+		mirror_manager,
+		tile_effect_system
+	)
+	_sync_world_selection()
 
 
 func apply_level_configuration(level: LevelResource) -> void:
@@ -91,6 +115,21 @@ func _on_placement_resolved(success: bool, reason: String) -> void:
 func _on_status_changed(message: String) -> void:
 	if not message.is_empty():
 		build_card_bar.show_status(message)
+
+
+func _on_world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String) -> void:
+	tile_inspection_service.set_selected_cell(has_cell, cell, edge_id)
+
+
+func _sync_world_selection() -> void:
+	if _interaction == null:
+		tile_inspection_service.clear_selection()
+		return
+	tile_inspection_service.set_selected_cell(
+		_interaction.has_world_selection(),
+		_interaction.get_world_selection_cell(),
+		_interaction.get_world_selection_edge_id()
+	)
 
 
 func _on_tactical_slow_pressed() -> void:
@@ -136,6 +175,8 @@ func _disconnect_sources() -> void:
 			_interaction.placement_resolved.disconnect(_on_placement_resolved)
 		if _interaction.status_changed.is_connected(_on_status_changed):
 			_interaction.status_changed.disconnect(_on_status_changed)
+		if _interaction.world_selection_changed.is_connected(_on_world_selection_changed):
+			_interaction.world_selection_changed.disconnect(_on_world_selection_changed)
 	if _time_controller != null:
 		if _time_controller.tactical_slow_enabled_changed.is_connected(_on_slow_enabled_changed):
 			_time_controller.tactical_slow_enabled_changed.disconnect(_on_slow_enabled_changed)
