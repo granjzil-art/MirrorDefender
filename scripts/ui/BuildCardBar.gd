@@ -330,4 +330,3 @@ func _disconnect_resource_manager() -> void:
 		_resource_manager.resource_changed.disconnect(_on_resource_changed)
 	if _resource_manager.limits_changed.is_connected(_on_limits_changed):
 		_resource_manager.limits_changed.disconnect(_on_limits_changed)
-
