@@ -3,9 +3,17 @@
 class_name PathDefinition
 extends Resource
 
+const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
+
 @export_group("Identity")
 @export var path_id: StringName = &"main"
 @export var display_name: String = "主路径"
+
+@export_group("Endpoints")
+## New levels assign independent endpoints here. LevelResource resolves legacy
+## group-owned spawn references and base_cell without mutating old resources.
+@export var spawn_point: SpawnPointDefinition
+@export var target_base: BasePointDefinitionScript
 
 @export_group("Route")
 @export var cells: Array[Vector3i] = []

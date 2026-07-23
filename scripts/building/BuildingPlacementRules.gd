@@ -26,7 +26,9 @@ func rebuild_level_cache(level_resource: LevelResource) -> void:
 	_protected_path_cells.clear()
 	if level_resource == null:
 		return
-	_protected_path_cells[level_resource.base_cell] = true
+	for base_point in level_resource.get_effective_base_points():
+		if base_point != null:
+			_protected_path_cells[base_point.cell] = true
 	for spawn_point in level_resource.spawn_points:
 		if spawn_point != null:
 			_protected_path_cells[spawn_point.cell] = true

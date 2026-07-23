@@ -21,7 +21,8 @@ const MirrorActionPanelScript := preload("res://scripts/ui/MirrorActionPanel.gd"
 const PathManagerScript := preload("res://scripts/path/PathManager.gd")
 const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
-const WaveStatusPanelScript := preload("res://scripts/ui/WaveStatusPanel.gd")
+const PathHoverPreviewScript := preload("res://scripts/path/PathHoverPreview.gd")
+const PathHoverPreviewScene := preload("res://scenes/path/PathHoverPreview.tscn")
 const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd")
 const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
 const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
@@ -63,7 +64,7 @@ var path_route_planner: PathRoutePlanner
 var edge_occupancy_registry: EdgeOccupancyRegistry
 var mirror_manager: MirrorManager
 var level_reflection_surface: LevelReflectionSurfaceScript
-var _wave_status_panel: WaveStatusPanel
+var path_hover_preview: PathHoverPreviewScript
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -116,6 +117,8 @@ func _ready() -> void:
 	runtime_hud.restart_level_requested.connect(_on_restart_level_requested)
 	runtime_hud.exit_game_requested.connect(_on_exit_game_requested)
 	runtime_hud.modal_state_changed.connect(_on_runtime_modal_state_changed)
+	runtime_hud.wave_paths_preview_requested.connect(_on_wave_paths_preview_requested)
+	runtime_hud.wave_paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
 	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
@@ -126,6 +129,9 @@ func _ready() -> void:
 	path_manager = PathManagerScript.new()
 	add_child(path_manager)
 	path_manager.configure(grid, tile_manager)
+	path_hover_preview = PathHoverPreviewScene.instantiate() as PathHoverPreviewScript
+	add_child(path_hover_preview)
+	path_hover_preview.configure(path_manager)
 	base_core = BaseCoreScript.new()
 	add_child(base_core)
 	base_core.configure(grid, tile_manager)
@@ -161,11 +167,7 @@ func _ready() -> void:
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
 	runtime_hud.configure_global_info(resource_manager, wave_manager, base_core)
-	_wave_status_panel = WaveStatusPanelScript.new()
-	$HUD.add_child(_wave_status_panel)
-	_wave_status_panel.position = Vector2(1240.0, 270.0)
-	_wave_status_panel.size = Vector2(344.0, 154.0)
-	_wave_status_panel.configure(wave_manager, base_core)
+	runtime_hud.configure_wave_timeline(wave_manager)
 	level_loader.configure(grid, tile_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
@@ -489,3 +491,13 @@ func _on_runtime_modal_state_changed(open: bool) -> void:
 	mirror_manager.clear_preview()
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
+
+
+func _on_wave_paths_preview_requested(paths: Array) -> void:
+	if path_hover_preview != null:
+		path_hover_preview.preview_paths(paths)
+
+
+func _on_wave_paths_preview_cleared() -> void:
+	if path_hover_preview != null:
+		path_hover_preview.clear_preview()

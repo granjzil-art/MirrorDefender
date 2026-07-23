@@ -33,6 +33,7 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_range(0.02, 2.0, 0.01, "or_greater") var projectile_width: float = 0.08
 
 @export_group("Presentation")
+@export var ui_icon: Texture2D
 @export var visual_scene: PackedScene
 @export var body_color: Color = Color(0.84, 0.20, 0.24, 1.0)
 @export_range(0.1, 3.0, 0.05, "or_greater") var body_height: float = 0.8

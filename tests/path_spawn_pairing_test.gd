@@ -111,36 +111,60 @@ func _test_editor_creation_and_wave_binding() -> void:
 	var tile_canvas: Control = panel.get("_canvas")
 	_expect(tile_canvas != null and tile_canvas.has_method("set_level"), "editor canvas exposes set_level after tool-script loading")
 	_expect(tile_canvas != null and tile_canvas.has_method("reset_view"), "editor canvas exposes reset_view after tool-script loading")
-	panel.call("_add_path")
-	panel.call("_on_path_canvas_clicked", Vector3i(0, 0, 0))
 	var level := panel.get("_level") as LevelResource
-	var first_path: PathDefinition = level.paths[0]
+	level.grid_shape = GridManager.Shape.SQUARE
+	level.grid_size = Vector2i(6, 3)
+	level.tiles.clear()
+	level.base_cell = Vector3i(5, 1, 0)
+	var path_canvas: Control = panel.get("_path_canvas")
+	path_canvas.set("has_selected_cell", true)
+	path_canvas.set("selected_cell", Vector3i(0, 1, 0))
+	panel.call("_add_spawn_point")
+	path_canvas.set("selected_cell", Vector3i(0, 2, 0))
+	panel.call("_add_spawn_point")
+	path_canvas.set("selected_cell", Vector3i(5, 1, 0))
+	panel.call("_set_selected_base_cell")
+	path_canvas.set("selected_cell", Vector3i(5, 2, 0))
+	panel.call("_add_base_point")
+	_expect(level.spawn_points.size() == 2, "editor authors spawn points independently from paths")
+	_expect(level.base_points.size() == 2, "editor authors multiple shared-health base locations")
+	var first_spawn: SpawnPointDefinition = level.spawn_points[0]
+	var second_spawn: SpawnPointDefinition = level.spawn_points[1]
+	var first_base: BasePointDefinition = level.base_points[0]
+	var second_base: BasePointDefinition = level.base_points[1]
+	_expect(first_spawn.display_number == 1 and second_spawn.display_number == 2, "spawn markers receive stable authored numbers")
+	_expect(first_base.display_number == 1 and second_base.display_number == 2, "base markers receive stable authored numbers")
+
 	panel.call("_add_path")
-	panel.call("_on_path_canvas_clicked", Vector3i(0, 1, -1))
+	var first_path: PathDefinition = level.paths[0]
+	first_path.cells = [
+		Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0),
+		Vector3i(3, 1, 0), Vector3i(4, 1, 0), Vector3i(5, 1, 0),
+	]
+	panel.call("_add_path")
 	var second_path: PathDefinition = level.paths[1]
+	var path_base_option := panel.get("_path_base_select") as OptionButton
+	path_base_option.select(2)
+	panel.call("_on_path_base_selected", 2)
+	second_path.cells = [
+		Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0),
+		Vector3i(3, 1, 0), Vector3i(4, 1, 0), Vector3i(4, 2, 0), Vector3i(5, 2, 0),
+	]
 	_expect(level.paths.size() == 2, "editor creates two paths")
-	_expect(level.spawn_points.size() == 2, "editor creates exactly one spawn per recorded path")
-	var first_spawn := level.get_spawn_point_for_path(first_path)
-	var second_spawn := level.get_spawn_point_for_path(second_path)
-	_expect(first_spawn != null and first_spawn.spawn_id == &"spawn_path_1", "first editor path owns spawn_path_1")
-	_expect(second_spawn != null and second_spawn.spawn_id == &"spawn_path_2", "second editor path owns spawn_path_2")
+	_expect(level.resolve_path_spawn_point(first_path) == first_spawn, "first path resolves its independently authored origin")
+	_expect(level.resolve_path_spawn_point(second_path) == first_spawn, "multiple paths may share one origin")
+	_expect(level.resolve_path_target_base(first_path) == first_base, "first path targets base 1")
+	_expect(level.resolve_path_target_base(second_path) == second_base, "second path targets base 2")
 	_expect(panel.call("_get_path_option_label", first_path) == "路径 1 [path_1]", "path labels share one display format")
-	_expect(panel.call("_get_spawn_option_label", first_spawn) == "路径 1 出生点 [spawn_path_1]", "spawn labels expose their path correspondence")
+	_expect(panel.call("_get_spawn_option_label", first_spawn) == "出生点 1 · 出生点1 [spawn_1]", "spawn labels expose their independent marker number")
 	first_path.take_over_path("res://resources/levels/FakeContainer.tres::Path_1")
 	_expect(not first_path.resource_path.is_empty(), "fixture reproduces a named subresource path")
 	_expect(panel.call("_get_resource_option_label", first_path) == "路径 1 [path_1]", "subresource labels do not fall back to the level filename")
 	first_path.take_over_path("")
-	var duplicate_spawn := SpawnPointDefinition.new()
-	duplicate_spawn.spawn_id = &"legacy_duplicate"
-	duplicate_spawn.cell = second_path.get_start_cell()
-	level.spawn_points.append(duplicate_spawn)
-	panel.call("_add_spawn_from_path")
-	_expect(level.spawn_points.size() == 3, "sync refuses to create another spawn when legacy candidates are ambiguous")
-	level.spawn_points.erase(duplicate_spawn)
 	panel.call("_on_path_id_changed", "")
 	panel.call("_on_path_id_changed", "custom_route")
-	_expect(level.spawn_points.size() == 2, "live path ID editing does not duplicate its spawn")
-	_expect(second_spawn.spawn_id == &"spawn_custom_route", "path ID edits rename the same paired spawn")
+	_expect(level.spawn_points.size() == 2, "live path ID editing does not create or remove independent spawn points")
+	_expect(first_spawn.spawn_id == &"spawn_1", "path ID edits never rename a shared origin")
 
 	panel.call("_add_wave")
 	panel.call("_add_spawn_group")
@@ -149,9 +173,11 @@ func _test_editor_creation_and_wave_binding() -> void:
 	var path_option := panel.get("_wave_path_select") as OptionButton
 	path_option.select(2)
 	panel.call("_on_wave_path_selected", 2)
-	_expect(group.path == second_path and group.spawn_point == second_spawn, "changing wave path also changes its spawn")
+	_expect(group.path == second_path and group.spawn_point == first_spawn, "changing wave path derives its shared independent origin")
 	var spawn_option := panel.get("_wave_spawn_select") as OptionButton
 	_expect(spawn_option.disabled, "wave spawn selection is read-only")
+	var validation_errors := level.validate_runtime()
+	_expect(validation_errors.is_empty(), "independent endpoints and two targeted paths pass runtime validation: %s" % "; ".join(validation_errors))
 	var undo_redo := panel.get("_undo_redo") as UndoRedo
 	panel.free()
 	undo_redo.free()

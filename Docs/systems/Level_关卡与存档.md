@@ -33,8 +33,9 @@
 | `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
 | `base_resource_per_second` | 0.5 | 本关基础每秒资源，与建筑产出独立。 |
 | `building_card_slot_count` | 6 | M6 正式 HUD 的建筑携带槽数量，范围 1～12；复制镜独立槽不计入。 |
-| `base_cell` / `base_max_hp` | `(0,0,0)` / 100 | M4 据点所在格和最大生命。 |
-| `paths` / `spawn_points` | `[]` | M4 持有的 PathDefinition / SpawnPointDefinition 数组。 |
+| `base_points` / `base_max_hp` | `[]` / 100 | 独立 BasePointDefinition 位置数组及全部位置共享的最大生命。 |
+| `base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 为空时只读解析为据点 1。 |
+| `paths` / `spawn_points` | `[]` | 路径数组与可被多路径共用的独立出生点数组。 |
 | `waves` | `[]` | M4 固定波次数组，每项持有多个 SpawnGroup。 |
 | SpawnGroup.`start_delay` | 0.0 | 相对首次点击“开始第一波”的全局延迟；后续波次无需再次点击。 |
 | LevelLoader.`feature_enabled` | true | 运行时关卡加载总开关。 |
@@ -142,8 +143,8 @@ Mirror Level Editor
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
 - `building_card_slot_count` 缺省为 6，旧关卡无需迁移；范围由 `validate_runtime()` 校验。复制镜固定槽不占此数量。
 - LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 EnemyDefinition，三者禁止混写。
-- `paths`、`spawn_points` 和 `waves` 均由同一个 LevelResource 持有；SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
-- 路径顺序恒为出生点到据点；`validate_m4()` 要求每条路径终点等于 `base_cell`，并要求出怪组的出生点等于引用路径的首格。
+- `paths`、`spawn_points`、`base_points` 和 `waves` 均由同一个 LevelResource 持有；Path/SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
+- 路径顺序恒为所选出生点到所选目标据点；`validate_m4()` 要求首尾格精确对应显式/兼容端点，不允许出生点与据点重格，也不允许路径在终点前经过其他据点。
 - 波次在资源中仍按数组组织，但运行时只手动开始第一波；全部 SpawnGroup 的 `start_delay` 都以这次点击为零点，允许不同波次重叠。
 
 ## 已知限制 / 初版不做的部分

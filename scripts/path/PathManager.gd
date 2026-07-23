@@ -71,6 +71,17 @@ func is_path_valid(path: PathDefinition) -> bool:
 			return false
 	return true
 
+
+func get_spawn_marker_labels() -> Array[String]:
+	var labels: Array[String] = []
+	if _marker_root == null:
+		return labels
+	for marker_root in _marker_root.get_children():
+		for child in marker_root.get_children():
+			if child is Label3D:
+				labels.append((child as Label3D).text)
+	return labels
+
 func _rebuild_visuals() -> void:
 	if _path_mesh == null or _marker_root == null:
 		return
@@ -107,13 +118,17 @@ func _rebuild_visuals() -> void:
 			_create_spawn_marker(spawn_point)
 
 func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
+	var marker_root := Node3D.new()
+	marker_root.name = "SpawnPoint_%s" % str(spawn_point.spawn_id)
+	marker_root.position = get_cell_world_position(spawn_point.cell)
+	_marker_root.add_child(marker_root)
 	var marker := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 0.18
 	mesh.bottom_radius = 0.25
 	mesh.height = 0.5
 	marker.mesh = mesh
-	marker.position = get_cell_world_position(spawn_point.cell) + Vector3(0.0, 0.25, 0.0)
+	marker.position = Vector3(0.0, 0.25, 0.0)
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = spawn_color
@@ -121,4 +136,11 @@ func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
 	material.emission = spawn_color
 	material.emission_energy_multiplier = 1.2
 	marker.material_override = material
-	_marker_root.add_child(marker)
+	marker_root.add_child(marker)
+	var label := Label3D.new()
+	label.position = Vector3(0.0, 0.72, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 26
+	label.text = _level.get_spawn_marker_label(spawn_point) if _level != null else spawn_point.display_name
+	marker_root.add_child(label)

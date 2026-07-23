@@ -8,7 +8,7 @@
 
 ## 分类 / 做法
 
-- **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击伤害、攻速、射程、投射物和灰盒颜色。
+- **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击伤害、攻速、射程、投射物、灰盒颜色与可选 UI 图标。
 - **飞行分类**：`is_airborne` 是敌人类别事实源；EnemyUnit 将它复制到 CombatTarget 的运行时 `airborne` 标签。飞行单位仍沿波次指定的手工路径移动，但路径点会增加 `flight_height` 形成可辨识的离地表现。
 - **效果适用性**：EnemyUnit 作为 `target` 传给地块导航、换路和建筑屏障解析器；地块效果与建筑当前等级可分别用 `affects_airborne` 决定是否作用于飞行敌人。
 - **固定路径移动**：EnemyUnit 同时接收 `PackedVector3Array` 世界点和 `Array[Vector3i]` 路径格；前者驱动移动，后者按顺序查询前方屏障。
@@ -18,7 +18,8 @@
 - **远程**：`projectile_speed > 0` 时生成 EnemyProjectile；投射物在命中仍存活屏障时结算伤害。弓箭手是测试资源。
 - **射程接近**：沿真实折线路径逐段求与攻击范围圆的首次交点，再按路径距离移动到交点；不会因弯道的直线距离与路径距离不一致而渐近停滞。统一容差用于进入攻击状态，投射物创建失败不会消耗冷却。
 - **受击**：先以 `max(0, incoming - armor)` 固定减伤，再交给 CombatTarget 扣血。屏障反伤也走该入口，因此可击杀敌人并正常掉落资源。
-- **据点到达**：无屏障阻挡并抵达末点后触发 `reached_base`；WaveManager 调 BaseCore 扣血，单位不产生死亡掉落。
+- **据点到达**：无屏障阻挡并抵达路径锁定的目标据点后触发 `reached_base`；WaveManager 向唯一 BaseCore 扣除共享生命，单位不产生死亡掉落。
+- **多据点共享生命**：BaseCore 在每个 BasePointDefinition 位置建立数字标记和占用，但全部位置共用同一 `current_hp/max_hp`。任一据点受伤会同步所有标记，生命归零只广播一个失败事件。
 
 ## 参数编辑入口
 
@@ -37,6 +38,7 @@
 | Attack | `attack_range` | 攻击射程，单位为格；生成时乘本关 `grid_cell_size`。 |
 | Attack | `projectile_speed` | 0 为即时近战；大于 0 时为敌方投射物速度（格/秒）。 |
 | Attack | `projectile_length` / `projectile_width` | 远程投射物短直线尺寸。 |
+| Presentation | `ui_icon` | 波次时间轴和敌人构成列表使用的可选图标；为空时 UI 使用灰盒。 |
 | Presentation | `visual_scene` / `body_color` / `body_height` | 美术替换接口与灰盒身体表现。 |
 | Presentation | `attack_color` | 敌方投射物颜色。 |
 
@@ -48,7 +50,7 @@
 |---|---|---|
 | `scripts/unit/EnemyDefinition.gd` | `EnemyDefinition` / `Resource` | 每种敌人的完整移动、攻击和表现参数。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 路径移动、阻挡查询、攻击状态、护甲和据点到达。 |
-| `scripts/unit/BaseCore.gd` | `BaseCore` / `Node3D` | 据点生命、地块占用、灰盒和失败信号。 |
+| `scripts/unit/BaseCore.gd` | `BaseCore` / `Node3D` | 多据点位置、共享生命、地块占用、数字标记和失败信号。 |
 | `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 敌人攻击冷却和近战/投射物触发。 |
 | `scripts/combat/EnemyProjectile.gd` | `EnemyProjectile` / `Node3D` | 追踪屏障、短直线表现和命中结算。 |
 | `resources/enemies/Grunt.tres` | `EnemyDefinition` | 近战步兵示例。 |
@@ -97,7 +99,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | `EnemyUnit._find_first_path_blocker` | `() -> Dictionary` | 逐有向路径段扫描，返回 `{node, segment_index, segment_ratio, position}`；无阻挡返回空字典。 |
 | `EnemyUnit._get_path_distance_until_attack_range` | `(blocker_info: Dictionary) -> float` | 沿折线路径计算首次进入攻击圆前可移动的真实路径距离。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |
-| `BaseCore.load_level` | `(level_resource: LevelResource) -> void` | 放置据点、占用据点格并重置生命。 |
+| `BaseCore.load_level` | `(level_resource: LevelResource) -> void` | 放置全部据点位置、占用对应格并重置共享生命。 |
 | `BaseCore.take_damage` | `(amount: float) -> float` | 扣据点生命，归零时广播 `defeated`。 |
 
 **信号**：EnemyUnit.`attack_started` / `attack_stopped` / `attack_performed` / `projectile_spawned` / `reached_base`；BaseCore.`health_changed` / `defeated`；继承 CombatTarget.`health_changed` / `died`。
@@ -109,7 +111,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 - 是否作用于飞行敌人由效果拥有者配置，不在 EnemyUnit 中硬编码免疫列表。
 - `base_damage` 只伤害据点；`attack_damage` 只用于攻击路径屏障，两者禁止混用。
 - `attack_range` 以格为单位，EnemyUnit 生成时固定换算为当前关卡世界距离。
-- PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障。永久地块障碍只允许切换到可连接且后缀无阻碍的其他手工路径，不执行自由格网寻路。边屏障默认双向生效，关闭双向参数后才按放置方向匹配。
+- PathDefinition 顺序决定“前方”；敌人依次检查当前物理边的边屏障和终点地块屏障。普通屏障直接攻击；大石头先尝试同目标据点的手工后缀，再在同目标手工路径格并集上做 A*，全部失败才攻击石头。敌人不会因换路转向另一据点。
 - PathManager 路径点、EnemyUnit 和动态建筑共用 Main 局部坐标空间。
 - `reward` 只在敌人被击杀时入账；抵达据点消失不掉资源。
 

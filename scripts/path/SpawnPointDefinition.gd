@@ -6,6 +6,8 @@ extends Resource
 @export_group("Identity")
 @export var spawn_id: StringName = &"north"
 @export var display_name: String = "北侧入口"
+## Zero means derive a stable display number from LevelResource serialization order.
+@export_range(0, 999, 1) var display_number: int = 0
 
 @export_group("Location")
 @export var cell: Vector3i = Vector3i.ZERO
@@ -29,3 +31,7 @@ func sync_with_path(path: PathDefinition) -> void:
 	if not path.cells.is_empty():
 		cell = path.get_start_cell()
 	emit_changed()
+
+
+func get_marker_label(resolved_number: int) -> String:
+	return "出生点 %d" % maxi(1, resolved_number)

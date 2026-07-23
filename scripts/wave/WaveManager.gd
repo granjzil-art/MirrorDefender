@@ -254,8 +254,10 @@ func _validate_spawn_timeline() -> String:
 		if wave == null:
 			return "关卡包含空波次"
 		for group in wave.spawn_groups:
-			if group == null or group.enemy == null or group.path == null or group.spawn_point == null:
+			if group == null or group.enemy == null or group.path == null:
 				return "波次 %s 包含未完整配置的出怪组" % wave.display_name
+			if _level.resolve_group_spawn_point(group) == null or _level.resolve_path_target_base(group.path) == null:
+				return "波次 %s 的路径端点配置无效" % wave.display_name
 			if not _path_manager.is_path_valid(group.path):
 				return "波次 %s 引用的路径 %s 无效" % [wave.display_name, group.path.display_name]
 	return ""

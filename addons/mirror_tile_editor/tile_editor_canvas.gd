@@ -62,9 +62,8 @@ var _has_last_recorded_path_cell: bool = false
 var _last_recorded_path_cell: Vector3i = Vector3i.ZERO
 var _overlay_paths: Array[PathDefinition] = []
 var _overlay_spawn_points: Array[SpawnPointDefinition] = []
+var _overlay_base_points: Array = []
 var _overlay_selected_path: PathDefinition
-var _overlay_base_cell: Vector3i = Vector3i.ZERO
-var _overlay_has_base: bool = false
 var _path_cells: Dictionary = {}
 
 func _ready() -> void:
@@ -148,13 +147,12 @@ func set_path_edit_enabled(value: bool) -> void:
 func set_m4_overlay(
 	paths: Array[PathDefinition],
 	spawn_points: Array[SpawnPointDefinition],
-	base_cell: Vector3i,
+	base_points: Array,
 	selected_path: PathDefinition
 ) -> void:
 	_overlay_paths = paths
 	_overlay_spawn_points = spawn_points
-	_overlay_base_cell = base_cell
-	_overlay_has_base = true
+	_overlay_base_points = base_points
 	_overlay_selected_path = selected_path
 	_rebuild_path_cells()
 	queue_redraw()
@@ -319,9 +317,23 @@ func _draw_m4_overlay() -> void:
 		if spawn_point != null:
 			var spawn_center := _cell_center_screen(spawn_point.cell)
 			draw_circle(spawn_center, clampf(_view_zoom * 0.13, 6.0, 14.0), SPAWN_COLOR)
-	if _overlay_has_base:
-		var base_center := _cell_center_screen(_overlay_base_cell)
+			_draw_marker_number(spawn_center, level.get_spawn_display_number(spawn_point), SPAWN_COLOR)
+	for base_point in _overlay_base_points:
+		if base_point == null:
+			continue
+		var base_center := _cell_center_screen(base_point.cell)
 		draw_circle(base_center, clampf(_view_zoom * 0.16, 8.0, 17.0), BASE_COLOR)
+		_draw_marker_number(base_center, level.get_base_display_number(base_point), BASE_COLOR)
+
+
+func _draw_marker_number(center: Vector2, number: int, color: Color) -> void:
+	var font := ThemeDB.fallback_font
+	var font_size := clampi(roundi(_view_zoom * 0.20), 12, 24)
+	var text := str(maxi(1, number))
+	var width := maxf(24.0, _view_zoom * 0.42)
+	var position := center + Vector2(-width * 0.5, -clampf(_view_zoom * 0.27, 14.0, 30.0))
+	draw_string_outline(font, position, text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, 4, Color(0.02, 0.04, 0.06, 0.96))
+	draw_string(font, position, text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, color.lightened(0.35))
 
 func _cell_center_screen(cell: Vector3i) -> Vector2:
 	if _shape == null:

@@ -50,6 +50,8 @@ func _test_tile_effect_filtering_and_navigation() -> void:
 	var detour := _make_path(&"detour", [Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0), Vector3i(3, 1, 0), Vector3i(3, 0, 0)])
 	level.paths = [original, detour]
 	level.base_cell = Vector3i(3, 0, 0)
+	_attach_path_spawn(level, original, 1)
+	_attach_path_spawn(level, detour, 2)
 
 	var host := Node3D.new()
 	root.add_child(host)
@@ -194,6 +196,16 @@ func _make_path(path_id: StringName, cells: Array[Vector3i]) -> PathDefinition:
 	path.display_name = str(path_id)
 	path.cells = cells
 	return path
+
+
+func _attach_path_spawn(level: LevelResource, path: PathDefinition, number: int) -> void:
+	var spawn := SpawnPointDefinition.new()
+	spawn.spawn_id = StringName("airborne_spawn_%d" % number)
+	spawn.display_name = "测试出生点 %d" % number
+	spawn.display_number = number
+	spawn.cell = path.get_start_cell()
+	level.spawn_points.append(spawn)
+	path.spawn_point = spawn
 
 func _make_building_stats(affects_flying: bool) -> BuildingLevelStats:
 	var stats := BuildingLevelStats.new()

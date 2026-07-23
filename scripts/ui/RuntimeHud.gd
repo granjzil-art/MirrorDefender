@@ -1,5 +1,5 @@
-## M6 production HUD composition root. Batches 1-3 own cards, inspection,
-## global/economy information, time controls, and the pause modal.
+## M6 production HUD composition root. Batches 1-4 own cards, inspection,
+## global/economy information, time controls, pause, and the wave timeline.
 class_name RuntimeHud
 extends Control
 
@@ -8,6 +8,7 @@ const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInt
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const TileInspectionServiceScript := preload("res://scripts/ui/TileInspectionService.gd")
 const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
+const WaveTimelinePanelScript := preload("res://scripts/ui/WaveTimelinePanel.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
@@ -16,10 +17,13 @@ const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.g
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
 @onready var pause_menu: PauseMenu = $PauseMenu
+@onready var wave_timeline_panel: WaveTimelinePanelScript = $WaveTimelinePanel
 
 signal restart_level_requested
 signal exit_game_requested
 signal modal_state_changed(open: bool)
+signal wave_paths_preview_requested(paths: Array)
+signal wave_paths_preview_cleared
 
 var _interaction: RuntimeInteractionControllerScript
 var _time_controller: GameTimeControllerScript
@@ -30,6 +34,8 @@ func _ready() -> void:
 	tile_inspection_service.inspection_changed.connect(tile_inspector_panel.display_model)
 	pause_menu.restart_requested.connect(_on_restart_requested)
 	pause_menu.exit_requested.connect(_on_exit_requested)
+	wave_timeline_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
+	wave_timeline_panel.paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
 
 
 func configure(
@@ -79,6 +85,10 @@ func configure_global_info(
 	global_info_panel.configure(resource_manager, wave_manager, base_core)
 
 
+func configure_wave_timeline(wave_manager: WaveManager) -> void:
+	wave_timeline_panel.configure(wave_manager)
+
+
 func configure_inspection(
 	grid_manager: GridManager,
 	tile_manager: TileManager,
@@ -100,6 +110,7 @@ func apply_level_configuration(level: LevelResource, source_path: String = "") -
 	if level != null:
 		build_card_bar.set_slot_count(level.building_card_slot_count)
 	global_info_panel.set_level_context(level, source_path)
+	wave_timeline_panel.set_level(level)
 
 
 func is_modal_open() -> bool:
@@ -166,6 +177,7 @@ func _sync_world_selection() -> void:
 func _on_paused_changed(paused: bool) -> void:
 	if pause_menu == null:
 		return
+	wave_timeline_panel.set_preview_suppressed(paused)
 	if paused:
 		pause_menu.open_menu()
 	else:
@@ -179,6 +191,14 @@ func _on_restart_requested() -> void:
 
 func _on_exit_requested() -> void:
 	exit_game_requested.emit()
+
+
+func _on_wave_paths_preview_requested(paths: Array) -> void:
+	wave_paths_preview_requested.emit(paths)
+
+
+func _on_wave_paths_preview_cleared() -> void:
+	wave_paths_preview_cleared.emit()
 
 
 func _disconnect_sources() -> void:

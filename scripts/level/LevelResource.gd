@@ -7,6 +7,7 @@ class_name LevelResource
 extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
@@ -42,8 +43,11 @@ const GEOMETRY_TAG_SQUARE: StringName = &"square"
 @export_range(1, 12, 1) var building_card_slot_count: int = 6
 
 @export_group("M4 Base")
+## Legacy single-base location. Kept as a read-only compatibility fallback when
+## base_points is empty; new levels author BasePointDefinition entries instead.
 @export var base_cell: Vector3i = Vector3i.ZERO
 @export_range(1.0, 1000000.0, 1.0, "or_greater") var base_max_hp: float = 100.0
+@export var base_points: Array[BasePointDefinitionScript] = []
 
 @export_group("M4 Paths")
 @export var paths: Array[PathDefinition] = []
@@ -51,6 +55,8 @@ const GEOMETRY_TAG_SQUARE: StringName = &"square"
 
 @export_group("M4 Waves")
 @export var waves: Array[WaveDefinition] = []
+
+var _legacy_base_point: BasePointDefinitionScript
 
 ## Stable gameplay tag derived from grid_shape. It is intentionally not stored
 ## separately, preventing the level tag and its actual geometry from diverging.
@@ -120,16 +126,98 @@ func get_spawn_point(spawn_id: StringName) -> SpawnPointDefinition:
 			return spawn_point
 	return null
 
+
+func get_base_point(base_id: StringName) -> BasePointDefinitionScript:
+	for base_point in base_points:
+		if base_point != null and base_point.base_id == base_id:
+			return base_point
+	return null
+
+
+## Returns authored bases, or one transient compatibility base backed by
+## base_cell. The fallback is cached per LevelResource and never serialized.
+func get_effective_base_points() -> Array[BasePointDefinitionScript]:
+	if not base_points.is_empty():
+		return base_points.duplicate()
+	if _legacy_base_point == null:
+		_legacy_base_point = BasePointDefinitionScript.new()
+		_legacy_base_point.base_id = &"base_1"
+		_legacy_base_point.display_name = "据点 1"
+		_legacy_base_point.display_number = 1
+	_legacy_base_point.cell = base_cell
+	return [_legacy_base_point]
+
+
+func resolve_path_spawn_point(path: PathDefinition) -> SpawnPointDefinition:
+	if path == null or not paths.has(path):
+		return null
+	if path.spawn_point != null and spawn_points.has(path.spawn_point):
+		return path.spawn_point
+	var candidates := get_spawn_point_candidates_for_path(path)
+	return candidates[0] if candidates.size() == 1 else null
+
+
+func resolve_path_target_base(path: PathDefinition) -> BasePointDefinitionScript:
+	if path == null or not paths.has(path):
+		return null
+	if path.target_base != null and base_points.has(path.target_base):
+		return path.target_base
+	var candidates: Array[BasePointDefinitionScript] = []
+	for base_point in get_effective_base_points():
+		if base_point != null and not path.cells.is_empty() and base_point.cell == path.get_end_cell():
+			candidates.append(base_point)
+	return candidates[0] if candidates.size() == 1 else null
+
+
+func resolve_group_spawn_point(group: SpawnGroupDefinition) -> SpawnPointDefinition:
+	if group == null or group.path == null:
+		return null
+	var path_spawn := resolve_path_spawn_point(group.path)
+	if path_spawn != null:
+		return path_spawn
+	if group.spawn_point != null and spawn_points.has(group.spawn_point):
+		return group.spawn_point
+	return null
+
+
+func get_spawn_display_number(spawn_point: SpawnPointDefinition) -> int:
+	if spawn_point == null:
+		return 0
+	if spawn_point.display_number > 0:
+		return spawn_point.display_number
+	var index := spawn_points.find(spawn_point)
+	return index + 1 if index >= 0 else 0
+
+
+func get_base_display_number(base_point: BasePointDefinitionScript) -> int:
+	if base_point == null:
+		return 0
+	if base_point.display_number > 0:
+		return base_point.display_number
+	var effective := get_effective_base_points()
+	var index := effective.find(base_point)
+	return index + 1 if index >= 0 else 0
+
+
+func get_spawn_marker_label(spawn_point: SpawnPointDefinition) -> String:
+	return spawn_point.get_marker_label(get_spawn_display_number(spawn_point)) if spawn_point != null else "未配置出生点"
+
+
+func get_base_marker_label(base_point: BasePointDefinitionScript) -> String:
+	return base_point.get_marker_label(get_base_display_number(base_point)) if base_point != null else "未配置据点"
+
 ## Collects every plausible pair without mutating legacy data. More than one
 ## result is intentionally treated as ambiguous by get_spawn_point_for_path().
 func get_spawn_point_candidates_for_path(path: PathDefinition) -> Array[SpawnPointDefinition]:
 	var result: Array[SpawnPointDefinition] = []
 	if path == null or not paths.has(path):
 		return result
+	if path.spawn_point != null and spawn_points.has(path.spawn_point):
+		result.append(path.spawn_point)
 	var expected_id := SpawnPointDefinition.make_id_for_path(path)
 	if not expected_id.is_empty():
 		var named_spawn := get_spawn_point(expected_id)
-		if named_spawn != null:
+		if named_spawn != null and not result.has(named_spawn):
 			result.append(named_spawn)
 	for wave in waves:
 		if wave == null:
@@ -149,15 +237,16 @@ func get_spawn_point_candidates_for_path(path: PathDefinition) -> Array[SpawnPoi
 	return result
 
 func get_spawn_point_for_path(path: PathDefinition) -> SpawnPointDefinition:
-	var candidates := get_spawn_point_candidates_for_path(path)
-	return candidates[0] if candidates.size() == 1 else null
+	return resolve_path_spawn_point(path)
 
 func get_path_for_spawn_point(spawn_point: SpawnPointDefinition) -> PathDefinition:
 	if spawn_point == null or not spawn_points.has(spawn_point):
 		return null
 	var candidates: Array[PathDefinition] = []
 	for path in paths:
-		if path != null and SpawnPointDefinition.make_id_for_path(path) == spawn_point.spawn_id:
+		if path != null and path.spawn_point == spawn_point:
+			candidates.append(path)
+		elif path != null and SpawnPointDefinition.make_id_for_path(path) == spawn_point.spawn_id:
 			candidates.append(path)
 	for wave in waves:
 		if wave == null:
@@ -245,8 +334,26 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		return
 	var shape: IGridShape = _make_validation_shape()
 	shape.setup(grid_cell_size)
-	if not _is_valid_cell_coordinate(base_cell) or not shape.is_in_bounds(base_cell, grid_size):
-		errors.append("据点格位于地图外")
+	var effective_bases := get_effective_base_points()
+	var base_ids: Dictionary = {}
+	var base_numbers: Dictionary = {}
+	var base_cells: Dictionary = {}
+	for base_point in effective_bases:
+		if base_point == null:
+			errors.append("存在空据点")
+			continue
+		if base_point.base_id.is_empty() or base_ids.has(base_point.base_id):
+			errors.append("据点 ID 为空或重复：%s" % base_point.display_name)
+		base_ids[base_point.base_id] = true
+		var base_number := get_base_display_number(base_point)
+		if base_number < 1 or base_numbers.has(base_number):
+			errors.append("据点编号无效或重复：%d" % base_number)
+		base_numbers[base_number] = true
+		if base_cells.has(base_point.cell):
+			errors.append("多个据点位于同一格：%s" % str(base_point.cell))
+		base_cells[base_point.cell] = true
+		if not _is_valid_cell_coordinate(base_point.cell) or not shape.is_in_bounds(base_point.cell, grid_size):
+			errors.append("据点 %s 位于地图外" % base_point.display_name)
 	var path_ids: Dictionary = {}
 	for path in paths:
 		if path == null:
@@ -255,10 +362,28 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		if path.path_id.is_empty() or path_ids.has(path.path_id):
 			errors.append("路径 ID 为空或重复：%s" % path.display_name)
 		path_ids[path.path_id] = true
+		if path.spawn_point != null and not spawn_points.has(path.spawn_point):
+			errors.append("路径 %s 引用了不属于本关的出生点" % path.display_name)
+		if path.target_base != null and not base_points.has(path.target_base):
+			errors.append("路径 %s 引用了不属于本关的据点" % path.display_name)
+		var path_spawn: SpawnPointDefinition = resolve_path_spawn_point(path)
+		var path_base: BasePointDefinitionScript = resolve_path_target_base(path)
+		if path_spawn == null:
+			errors.append("路径 %s 没有唯一的起始出生点" % path.display_name)
+		if path_base == null:
+			errors.append("路径 %s 没有唯一的目标据点" % path.display_name)
 		if path.cells.size() < 2:
 			errors.append("路径 %s 至少需要两个格" % path.display_name)
-		elif path.get_end_cell() != base_cell:
-			errors.append("路径 %s 的终点 %s 不是据点格 %s" % [path.display_name, str(path.get_end_cell()), str(base_cell)])
+		else:
+			if path_spawn != null and path.get_start_cell() != path_spawn.cell:
+				errors.append("路径 %s 的起点 %s 不是出生点 %s" % [path.display_name, str(path.get_start_cell()), str(path_spawn.cell)])
+			if path_base != null and path.get_end_cell() != path_base.cell:
+				errors.append("路径 %s 的终点 %s 不是目标据点 %s" % [path.display_name, str(path.get_end_cell()), str(path_base.cell)])
+			for index in range(path.cells.size() - 1):
+				var route_cell: Vector3i = path.cells[index]
+				if base_cells.has(route_cell) and (path_base == null or route_cell != path_base.cell):
+					errors.append("路径 %s 在终点前经过了其他据点 %s" % [path.display_name, str(route_cell)])
+					break
 		for index in range(path.cells.size()):
 			var cell := path.cells[index]
 			if not _is_valid_cell_coordinate(cell) or not shape.is_in_bounds(cell, grid_size):
@@ -274,6 +399,8 @@ func _validate_m4_content(errors: Array[String]) -> void:
 				])
 				break
 	var spawn_ids: Dictionary = {}
+	var spawn_numbers: Dictionary = {}
+	var spawn_cells: Dictionary = {}
 	for spawn_point in spawn_points:
 		if spawn_point == null:
 			errors.append("存在空出生点")
@@ -281,6 +408,15 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		if spawn_point.spawn_id.is_empty() or spawn_ids.has(spawn_point.spawn_id):
 			errors.append("出生点 ID 为空或重复：%s" % spawn_point.display_name)
 		spawn_ids[spawn_point.spawn_id] = true
+		var spawn_number := get_spawn_display_number(spawn_point)
+		if spawn_number < 1 or spawn_numbers.has(spawn_number):
+			errors.append("出生点编号无效或重复：%d" % spawn_number)
+		spawn_numbers[spawn_number] = true
+		if spawn_cells.has(spawn_point.cell):
+			errors.append("多个出生点位于同一格：%s" % str(spawn_point.cell))
+		spawn_cells[spawn_point.cell] = true
+		if base_cells.has(spawn_point.cell):
+			errors.append("出生点与据点不能位于同一格：%s" % str(spawn_point.cell))
 		if not _is_valid_cell_coordinate(spawn_point.cell) or not shape.is_in_bounds(spawn_point.cell, grid_size):
 			errors.append("出生点 %s 位于地图外" % spawn_point.display_name)
 	var validated_enemies: Dictionary = {}
@@ -291,8 +427,12 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		if wave.spawn_groups.is_empty():
 			errors.append("波次 %s 没有出怪组" % wave.display_name)
 		for group in wave.spawn_groups:
-			if group == null or group.enemy == null or group.spawn_point == null or group.path == null:
+			if group == null or group.enemy == null or group.path == null:
 				errors.append("波次 %s 存在未完整配置的出怪组" % wave.display_name)
+				continue
+			var resolved_spawn := resolve_group_spawn_point(group)
+			if resolved_spawn == null:
+				errors.append("波次 %s 的路径没有唯一出生点" % wave.display_name)
 				continue
 			var enemy_instance_id := group.enemy.get_instance_id()
 			if not validated_enemies.has(enemy_instance_id):
@@ -306,9 +446,11 @@ func _validate_m4_content(errors: Array[String]) -> void:
 				errors.append("波次 %s 的数量或间隔无效" % wave.display_name)
 			if not is_finite(group.start_delay) or group.start_delay < 0.0:
 				errors.append("波次 %s 的组开始延迟无效" % wave.display_name)
-			if not paths.has(group.path) or not spawn_points.has(group.spawn_point):
+			if not paths.has(group.path) or not spawn_points.has(resolved_spawn):
 				errors.append("波次 %s 引用了不属于本关的路径或出生点" % wave.display_name)
-			elif not group.path.cells.is_empty() and group.path.get_start_cell() != group.spawn_point.cell:
+			elif group.spawn_point != null and group.spawn_point != resolved_spawn:
+				errors.append("波次 %s 的旧出生点引用与路径起点不一致" % wave.display_name)
+			elif not group.path.cells.is_empty() and group.path.get_start_cell() != resolved_spawn.cell:
 				errors.append("波次 %s 的出生点与路径起点不一致" % wave.display_name)
 
 func _make_validation_shape() -> IGridShape:

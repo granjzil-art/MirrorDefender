@@ -13,6 +13,8 @@ func _run() -> void:
 	await _test_element_renderer_batches()
 	await _test_shortest_manual_detour(GridManager.Shape.SQUARE)
 	await _test_shortest_manual_detour(GridManager.Shape.HEX)
+	await _test_target_locked_automatic_routing(GridManager.Shape.SQUARE)
+	await _test_target_locked_automatic_routing(GridManager.Shape.HEX)
 	await _test_exact_intersection_and_no_route()
 	await _test_spike_and_void_effects()
 	await _test_void_capacity_timing_priority_and_visual()
@@ -111,9 +113,72 @@ func _test_shortest_manual_detour(shape: GridManager.Shape) -> void:
 	var result := planner.find_detour(original, current_cell, blocked_cell)
 	_expect(bool(result["triggered"]) and bool(result["found"]), "%s rock triggers a manual-path detour" % _shape_name(shape))
 	_expect(result["path"] == level.paths[2], "%s chooses the shorter blue path even when the longer purple path is serialized first" % _shape_name(shape))
+	_expect(result["route_source"] == &"manual", "%s eligible authored paths take priority over automatic routing" % _shape_name(shape))
 	var route: Array = result["cells"]
-	_expect(route.front() == current_cell and not route.has(blocked_cell), "%s detour starts at the preceding cell and avoids the rock" % _shape_name(shape))
+	_expect(not route.is_empty() and route.front() == current_cell and not route.has(blocked_cell), "%s detour starts at the preceding cell and avoids the rock" % _shape_name(shape))
 	host.queue_free()
+	await process_frame
+
+
+func _test_target_locked_automatic_routing(shape: GridManager.Shape) -> void:
+	var level := _make_level(shape)
+	var original: PathDefinition
+	var blocked_connector: PathDefinition
+	var escape_suffix: PathDefinition
+	var other_target: PathDefinition
+	var base_1_cell: Vector3i
+	var base_2_cell: Vector3i
+	var current_cell: Vector3i
+	var blocked_cell: Vector3i
+	var connector_block: Vector3i
+	if shape == GridManager.Shape.SQUARE:
+		level.grid_size = Vector2i(5, 5)
+		base_1_cell = Vector3i(4, 2, 0)
+		base_2_cell = Vector3i(4, 4, 0)
+		current_cell = Vector3i(1, 2, 0)
+		blocked_cell = Vector3i(2, 2, 0)
+		connector_block = Vector3i(3, 1, 0)
+		original = _make_path(&"target_1_original", [Vector3i(0, 2, 0), current_cell, blocked_cell, Vector3i(3, 2, 0), base_1_cell])
+		blocked_connector = _make_path(&"target_1_connector", [Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0), connector_block, Vector3i(4, 1, 0), base_1_cell])
+		escape_suffix = _make_path(&"target_1_escape", [Vector3i(2, 1, 0), Vector3i(2, 0, 0), Vector3i(3, 0, 0), Vector3i(4, 0, 0), Vector3i(4, 1, 0), base_1_cell])
+		other_target = _make_path(&"target_2_clear", [Vector3i(0, 3, 0), Vector3i(1, 3, 0), Vector3i(2, 3, 0), Vector3i(3, 3, 0), Vector3i(4, 3, 0), base_2_cell])
+	else:
+		level.grid_size = Vector2i(3, 3)
+		base_1_cell = Vector3i(2, -2, 0)
+		base_2_cell = Vector3i(0, -2, 2)
+		current_cell = Vector3i(-1, 0, 1)
+		blocked_cell = Vector3i.ZERO
+		connector_block = Vector3i(1, 0, -1)
+		original = _make_path(&"target_1_original", [Vector3i(-2, 0, 2), current_cell, blocked_cell, Vector3i(1, -1, 0), base_1_cell])
+		blocked_connector = _make_path(&"target_1_connector", [Vector3i(-2, 2, 0), Vector3i(-1, 1, 0), Vector3i(0, 1, -1), connector_block, Vector3i(2, -1, -1), base_1_cell])
+		escape_suffix = _make_path(&"target_1_escape", [Vector3i(0, 1, -1), Vector3i(1, 1, -2), Vector3i(2, 0, -2), Vector3i(2, -1, -1), base_1_cell])
+		other_target = _make_path(&"target_2_clear", [Vector3i(-2, 0, 2), Vector3i(-1, -1, 2), Vector3i(0, -1, 1), base_2_cell])
+	var base_1 := _make_base_point(&"base_1", 1, base_1_cell)
+	var base_2 := _make_base_point(&"base_2", 2, base_2_cell)
+	for path in [original, blocked_connector, escape_suffix]:
+		path.target_base = base_1
+	other_target.target_base = base_2
+	level.base_cell = base_1_cell
+	level.base_points.assign([base_1, base_2])
+	level.paths.assign([original, blocked_connector, escape_suffix, other_target])
+	level.store_tile(_rock_tile(blocked_cell))
+	level.store_tile(_rock_tile(connector_block))
+	var fixture := _make_fixture(level)
+	var planner: PathRoutePlanner = fixture["planner"]
+	var result := planner.find_detour(original, current_cell, blocked_cell)
+	_expect(bool(result["triggered"]) and bool(result["found"]), "%s combines same-target road segments when no complete manual suffix is usable" % _shape_name(shape))
+	_expect(result["route_source"] == &"automatic", "%s uses bounded A* only after manual same-target paths fail" % _shape_name(shape))
+	_expect(result["target_base_id"] == &"base_1", "%s reroute keeps the enemy's original target base locked" % _shape_name(shape))
+	var route: Array = result["cells"]
+	_expect(not route.is_empty() and route.back() == base_1_cell and not route.has(base_2_cell), "%s automatic route reaches only the locked target base" % _shape_name(shape))
+	_expect(not route.has(blocked_cell) and not route.has(connector_block), "%s automatic route avoids every blocking rock on the target road network" % _shape_name(shape))
+
+	level.paths.assign([original, other_target])
+	planner.load_level(level)
+	var unavailable := planner.find_detour(original, current_cell, blocked_cell)
+	_expect(bool(unavailable["triggered"]) and not bool(unavailable["found"]), "%s rejects a reachable path when it leads to a different base" % _shape_name(shape))
+	_expect(unavailable["blocker"] is TileObstacleRuntime, "%s no-route branch returns the rock for fallback attack" % _shape_name(shape))
+	(fixture["host"] as Node).queue_free()
 	await process_frame
 
 func _test_exact_intersection_and_no_route() -> void:
@@ -486,6 +551,7 @@ func _test_ranged_enemy_attacks_rock_after_failed_detour() -> void:
 	await process_frame
 
 func _make_fixture(level: LevelResource) -> Dictionary:
+	_complete_test_path_endpoints(level)
 	var host := Node3D.new()
 	root.add_child(host)
 	var grid := GridManager.new()
@@ -500,6 +566,28 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	planner.configure(grid, tile_manager)
 	planner.load_level(level)
 	return {"host": host, "grid": grid, "tile": tile_manager, "planner": planner}
+
+
+func _complete_test_path_endpoints(level: LevelResource) -> void:
+	## Production validation requires every authored path to start at an
+	## independent spawn. Older terrain-focused fixtures predate that contract.
+	for path in level.paths:
+		if path == null or path.cells.is_empty():
+			continue
+		var spawn: SpawnPointDefinition
+		for candidate in level.spawn_points:
+			if candidate != null and candidate.cell == path.get_start_cell():
+				spawn = candidate
+				break
+		if spawn == null:
+			spawn = SpawnPointDefinition.new()
+			var number := level.spawn_points.size() + 1
+			spawn.spawn_id = StringName("test_spawn_%d" % number)
+			spawn.display_name = "测试出生点 %d" % number
+			spawn.display_number = number
+			spawn.cell = path.get_start_cell()
+			level.spawn_points.append(spawn)
+		path.spawn_point = spawn
 
 func _make_level(shape: GridManager.Shape) -> LevelResource:
 	var level := LevelResource.new()
@@ -541,6 +629,15 @@ func _make_path(path_id: StringName, cells: Array[Vector3i]) -> PathDefinition:
 	path.display_name = str(path_id)
 	path.cells = cells
 	return path
+
+
+func _make_base_point(base_id: StringName, number: int, cell: Vector3i) -> BasePointDefinition:
+	var base_point := BasePointDefinition.new()
+	base_point.base_id = base_id
+	base_point.display_name = "据点 %d" % number
+	base_point.display_number = number
+	base_point.cell = cell
+	return base_point
 
 func _rock_tile(cell: Vector3i) -> TileCellData:
 	return (ResourceLoader.load("res://resources/tiles/RockTile.tres") as TilePreset).make_tile(cell, 3) as TileCellData

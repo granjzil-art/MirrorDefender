@@ -1,11 +1,15 @@
-## Selects deterministic detours from designer-authored paths when permanent
-## terrain blocks the next cell. It never performs free-grid pathfinding and
-## never mutates PathDefinition resources.
+## Selects deterministic detours when permanent terrain blocks the next cell.
+## Authored same-target paths have priority; the fallback A* is restricted to
+## the union of authored road cells leading to that same target base.
 class_name PathRoutePlanner
 extends Node3D
 
+const IAutoRouteStrategyScript := preload("res://scripts/path/IAutoRouteStrategy.gd")
+const PathNetworkAStarStrategyScript := preload("res://scripts/path/PathNetworkAStarStrategy.gd")
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
+@export var automatic_route_enabled: bool = true
 
 @export_group("Debug Visual")
 @export var show_selected_detour: bool = false
@@ -16,10 +20,13 @@ var _grid: GridManager
 var _tile_manager: TileManager
 var _level: LevelResource
 var _debug_mesh: MeshInstance3D
+var _auto_route_strategy: IAutoRouteStrategyScript
 
 func _ready() -> void:
 	_debug_mesh = MeshInstance3D.new()
 	add_child(_debug_mesh)
+	if _auto_route_strategy == null:
+		_auto_route_strategy = PathNetworkAStarStrategyScript.new()
 
 func configure(grid_manager: GridManager, tile_manager: TileManager) -> void:
 	_grid = grid_manager
@@ -29,10 +36,15 @@ func load_level(level_resource: LevelResource) -> void:
 	_level = level_resource
 	_clear_debug_visual()
 
+
+func set_auto_route_strategy(strategy: IAutoRouteStrategyScript) -> void:
+	_auto_route_strategy = strategy
+
 ## Returns {triggered, found, path, cells, cost, join_cell, blocker}. A reroute
 ## is only triggered for a navigation-blocking next tile and only searches
-## other manually-authored paths in their serialized order. When no detour is
-## found, blocker identifies the attackable obstruction at blocked_cell.
+## other manually-authored paths in their serialized order before the bounded
+## A* fallback. When none is found, blocker identifies the obstruction at the
+## blocked cell so the enemy can attack it.
 func find_detour(
 	current_path: PathDefinition,
 	current_cell: Vector3i,
@@ -47,6 +59,8 @@ func find_detour(
 		"cost": -1,
 		"join_cell": Vector3i.ZERO,
 		"blocker": null,
+		"route_source": &"",
+		"target_base_id": &"",
 	}
 	if not feature_enabled or _grid == null or _tile_manager == null or _level == null:
 		return result
@@ -54,9 +68,17 @@ func find_detour(
 		return result
 	result["triggered"] = true
 	result["blocker"] = _tile_manager.resolve_navigation_blocker(blocked_cell, target)
+	var target_base := _level.resolve_path_target_base(current_path)
+	if target_base == null:
+		_clear_debug_visual()
+		return result
+	result["target_base_id"] = target_base.base_id
 	var best_cost := 2147483647
 	for path in _level.paths:
 		if path == null or path == current_path or path.cells.size() < 2:
+			continue
+		var candidate_base := _level.resolve_path_target_base(path)
+		if candidate_base == null or candidate_base.base_id != target_base.base_id:
 			continue
 		for join_index in range(path.cells.size()):
 			var join_cell: Vector3i = path.cells[join_index]
@@ -79,11 +101,46 @@ func find_detour(
 			result["cells"] = route
 			result["cost"] = candidate_cost
 			result["join_cell"] = join_cell
+			result["route_source"] = &"manual"
 	if bool(result["found"]):
 		_rebuild_debug_visual(result["cells"])
-	else:
-		_clear_debug_visual()
+		return result
+	if automatic_route_enabled and _auto_route_strategy != null:
+		var allowed_cells := _build_target_path_network(target_base.base_id)
+		var automatic_cells := _auto_route_strategy.find_route(
+			_grid,
+			_tile_manager,
+			current_cell,
+			target_base.cell,
+			allowed_cells,
+			target
+		)
+		if automatic_cells.size() >= 2:
+			result["found"] = true
+			result["path"] = current_path
+			result["cells"] = automatic_cells
+			result["cost"] = automatic_cells.size() - 1
+			result["join_cell"] = automatic_cells[1]
+			result["route_source"] = &"automatic"
+			_rebuild_debug_visual(automatic_cells)
+			return result
+	_clear_debug_visual()
 	return result
+
+
+func _build_target_path_network(target_base_id: StringName) -> Dictionary:
+	var cells: Dictionary = {}
+	if _level == null:
+		return cells
+	for path in _level.paths:
+		if path == null:
+			continue
+		var path_base := _level.resolve_path_target_base(path)
+		if path_base == null or path_base.base_id != target_base_id:
+			continue
+		for cell in path.cells:
+			cells[cell] = true
+	return cells
 
 func _connector_cost(current_cell: Vector3i, join_cell: Vector3i) -> int:
 	if join_cell == current_cell:

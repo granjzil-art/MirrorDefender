@@ -16,6 +16,8 @@
 - **右上全局信息（批次 3 已实现）**：`GlobalInfoPanel` 展示关卡显示名、据点生命、场上敌人数、建筑数/上限与镜子数/上限。数据只读来自 `LevelResource`、`BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
 - **右下经济反馈（批次 3 已实现）**：`EconomyPanel` 保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
 - **暂停菜单（批次 3 已实现）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出。主音量、窗口/全屏、UI 缩放即时写入 `user://settings.cfg`；布局在设置折叠/展开时自适应高度。
+- **左侧波次时间轴（批次 4 已实现）**：120 像素窄条底线代表当前战斗时间；每波以最早 `SpawnGroup.start_delay` 决定纵向位置并随全局战斗时间向下移动，块底触线即为该波计划开始时间。底部“开始第一波”只在 READY 显示一次。
+- **波次悬停预览（批次 4 已实现）**：仅显示自定义大详情窗，波次块的原生 Tooltip 始终为空。详情聚合敌人总构成，每组只显示“敌人数量 | 出生点N → 据点N”；同时请求该波全部唯一手工路径的发光流向。离开、切关或暂停模态打开都会清除预览。
 - **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
 - **沿用原型布局**：
   - 顶部：资源栏
@@ -33,7 +35,7 @@
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
 - **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后删除/升级可用，旋转因边对齐锁定而置灰。
 - **复制镜反馈**：“复制镜”模式显示镜面生效侧、最近源格、对称目标格、整格内容名称与青蓝虚像；无源只警告仍可放置。`R` 翻面立即重算。选中后 `MirrorActionPanel` 悬浮提供删除/翻面，实体镜与建筑选择互斥。
-- **M4 波次 UI**：右上 `WaveStatusPanel` 显示据点生命、当前/总波数、存活敌人数与波次状态；仅在 READY 状态允许点击一次“开始第一波”，后续波次按全局组延迟自动开始。
+- **旧 M4 波次 UI**：`WaveStatusPanel` 保留兼容脚本，但主场景已由批次 4 `WaveTimelinePanel` 取代；据点/敌人数在右上全局信息展示，首波操作和波次进度统一位于左侧时间轴。
 
 ## 关键参数
 > 全部为 Godot `@export`，编辑器运行时可调。
@@ -47,7 +49,7 @@
 | LevelDebugPanel.`feature_enabled` | true | 运行时调试选关面板开关。 |
 | LevelDebugPanel.`initial_directory` | `res://resources/levels` | 关卡选择器起始目录。 |
 | M3DebugPanel.`feature_enabled` | 脚本 true / Main false | M3 灰盒建造/靶标面板开关；正式主场景已覆盖为隐藏。 |
-| WaveStatusPanel.`feature_enabled` | true | M4 波次状态与手动开波面板开关。 |
+| WaveStatusPanel.`feature_enabled` | true | 旧 M4 兼容面板开关；正式主场景不再实例化。 |
 | LevelResource.`building_card_slot_count` | 6 | 正式建筑携带槽数，范围 1～12；复制镜独立槽不计入。 |
 | BuildCardBar.`card_size` | `(96,126)` | 单张卡片的基准尺寸。 |
 | BuildCardBar.`card_separation` | 6 | 建筑卡之间的像素间距。 |
@@ -70,6 +72,10 @@
 | PauseMenu.`settings_path` | `user://settings.cfg` | 局外设置持久化路径。 |
 | PauseMenu.`collapsed_height` / `expanded_height` | 230 / 410 | 设置折叠与展开时的模态板高度。 |
 | PauseMenu.`settings_icon` / `restart_icon` / `exit_icon` | null | 三个模态操作按钮的可选图标接口。 |
+| WaveTimelinePanel.`feature_enabled` | true | 左侧波次时间轴总开关。 |
+| WaveTimelinePanel.`visible_future_seconds` / `wave_block_height` / `current_line_inset` | 18 / 72 / 8 | 时间轴可见未来秒数、波次块高度和当前时间线底部内缩。 |
+| WaveTimelinePanel.`pending_color` / `active_color` / `completed_color` / `current_line_color` | 冰蓝 / 金 / 绿 / 金 | 波次状态与当前时间线灰盒颜色。 |
+| WaveTimelinePanel.`wave_block_texture` / `current_line_texture` / `start_button_icon` / `fallback_enemy_icon` | null | 波次块、当前线、首波按钮和无敌人图标时的美术替换接口。 |
 
 ## 关键架构
 
@@ -85,22 +91,25 @@
 | `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的关卡/据点/敌人/容量摘要。 |
 | `scripts/ui/TimeControlPanel.gd` / `scenes/ui/TimeControlPanel.tscn` | `TimeControlPanel` / `Control` | 慢放、2x 和暂停的正式控件。 |
 | `scripts/ui/PauseMenu.gd` / `scenes/ui/PauseMenu.tscn` | `PauseMenu` / `Control` | 阻断世界输入的暂停模态层与局外设置入口。 |
+| `scripts/ui/WaveTimelineModel.gd` | `WaveTimelineModel` / `RefCounted` | 把关卡波次资源只读投影为稳定时间轴条目、敌人聚合和唯一路径列表。 |
+| `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 左侧纵向时间轴、首波按钮、状态颜色和悬停详情。 |
 | `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 独立镜子槽、可调建筑槽、卡片可用性、选中框、空镜面和状态反馈。 |
 | `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 跨建筑、镜子、地块共享的两级只读检视显示策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
 | `scripts/ui/TileInspectorPanel.gd` | `TileInspectorPanel` / `Control` | 把检视模型渲染为右侧镜面滚动条目，不执行玩法修改。 |
 | `scenes/ui/TileInspectorPanel.tscn` | `Control` 场景 | 右侧中部响应式详情板场景和美术资源接口。 |
-| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、检视、全局/经济信息、时间控制和暂停模态。 |
-| `scenes/ui/RuntimeHud.tscn` | `Control` 场景 | 可复用正式 HUD 场景；批次 1-3 完成底部卡片、右侧详情、全局/经济显示、正式时间按钮和暂停菜单。 |
+| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、检视、全局/经济信息、时间控制、暂停模态与波次预览信号。 |
+| `scenes/ui/RuntimeHud.tscn` | `Control` 场景 | 可复用正式 HUD 场景；批次 1-4 完成底部卡片、右侧详情、全局/经济显示、时间控制、暂停和左侧波次时间轴。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 运行时调试关卡状态与资源选择按钮。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 箭塔/激光塔/屏障模式、升级、预览状态、经济/上限/靶标摘要和错误反馈。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中复制镜，提供删除和生效侧翻面。 |
-| `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 显示据点/波次/敌人摘要，并请求 WaveManager 开始全局波次时间轴。 |
+| `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 58 项只读模型、自定义功能说明、实体/复制塔 Combat 一致性、激光最终 DPS、动态刷新、选择语义、滚动和三档分辨率回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 94 项默认兼容、正式资源/BuildingManager 箭塔深加载绑定、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
 | `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 69 项全局/经济信号、真实时间动画、时间优先级、设置持久化、深重载和三档分辨率回归。 |
+| `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 47 项只读波次模型、单悬停窗、窄时间轴、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | HUD 左侧拾取信息、底部提示、右上选关及 M3 灰盒面板。 |
 
 ### 调用关系
@@ -142,6 +151,13 @@ TimeControlPanel -> GameTimeController -> pause/slow/fast priority -> Engine.tim
 GameTimeController.paused_changed -> RuntimeHud -> PauseMenu + Main camera/world input lock
 PauseMenu settings -> RuntimeSettings -> user://settings.cfg + AudioServer/Window
 PauseMenu restart -> RuntimeHud -> Main -> LevelLoader.reload_current_level()
+LevelResource.waves -> WaveTimelineModel.build
+  -> `{wave_index, wave_number, display_name, scheduled_time, groups, enemy_totals, paths, primary_icon, summary}`
+  -> WaveTimelinePanel positions blocks against WaveManager.get_battle_elapsed
+WaveTimelinePanel start -> WaveManager.start_battle
+WaveTimelinePanel hover -> RuntimeHud signals -> Main -> PathHoverPreview
+WaveManager state/wave signals -> WaveTimelinePanel status and block colors
+Pause / level reload / hover exit -> clear_hover_preview -> PathHoverPreview.clear_preview
 
 Legacy M3DebugPanel（主场景默认隐藏）
   -> 仅保留开发期摘要与后续 F1 控制台迁移参考
@@ -152,9 +168,7 @@ M3DebugPanel upgrade button -> BuildingManager.upgrade_selected
 BuildingActionPanel buttons -> BuildingManager.remove_selected_building / upgrade_selected / rotate_selected
 M3DebugPanel copy-mirror mode -> MirrorManager.update_preview / place_copy_mirror
 MirrorActionPanel buttons -> MirrorManager.remove_selected_mirror / flip_selected
-WaveManager.state_changed / wave_started / wave_completed -> WaveStatusPanel refresh
-BaseCore.health_changed -> WaveStatusPanel refresh
-WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves auto-start by SpawnGroup.start_delay
+WaveStatusPanel 仅保留兼容，主场景不再实例化
 ```
 
 ## 函数索引
@@ -180,6 +194,12 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 | `MirrorActionPanel.gd` | `configure(mirror_manager: MirrorManager, camera: Camera3D) -> void` | 订阅镜子选择/删除/翻面并把按钮投影到镜面上方。 |
 | `WaveStatusPanel.gd` | `configure(wave_manager: WaveManager, base_core: BaseCore) -> void` | 订阅波次与据点状态并初始化显示。 |
 | `WaveStatusPanel.gd` | `_on_start_pressed() -> void` | 在 READY 时请求 WaveManager 启动唯一一次全局波次时间轴。 |
+| `WaveTimelineModel.gd` | `build(level: LevelResource) -> Array[Dictionary]` | 只读生成时间轴条目；每项键为 `wave_index/wave_number/display_name/scheduled_time/groups/enemy_totals/paths/primary_icon/summary`。 |
+| `WaveTimelinePanel.gd` | `configure(wave_manager: WaveManager) -> void` | 订阅状态、开始和完成信号，不取得玩法写权限。 |
+| `WaveTimelinePanel.gd` | `set_level(level: LevelResource) -> void` | 重建只读波次块并清除旧关悬停预览。 |
+| `WaveTimelinePanel.gd` | `set_preview_suppressed(suppressed: bool) -> void` / `clear_hover_preview() -> void` | 暂停等模态状态关闭详情并广播清理世界流线。 |
+| `WaveTimelinePanel.gd` | `_update_timeline_layout() -> void` | 以最早组延迟、全局已过时间和可见未来窗口计算各块位置。 |
+| `RuntimeHud.gd` | `configure_wave_timeline(wave_manager: WaveManager) -> void` | 注入波次只读事实源并将路径预览请求转发给 Main。 |
 | `RuntimeInteractionController.gd` | `select_building_card(definition) -> bool` | 清除实体选择并进入块/边建筑放置状态。 |
 | `RuntimeInteractionController.gd` | `select_copy_mirror_card() -> bool` | 清除实体选择并进入复制镜边放置状态。 |
 | `RuntimeInteractionController.gd` | `handle_primary(cell_pick, edge_pick) -> Dictionary` | 在选择模式选实体，或执行恰好一次放置并返回稳定结果。 |
@@ -217,6 +237,6 @@ WaveStatusPanel "开始第一波" -> WaveManager.start_battle -> later waves aut
 - 已提供局内暂停设置；不做进度存档、主菜单和正式选关等局外流程。
 - 当前选关面板是可关闭的开发调试入口，不代表正式选关界面与关卡解锁流程。
 - M3 面板已默认隐藏；其调试能力会在 M6 批次 6 迁移到 F1 控制台后移除正常运行依赖。
-- M6 批次 1-3 已完成卡片、单次放置、地块详情、全局/经济信息、正式时间控制和暂停设置；波次时间轴、机位和控制台按 `Docs/07_M6_操作与UI大版本_需求与开发计划.md` 后续批次实现。
-- WaveStatusPanel 是 M4 灰盒入口；M7 再将其整合为顶部正式 HUD 的据点血量和本波进度。
+- M6 批次 1-4 已完成卡片、单次放置、地块详情、全局/经济信息、正式时间控制、暂停设置和波次时间轴；机位和控制台按 `Docs/07_M6_操作与UI大版本_需求与开发计划.md` 后续批次实现。
+- 同一波多个出怪组聚合为一个波次块；组级延迟/间隔保留在策划配置中，正式悬停详情不再显示。
 - 小地图仅静态缩略，不做迷雾/交互点选。
