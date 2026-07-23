@@ -31,10 +31,16 @@ const LevelReflectionSurfaceScript := preload("res://scripts/fx/LevelReflectionS
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
+const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
+
+@export_group("M6 Camera Presets")
+@export var camera_presets_enabled: bool = true
+@export_range(0.0, 5.0, 0.01, "or_greater") var camera_preset_transition_duration: float = 0.35
+@export var camera_preset_transition_curve: Curve
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -65,6 +71,7 @@ var edge_occupancy_registry: EdgeOccupancyRegistry
 var mirror_manager: MirrorManager
 var level_reflection_surface: LevelReflectionSurfaceScript
 var path_hover_preview: PathHoverPreviewScript
+var camera_preset_controller: CameraPresetControllerScript
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -73,6 +80,12 @@ var _selected_edge_id: String = ""
 
 func _ready() -> void:
 	_camera = cam_rig.get_camera()
+	camera_preset_controller = CameraPresetControllerScript.new()
+	add_child(camera_preset_controller)
+	camera_preset_controller.feature_enabled = camera_presets_enabled
+	camera_preset_controller.transition_duration = camera_preset_transition_duration
+	camera_preset_controller.transition_curve = camera_preset_transition_curve
+	camera_preset_controller.configure(cam_rig)
 	renderer.set_grid(grid)
 	tile_manager.set_grid(grid)
 	grid.set_cell_height_resolver(Callable(tile_manager, "get_world_height"))
@@ -440,6 +453,7 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	path_route_planner.load_level(level_resource)
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
+	camera_preset_controller.load_level(level_resource)
 	runtime_hud.apply_level_configuration(level_resource, source_path)
 	_has_selected_cell = false
 	_has_selected_edge = false

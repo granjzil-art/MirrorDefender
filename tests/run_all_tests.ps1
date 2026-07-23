@@ -30,6 +30,7 @@ $Tests = @(
 	"runtime_ui_batch2_test.gd",
 	"runtime_ui_batch3_test.gd",
 	"runtime_ui_batch4_test.gd",
+	"runtime_ui_batch5_test.gd",
 	"tile_elements_and_rerouting_test.gd"
 )
 

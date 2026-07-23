@@ -36,6 +36,7 @@ extends Node3D
 @export var pitch_speed: float = 55.0
 
 @onready var _camera: Camera3D = $Camera3D
+var _preset_transition_active: bool = false
 
 func _ready() -> void:
 	zoom_distance = clampf(zoom_distance, zoom_min, zoom_max)
@@ -43,7 +44,7 @@ func _ready() -> void:
 	_apply_camera_transform()
 
 func _process(delta: float) -> void:
-	if not input_enabled:
+	if not input_enabled or _preset_transition_active:
 		return
 	# Engine.time_scale slows gameplay simulation. Camera navigation remains
 	# responsive during tactical slow by using the reconstructed real delta.
@@ -94,7 +95,7 @@ func _handle_pitch(delta: float) -> void:
 		_set_pitch(pitch_angle + pitch_speed * delta * value)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not input_enabled:
+	if not input_enabled or _preset_transition_active:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -132,3 +133,37 @@ func get_pitch_angle() -> float:
 
 func set_input_enabled(enabled: bool) -> void:
 	input_enabled = enabled
+
+
+func is_input_enabled() -> bool:
+	return input_enabled
+
+
+func set_preset_transition_active(active: bool) -> void:
+	_preset_transition_active = active
+
+
+func is_preset_transition_active() -> bool:
+	return _preset_transition_active
+
+
+func get_view_state() -> Dictionary:
+	return {
+		"focus_position": global_position,
+		"yaw_degrees": rad_to_deg(rotation.y),
+		"pitch_degrees": pitch_angle,
+		"zoom_distance": zoom_distance,
+	}
+
+
+func apply_view_state(
+	focus_position: Vector3,
+	yaw_degrees: float,
+	pitch_degrees: float,
+	distance: float
+) -> void:
+	global_position = focus_position
+	rotation.y = deg_to_rad(yaw_degrees)
+	pitch_angle = clampf(pitch_degrees, pitch_min, pitch_max)
+	zoom_distance = clampf(distance, zoom_min, zoom_max)
+	_apply_camera_transform()

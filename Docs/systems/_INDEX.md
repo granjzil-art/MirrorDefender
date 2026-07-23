@@ -16,10 +16,10 @@
 | 波次 | [Wave_波次系统.md](Wave_波次系统.md) | 经典波次 + 详细出怪参数 |
 | 索敌战斗 | [Combat_索敌与战斗.md](Combat_索敌与战斗.md) | 固定伤害×因子 |
 | 路径 | [Path_路径系统.md](Path_路径系统.md) | 手动指定路径 |
-| 相机输入 | [CameraInput_相机与输入.md](CameraInput_相机与输入.md) | WASD/QE/XC/R |
+| 相机输入 | [CameraInput_相机与输入.md](CameraInput_相机与输入.md) | WASD/QE/XC/滚轮 + 每关 1～6 镜头预设 |
 | UI/HUD | [UI_界面系统.md](UI_界面系统.md) | 原型布局 + 血条改造 |
 | AI | [AI_敌方AI系统.md](AI_敌方AI系统.md) | 手工路径移动 + 受阻时在手工路径间换路 |
-| 关卡存档 | [Level_关卡与存档.md](Level_关卡与存档.md) | 数据资源驱动 |
+| 关卡存档 | [Level_关卡与存档.md](Level_关卡与存档.md) | 数据资源驱动 + 六个可选镜头槽 |
 | 表现音效 | [FX_表现与音效.md](FX_表现与音效.md) | 反射/倒影/命中 |
 
 跨系统配置校验由 `scripts/shared/ConfigurationValidator.gd` 提供无副作用的文本、数值范围、颜色和嵌套错误工具；各资源仍在所属系统文档登记自身 `validate_configuration()` 契约。

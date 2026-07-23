@@ -7,6 +7,8 @@ var _panel: Control
 
 func _enter_tree() -> void:
 	_panel = TileEditorPanel.new()
+	_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	EditorInterface.get_editor_main_screen().add_child(_panel)
 	_make_visible(false)
 

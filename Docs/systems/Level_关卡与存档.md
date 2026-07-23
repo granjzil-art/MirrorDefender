@@ -1,12 +1,13 @@
 # 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关、M3 经济配置，以及 M4 据点、手动路径、出生点和波次配置；局内存档与正式选关仍待后续模块扩充。
+> 实现状态：已实现 LevelResource、编辑器/运行时加载、调试选关、M3 经济配置、M4 据点/路径/波次，以及 M6 六个可选镜头预设；局内存档与正式选关仍待后续模块扩充。
 
 ## 职责
 用一个数据资源描述关卡的网格、地块布局、经济、据点、路径和波次，使新增关卡无需改运行时代码；为后续镜子和通关存档保留唯一扩展载体。
 
 ## 分类 / 做法
-- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济，以及 M4 据点、路径、出生点和波次。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
+- **LevelResource**：自定义 `Resource`，保存网格、地块、高度色、M3 经济、M4 据点/路径/出生点/波次，以及 M6 六个可选镜头预设。建筑产出属于建筑逐级参数；敌人掉落属于 M4 敌人定义。
+- **镜头槽位兼容**：`camera_presets` 最多持有 6 个 `CameraPresetDefinition`，数组位置对应数字键 1～6，元素可空。旧关卡缺少字段时保持空数组；加载和编辑器打开都不补齐、不回写。
 - **运行时完整校验**：`validate_runtime()` 是只读预检，统一验证网格、地块类型/坐标/高度、经济与据点数值、路径、出生点、波次引用及波次使用的 EnemyDefinition。`validate_m4()` 是同一检查的兼容入口；两者都不保存、不加载、不修复关卡。
 - **编辑器加载**：LevelResource 与其引用的 TileCellData 使用 `@tool`，使地块编辑器读取 `.tres` 时能调用 `get_tile()` 和地块状态方法，而非得到不可执行的 placeholder 资源。
 - **布局按 cell 去重**：`tiles` 是为 Godot 序列化保留的 `Array`，但 `store_tile()` 将同 cell 的旧对象替换为新对象。运行期 TileManager 再建立 `Dictionary[Vector3i, TileCellData]` 索引。
@@ -33,6 +34,10 @@
 | `building_cap` / `mirror_cap` | 20 / 6 | 原件建筑与镜子上限。 |
 | `base_resource_per_second` | 0.5 | 本关基础每秒资源，与建筑产出独立。 |
 | `building_card_slot_count` | 6 | M6 正式 HUD 的建筑携带槽数量，范围 1～12；复制镜独立槽不计入。 |
+| `camera_presets` | `[]` | M6 最多 6 个可空 CameraPresetDefinition；索引 0～5 对应数字键 1～6。 |
+| CameraPreset.`focus_position` | `(0,0,0)` | CameraController pivot 的世界坐标。 |
+| CameraPreset.`yaw_degrees` / `pitch_degrees` | `0 / 50` | 水平旋转与俯仰角，均以度序列化。 |
+| CameraPreset.`zoom_distance` | `16` | 相机到焦点的世界距离；运行时再按 CameraController 范围收紧。 |
 | `base_points` / `base_max_hp` | `[]` / 100 | 独立 BasePointDefinition 位置数组及全部位置共享的最大生命。 |
 | `base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 为空时只读解析为据点 1。 |
 | `paths` / `spawn_points` | `[]` | 路径数组与可被多路径共用的独立出生点数组。 |
@@ -49,13 +54,17 @@
 
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
-| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济、M4 据点/路径/波次和 M6 HUD 关卡名/槽数的统一关卡定义。 |
+| `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | M2 地块、M3 经济、M4 据点/路径/波次及 M6 HUD/镜头槽位的统一关卡定义。 |
+| `scripts/camera/CameraPresetDefinition.gd` | `CameraPresetDefinition` / `Resource` | 一个可选镜头槽位的世界焦点、yaw、pitch 与缩放距离。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **运行时唯一关卡装配入口**；验证资源、重配 Grid、加载 Tile 并广播结果。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 可关闭的运行时调试选关入口，只依赖 LevelLoader 公共 API/信号。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | 跨资源共享、无副作用的有限数/范围/颜色/嵌套错误校验。 |
 | `resources/levels/M2DemoLevel.tres` | `LevelResource` | M2 地块编辑示例。 |
 | `resources/levels/M4DemoLevel.tres` | `LevelResource` | 两波 M4 可运行示例，含路径、出生点、据点和敌人配置。 |
-| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 三页关卡资源编辑、读取和保存入口。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 地块、路径、波次和镜头四页关卡资源编辑、读取和保存入口。 |
+| `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin` | 将面板挂到 Godot 主编辑区，并以 `EXPAND_FILL` 消费 MainScreen VBox 可用空间。 |
+| `addons/mirror_tile_editor/camera_preset_editor.gd` | `CameraPresetEditor` / `VBoxContainer` | 独立镜头页的六槽写入、预览、清空组件。 |
+| `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 地块/路径/镜头预览画布；公开运行时视角状态转换入口。 |
 | `scripts/Main.gd` | `Node3D` 场景脚本 | 注入 Loader、路径、据点和波次依赖；切关时重置 M3/M4 运行时状态。 |
 | `scenes/Main.tscn` | `Node3D` 场景 | 由 LevelLoader 的 `initial_level` 装配 M4DemoLevel，并挂载调试、建造和波次面板。 |
 
@@ -81,10 +90,12 @@ Debug picker / future production level selection
 	   ├─ PathManager.load_level(level) -> BaseCore.load_level(level)
 	   ├─ WaveManager.load_level(level)
 	   ├─ RuntimeHud.apply_level_configuration(level, source_path) -> 建筑卡槽数量 + 关卡显示名
+	   ├─ CameraPresetController.load_level(level) -> 六个可选运行时机位
 	   └─ debug status / Main clears stale selection
 
 Mirror Level Editor
-  -> creates / edits LevelResource (tiles + height colors + M4 paths/waves)
+  -> creates / edits LevelResource (tiles + height colors + M4 paths/waves + M6 camera presets)
+  -> “镜头”页从独立 TileEditorCanvas 写入/预览/清空 1～6 号槽
   -> ResourceSaver.save(.../*.tres)
   -> LevelLoader.load_level(resource) can install that resource at runtime
 ```
@@ -100,6 +111,10 @@ Mirror Level Editor
 | `clear_tiles` | `() -> void` | 清空布局，供编辑器按新网格参数重建默认格。 |
 | `clamp_tile_heights` | `() -> void` | 将所有序列化地块的高度收紧到当前 `height_levels`。 |
 | `get_height_color` | `(height_level: int) -> Color` | 低→中→高两段插值得到关卡统一的高度色。 |
+| `get_camera_preset` | `(slot_index: int) -> CameraPresetDefinition` | 读取零基 0～5 槽；越界、数组未增长或元素为空均返回 null。 |
+| `set_camera_preset` | `(slot_index: int, preset: CameraPresetDefinition) -> bool` | 只增长到目标槽并保存子资源；不物化后续空槽。 |
+| `clear_camera_preset` | `(slot_index: int) -> bool` | 将已配置槽设为空并发出资源 changed；无配置返回 false。 |
+| `get_configured_camera_preset_count` | `() -> int` | 统计前六槽非空预设数。 |
 | `get_path_by_id` | `(path_id: StringName) -> PathDefinition` | 从本关路径数组按稳定 ID 返回定义或 null。 |
 | `get_spawn_point` | `(spawn_id: StringName) -> SpawnPointDefinition` | 从本关出生点数组按稳定 ID 返回定义或 null。 |
 | `validate_runtime` | `() -> Array[String]` | 只读返回完整运行时配置错误；覆盖 Grid、Tile、经济、据点、路径、出生点和波次，空数组表示可安装。 |
@@ -142,10 +157,12 @@ Mirror Level Editor
 - 调试加载只接受 `res://` 下的 `.tres`；外部文件系统关卡包不属于当前接口范围。
 - M3 经济字段缺省时使用 LevelResource 脚本默认值，旧关卡无需迁移即可运行；加载成功后 ResourceManager 是局内余额事实源。
 - `building_card_slot_count` 缺省为 6，旧关卡无需迁移；范围由 `validate_runtime()` 校验。复制镜固定槽不占此数量。
+- `camera_presets` 的数组索引是镜头槽位事实源，最大 6；空数组和空元素都表示未配置。`validate_runtime()` 只读校验数量、有限坐标、角度与正距离，不填默认机位。
 - LevelResource 只保存关卡基础产出；建筑每秒产出在各塔 `levels[n].resource_per_second`，敌人掉落在 EnemyDefinition，三者禁止混写。
 - `paths`、`spawn_points`、`base_points` 和 `waves` 均由同一个 LevelResource 持有；Path/SpawnGroup 的资源引用必须属于该关卡，不能跨关卡复用对象。
 - 路径顺序恒为所选出生点到所选目标据点；`validate_m4()` 要求首尾格精确对应显式/兼容端点，不允许出生点与据点重格，也不允许路径在终点前经过其他据点。
 - 波次在资源中仍按数组组织，但运行时只手动开始第一波；全部 SpawnGroup 的 `start_delay` 都以这次点击为零点，允许不同波次重叠。
+- 镜头预设保存运行时世界语义，不保存编辑器像素缩放。关卡编辑器只在用户点击“写入当前视角”或“清空”时改变数组，预览不修改资源。
 
 ## 已知限制 / 初版不做的部分
 

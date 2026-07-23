@@ -8,9 +8,11 @@ extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
+const CameraPresetDefinitionScript := preload("res://scripts/camera/CameraPresetDefinition.gd")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
+const CAMERA_PRESET_SLOT_COUNT: int = 6
 
 @export_group("Identity")
 ## Optional player-facing level name. Runtime HUD falls back to the resource filename.
@@ -42,6 +44,10 @@ const GEOMETRY_TAG_SQUARE: StringName = &"square"
 @export_group("M6 Runtime HUD")
 @export_range(1, 12, 1) var building_card_slot_count: int = 6
 
+@export_group("M6 Camera Presets")
+## Optional slots 1-6. An empty array is the compatibility form for old levels.
+@export var camera_presets: Array[CameraPresetDefinitionScript] = []
+
 @export_group("M4 Base")
 ## Legacy single-base location. Kept as a read-only compatibility fallback when
 ## base_points is empty; new levels author BasePointDefinition entries instead.
@@ -68,6 +74,40 @@ func get_tile_building_facing_count() -> int:
 
 func get_edge_building_facing_count() -> int:
 	return 6 if grid_shape == 0 else 4
+
+
+func get_camera_preset(slot_index: int) -> CameraPresetDefinitionScript:
+	if slot_index < 0 or slot_index >= CAMERA_PRESET_SLOT_COUNT or slot_index >= camera_presets.size():
+		return null
+	return camera_presets[slot_index]
+
+
+func set_camera_preset(slot_index: int, preset: CameraPresetDefinitionScript) -> bool:
+	if slot_index < 0 or slot_index >= CAMERA_PRESET_SLOT_COUNT:
+		return false
+	while camera_presets.size() <= slot_index:
+		camera_presets.append(null)
+	camera_presets[slot_index] = preset
+	emit_changed()
+	return true
+
+
+func clear_camera_preset(slot_index: int) -> bool:
+	if slot_index < 0 or slot_index >= CAMERA_PRESET_SLOT_COUNT or slot_index >= camera_presets.size():
+		return false
+	if camera_presets[slot_index] == null:
+		return false
+	camera_presets[slot_index] = null
+	emit_changed()
+	return true
+
+
+func get_configured_camera_preset_count() -> int:
+	var count := 0
+	for slot_index in range(mini(camera_presets.size(), CAMERA_PRESET_SLOT_COUNT)):
+		if camera_presets[slot_index] != null:
+			count += 1
+	return count
 
 func get_tile(cell: Vector3i) -> Variant:
 	for raw_tile in tiles:
@@ -324,6 +364,14 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		errors.append("建筑或镜面上限不能为负数")
 	if building_card_slot_count < 1 or building_card_slot_count > 12:
 		errors.append("建筑卡槽数量必须位于 1 到 12 之间")
+	if camera_presets.size() > CAMERA_PRESET_SLOT_COUNT:
+		errors.append("镜头预设不能超过 %d 个槽位" % CAMERA_PRESET_SLOT_COUNT)
+	for slot_index in range(mini(camera_presets.size(), CAMERA_PRESET_SLOT_COUNT)):
+		var preset: CameraPresetDefinitionScript = camera_presets[slot_index]
+		if preset == null:
+			continue
+		for preset_error in preset.validate_configuration():
+			errors.append("镜头预设 %d：%s" % [slot_index + 1, preset_error])
 	if not is_finite(base_resource_per_second) or base_resource_per_second < 0.0:
 		errors.append("关卡基础资源产出必须为有限非负数")
 	if not is_finite(base_max_hp) or base_max_hp <= 0.0:

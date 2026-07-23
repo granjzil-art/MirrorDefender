@@ -12,8 +12,10 @@ const SpawnPointDefinitionScript := preload("res://scripts/path/SpawnPointDefini
 const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
 const WaveDefinitionScript := preload("res://scripts/wave/WaveDefinition.gd")
 const SpawnGroupDefinitionScript := preload("res://scripts/wave/SpawnGroupDefinition.gd")
+const CameraPresetEditorScript := preload("res://addons/mirror_tile_editor/camera_preset_editor.gd")
 
 var _level: LevelResource
+var _tabs: TabContainer
 var _canvas: Control
 var _save_path: LineEdit
 var _status: Label
@@ -36,6 +38,8 @@ var _tile_height: SpinBox
 var _destroy_button: Button
 var _palette_button_group := ButtonGroup.new()
 var _path_canvas: Variant
+var _camera_canvas: Control
+var _camera_preset_editor: CameraPresetEditorScript
 var _path_select: OptionButton
 var _path_id: LineEdit
 var _path_name: LineEdit
@@ -76,6 +80,11 @@ var _pending_confirmation: Callable = Callable()
 var _is_dirty: bool = false
 
 func _ready() -> void:
+	# EditorInterface.get_editor_main_screen() currently parents main-screen
+	# plugins under a VBoxContainer. Anchors are ignored by Containers, so the
+	# panel must explicitly consume the remaining editor height.
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_interface()
 	_create_new_level()
@@ -135,7 +144,9 @@ func _build_interface() -> void:
 	root.add_child(_m4_status)
 
 	var tabs := TabContainer.new()
+	_tabs = tabs
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.tab_changed.connect(_on_editor_tab_changed)
 	root.add_child(tabs)
 	var splitter := HSplitContainer.new()
 	splitter.name = "地块"
@@ -173,6 +184,7 @@ func _build_interface() -> void:
 	_add_inspector_controls()
 	_add_path_tab(tabs)
 	_add_wave_tab(tabs)
+	_add_camera_tab(tabs)
 	_confirmation_dialog = ConfirmationDialog.new()
 	_confirmation_dialog.title = "确认操作"
 	_confirmation_dialog.confirmed.connect(_on_confirmation_confirmed)
@@ -180,6 +192,7 @@ func _build_interface() -> void:
 	add_child(_confirmation_dialog)
 	_update_history_buttons()
 	_set_dirty(false)
+	call_deferred("_refresh_active_editor_tab")
 
 func _add_level_controls(sidebar: VBoxContainer) -> void:
 	var title := Label.new()
@@ -427,6 +440,57 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	_path_canvas.call("set_path_edit_enabled", true)
 	page.add_child(_path_canvas)
 
+
+func _add_camera_tab(tabs: TabContainer) -> void:
+	var page := HSplitContainer.new()
+	page.name = "镜头"
+	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_child(page)
+	var sidebar_scroll := ScrollContainer.new()
+	sidebar_scroll.custom_minimum_size = Vector2(370.0, 0.0)
+	sidebar_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page.add_child(sidebar_scroll)
+	_camera_preset_editor = CameraPresetEditorScript.new()
+	_camera_preset_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_camera_preset_editor.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_camera_preset_editor.level_changed.connect(_mark_level_changed)
+	_camera_preset_editor.status_changed.connect(_on_camera_preset_status_changed)
+	sidebar_scroll.add_child(_camera_preset_editor)
+	_camera_canvas = TileEditorCanvas.new()
+	_camera_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_camera_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(_camera_canvas)
+
+
+func _on_editor_tab_changed(_tab_index: int) -> void:
+	call_deferred("_refresh_active_editor_tab")
+
+
+func _refresh_active_editor_tab() -> void:
+	if _tabs == null or _tabs.current_tab < 0:
+		return
+	var page := _tabs.get_tab_control(_tabs.current_tab)
+	if page is Container:
+		(page as Container).queue_sort()
+	match page.name:
+		&"地块":
+			if _canvas != null:
+				_canvas.call("ensure_view_initialized")
+		&"路径":
+			if _path_canvas != null:
+				_path_canvas.call("ensure_view_initialized")
+		&"镜头":
+			if _camera_canvas != null:
+				_camera_canvas.call("ensure_view_initialized")
+			if _camera_preset_editor != null:
+				_camera_preset_editor.refresh()
+
+
+func _on_camera_preset_status_changed(message: String) -> void:
+	if _status != null:
+		_status.text = message
+
+
 func _add_wave_tab(tabs: TabContainer) -> void:
 	var page := VBoxContainer.new()
 	page.name = "波次"
@@ -568,6 +632,11 @@ func _set_level(value: LevelResource) -> void:
 	_canvas.call("set_level", _level)
 	if _path_canvas != null:
 		_path_canvas.call("set_level", _level)
+	if _camera_canvas != null:
+		_camera_canvas.call("set_level", _level)
+	if _camera_preset_editor != null:
+		_camera_preset_editor.configure(_level, _camera_canvas)
+	call_deferred("_refresh_active_editor_tab")
 	_set_inspector_enabled(false)
 	_refresh_path_controls()
 	_refresh_wave_controls()

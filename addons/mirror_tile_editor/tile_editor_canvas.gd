@@ -23,6 +23,9 @@ const CAMERA_MOVE_SPEED := 7.0
 const CAMERA_ROTATE_SPEED := deg_to_rad(72.0)
 const CAMERA_PITCH_SPEED := deg_to_rad(55.0)
 const WHEEL_ZOOM_STEP := 10.0
+const RUNTIME_PRESET_VERTICAL_FOV := 75.0
+const RUNTIME_PRESET_ZOOM_MIN := 2.0
+const RUNTIME_PRESET_ZOOM_MAX := 30.0
 const BRUSH_SAMPLE_SPACING := 4.0
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 const VISUAL_SPIKES: StringName = &"spikes"
@@ -49,6 +52,8 @@ var _camera_target := Vector3.ZERO
 var _camera_yaw: float = DEFAULT_YAW
 var _camera_pitch: float = DEFAULT_PITCH
 var _view_zoom: float = 48.0
+var _reset_view_pending: bool = false
+var _has_valid_view_initialization: bool = false
 var _brush_mode: int = BrushMode.NONE
 var _brush_preset_path := ""
 var _height_brush_level: int = -1
@@ -111,6 +116,8 @@ func _process(delta: float) -> void:
 
 func set_level(value: LevelResource) -> void:
 	level = value
+	_reset_view_pending = true
+	_has_valid_view_initialization = false
 	_rebuild_path_cells()
 	has_selected_cell = false
 	_brush_mode = BrushMode.NONE
@@ -120,7 +127,7 @@ func set_level(value: LevelResource) -> void:
 	_is_recording_path = false
 	_has_last_recorded_path_cell = false
 	_refresh_layout()
-	call_deferred("reset_view")
+	call_deferred("_try_reset_view")
 
 func set_brush_preset(value: String) -> void:
 	_brush_preset_path = value
@@ -161,6 +168,26 @@ func refresh() -> void:
 	_refresh_layout()
 
 func reset_view() -> void:
+	_reset_view_pending = true
+	_try_reset_view()
+
+
+func ensure_view_initialized() -> void:
+	if _has_valid_view_initialization:
+		return
+	_reset_view_pending = true
+	_try_reset_view()
+
+
+func _try_reset_view() -> void:
+	if not _reset_view_pending:
+		return
+	# Hidden TabContainer pages have a zero viewport until first shown. Keep the
+	# reset pending instead of committing the minimum zoom from that invalid size.
+	if size.x <= 1.0 or size.y <= 1.0:
+		return
+	_reset_view_pending = false
+	_has_valid_view_initialization = true
 	_camera_yaw = DEFAULT_YAW
 	_camera_pitch = DEFAULT_PITCH
 	if _ordered_cells.is_empty():
@@ -185,16 +212,61 @@ func reset_view() -> void:
 	_refresh_draw_order()
 	queue_redraw()
 
+
+## Returns runtime CameraController semantics, not the editor's pixel scale.
+func get_camera_view_state() -> Dictionary:
+	return {
+		"focus_position": _camera_target,
+		"yaw_degrees": rad_to_deg(_camera_yaw),
+		"pitch_degrees": rad_to_deg(_camera_pitch),
+		"zoom_distance": _view_zoom_to_runtime_distance(_view_zoom),
+	}
+
+
+func apply_camera_view_state(
+	focus_position: Vector3,
+	yaw_degrees: float,
+	pitch_degrees: float,
+	zoom_distance: float
+) -> void:
+	_camera_target = focus_position
+	_camera_yaw = deg_to_rad(yaw_degrees)
+	_camera_pitch = clampf(deg_to_rad(pitch_degrees), MIN_PITCH, MAX_PITCH)
+	_view_zoom = _runtime_distance_to_view_zoom(zoom_distance)
+	_reset_view_pending = false
+	_has_valid_view_initialization = true
+	_refresh_draw_order()
+	queue_redraw()
+
+
+func _view_zoom_to_runtime_distance(pixel_scale: float) -> float:
+	var half_fov := deg_to_rad(RUNTIME_PRESET_VERTICAL_FOV * 0.5)
+	var viewport_height := maxf(1.0, size.y)
+	var distance := viewport_height / (2.0 * maxf(pixel_scale, 0.001) * tan(half_fov))
+	return clampf(distance, RUNTIME_PRESET_ZOOM_MIN, RUNTIME_PRESET_ZOOM_MAX)
+
+
+func _runtime_distance_to_view_zoom(distance: float) -> float:
+	var half_fov := deg_to_rad(RUNTIME_PRESET_VERTICAL_FOV * 0.5)
+	var viewport_height := maxf(1.0, size.y)
+	var clamped_distance := clampf(distance, RUNTIME_PRESET_ZOOM_MIN, RUNTIME_PRESET_ZOOM_MAX)
+	var pixel_scale := viewport_height / (2.0 * clamped_distance * tan(half_fov))
+	return clampf(pixel_scale, MIN_ZOOM, MAX_ZOOM)
+
 func _refresh_layout() -> void:
 	if level == null:
 		_ordered_cells.clear()
 		queue_redraw()
+		if _reset_view_pending:
+			call_deferred("_try_reset_view")
 		return
 	_shape = HexGridShape.new() if level.grid_shape == HEX_SHAPE else SquareGridShape.new()
 	_shape.setup(level.grid_cell_size)
 	_ordered_cells = _shape.enumerate_cells(level.grid_size)
 	_refresh_draw_order()
 	queue_redraw()
+	if _reset_view_pending:
+		call_deferred("_try_reset_view")
 
 func _refresh_draw_order() -> void:
 	if _shape == null:
