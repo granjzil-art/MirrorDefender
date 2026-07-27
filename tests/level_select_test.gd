@@ -81,10 +81,15 @@ func _test_view_slots_paging_and_signal() -> void:
 	view.configure(catalog)
 	await process_frame
 	var background := view.get_node("Background") as ColorRect
-	var grid := view.get_node("GridMargin/LevelGrid") as GridContainer
+	var page_viewport := view.get_node("PageViewport") as Control
+	var grid := view.get_node("PageViewport/CurrentPage/LevelGrid") as GridContainer
+	var standby_grid := view.get_node("PageViewport/StandbyPage/StandbyLevelGrid") as GridContainer
 	var previous_button := view.get_node("PreviousButton") as Button
 	var next_button := view.get_node("NextButton") as Button
 	_expect(background.color == Color.BLACK, "level select uses a full-screen pure-black background")
+	_expect(page_viewport.clip_contents, "page viewport clips both sliding pages")
+	_expect(is_equal_approx(view.page_slide_duration, 0.25), "page slide defaults to 0.25 seconds")
+	_expect(grid.get_child_count() == 6 and standby_grid.get_child_count() == 6, "current and standby pages each own six slots")
 	_expect(view.find_child("Panel", true, false) == null, "level select has no outer panel")
 	_expect(view.find_child("Title", true, false) == null, "level select has no visible title nodes")
 	_expect(view.find_child("PageName", true, false) == null and view.find_child("PageNumber", true, false) == null, "level select has no page name or page number")
@@ -116,30 +121,99 @@ func _test_view_slots_paging_and_signal() -> void:
 	empty_slot.pressed.emit()
 	_expect(selected.size() == 1, "empty-slot activation emits no level")
 
-	next_button.pressed.emit()
-	_expect(view.get_current_page_index() == 1, "right arrow advances through the shared paging entry")
-	_expect(view.is_previous_page_visible() and view.is_next_page_visible(), "middle page shows both arrows")
 	var wheel_down := InputEventMouseButton.new()
 	wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
 	wheel_down.pressed = true
-	view._gui_input(wheel_down)
-	_expect(view.get_current_page_index() == 2, "pressed wheel-down advances exactly one page")
-	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "last page shows only the left arrow")
-	view._gui_input(wheel_down)
-	_expect(view.get_current_page_index() == 2, "wheel-down clamps at the final page")
 	var wheel_up := InputEventMouseButton.new()
 	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel_up.pressed = true
+
+	next_button.pressed.emit()
+	_expect(view.is_sliding_for_test() and view.get_current_page_index() == 0, "right arrow starts a slide without committing the target page early")
+	_expect(view.get_standby_page_position_for_test().x > 0.0, "next page starts to the right of the active page")
+	_expect(first_slot.disabled and is_equal_approx(first_slot.self_modulate.a, 1.0), "slide locks filled slots without hiding them")
+	_expect(view.is_previous_page_visible() and view.is_next_page_visible(), "navigation reflects the middle target page when a slide starts")
+	first_slot.pressed.emit()
+	_expect(selected.size() == 1, "programmatic slot activation is ignored while sliding")
+	await process_frame
+	_expect(view.get_active_page_position_for_test().x < 0.0 and view.get_standby_page_position_for_test().x > 0.0, "next slide moves the active page left and the target page in from the right")
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(not view.is_sliding_for_test() and view.get_current_page_index() == 1, "completed next slide commits exactly one page")
+	_expect(view.get_slot_level(0) == levels[5] and not view.get_slot_control(0).disabled, "completed slide exposes and unlocks the target page slots")
+
+	view._gui_input(wheel_down)
+	_expect(view.is_sliding_for_test() and view.get_current_page_index() == 1, "wheel-down uses the same deferred slide entry")
+	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "navigation reflects the last target page at slide start")
+	view._gui_input(wheel_down)
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 2 and not view.is_sliding_for_test(), "outward request at the last target page is not queued")
+
 	view._gui_input(wheel_up)
-	_expect(view.get_current_page_index() == 1, "pressed wheel-up returns exactly one page")
+	_expect(view.get_standby_page_position_for_test().x < 0.0, "previous page starts to the left of the active page")
+	view.change_page(1)
+	view.change_page(-1)
+	await process_frame
+	_expect(view.get_active_page_position_for_test().x > 0.0 and view.get_standby_page_position_for_test().x < 0.0, "previous slide moves the active page right and the target page in from the left")
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 1 and view.is_sliding_for_test(), "only the last legal request starts automatically after the current slide")
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "last queued reverse request completes on the expected page")
+
+	view._gui_input(wheel_up)
+	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "wheel-up at the first page does not start or queue a slide")
 	wheel_up.pressed = false
 	view._gui_input(wheel_up)
-	_expect(view.get_current_page_index() == 1, "released wheel events do not page")
-	previous_button.pressed.emit()
-	_expect(view.get_current_page_index() == 0, "left arrow returns through the shared paging entry")
+	_expect(not view.is_sliding_for_test(), "released wheel events do not page")
 	wheel_up.pressed = true
-	view._gui_input(wheel_up)
-	_expect(view.get_current_page_index() == 0, "wheel-up clamps at the first page")
+
+	view.change_page(1)
+	view.change_page(1)
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 1 and view.is_sliding_for_test(), "same-direction request chains from the first target page")
+	view.change_page(1)
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 2 and not view.is_sliding_for_test(), "outward request during a slide to the last page is not queued")
+	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "completed final page keeps only the left arrow visible")
+	view.change_page(1)
+	_expect(not view.is_sliding_for_test(), "right paging clamps at the final page")
+
+	view.change_page(-1)
+	view.change_page(-1)
+	var reset_catalog := LevelSelectCatalogScript.new()
+	reset_catalog.pages = _page_array([page_1, page_2, page_3])
+	view.configure(reset_catalog)
+	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "configure stops the tween, clears the queue, and resets the page index")
+	_expect(view.get_active_page_position_for_test().is_equal_approx(Vector2.ZERO) and is_equal_approx(view.get_standby_page_position_for_test().x, page_viewport.size.x), "configure restores active and standby page positions")
+	_expect(view.get_slot_level(0) == levels[0] and not view.get_slot_control(0).disabled, "configure restores the new catalog first page interaction state")
+	_expect(view.get_slot_control(1).disabled and is_zero_approx(view.get_slot_control(1).self_modulate.a), "unlock after configure preserves empty-slot disabled transparency")
+	_expect(not view.is_previous_page_visible() and view.is_next_page_visible(), "configure restores first-page arrow visibility")
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "stopped configure transition cannot execute its old queued request")
+
+	Engine.time_scale = 0.0
+	view.change_page(1)
+	await create_timer(view.page_slide_duration + 0.05, true, false, true).timeout
+	Engine.time_scale = 1.0
+	_expect(view.get_current_page_index() == 1 and not view.is_sliding_for_test(), "slide duration uses real time independently of Engine.time_scale")
+	previous_button.pressed.emit()
+	view.complete_slide_for_test()
+	await process_frame
+	_expect(view.get_current_page_index() == 0, "left arrow returns through the shared paging entry")
+	view.change_page(1)
+	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	view.size = Vector2(1400.0, 800.0)
+	await process_frame
+	_expect(view.get_current_page_index() == 1 and not view.is_sliding_for_test(), "resizing during a slide commits the target page without exposing stale offsets")
+	view.change_page(-1)
+	view.complete_slide_for_test()
+	await process_frame
 
 	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	view.position = Vector2.ZERO

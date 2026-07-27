@@ -25,7 +25,7 @@
 - **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，左侧中部是按需地块详情，右上是全局信息，最右侧中部是三波次按钮，右下是经济/时间，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
 - **全局信息**：右上显示我方据点生命、当前场上敌人数、建筑/镜子容量与关卡名；不维护“本波剩余”第二份状态。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、释放游标、场上敌人、选中对象和 AppFlow 生命周期）。
-- **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`，滚轮向下/向上分别前进/后退一页，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
+- **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`：下一页时当前页左滑、目标页从右滑入，上一页反向，默认 0.25 秒 QUAD 缓出；双页面缓冲避免中间黑屏。动画期间槽位锁定，最多保存最后一次合法翻页请求，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 作为 Main 内开发快捷入口保留，但不属于正式 `RuntimeHud`、不替代 AppFlow 选关。F1 注册表仍并行提供关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
@@ -77,6 +77,7 @@
 | LevelSelectPageDefinition.`SLOT_COUNT` | 6 | 每页固定 2×3 六槽；null 位置保留且不可点击。 |
 | LevelSelectView.`GridMargin` | 16 px | 选关六槽网格距屏幕四边的固定安全边距。 |
 | LevelSelectView.`LevelGrid` 间距 | 12 px | 三列两行之间的横纵间距；其余空间由六槽等分。 |
+| LevelSelectView.`page_slide_duration` | 0.25 s | 双页面横向滑动时长；范围 0.05～1.0 秒，使用真实时间。 |
 
 ## 关键架构
 
@@ -106,10 +107,10 @@
 | `scenes/ui/TileInspectorPanel.tscn` | `Control` 场景 | 左侧中部响应式详情板场景和美术资源接口。 |
 | `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、检视、全局/经济、时间、暂停、右侧波次三按钮和调试控制台。 |
 | `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 WaveControlPanel，不实例化旧 WaveTimelinePanel。 |
-| `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 纯黑幕固定 2×3 六槽、两侧箭头、滚轮翻页与关卡选择信号。 |
-| `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 无框无文字缩略图槽；空/非法资源透明禁用，合法资源点击返回原 LevelResource。 |
+| `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 纯黑幕双页面 2×3 六槽、两侧箭头、滚轮/按钮横向滑动与关卡选择信号。 |
+| `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 无框无文字缩略图槽；空/非法资源透明禁用，滑动期间独立锁定交互。 |
 | `scripts/ui/LevelThumbnail.gd` | `LevelThumbnail` / `Control` | 只读程序化绘制网格、地形、路径、出生点和据点；不创建玩法节点。 |
-| `scenes/ui/LevelSelectView.tscn` | 无 class_name / `Control` 场景 | 全屏纯黑选关；仅含固定三列两行缩略图网格与两侧纯箭头。 |
+| `scenes/ui/LevelSelectView.tscn` | 无 class_name / `Control` 场景 | 全屏纯黑选关；裁剪容器内含两组固定三列两行缩略图网格与两侧纯箭头。 |
 | `resources/level_select/LevelSelectCatalog.tres` | `LevelSelectCatalog` / `Resource` | 正式选关目录；按作者顺序显式引用页面资源。 |
 | `resources/level_select/LevelSelectPage*.tres` | `LevelSelectPageDefinition` / `Resource` | 各页固定六槽的作者关卡顺序；null 位置保持透明占位。 |
 | `scripts/ui/DebugConsole.gd` / `scenes/ui/DebugConsole.tscn` | `DebugConsole` / `Control` | 响应式镜面 F1 模态、分类勾选、实时摘要和命令输入；业务实现外置。 |
@@ -206,11 +207,14 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `AppFlowController.gd` | `_on_startup_level_load_resolved(success: bool, reason: String) -> void` | 记录 Main 首载结果并延迟提交。 |
 | `AppFlowController.gd` | `_commit_start_level() -> void` | 成功时释放选关并启用 Main；失败时只释放候选 Main、保留选关。 |
 | `LevelSelectView.gd` | `configure(catalog: LevelSelectCatalog) -> void` | 注入目录并回到第一页；按作者顺序刷新固定六槽。 |
-| `LevelSelectView.gd` | `change_page(delta: int) -> void` | 箭头和滚轮共用的非循环分页入口；首尾页钳制。 |
+| `LevelSelectView.gd` | `change_page(delta: int) -> void` | 箭头和滚轮共用的非循环滑动入口；动画中保存最后一次合法方向。 |
+| `LevelSelectView.gd` | `_start_page_slide(target_page_index: int, delta: int) -> void` | 绑定备用页，锁定槽位并并行动画当前/目标页面。 |
+| `LevelSelectView.gd` | `_on_slide_finished() -> void` | 提交页码、交换页面池、恢复位置并处理排队请求。 |
 | `LevelSelectView.gd` | `get_slot_control(slot_index: int) -> LevelSelectSlot` | 返回固定位置的槽控件；越界返回 null。 |
 | `LevelSelectView.gd` | `get_slot_level(slot_index: int) -> LevelResource` | 返回当前页零基槽位的原关卡引用；越界/空槽为 null。 |
 | `LevelSelectView.gd` | `_gui_input(event: InputEvent) -> void` | 消费真实滚轮按下事件；下滚前进一页、上滚后退一页。 |
 | `LevelSelectSlot.gd` | `set_level(value: LevelResource) -> void` | 只读校验并刷新缩略图；空或非法资源透明禁用。 |
+| `LevelSelectSlot.gd` | `set_interaction_locked(value: bool) -> void` | 设置滑动期交互锁，不改变空槽/非法槽的基础可用性。 |
 | `LevelSelectSlot.gd` | `get_thumbnail() -> LevelThumbnail` | 返回槽位内程序化缩略图控件。 |
 | `LevelThumbnail.gd` | `set_level(value: LevelResource) -> void` | 只读重建绘制缓存并请求重绘，不写回资源。 |
 | `LevelThumbnail.gd` | `debug_get_draw_data() -> Array[Dictionary]` | 返回单元绘制缓存深副本，防止测试修改内部状态。 |

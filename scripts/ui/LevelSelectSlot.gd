@@ -8,6 +8,7 @@ const LevelThumbnailScript := preload("res://scripts/ui/LevelThumbnail.gd")
 var _level: LevelResource
 var _validation_errors: Array[String] = []
 var _thumbnail: LevelThumbnailScript
+var _interaction_locked: bool = false
 
 
 func _ready() -> void:
@@ -51,6 +52,12 @@ func get_thumbnail() -> LevelThumbnailScript:
 	return _thumbnail
 
 
+func set_interaction_locked(value: bool) -> void:
+	_interaction_locked = value
+	_refresh()
+	return
+
+
 func _build_content() -> void:
 	if _thumbnail != null:
 		return
@@ -63,8 +70,9 @@ func _build_content() -> void:
 
 
 func _refresh() -> void:
-	disabled = _level == null or not _validation_errors.is_empty()
-	self_modulate = Color(1.0, 1.0, 1.0, 0.0 if disabled else 1.0)
+	var is_available := _level != null and _validation_errors.is_empty()
+	disabled = not is_available or _interaction_locked
+	self_modulate = Color(1.0, 1.0, 1.0, 1.0 if is_available else 0.0)
 	tooltip_text = ""
 	if _thumbnail == null:
 		return
