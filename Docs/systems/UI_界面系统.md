@@ -25,7 +25,7 @@
 - **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，左侧中部是按需地块详情，右上是全局信息，最右侧中部是三波次按钮，右下是经济/时间，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
 - **全局信息**：右上显示我方据点生命、当前场上敌人数、建筑/镜子容量与关卡名；不维护“本波剩余”第二份状态。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、释放游标、场上敌人、选中对象和 AppFlow 生命周期）。
-- **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`，滚轮向下/向上分别前进/后退一页，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，不实例化玩法节点。
+- **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`，滚轮向下/向上分别前进/后退一页，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 作为 Main 内开发快捷入口保留，但不属于正式 `RuntimeHud`、不替代 AppFlow 选关。F1 注册表仍并行提供关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
@@ -75,7 +75,8 @@
 | WaveControlPanel.`button_size` | 68 | 释放、重启、退出三个圆形按钮边长，范围 48～96。 |
 | WaveControlPanel.`start_next_wave_icon/restart_level_icon/exit_level_icon/fallback_enemy_icon` | null | 三按钮与下一波敌人图标的美术替换接口；空值使用文字灰盒。 |
 | LevelSelectPageDefinition.`SLOT_COUNT` | 6 | 每页固定 2×3 六槽；null 位置保留且不可点击。 |
-| LevelSelectSlot.`SLOT_SIZE` | `(300,210)` | 单个选关卡片基准尺寸。 |
+| LevelSelectView.`GridMargin` | 16 px | 选关六槽网格距屏幕四边的固定安全边距。 |
+| LevelSelectView.`LevelGrid` 间距 | 12 px | 三列两行之间的横纵间距；其余空间由六槽等分。 |
 
 ## 关键架构
 
@@ -312,4 +313,4 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 - 旧 `LevelDebugPanel`、`M3DebugPanel`、`WaveStatusPanel`、`WaveTimelinePanel` 文件继续登记兼容；正式 `RuntimeHud.tscn` 不实例化 M3/Status/Timeline，LevelDebugPanel 位于 Main 的 HUD 兼容层而非正式 RuntimeHud。
 - 下一波详情仍把同一波多个组聚合为一个条目；组级波内延迟/间隔保留在策划配置中，悬停不显示。
 - 当前选关缩略图是只读程序化 2D 示意，不是局内小地图；不做迷雾或交互点选。
-- 本轮新增测试已登记，本次文档同步按要求未运行测试。
+- 本轮全屏等分布局已通过 `level_select_test.gd` 三档分辨率专项及全量测试入口；真机仍需以 `AppRoot.tscn` 验收最终视觉占比。

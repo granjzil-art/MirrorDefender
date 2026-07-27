@@ -81,7 +81,7 @@ func _test_view_slots_paging_and_signal() -> void:
 	view.configure(catalog)
 	await process_frame
 	var background := view.get_node("Background") as ColorRect
-	var grid := view.get_node("GridCenter/LevelGrid") as GridContainer
+	var grid := view.get_node("GridMargin/LevelGrid") as GridContainer
 	var previous_button := view.get_node("PreviousButton") as Button
 	var next_button := view.get_node("NextButton") as Button
 	_expect(background.color == Color.BLACK, "level select uses a full-screen pure-black background")
@@ -89,6 +89,7 @@ func _test_view_slots_paging_and_signal() -> void:
 	_expect(view.find_child("Title", true, false) == null, "level select has no visible title nodes")
 	_expect(view.find_child("PageName", true, false) == null and view.find_child("PageNumber", true, false) == null, "level select has no page name or page number")
 	_expect(grid.columns == 3 and view.get_slot_count() == 6, "view always creates a fixed 3x2 grid with six slots")
+	_expect(grid.custom_minimum_size == Vector2.ZERO, "level grid has no legacy fixed minimum size")
 	_expect(view.get_slot_control(-1) == null and view.get_slot_control(6) == null, "slot query rejects out-of-range indexes")
 	_expect(view.get_slot_level(0) == levels[0] and view.get_slot_level(2) == levels[1], "slot order follows authored page order without compacting holes")
 	_expect(view.get_slot_level(1) == null, "authored null remains at its fixed slot index")
@@ -99,6 +100,7 @@ func _test_view_slots_paging_and_signal() -> void:
 	_expect(empty_slot.visible and empty_slot.disabled and is_zero_approx(empty_slot.self_modulate.a), "empty slot keeps layout space but is transparent and disabled")
 	_expect(not first_slot.disabled and is_equal_approx(first_slot.self_modulate.a, 1.0), "filled slot remains opaque and clickable")
 	_expect(first_slot.flat and first_slot.find_child("Title", true, false) == null, "slot has no decorative frame or title child")
+	_expect(first_slot.custom_minimum_size == Vector2.ZERO, "slot has no legacy fixed minimum size")
 	_expect(first_slot.get_thumbnail() != null and first_slot.get_thumbnail().get_parent() == first_slot, "level thumbnail directly fills the slot")
 	_expect(first_slot.get_thumbnail().get_global_rect().is_equal_approx(first_slot.get_global_rect()), "thumbnail covers the complete slot rectangle")
 	_expect(previous_button.flat and next_button.flat and previous_button.text == "‹" and next_button.text == "›", "navigation controls render as pure arrows")
@@ -145,10 +147,23 @@ func _test_view_slots_paging_and_signal() -> void:
 		view.size = Vector2(resolution)
 		await process_frame
 		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
-		_expect(viewport_rect.encloses(grid.get_global_rect()), "level grid stays inside %dx%d" % [resolution.x, resolution.y])
+		var grid_rect := grid.get_global_rect()
+		_expect(viewport_rect.encloses(grid_rect), "level grid stays inside %dx%d" % [resolution.x, resolution.y])
+		_expect(is_equal_approx(grid_rect.position.x, 16.0) and is_equal_approx(grid_rect.position.y, 16.0), "level grid starts at the 16px safe margin at %dx%d" % [resolution.x, resolution.y])
+		_expect(is_equal_approx(viewport_rect.end.x - grid_rect.end.x, 16.0) and is_equal_approx(viewport_rect.end.y - grid_rect.end.y, 16.0), "level grid fills through the opposite 16px safe margin at %dx%d" % [resolution.x, resolution.y])
 		_expect(viewport_rect.encloses(previous_button.get_global_rect()) and viewport_rect.encloses(next_button.get_global_rect()), "page arrows stay inside %dx%d" % [resolution.x, resolution.y])
+		var slot_width := (float(resolution.x) - 32.0 - 24.0) / 3.0
+		var slot_height := (float(resolution.y) - 32.0 - 12.0) / 2.0
 		for slot_index in range(view.get_slot_count()):
-			_expect(viewport_rect.encloses(view.get_slot_control(slot_index).get_global_rect()), "slot %d stays inside %dx%d" % [slot_index + 1, resolution.x, resolution.y])
+			var slot_rect := view.get_slot_control(slot_index).get_global_rect()
+			_expect(viewport_rect.encloses(slot_rect), "slot %d stays inside %dx%d" % [slot_index + 1, resolution.x, resolution.y])
+			_expect(absf(slot_rect.size.x - slot_width) <= 1.0 and absf(slot_rect.size.y - slot_height) <= 1.0, "slot %d equally fills the available grid at %dx%d" % [slot_index + 1, resolution.x, resolution.y])
+		var first_rect := view.get_slot_control(0).get_global_rect()
+		var second_rect := view.get_slot_control(1).get_global_rect()
+		var fourth_rect := view.get_slot_control(3).get_global_rect()
+		_expect(is_equal_approx(second_rect.position.x - first_rect.end.x, 12.0), "column gap remains 12px at %dx%d" % [resolution.x, resolution.y])
+		_expect(is_equal_approx(fourth_rect.position.y - first_rect.end.y, 12.0), "row gap remains 12px at %dx%d" % [resolution.x, resolution.y])
+		_expect(view.get_slot_control(0).size.x > 300.0 and view.get_slot_control(0).size.y > 210.0, "each slot is larger than the previous fixed size at %dx%d" % [resolution.x, resolution.y])
 
 	var single_page_catalog := LevelSelectCatalogScript.new()
 	single_page_catalog.pages = _page_array([page_1])

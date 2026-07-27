@@ -4,7 +4,6 @@ class_name LevelSelectSlot
 extends Button
 
 const LevelThumbnailScript := preload("res://scripts/ui/LevelThumbnail.gd")
-const SLOT_SIZE := Vector2(300.0, 210.0)
 
 var _level: LevelResource
 var _validation_errors: Array[String] = []
@@ -12,7 +11,8 @@ var _thumbnail: LevelThumbnailScript
 
 
 func _ready() -> void:
-	custom_minimum_size = SLOT_SIZE
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	focus_mode = Control.FOCUS_NONE
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND

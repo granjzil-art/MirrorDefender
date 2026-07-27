@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / UI · 选关缩略图全屏自适应铺满 — 2026-07-27
+**模块**：UI / Level Select / Tests / Docs。
+
+- 移除 `LevelGrid` 固定 `924×432` 和 `LevelSelectSlot` 固定 `300×210` 尺寸；选关改为四边 16 px 的全屏 MarginContainer，3×2 六槽横纵 `EXPAND_FILL` 等分全部剩余空间。
+- 保留 12 px 横纵槽间距、透明空槽、两侧箭头和滚轮翻页；`LevelThumbnail` 继续按原几何比例居中 fit，不拉伸 HEX/SQUARE 地图。
+- 更新 1280×720、1600×900、1920×1080 的边缘距离、等分尺寸和面积占用回归；Godot 4.7.1 全量 19 个测试套件通过，`AppRoot.tscn` 真机启动无 Parser Error、运行时错误或本功能新增 warning。
+
+**影响面**：仅改变选关缩略图的响应式尺寸和画面利用率；不改变关卡数据、上架顺序、缩略图内容或翻页逻辑。
+
 ## M6 / UI · 纯缩略图选关与局内边缘布局 — 2026-07-27
 **模块**：UI / Level Select / Tests / Docs。
 

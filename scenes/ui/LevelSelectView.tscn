@@ -21,7 +21,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
-[node name="GridCenter" type="CenterContainer" parent="."]
+[node name="GridMargin" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -29,11 +29,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
 
-[node name="LevelGrid" type="GridContainer" parent="GridCenter"]
+[node name="LevelGrid" type="GridContainer" parent="GridMargin"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(924, 432)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 mouse_filter = 2
 theme_override_constants/h_separation = 12
 theme_override_constants/v_separation = 12
