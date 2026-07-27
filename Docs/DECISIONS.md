@@ -1,5 +1,27 @@
 # 技术与玩法决策记录
 
+## 2026-07-27 · 逐波手动释放、右侧三按钮与持久 AppFlow 分页选关
+
+**正式决策**：波次从“只手动开始首波、后续按全局绝对时间自动开始”改为**每一波都由玩家手动释放**。`WaveManager` 以 `_released_wave_count` 作为唯一释放游标；每次 `start_next_wave()` 只把下一条 `WaveDefinition` 加入正在运行的生成状态，已释放波次无需结束，因此允许多波重叠。每波点击时建立该波自己的时间原点，波内组延迟按 `relative_delay = max(0, group.start_delay - min_start_delay_of_wave)` 归一：该波最早组立即开始，其余组只保留彼此相对间隔。`wave_released` 表示玩家已提交该波；`wave_started` 仅在该波第一只敌人成功注册到 `CombatManager` 后发送。
+
+**UI 与流程决策**：正式 HUD 不再实例化左侧 `WaveTimelinePanel`，改为右侧纵向三个圆形按钮：释放下一波、快速重启当前关卡、退出当前关卡；悬停“释放下一波”仍通过 `WaveTimelineModel` 只读显示下一波构成，并由 `RuntimeHud -> Main -> PathHoverPreview` 转发路径预览。程序启动场景改为持久 `AppRoot` / `AppFlowController`：先展示 `LevelSelectView`，按 `LevelSelectCatalog.pages -> LevelSelectPageDefinition.levels` 的作者顺序分页，每页固定六槽，空槽保留位置且不可点击；选中合法 `LevelResource` 后才创建 `Main` 并通过 `Main.configure_startup_level() -> LevelLoader.load_level()` 装配。缩略图由 `LevelThumbnail` 只读解析关卡网格、路径、出生点和据点后程序化绘制，不实例化玩法节点，也不写回资源。
+
+**生命周期决策**：暂停菜单和右侧叉号的“退出”统一表示**退出当前关卡并返回选关页**，不退出程序。`AppFlowController` 在整个程序生命周期内保持存在；返回时先调用 `Main.prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再释放当前 `Main`、恢复 `Engine.time_scale = 1.0` 并重新创建选关页。重启仍在当前 `Main` 内走 `LevelLoader.reload_current_level()` 完整加载事务。
+
+**理由**：逐波释放把节奏决定权交给玩家，同时用波内归一保留策划配置的组间时序且避免非零最早延迟造成点击后空等；三按钮把高频波次、重启和退出入口集中在右侧，不再用绝对时间轴错误暗示后续波会自动开始。持久 AppFlow 将局外选关与局内 Manager 生命周期隔离，选关数据保持资源化、可验证、可扩展，且所有实际关卡装配仍只有 `LevelLoader` 一个事务入口。
+
+**边界与限制**：胜利必须同时满足“全部作者波次均已释放、全部已释放组生成完、全部活动敌人（含 Debug spawn）为空”；仍有未释放波次时即使场上清空也不能胜利。`spawn_debug_enemy()` 在 `VICTORY`、`DEFEAT`、`CONFIG_ERROR` 终态一律拒绝，且永不推进释放游标。基础分页选关不包含关卡解锁、星级、通关进度、选关状态持久化或主菜单；目录只显式上架正式配置资源，测试关卡不得上架。旧 `WaveTimelinePanel`、`WaveStatusPanel`、`LevelDebugPanel`、`M3DebugPanel` 脚本保留兼容登记，但不把旧时间轴或 M3 面板实例化到正式 HUD；`LevelDebugPanel` 仍是 Main 中的开发快捷入口，不是正式选关事实源。
+
+## 2026-07-23 · 调试控制台采用双注册表与业务绑定层
+
+**决策**：F1 控制台只负责模态输入、分类配置、控制台内摘要、历史和命令文本；独立 `DebugOverlayPanel` 在游戏画面左上角常驻显示已启用分类。`DebugCommandRegistry` 负责分词与结构化分发，`DebugCategoryRegistry` 作为控制台与常驻层共享的八类开关和只读提供器事实源，`RuntimeDebugBindings` 负责把正式 Manager 公共 API 注册为命令。UI 内禁止用大型 `match` 实现关卡、资源、波次或生成业务。
+
+**迁移决策**：Main 左上调试文字、Hint 和 M3DebugPanel 在正式主场景隐藏且不再配置；应操作验收要求，LevelDebugPanel 继续保留当前关卡状态与“加载关卡”快捷入口。`path` 开关只影响路径调试线，出生点/据点数字作为正式关卡信息始终显示。
+
+**理由**：命令解析、运行时依赖和界面生命周期独立后，新增命令不需要修改控制台；错误可在进入 Manager 前统一校验，切关继续通过现有正式入口完成全部子系统重建。双注册表也让勾选框和文本命令共享唯一分类事实源。
+
+**约束**：控制台打开只锁输入、不隐式暂停；分类状态不持久化；`spawn` 只查找当前关卡已引用敌人并复用 WaveManager 生成事务，不扫描磁盘或改写波次时间轴。
+
 ## 2026-07-23 · 六机位使用可空关卡子资源与独立真实时间控制器
 
 **决策**：每个 `LevelResource` 以最多 6 个可空 `CameraPresetDefinition` 子资源保存焦点世界坐标、yaw、pitch 和缩放距离；空数组是旧关卡兼容表示，不在加载或打开编辑器时补齐。`CameraPresetController` 只读取当前关卡，通过 InputMap 的数字键动作驱动 `CameraController`，用默认 0.35 秒真实时间和最短 yaw 角插值；过渡期间只抑制手动镜头输入，暂停/控制台模态沿用相机输入总锁并冻结过渡。
@@ -19,6 +41,8 @@
 **兼容与编辑边界**：旧 `base_cell` 在 `base_points` 为空时映射为不写回资源的“据点 1”；旧路径通过显式引用、波次引用或首/末格唯一匹配解析端点。编辑器加载不做迁移写入；只在用户主动编辑据点时物化 `base_points`。出生点与据点的数字同时显示在编辑器和运行时世界。
 
 ## 2026-07-22 · M6 采用模块化正式 HUD 与单次放置交互
+
+> 历史决策说明：模块化 HUD、单次放置、卡槽、全局/检视/经济/时间/模态边界继续有效；其中“左侧纵向波次时间轴”和当时隐含的首波后自动语义，已被 2026-07-27 的右侧三按钮与逐波手动释放正式决策替代。
 
 **决策**：当前 M6 调整为“操作与 UI 大版本”，旧版计划中的反射镜里程碑顺延待排期。正式运行时采用模块化 HUD、`RuntimeInteractionController` 和 `GameTimeController`，不继续让 `Main.gd` 或开发期 `M3DebugPanel` 承担具体 UI 状态。整体固定为左侧纵向波次时间轴、底部独立镜子槽加单行建筑卡槽、右上全局信息、右侧地块详情、右下经济/时间/暂停，模态层承载暂停菜单和 F1 调试控制台。
 

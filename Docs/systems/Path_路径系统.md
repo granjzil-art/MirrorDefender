@@ -63,7 +63,7 @@
 
 ```text
 LevelResource.paths / spawn_points / base_points
-  -> PathManager.load_level -> path_id index + runtime line markers
+  -> PathManager.load_level -> path_id index + optional debug lines + permanent numbered endpoint markers
   -> TileRenderer / Level Editor canvas -> path-cell union -> path_terrain_color base
   -> WaveManager SpawnGroupDefinition.path
   -> PathManager.get_world_points + PathDefinition.cells -> EnemyUnit initial movement/blocker order
@@ -81,10 +81,10 @@ Level Editor path page
   -> wave path selection -> derive the path's SpawnPointDefinition
   -> validate_m4 -> base/path/spawn/wave consistency report (read-only)
 
-WaveTimelinePanel hover paths -> RuntimeHud signal -> Main
+WaveControlPanel hover next-wave paths -> RuntimeHud signal -> Main
   -> PathHoverPreview.preview_paths -> PathManager.get_world_points
   -> line + spawn-to-base looping markers
-PathManager.paths_loaded / hover exit / pause -> PathHoverPreview.clear_preview
+PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHoverPreview.clear_preview
 ```
 
 ## 函数索引
@@ -106,10 +106,12 @@ PathManager.paths_loaded / hover exit / pause -> PathHoverPreview.clear_preview
 | `PathManager.get_path_definition` | `(path_id: StringName) -> PathDefinition` | 通过稳定 ID 返回路径定义。 |
 | `PathManager.get_world_points` | `(path: PathDefinition) -> PackedVector3Array` | 把路径格转为带高度世界点。 |
 | `PathManager.is_path_valid` | `(path: PathDefinition) -> bool` | 校验边界、长度和相邻连续性。 |
+| `PathManager.set_debug_paths_visible` | `(enabled: bool) -> void` | 开关手工路径调试线并重建表现；出生点数字始终保留。 |
 | `PathRoutePlanner.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入网格相邻与地块可通行事实源。 |
 | `PathRoutePlanner.load_level` | `(level_resource: LevelResource) -> void` | 替换候选手工路径集并清理调试线。 |
 | `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回换路结果、`route_source` 与 `target_base_id`；手工后缀优先，再调用同目标路网 A*，失败时返回当前石头攻击代理。 |
 | `PathRoutePlanner.set_auto_route_strategy` | `(strategy: IAutoRouteStrategy) -> void` | 注入可替换自动寻路策略。 |
+| `PathRoutePlanner.set_debug_route_visible` | `(enabled: bool) -> void` | 开关换路调试线；关闭时立即清除已绘制路线。 |
 | `PathHoverPreview.configure` | `(path_manager: PathManager) -> void` | 注入只读世界点入口并订阅切关信号。 |
 | `PathHoverPreview.preview_paths` | `(paths: Array) -> void` | 清理旧内容并同时构建全部有效路径的发光线和流动标记。 |
 | `PathHoverPreview.clear_preview` | `() -> void` | 清除全部悬停路径状态、线 Mesh 和标记。 |
@@ -124,7 +126,7 @@ PathManager.paths_loaded / hover exit / pause -> PathHoverPreview.clear_preview
 ## 约定事实源
 
 - 路径顺序是出生点到据点，敌人不可反向解释。
-- 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色与 PathManager 调试线色是两个独立表现参数。
+- 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色、永久端点数字与可关闭的 PathManager 调试线是三个独立表现层。
 - 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
 - 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
 - 候选后缀只排除大石头等导航阻碍；空洞与尖刺均可被选中，敌人进入后再结算地块效果。建筑屏障不使路径失效，仍由敌人停步攻击。

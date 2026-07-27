@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="LevelSelectCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/level/LevelSelectCatalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/level/LevelSelectPageDefinition.gd" id="2_page_script"]
+[ext_resource type="Resource" path="res://resources/level_select/LevelSelectPage01.tres" id="3_page"]
+
+[resource]
+script = ExtResource("1_catalog")
+pages = Array[ExtResource("2_page_script")]([ExtResource("3_page")])

@@ -1,5 +1,26 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / Wave / UI / Level · 逐波手动释放、右侧三按钮与分页选关 — 2026-07-27
+**模块**：AppFlow / Level / Wave / UI / Main / Debug / Tests / Docs。
+
+- 波次改为每次操作只释放下一条作者波次，允许已释放波重叠；每波以点击时刻为独立时间原点，并按 `max(0, start_delay - 本波最小 start_delay)` 保留波内组间延迟。新增 `wave_released`、`next_wave_changed` 与释放游标查询，胜利要求全部波次已释放、全部组生成完且全部活动敌人清空。
+- 正式 HUD 移除旧左侧时间轴实例，新增右侧 `WaveControlPanel` 三按钮：释放下一波、重启当前关卡、退出当前关卡。下一波悬停继续只读聚合敌人构成并经 `RuntimeHud -> Main -> PathHoverPreview` 预览全部唯一路径；暂停/控制台/切关会清理预览。
+- 新增持久 `AppRoot` / `AppFlowController` 作为程序入口；启动先进入 `LevelSelectView`，按 `LevelSelectCatalog -> LevelSelectPageDefinition -> LevelResource` 作者顺序提供固定每页六槽的基础分页选关。选中合法资源后创建 `Main`，待 `LevelLoader` 首次加载成功才提交界面切换；失败保留选关页。
+- 新增 `LevelSelectSlot` 与只读程序化 `LevelThumbnail`，按关卡网格、地形、路径、出生点和据点绘制缩略图，不实例化玩法节点、不修改资源。默认目录仅上架 `M4DemoLevel`，其余五槽为空；不包含测试关卡、解锁、星级或进度存档。
+- 暂停菜单和右侧退出按钮均改为返回选关页而非退出程序；返回前统一清理模态、时间倍率和路径预览，释放当前 `Main` 后恢复 `Engine.time_scale = 1.0`。快速重启仍通过 `LevelLoader.reload_current_level()` 完整重建当前关卡。
+- 新增 `manual_wave_release_test.gd`、`level_select_test.gd`、`manual_wave_and_level_flow_test.gd`，并加入全量入口；覆盖逐波释放/重叠/波内归一、胜利与 Debug 终态边界、六槽分页顺序、只读缩略图、AppFlow 加载提交/失败回退/返回与直接 Main 兼容。Godot 4.7.1 全量入口 19 个测试套件通过；`AppRoot.tscn` 真机可启动，无 Parser Error、运行时错误或本功能新增 warning。
+
+**影响面**：程序启动生命周期、正式波次操作、HUD 布局、关卡选择与退出语义发生变化；波次/关卡资源格式继续兼容，旧时间轴与调试面板脚本保留但不作为正式 HUD/选关入口。
+
+## M6 / UI · 批次 6 调试控制台迁移与收尾 — 2026-07-23
+**模块**：Debug / UI / Main / Level / Resource / Wave / Path / Input / Tests / Docs。
+
+- 新增 F1 镜面调试控制台、八类实时信息开关、命令历史和响应式覆盖层；已启用分类同时显示在游戏画面左上常驻层，关闭控制台后继续刷新，全部关闭时自动收起。暂停与控制台统一进入 RuntimeHud 模态边界，阻断世界、相机和波次路径悬停输入。
+- 新增可扩展 `DebugCommandRegistry`、`DebugCategoryRegistry` 与业务外置 `RuntimeDebugBindings`；控制台 UI 不硬编码业务命令。
+- 首批支持 `help/clear/reload/load/resource add|set/wave start/spawn/debug list|set`，错误和参数校验均返回结构化结果。
+- 旧 Main 左上调试文字、操作提示和 M3DebugPanel 在正式运行中隐藏且不再配置；右上 LevelDebugPanel 保留旧版当前关卡状态与“加载关卡”快捷入口。
+- 路径调试线与出生点/据点数字分离；关闭 path 分类仍保留端点数字。新增 77 项专项并覆盖 1280×720、1600×900、1920×1080，完整入口扩展为 16 个测试套件。
+
 ## M6 / UI · 批次 5 六机位与关卡编辑器 — 2026-07-23
 **模块**：Camera / Level / Editor / Input / Main / Tests / Docs。
 

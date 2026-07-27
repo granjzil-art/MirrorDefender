@@ -130,7 +130,10 @@ func _test_time_controls_and_pause_menu(fixture: Dictionary) -> void:
 	_expect(controls.pause_button.text == "继续", "pause button exposes its resume action")
 	controls.pause_button.pressed.emit()
 	_expect(not time_controller.is_paused() and is_equal_approx(time_controller.get_effective_scale(), 2.0), "resume restores remembered fast time")
-	time_controller.set_fast_enabled(false)
+	time_controller.set_paused(true)
+	time_controller.reset_runtime_state()
+	_expect(not time_controller.is_paused() and not time_controller.is_fast_enabled(), "runtime reset clears pause and fast state")
+	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0) and is_equal_approx(Engine.time_scale, 1.0), "runtime reset restores normal engine time")
 	controls.queue_free()
 	await process_frame
 
@@ -145,7 +148,7 @@ func _test_time_controls_and_pause_menu(fixture: Dictionary) -> void:
 	await process_frame
 	pause.configure(root)
 	pause.restart_requested.connect(_on_restart_requested)
-	pause.exit_requested.connect(_on_exit_requested)
+	pause.exit_level_requested.connect(_on_exit_requested)
 	pause.open_menu()
 	_expect(pause.is_open() and pause.mouse_filter == Control.MOUSE_FILTER_STOP, "pause menu opens as an input-blocking modal")
 	pause.settings_button.pressed.emit()
@@ -195,6 +198,11 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	await process_frame
 	_expect(hud.is_modal_open(), "GameTimeController pause state opens the modal")
 	_expect(not modal_changes.is_empty() and modal_changes.back(), "HUD broadcasts modal input-lock state")
+	var pause_modal := hud.get_node("PauseMenu") as Control
+	var time_controls := hud.get_node("TimeControlPanel") as Control
+	var debug_overlay := hud.get_node("DebugOverlayPanel") as Control
+	_expect(pause_modal.z_index > time_controls.z_index, "pause modal renders above time controls")
+	_expect(pause_modal.z_index > debug_overlay.z_index, "pause modal renders above the debug overlay")
 	hud.close_pause_menu()
 	await process_frame
 	_expect(not hud.is_modal_open() and not fixture["time"].is_paused(), "closing the HUD modal resumes simulation")
@@ -209,11 +217,13 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 		var inspector_rect := (hud.get_node("TileInspectorPanel") as Control).get_global_rect()
 		var economy_rect := (hud.get_node("EconomyPanel") as Control).get_global_rect()
 		var time_rect := (hud.get_node("TimeControlPanel") as Control).get_global_rect()
-		for rect in [global_rect, inspector_rect, economy_rect, time_rect]:
+		var wave_controls_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
+		for rect in [global_rect, inspector_rect, economy_rect, time_rect, wave_controls_rect]:
 			_expect(viewport_rect.encloses(rect), "batch 3 HUD region stays inside %dx%d" % [resolution.x, resolution.y])
 		_expect(not global_rect.intersects(inspector_rect), "global and tile information do not overlap at %dx%d" % [resolution.x, resolution.y])
 		_expect(not inspector_rect.intersects(economy_rect), "tile and economy information do not overlap at %dx%d" % [resolution.x, resolution.y])
 		_expect(not economy_rect.intersects(time_rect), "economy and time controls do not overlap at %dx%d" % [resolution.x, resolution.y])
+		_expect(not wave_controls_rect.intersects(global_rect) and not wave_controls_rect.intersects(inspector_rect), "wave buttons leave the core right-side panels clear at %dx%d" % [resolution.x, resolution.y])
 		_expect(not cards_rect.intersects(economy_rect) and not cards_rect.intersects(time_rect), "card row leaves the right-bottom cluster clear at %dx%d" % [resolution.x, resolution.y])
 	root.size = original_window_size
 	hud.queue_free()

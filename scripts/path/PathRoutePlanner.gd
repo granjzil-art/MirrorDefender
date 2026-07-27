@@ -40,6 +40,12 @@ func load_level(level_resource: LevelResource) -> void:
 func set_auto_route_strategy(strategy: IAutoRouteStrategyScript) -> void:
 	_auto_route_strategy = strategy
 
+
+func set_debug_route_visible(enabled: bool) -> void:
+	show_selected_detour = enabled
+	if not enabled:
+		_clear_debug_visual()
+
 ## Returns {triggered, found, path, cells, cost, join_cell, blocker}. A reroute
 ## is only triggered for a navigation-blocking next tile and only searches
 ## other manually-authored paths in their serialized order before the bounded

@@ -82,35 +82,45 @@ func get_spawn_marker_labels() -> Array[String]:
 				labels.append((child as Label3D).text)
 	return labels
 
+
+func set_debug_paths_visible(enabled: bool) -> void:
+	if show_paths == enabled:
+		return
+	show_paths = enabled
+	_rebuild_visuals()
+
 func _rebuild_visuals() -> void:
 	if _path_mesh == null or _marker_root == null:
 		return
 	for child in _marker_root.get_children():
 		child.queue_free()
-	if not feature_enabled or not show_paths or _level == null:
+	if not feature_enabled or _level == null:
 		_path_mesh.mesh = null
 		return
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = path_color
-	material.emission_enabled = true
-	material.emission = path_color
-	material.emission_energy_multiplier = 1.3
-	var mesh := ImmediateMesh.new()
-	var has_path_geometry: bool = false
-	for path in _level.paths:
-		if path == null:
-			continue
-		var points := get_world_points(path)
-		for index in range(1, points.size()):
-			if not has_path_geometry:
-				mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
-				has_path_geometry = true
-			mesh.surface_add_vertex(points[index - 1])
-			mesh.surface_add_vertex(points[index])
-	if has_path_geometry:
-		mesh.surface_end()
-		_path_mesh.mesh = mesh
+	if show_paths:
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.albedo_color = path_color
+		material.emission_enabled = true
+		material.emission = path_color
+		material.emission_energy_multiplier = 1.3
+		var mesh := ImmediateMesh.new()
+		var has_path_geometry: bool = false
+		for path in _level.paths:
+			if path == null:
+				continue
+			var points := get_world_points(path)
+			for index in range(1, points.size()):
+				if not has_path_geometry:
+					mesh.surface_begin(Mesh.PRIMITIVE_LINES, material)
+					has_path_geometry = true
+				mesh.surface_add_vertex(points[index - 1])
+				mesh.surface_add_vertex(points[index])
+		if has_path_geometry:
+			mesh.surface_end()
+			_path_mesh.mesh = mesh
+		else:
+			_path_mesh.mesh = null
 	else:
 		_path_mesh.mesh = null
 	for spawn_point in _level.spawn_points:

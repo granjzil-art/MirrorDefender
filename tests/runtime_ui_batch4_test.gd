@@ -1,8 +1,8 @@
 extends SceneTree
 
 const WaveTimelineModelScript := preload("res://scripts/ui/WaveTimelineModel.gd")
-const WaveTimelinePanelScript := preload("res://scripts/ui/WaveTimelinePanel.gd")
-const WaveTimelinePanelScene := preload("res://scenes/ui/WaveTimelinePanel.tscn")
+const WaveControlPanelScript := preload("res://scripts/ui/WaveControlPanel.gd")
+const WaveControlPanelScene := preload("res://scenes/ui/WaveControlPanel.tscn")
 const PathHoverPreviewScript := preload("res://scripts/path/PathHoverPreview.gd")
 const PathHoverPreviewScene := preload("res://scenes/path/PathHoverPreview.tscn")
 const RuntimeHudScene := preload("res://scenes/ui/RuntimeHud.tscn")
@@ -21,7 +21,7 @@ func _run() -> void:
 	print("[RuntimeUiBatch4] running")
 	var fixture := await _make_fixture()
 	_test_read_only_model(fixture)
-	await _test_timeline_panel(fixture)
+	await _test_wave_control_panel(fixture)
 	await _test_path_hover_preview(fixture)
 	await _test_runtime_hud_layout(fixture)
 	var host: Node = fixture["host"]
@@ -58,42 +58,40 @@ func _test_read_only_model(fixture: Dictionary) -> void:
 	_expect("ui_icon" in EnemyDefinition.new(), "enemy definitions expose an optional UI icon art interface")
 
 
-func _test_timeline_panel(fixture: Dictionary) -> void:
-	var panel := WaveTimelinePanelScene.instantiate() as Control
+func _test_wave_control_panel(fixture: Dictionary) -> void:
+	var panel := WaveControlPanelScene.instantiate() as WaveControlPanelScript
 	root.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	panel.position = Vector2.ZERO
-	panel.size = Vector2(210.0, 520.0)
+	panel.position = Vector2(420.0, 40.0)
+	panel.size = Vector2(72.0, 228.0)
 	await process_frame
 	panel.configure(fixture["wave"])
 	panel.set_level(fixture["level"])
 	await process_frame
-	_expect(panel.get_wave_block_count() == 2, "timeline panel creates two interactive wave blocks")
-	var first_block := panel.get_node("GlassPanel/TimelineArea/BlockLayer/Wave_1") as Button
-	_expect(first_block.tooltip_text.is_empty(), "wave blocks do not create a duplicate native tooltip window")
-	var line_y: float = panel.get_current_line_y()
-	var first_rect: Rect2 = panel.get_wave_block_rect(0)
-	var second_rect: Rect2 = panel.get_wave_block_rect(1)
-	_expect(is_equal_approx(first_rect.end.y, line_y), "zero-delay first wave block touches the current-time line")
-	_expect(second_rect.end.y < first_rect.end.y, "future wave is positioned above the current wave")
-	_expect(panel.start_button.visible and not panel.start_button.disabled, "timeline owns the one-time first-wave start button")
+	_expect(panel.button_column.get_child_count() == 3, "formal wave controls expose exactly three vertical buttons")
+	_expect(not panel.start_button.disabled, "next-wave button is enabled before the first release")
 	_previewed_paths.clear()
 	_preview_clear_count = 0
 	panel.paths_preview_requested.connect(_on_paths_preview_requested)
 	panel.paths_preview_cleared.connect(_on_paths_preview_cleared)
-	panel.preview_wave_for_test(1)
-	_expect(panel.get_hovered_wave_index() == 1, "hover selects the requested wave entry")
-	_expect(panel.info_panel.visible and panel.info_details.text.contains("测试弓箭手"), "hover opens full wave details")
-	_expect(_previewed_paths.size() == 2, "hover requests simultaneous preview for every unique path")
-	panel.set_preview_suppressed(true)
-	_expect(panel.get_hovered_wave_index() == -1 and not panel.info_panel.visible, "modal suppression closes wave details")
-	_expect(_preview_clear_count > 0, "modal suppression emits a path-preview clear request")
-	panel.set_preview_suppressed(false)
+	panel.preview_next_wave_for_test()
+	_expect(panel.get_previewed_wave_number() == 1, "hover previews the next unreleased wave")
+	_expect(panel.info_panel.visible and panel.info_details.text.contains("测试步兵"), "next-wave hover opens enemy details")
+	_expect(_previewed_paths.size() == 1, "first-wave hover previews every unique path in that wave")
 	panel.start_button.pressed.emit()
 	await process_frame
 	var wave_manager: WaveManager = fixture["wave"]
-	_expect(wave_manager.get_state() == WaveManager.State.ACTIVE, "first-wave button starts the global wave timeline")
-	_expect(not panel.start_button.visible, "first-wave button disappears after battle start")
+	_expect(wave_manager.get_current_wave_number() == 1, "one next-wave click releases exactly one wave")
+	_expect(not panel.info_panel.visible and _preview_clear_count > 0, "wave release clears details and path preview")
+	panel.preview_next_wave_for_test()
+	_expect(panel.get_previewed_wave_number() == 2 and panel.info_details.text.contains("测试弓箭手"), "after release hover advances to the next wave")
+	_expect(_previewed_paths.size() == 2, "next wave hover previews all unique paths")
+	panel.set_preview_suppressed(true)
+	_expect(panel.get_previewed_wave_number() == 0 and not panel.info_panel.visible, "modal suppression closes next-wave details")
+	panel.set_preview_suppressed(false)
+	panel.start_button.pressed.emit()
+	await process_frame
+	_expect(wave_manager.get_current_wave_number() == 2 and panel.start_button.disabled, "final release disables the next-wave button")
 	panel.queue_free()
 	await process_frame
 
@@ -134,7 +132,7 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 	var hud := RuntimeHudScene.instantiate() as RuntimeHud
 	root.add_child(hud)
 	await process_frame
-	hud.configure_wave_timeline(fixture["wave"])
+	hud.configure_wave_controls(fixture["wave"])
 	hud.apply_level_configuration(fixture["level"], "memory://runtime-ui-batch4")
 	await process_frame
 	var original_window_size := root.size
@@ -142,17 +140,19 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 		root.size = resolution
 		await process_frame
 		var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)
-		var timeline: WaveTimelinePanelScript = hud.get_node("WaveTimelinePanel")
+		var controls: WaveControlPanelScript = hud.get_node("WaveControlPanel")
 		var cards := hud.get_node("BuildCardBar") as Control
-		var timeline_rect := timeline.get_global_rect()
-		_expect(viewport_rect.encloses(timeline_rect), "wave timeline stays inside %dx%d" % [resolution.x, resolution.y])
-		_expect(timeline_rect.size.x <= 121.0, "wave timeline keeps its compact 120-pixel width")
-		_expect(not timeline_rect.intersects(cards.get_global_rect()), "wave timeline leaves the building cards clear at %dx%d" % [resolution.x, resolution.y])
-		timeline.preview_wave_for_test(1)
+		var global_panel := hud.get_node("GlobalInfoPanel") as Control
+		var inspector := hud.get_node("TileInspectorPanel") as Control
+		var controls_rect := controls.get_global_rect()
+		_expect(viewport_rect.encloses(controls_rect), "wave controls stay inside %dx%d" % [resolution.x, resolution.y])
+		_expect(not controls_rect.intersects(cards.get_global_rect()), "wave controls leave the building cards clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not controls_rect.intersects(global_panel.get_global_rect()) and not controls_rect.intersects(inspector.get_global_rect()), "wave controls leave core right-side panels clear at %dx%d" % [resolution.x, resolution.y])
+		controls.preview_next_wave_for_test()
 		await process_frame
-		var info_rect: Rect2 = timeline.info_panel.get_global_rect()
+		var info_rect: Rect2 = controls.info_panel.get_global_rect()
 		_expect(viewport_rect.encloses(info_rect), "wave hover information stays inside %dx%d" % [resolution.x, resolution.y])
-		timeline.clear_hover_preview()
+		controls.clear_hover_preview()
 	root.size = original_window_size
 	hud.queue_free()
 	await process_frame

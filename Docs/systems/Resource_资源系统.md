@@ -16,6 +16,7 @@
 - **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
 - **删除退款**：BuildingManager 删除选中建筑时读取当前 `BuildingLevelStats.refund_amount`，传给 `unregister_building(refund)`，使释放占格、减少计数、返还资源保持同一事务。
 - **屏障摧毁**：敌人将屏障耐久打到 0 时调用 `unregister_building(0)`，只释放建筑上限和产出，不获得主动删除退款。
+- **调试设置**：F1 `resource add/set` 只调用 ResourceManager 公共入口；`set_main_resource` 拒绝非有限数和负数，并以真实差值广播，经济 HUD 无需特殊刷新通道。
 
 ## 参数编辑入口
 
@@ -50,7 +51,8 @@
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 持久化每种建筑每级的 `cost` 与 `resource_per_second`。 |
 | `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | 使用原子注册/消费接口并同步当前建筑产出总和。 |
 | `scripts/wave/WaveManager.gd` | `WaveManager` / `Node` | 监听 EnemyUnit 死亡，并把 EnemyDefinition.`reward` 结算到资源。 |
-| `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 显示当前资源、总每秒产出和建筑上限。 |
+| `scripts/ui/EconomyPanel.gd` | `EconomyPanel` / `Control` | 正式显示资源滚动数字和逐事件弹字。 |
+| `scripts/debug/RuntimeDebugBindings.gd` | `RuntimeDebugBindings` / `Node` | 把 resource add/set 注册为调试命令，不直接修改字段。 |
 
 ### 模块调用关系 / 数据流
 
@@ -78,7 +80,10 @@ EnemyUnit.died
   -> ResourceManager.grant_enemy_drop(amount)
 
 resource_changed / limits_changed / income_rates_changed
-  -> M3DebugPanel / future production HUD
+  -> EconomyPanel / GlobalInfoPanel / BuildCardBar
+
+F1 resource add/set -> RuntimeDebugBindings
+  -> ResourceManager.gain / set_main_resource
 ```
 
 ## 函数索引
@@ -89,6 +94,7 @@ resource_changed / limits_changed / income_rates_changed
 | `can_afford` | `(cost: float) -> bool` | 判断模块开启、费用和余额均为有限数、费用非负且余额充足。 |
 | `spend` | `(cost: float, reason: String = "spend") -> bool` | 原子扣费并广播；失败不改余额。 |
 | `gain` | `(amount: float, reason: String = "gain") -> void` | 增加有限正数资源并广播；NaN/Infinity 不改变余额。 |
+| `set_main_resource` | `(value: float, reason: String = "set") -> bool` | 设置有限非负余额，以新旧差值广播；非法值返回 false 且不修改状态。 |
 | `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 检查 cap、扣费并增加相应计数。 |
 | `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选退款。 |
 | `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的有限逐秒产出总和；非有限值被拒绝。 |

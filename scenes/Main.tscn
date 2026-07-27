@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://chkiy3o3pw5ut"]
+[gd_scene format=3 uid="uid://chkiy3o3pw5ut"]
 
 [ext_resource type="Script" uid="uid://dojml67y6pbrh" path="res://scripts/Main.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://caxah8nk12cyq" path="res://scripts/grid/GridManager.gd" id="2_grid"]
@@ -15,8 +15,8 @@
 [ext_resource type="Resource" uid="uid://cdehjwm442vgl" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
 [ext_resource type="Script" uid="uid://dckm0cnlvh6k3" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
 [ext_resource type="Resource" uid="uid://c2jwklxxgif82" path="res://resources/levels/M4DemoLevel.tres" id="16_m4_level"]
-[ext_resource type="Script" path="res://scripts/ui/RuntimeInteractionController.gd" id="17_runtime_interaction"]
-[ext_resource type="Script" path="res://scripts/ui/GameTimeController.gd" id="18_game_time"]
+[ext_resource type="Script" uid="uid://c533vlpic7u1h" path="res://scripts/ui/RuntimeInteractionController.gd" id="17_runtime_interaction"]
+[ext_resource type="Script" uid="uid://dafc5x30jk6fv" path="res://scripts/ui/GameTimeController.gd" id="18_game_time"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RuntimeHud.tscn" id="19_runtime_hud"]
 
 [sub_resource type="Environment" id="Env_1"]
@@ -64,10 +64,10 @@ laser_tower = ExtResource("14_laser_tower")
 script = ExtResource("8_level_loader")
 initial_level = ExtResource("16_m4_level")
 
-[node name="RuntimeInteractionController" type="Node" parent="."]
+[node name="RuntimeInteractionController" type="Node" parent="." unique_id=949725086]
 script = ExtResource("17_runtime_interaction")
 
-[node name="GameTimeController" type="Node" parent="."]
+[node name="GameTimeController" type="Node" parent="." unique_id=1775455451]
 script = ExtResource("18_game_time")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1996595349]
@@ -78,7 +78,7 @@ transform = Transform3D(1, 0, 0, 0, 0.64, 0.77, 0, -0.77, 0.64, 0, 12, 10)
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=433212213]
 
-[node name="RuntimeHud" parent="HUD" instance=ExtResource("19_runtime_hud")]
+[node name="RuntimeHud" parent="HUD" unique_id=883168074 instance=ExtResource("19_runtime_hud")]
 
 [node name="Panel" type="PanelContainer" parent="HUD" unique_id=542436792]
 offset_left = 16.0

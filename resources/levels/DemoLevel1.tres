@@ -1,36 +1,32 @@
 [gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://bp16pgi5yajah"]
 
 [ext_resource type="Script" uid="uid://cmnbro6e5dpqq" path="res://scripts/path/PathDefinition.gd" id="1_n8aa0"]
+[ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_xd8eg"]
 [ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="2_3cqxw"]
+[ext_resource type="Script" uid="uid://dpcthtee87fmy" path="res://scripts/camera/CameraPresetDefinition.gd" id="2_kd0x3"]
 [ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="3_8d6oa"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Buildable.tres" id="4_x34f2"]
+[ext_resource type="Resource" uid="uid://c3nlfu43los3r" path="res://resources/tile_definitions/Buildable.tres" id="4_x34f2"]
 [ext_resource type="Script" uid="uid://vc7p6g6lerdp" path="res://scripts/tile/TileCellData.gd" id="5_le22b"]
 [ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="6_e42lb"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/BlockedRoad.tres" id="6_le22b"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Rock.tres" id="7_e42lb"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="8_sy835"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="9_penar"]
+[ext_resource type="Resource" uid="uid://dkuryksdhdrk" path="res://resources/tile_definitions/BlockedRoad.tres" id="6_le22b"]
+[ext_resource type="Resource" uid="uid://fgb4rvaxeysi" path="res://resources/tile_definitions/Rock.tres" id="7_e42lb"]
+[ext_resource type="Resource" uid="uid://dfdoktql5fjc2" path="res://resources/tile_definitions/Spike.tres" id="8_sy835"]
+[ext_resource type="Resource" uid="uid://dfbaiqysvcvsa" path="res://resources/tile_definitions/Void.tres" id="9_penar"]
 [ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="11_s0je5"]
 [ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="12_xd8eg"]
 [ext_resource type="Resource" uid="uid://chkijuvf231f" path="res://resources/enemies/Runner.tres" id="13_kd0x3"]
 
-[sub_resource type="Resource" id="Resource_s0je5"]
-script = ExtResource("1_n8aa0")
-path_id = &"path_1"
-display_name = "路径 1"
-cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(14, 3, 0), Vector3i(14, 2, 0), Vector3i(14, 1, 0), Vector3i(13, 1, 0), Vector3i(12, 1, 0), Vector3i(11, 1, 0), Vector3i(10, 1, 0), Vector3i(9, 1, 0), Vector3i(8, 1, 0), Vector3i(7, 1, 0), Vector3i(6, 1, 0), Vector3i(5, 1, 0), Vector3i(5, 2, 0), Vector3i(5, 3, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+[sub_resource type="Resource" id="Resource_1lle7"]
+script = ExtResource("1_xd8eg")
+display_number = 1
+cell = Vector3i(0, 4, 0)
 
-[sub_resource type="Resource" id="Resource_xd8eg"]
-script = ExtResource("1_n8aa0")
-path_id = &"path_2"
-display_name = "路径 2"
-cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(14, 5, 0), Vector3i(14, 6, 0), Vector3i(14, 7, 0), Vector3i(13, 7, 0), Vector3i(12, 7, 0), Vector3i(12, 8, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(7, 7, 0), Vector3i(7, 6, 0), Vector3i(7, 5, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
-
-[sub_resource type="Resource" id="Resource_yno3c"]
-script = ExtResource("1_n8aa0")
-path_id = &"path_3"
-display_name = "路径 3"
-cells = Array[Vector3i]([Vector3i(0, 4, 0), Vector3i(1, 4, 0), Vector3i(2, 4, 0), Vector3i(3, 4, 0), Vector3i(4, 4, 0), Vector3i(5, 4, 0), Vector3i(5, 3, 0), Vector3i(5, 2, 0), Vector3i(5, 1, 0), Vector3i(6, 1, 0), Vector3i(7, 1, 0), Vector3i(8, 1, 0), Vector3i(9, 1, 0), Vector3i(10, 1, 0), Vector3i(11, 1, 0), Vector3i(12, 1, 0), Vector3i(13, 1, 0), Vector3i(14, 1, 0), Vector3i(14, 2, 0), Vector3i(14, 3, 0), Vector3i(14, 4, 0), Vector3i(14, 5, 0), Vector3i(14, 6, 0), Vector3i(14, 7, 0), Vector3i(13, 7, 0), Vector3i(12, 7, 0), Vector3i(12, 8, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(7, 7, 0), Vector3i(7, 6, 0), Vector3i(7, 5, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+[sub_resource type="Resource" id="Resource_5x1hh"]
+script = ExtResource("1_xd8eg")
+base_id = &"base_2"
+display_name = "据点 2"
+display_number = 2
+cell = Vector3i(4, 8, 0)
 
 [sub_resource type="Resource" id="Resource_kd0x3"]
 script = ExtResource("3_8d6oa")
@@ -38,11 +34,37 @@ spawn_id = &"spawn_path_2"
 display_name = "路径 2 出生点"
 cell = Vector3i(19, 4, 0)
 
-[sub_resource type="Resource" id="Resource_nn7g8"]
-script = ExtResource("3_8d6oa")
-spawn_id = &"spawn_path_3"
-display_name = "路径 3 出生点"
-cell = Vector3i(0, 4, 0)
+[sub_resource type="Resource" id="Resource_s0je5"]
+script = ExtResource("1_n8aa0")
+path_id = &"path_1"
+display_name = "路径 1"
+spawn_point = SubResource("Resource_kd0x3")
+target_base = SubResource("Resource_1lle7")
+cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(14, 3, 0), Vector3i(14, 2, 0), Vector3i(14, 1, 0), Vector3i(13, 1, 0), Vector3i(12, 1, 0), Vector3i(11, 1, 0), Vector3i(10, 1, 0), Vector3i(9, 1, 0), Vector3i(8, 1, 0), Vector3i(7, 1, 0), Vector3i(6, 1, 0), Vector3i(5, 1, 0), Vector3i(5, 2, 0), Vector3i(5, 3, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+
+[sub_resource type="Resource" id="Resource_xd8eg"]
+script = ExtResource("1_n8aa0")
+path_id = &"path_2"
+display_name = "路径 2"
+spawn_point = SubResource("Resource_kd0x3")
+target_base = SubResource("Resource_1lle7")
+cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(14, 5, 0), Vector3i(14, 6, 0), Vector3i(14, 7, 0), Vector3i(13, 7, 0), Vector3i(12, 7, 0), Vector3i(12, 8, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(7, 7, 0), Vector3i(7, 6, 0), Vector3i(7, 5, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+
+[sub_resource type="Resource" id="Resource_yno3c"]
+script = ExtResource("1_n8aa0")
+path_id = &"path_3"
+display_name = "路径 3"
+spawn_point = SubResource("Resource_kd0x3")
+target_base = SubResource("Resource_1lle7")
+cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(13, 4, 0), Vector3i(12, 4, 0), Vector3i(11, 4, 0), Vector3i(10, 4, 0), Vector3i(9, 4, 0), Vector3i(8, 4, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+
+[sub_resource type="Resource" id="Resource_0yejw"]
+script = ExtResource("1_n8aa0")
+path_id = &"path_4"
+display_name = "路径 4"
+spawn_point = SubResource("Resource_kd0x3")
+target_base = SubResource("Resource_5x1hh")
+cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(13, 4, 0), Vector3i(12, 4, 0), Vector3i(11, 4, 0), Vector3i(10, 4, 0), Vector3i(9, 4, 0), Vector3i(8, 4, 0), Vector3i(7, 4, 0), Vector3i(6, 4, 0), Vector3i(5, 4, 0), Vector3i(4, 4, 0), Vector3i(4, 5, 0), Vector3i(4, 6, 0), Vector3i(4, 7, 0), Vector3i(4, 8, 0)])
 
 [sub_resource type="Resource" id="Resource_qdqby"]
 script = ExtResource("5_le22b")
@@ -1006,7 +1028,7 @@ definition = ExtResource("4_x34f2")
 script = ExtResource("11_s0je5")
 enemy = ExtResource("12_xd8eg")
 spawn_point = SubResource("Resource_kd0x3")
-path = SubResource("Resource_s0je5")
+path = SubResource("Resource_0yejw")
 
 [sub_resource type="Resource" id="Resource_dnsgk"]
 script = ExtResource("6_e42lb")
@@ -1084,6 +1106,7 @@ initial_resource = 100000
 building_cap = 2
 mirror_cap = 10
 base_cell = Vector3i(0, 4, 0)
-paths = Array[ExtResource("1_n8aa0")]([SubResource("Resource_s0je5"), SubResource("Resource_xd8eg"), SubResource("Resource_yno3c")])
-spawn_points = Array[ExtResource("3_8d6oa")]([SubResource("Resource_kd0x3"), SubResource("Resource_nn7g8")])
+base_points = Array[ExtResource("1_xd8eg")]([SubResource("Resource_1lle7"), SubResource("Resource_5x1hh")])
+paths = Array[ExtResource("1_n8aa0")]([SubResource("Resource_s0je5"), SubResource("Resource_xd8eg"), SubResource("Resource_yno3c"), SubResource("Resource_0yejw")])
+spawn_points = Array[ExtResource("3_8d6oa")]([SubResource("Resource_kd0x3")])
 waves = Array[ExtResource("6_e42lb")]([SubResource("Resource_dnsgk"), SubResource("Resource_mjtg5"), SubResource("Resource_r3fko"), SubResource("Resource_nh5j2")])

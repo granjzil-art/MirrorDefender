@@ -19,7 +19,7 @@ extends Control
 @export var exit_icon: Texture2D
 
 signal restart_requested
-signal exit_requested
+signal exit_level_requested
 signal settings_changed(settings: Dictionary)
 
 @onready var settings_button: Button = $Shade/ModalPanel/Content/ActionButtons/SettingsButton
@@ -96,7 +96,7 @@ func _on_restart_pressed() -> void:
 
 
 func _on_exit_pressed() -> void:
-	exit_requested.emit()
+	exit_level_requested.emit()
 
 
 func _on_window_mode_changed(_index: int) -> void:

@@ -1,0 +1,224 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/DebugConsole.gd" id="1_console"]
+
+[sub_resource type="StyleBoxFlat" id="Style_frame"]
+bg_color = Color(0.025, 0.055, 0.075, 0.97)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.26, 0.72, 0.9, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 16
+
+[sub_resource type="StyleBoxFlat" id="Style_inner"]
+bg_color = Color(0.04, 0.09, 0.12, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.5, 0.62, 0.78)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="Style_input"]
+bg_color = Color(0.015, 0.03, 0.04, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.92, 0.72, 0.22, 0.85)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_button"]
+bg_color = Color(0.08, 0.23, 0.3, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.8, 0.96, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="DebugConsole" type="Control"]
+process_mode = 3
+z_index = 300
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_console")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.005, 0.012, 0.02, 0.78)
+
+[node name="ConsoleFrame" type="PanelContainer" parent="Shade"]
+layout_mode = 1
+anchor_left = 0.04
+anchor_top = 0.06
+anchor_right = 0.96
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("Style_frame")
+
+[node name="FrameTexture" type="TextureRect" parent="Shade/ConsoleFrame"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Margin" type="MarginContainer" parent="Shade/ConsoleFrame"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="Shade/ConsoleFrame/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Shade/ConsoleFrame/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.45, 0.88, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "镜面调试控制台  ·  F1"
+
+[node name="StateLabel" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+text = "未连接"
+
+[node name="CloseButton" type="Button" parent="Shade/ConsoleFrame/Margin/Content/Header"]
+custom_minimum_size = Vector2(72, 34)
+layout_mode = 2
+theme_override_styles/normal = SubResource("Style_button")
+text = "关闭"
+
+[node name="Body" type="HSplitContainer" parent="Shade/ConsoleFrame/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 230
+
+[node name="CategoryPanel" type="PanelContainer" parent="Shade/ConsoleFrame/Margin/Content/Body"]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Style_inner")
+
+[node name="CategoryMargin" type="MarginContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/CategoryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="CategoryContent" type="VBoxContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/CategoryPanel/CategoryMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CategoryTitle" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Body/CategoryPanel/CategoryMargin/CategoryContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+theme_override_font_sizes/font_size = 18
+text = "调试分类"
+
+[node name="CategoryScroll" type="ScrollContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/CategoryPanel/CategoryMargin/CategoryContent"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CategoryList" type="VBoxContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/CategoryPanel/CategoryMargin/CategoryContent/CategoryScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MainPanel" type="PanelContainer" parent="Shade/ConsoleFrame/Margin/Content/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("Style_inner")
+
+[node name="MainMargin" type="MarginContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="MainContent" type="VBoxContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LiveTitle" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+text = "实时信息"
+
+[node name="LiveOutput" type="RichTextLabel" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent"]
+custom_minimum_size = Vector2(0, 132)
+layout_mode = 2
+fit_content = false
+scroll_active = true
+text = "勾选左侧分类以显示实时调试信息"
+
+[node name="LogTitle" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+text = "命令历史"
+
+[node name="LogOutput" type="RichTextLabel" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent"]
+layout_mode = 2
+size_flags_vertical = 3
+scroll_active = true
+
+[node name="CommandRow" type="HBoxContainer" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Prompt" type="Label" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent/CommandRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+theme_override_font_sizes/font_size = 18
+text = ">"
+
+[node name="CommandInput" type="LineEdit" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent/CommandRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("Style_input")
+placeholder_text = "输入 help 查看命令；支持带引号参数"
+clear_button_enabled = true
+
+[node name="ExecuteButton" type="Button" parent="Shade/ConsoleFrame/Margin/Content/Body/MainPanel/MainMargin/MainContent/CommandRow"]
+custom_minimum_size = Vector2(92, 38)
+layout_mode = 2
+theme_override_styles/normal = SubResource("Style_button")
+text = "执行"

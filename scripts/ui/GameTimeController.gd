@@ -92,6 +92,20 @@ func get_effective_scale() -> float:
 	return _applied_scale
 
 
+func reset_runtime_state() -> void:
+	var fast_changed := _fast_enabled
+	var pause_changed := _paused
+	_fast_enabled = false
+	_paused = false
+	_applied_scale = 1.0
+	Engine.time_scale = 1.0
+	if fast_changed:
+		fast_enabled_changed.emit(false)
+	if pause_changed:
+		paused_changed.emit(false)
+	time_scale_changed.emit(1.0)
+
+
 func has_tactical_context() -> bool:
 	if _interaction != null and not _interaction.is_select_mode():
 		return true

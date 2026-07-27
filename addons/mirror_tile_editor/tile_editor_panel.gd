@@ -553,10 +553,10 @@ func _add_wave_tab(tabs: TabContainer) -> void:
 	form.add_child(_wave_interval)
 	_wave_delay = _make_spin_box(0.0, 10000.0, 0.1)
 	_wave_delay.value_changed.connect(_on_wave_delay_changed)
-	form.add_child(_make_form_label("距第一波开始延迟（秒）"))
+	form.add_child(_make_form_label("波内开始延迟（秒）"))
 	form.add_child(_wave_delay)
 	var help := Label.new()
-	help.text = "第一波手动开始；之后所有出怪组按相对首次点击时刻的延迟自动生成，可跨波次重叠。"
+	help.text = "每波需手动释放；波内最早出怪组立即开始，其他组按与本波最小开始延迟的差值运行，波次可重叠。"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	page.add_child(help)
 

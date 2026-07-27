@@ -91,7 +91,7 @@ text = "重启关卡"
 custom_minimum_size = Vector2(150, 74)
 layout_mode = 2
 focus_mode = 0
-text = "退出游戏"
+text = "退出当前关卡"
 
 [node name="SettingsPanel" type="VBoxContainer" parent="Shade/ModalPanel/Content"]
 visible = false

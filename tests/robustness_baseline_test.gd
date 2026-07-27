@@ -378,8 +378,8 @@ func _make_wave_level(first_delay: float) -> LevelResource:
 	enemy.display_name = "Test Enemy"
 	var group := SpawnGroupDefinition.new()
 	group.enemy = enemy
-	group.count = 1
-	group.interval = 1.0
+	group.count = 2
+	group.interval = 0.1
 	group.start_delay = first_delay
 	group.path = path
 	group.spawn_point = spawn_point

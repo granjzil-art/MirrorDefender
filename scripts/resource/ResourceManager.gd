@@ -64,6 +64,15 @@ func gain(amount: float, reason: String = "gain") -> void:
 	main_resource += amount
 	resource_changed.emit(main_resource, amount, reason)
 
+
+func set_main_resource(value: float, reason: String = "set") -> bool:
+	if not feature_enabled or not is_finite(value) or value < 0.0:
+		return false
+	var delta := value - main_resource
+	main_resource = value
+	resource_changed.emit(main_resource, delta, reason)
+	return true
+
 func can_add_building() -> bool:
 	return feature_enabled and _building_count < building_cap
 

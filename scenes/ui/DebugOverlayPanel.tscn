@@ -1,0 +1,76 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/DebugOverlayPanel.gd" id="1_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="Style_overlay"]
+bg_color = Color(0.025, 0.055, 0.075, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.26, 0.72, 0.9, 0.82)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.42)
+shadow_size = 8
+
+[node name="DebugOverlayPanel" type="Control"]
+visible = false
+process_mode = 3
+z_index = 80
+layout_mode = 3
+anchors_preset = 0
+offset_left = 18.0
+offset_top = 16.0
+offset_right = 478.0
+offset_bottom = 164.0
+mouse_filter = 2
+script = ExtResource("1_overlay")
+
+[node name="Frame" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("Style_overlay")
+
+[node name="FrameTexture" type="TextureRect" parent="Frame"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Margin" type="MarginContainer" parent="Frame"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="Content" type="VBoxContainer" parent="Frame/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Frame/Margin/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.28, 1)
+theme_override_font_sizes/font_size = 16
+text = "调试信息"
+
+[node name="Output" type="RichTextLabel" parent="Frame/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.84, 0.94, 0.98, 1)
+theme_override_font_sizes/normal_font_size = 14
+scroll_active = true
+scroll_following = true

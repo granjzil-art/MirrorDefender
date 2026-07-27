@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/AppFlowController.gd" id="1_flow"]
+[ext_resource type="Resource" path="res://resources/level_select/LevelSelectCatalog.tres" id="2_catalog"]
+[ext_resource type="PackedScene" path="res://scenes/ui/LevelSelectView.tscn" id="3_level_select"]
+[ext_resource type="PackedScene" path="res://scenes/Main.tscn" id="4_main"]
+
+[node name="AppRoot" type="Node"]
+script = ExtResource("1_flow")
+level_select_catalog = ExtResource("2_catalog")
+level_select_scene = ExtResource("3_level_select")
+main_scene = ExtResource("4_main")
+
+[node name="Content" type="Node" parent="."]

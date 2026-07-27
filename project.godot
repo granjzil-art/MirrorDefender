@@ -16,13 +16,9 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="MirrorDefender"
 config/description="Mirror 主题经典塔防。M4: 单位、路径、波次与关卡编辑器。"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/AppRoot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
-
-[autoload]
-
-MCPRuntimeProbe="*res://addons/godot_mcp/runtime/mcp_runtime_probe.gd"
 
 [display]
 
@@ -104,6 +100,11 @@ camera_preset_5={
 camera_preset_6={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":54,"physical_keycode":54,"key_label":54,"unicode":54,"location":0,"echo":false,"script":null)
+]
+}
+toggle_debug_console={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":4194332,"physical_keycode":4194332,"key_label":4194332,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
 rotate_facing={

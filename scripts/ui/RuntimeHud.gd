@@ -1,5 +1,5 @@
-## M6 production HUD composition root. Batches 1-4 own cards, inspection,
-## global/economy information, time controls, pause, and the wave timeline.
+## M6 production HUD composition root. It owns cards, inspection, global and
+## economy information, time controls, pause, wave controls, and debug console.
 class_name RuntimeHud
 extends Control
 
@@ -8,7 +8,11 @@ const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInt
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const TileInspectionServiceScript := preload("res://scripts/ui/TileInspectionService.gd")
 const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
-const WaveTimelinePanelScript := preload("res://scripts/ui/WaveTimelinePanel.gd")
+const WaveControlPanelScript := preload("res://scripts/ui/WaveControlPanel.gd")
+const DebugConsoleScript := preload("res://scripts/ui/DebugConsole.gd")
+const DebugOverlayPanelScript := preload("res://scripts/ui/DebugOverlayPanel.gd")
+const DebugCommandRegistryScript := preload("res://scripts/debug/DebugCommandRegistry.gd")
+const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryRegistry.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
@@ -17,25 +21,31 @@ const WaveTimelinePanelScript := preload("res://scripts/ui/WaveTimelinePanel.gd"
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
 @onready var pause_menu: PauseMenu = $PauseMenu
-@onready var wave_timeline_panel: WaveTimelinePanelScript = $WaveTimelinePanel
+@onready var wave_control_panel: WaveControlPanelScript = $WaveControlPanel
+@onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
+@onready var debug_console: DebugConsoleScript = $DebugConsole
 
 signal restart_level_requested
-signal exit_game_requested
+signal exit_level_requested
 signal modal_state_changed(open: bool)
 signal wave_paths_preview_requested(paths: Array)
 signal wave_paths_preview_cleared
 
 var _interaction: RuntimeInteractionControllerScript
 var _time_controller: GameTimeControllerScript
+var _last_modal_state: bool = false
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile_inspection_service.inspection_changed.connect(tile_inspector_panel.display_model)
 	pause_menu.restart_requested.connect(_on_restart_requested)
-	pause_menu.exit_requested.connect(_on_exit_requested)
-	wave_timeline_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
-	wave_timeline_panel.paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
+	pause_menu.exit_level_requested.connect(_on_exit_requested)
+	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
+	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
+	wave_control_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
+	wave_control_panel.paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
+	debug_console.open_changed.connect(_on_debug_console_open_changed)
 
 
 func configure(
@@ -85,8 +95,16 @@ func configure_global_info(
 	global_info_panel.configure(resource_manager, wave_manager, base_core)
 
 
-func configure_wave_timeline(wave_manager: WaveManager) -> void:
-	wave_timeline_panel.configure(wave_manager)
+func configure_wave_controls(wave_manager: WaveManager) -> void:
+	wave_control_panel.configure(wave_manager)
+
+
+func configure_debug_console(
+	command_registry: DebugCommandRegistryScript,
+	category_registry: DebugCategoryRegistryScript
+) -> void:
+	debug_console.configure(command_registry, category_registry)
+	debug_overlay_panel.configure(category_registry)
 
 
 func configure_inspection(
@@ -110,11 +128,24 @@ func apply_level_configuration(level: LevelResource, source_path: String = "") -
 	if level != null:
 		build_card_bar.set_slot_count(level.building_card_slot_count)
 	global_info_panel.set_level_context(level, source_path)
-	wave_timeline_panel.set_level(level)
+	wave_control_panel.set_level(level)
 
 
 func is_modal_open() -> bool:
-	return pause_menu != null and pause_menu.is_open()
+	return (pause_menu != null and pause_menu.is_open()) or (
+		debug_console != null and debug_console.is_open()
+	)
+
+
+func is_debug_console_open() -> bool:
+	return debug_console != null and debug_console.is_open()
+
+
+func close_top_modal() -> void:
+	if debug_console != null and debug_console.is_open():
+		debug_console.close_console()
+		return
+	close_pause_menu()
 
 
 func close_pause_menu() -> void:
@@ -122,7 +153,18 @@ func close_pause_menu() -> void:
 		_time_controller.set_paused(false)
 	elif pause_menu != null:
 		pause_menu.close_menu()
-		modal_state_changed.emit(false)
+		_sync_modal_state()
+
+
+func prepare_for_level_transition() -> void:
+	wave_control_panel.clear_hover_preview()
+	if debug_console != null:
+		debug_console.close_console()
+	if _time_controller != null:
+		_time_controller.reset_runtime_state()
+	elif pause_menu != null:
+		pause_menu.close_menu()
+	_sync_modal_state()
 
 
 func _on_building_card_selected(definition: BuildingDefinition) -> void:
@@ -177,12 +219,24 @@ func _sync_world_selection() -> void:
 func _on_paused_changed(paused: bool) -> void:
 	if pause_menu == null:
 		return
-	wave_timeline_panel.set_preview_suppressed(paused)
 	if paused:
 		pause_menu.open_menu()
 	else:
 		pause_menu.close_menu()
-	modal_state_changed.emit(pause_menu.is_open())
+	_sync_modal_state()
+
+
+func _on_debug_console_open_changed(_open: bool) -> void:
+	_sync_modal_state()
+
+
+func _sync_modal_state() -> void:
+	var open := is_modal_open()
+	wave_control_panel.set_preview_suppressed(open)
+	if _last_modal_state == open:
+		return
+	_last_modal_state = open
+	modal_state_changed.emit(open)
 
 
 func _on_restart_requested() -> void:
@@ -190,7 +244,7 @@ func _on_restart_requested() -> void:
 
 
 func _on_exit_requested() -> void:
-	exit_game_requested.emit()
+	exit_level_requested.emit()
 
 
 func _on_wave_paths_preview_requested(paths: Array) -> void:

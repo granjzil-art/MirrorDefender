@@ -1,18 +1,62 @@
 [gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://dt8jg1gt6aanp"]
 
+[ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_s4mth"]
 [ext_resource type="Script" uid="uid://cmnbro6e5dpqq" path="res://scripts/path/PathDefinition.gd" id="1_yyavd"]
 [ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="2_3cj2q"]
+[ext_resource type="Script" uid="uid://dpcthtee87fmy" path="res://scripts/camera/CameraPresetDefinition.gd" id="2_i86vy"]
 [ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="3_8lrm2"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Buildable.tres" id="4_42v6k"]
+[ext_resource type="Resource" uid="uid://c3nlfu43los3r" path="res://resources/tile_definitions/Buildable.tres" id="4_42v6k"]
 [ext_resource type="Script" uid="uid://vc7p6g6lerdp" path="res://scripts/tile/TileCellData.gd" id="5_1dqif"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/BlockedRoad.tres" id="6_1dqif"]
+[ext_resource type="Resource" uid="uid://dkuryksdhdrk" path="res://resources/tile_definitions/BlockedRoad.tres" id="6_1dqif"]
 [ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="6_x6q1v"]
 [ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="7_1dqif"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Spike.tres" id="7_w03gm"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Rock.tres" id="8_mhj3r"]
+[ext_resource type="Resource" uid="uid://dfdoktql5fjc2" path="res://resources/tile_definitions/Spike.tres" id="7_w03gm"]
+[ext_resource type="Resource" uid="uid://fgb4rvaxeysi" path="res://resources/tile_definitions/Rock.tres" id="8_mhj3r"]
 [ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="9_ilhf0"]
-[ext_resource type="Resource" path="res://resources/tile_definitions/Void.tres" id="9_s4mth"]
+[ext_resource type="Resource" uid="uid://dfbaiqysvcvsa" path="res://resources/tile_definitions/Void.tres" id="9_s4mth"]
 [ext_resource type="Resource" uid="uid://chkijuvf231f" path="res://resources/enemies/Runner.tres" id="10_w03gm"]
+
+[sub_resource type="Resource" id="Resource_38df4"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(1.8141733, 0, 10.066379)
+yaw_degrees = -89.9659359999479
+pitch_degrees = 82.0
+zoom_distance = 11.936485061831771
+
+[sub_resource type="Resource" id="Resource_ygsfq"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(4.686703, 0, 8.24)
+yaw_degrees = -87.98343199994791
+pitch_degrees = 36.600390000039795
+zoom_distance = 11.936485061831771
+
+[sub_resource type="Resource" id="Resource_0kymx"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(2.9337456, 0, 7.1861444)
+yaw_degrees = -168.94343199994796
+pitch_degrees = 36.6003900000398
+zoom_distance = 11.936485061831771
+
+[sub_resource type="Resource" id="Resource_r6hkk"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(1.9883525, 0, 10.230297)
+yaw_degrees = -269.7196651428576
+pitch_degrees = 36.6003900000398
+zoom_distance = 11.936485061831771
+
+[sub_resource type="Resource" id="Resource_akroh"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(2.3980577, 0, 12.396319)
+yaw_degrees = -341.118338458875
+pitch_degrees = 36.6003900000398
+zoom_distance = 11.936485061831771
+
+[sub_resource type="Resource" id="Resource_xyb5n"]
+script = ExtResource("2_i86vy")
+focus_position = Vector3(3.1365635, 0, 9.52463)
+yaw_degrees = -416.6534868225633
+pitch_degrees = 36.6003900000398
+zoom_distance = 11.936485061831771
 
 [sub_resource type="Resource" id="Resource_mhj3r"]
 script = ExtResource("1_yyavd")
@@ -761,6 +805,7 @@ initial_resource = 400
 building_cap = 1
 mirror_cap = 8
 base_resource_per_second = 0.0
+camera_presets = Array[ExtResource("2_i86vy")]([SubResource("Resource_38df4"), SubResource("Resource_ygsfq"), SubResource("Resource_0kymx"), SubResource("Resource_r6hkk"), SubResource("Resource_akroh"), SubResource("Resource_xyb5n")])
 base_cell = Vector3i(2, 0, 0)
 paths = Array[ExtResource("1_yyavd")]([SubResource("Resource_mhj3r"), SubResource("Resource_s4mth"), SubResource("Resource_i86vy"), SubResource("Resource_odr16")])
 spawn_points = Array[ExtResource("3_8lrm2")]([SubResource("Resource_ta670"), SubResource("Resource_jj0xl"), SubResource("Resource_rcv1d"), SubResource("Resource_7s3fo")])

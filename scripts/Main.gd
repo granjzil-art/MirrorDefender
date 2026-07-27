@@ -1,7 +1,6 @@
 ## Main —— M3 主场景控制器
 ##
-## 职责：装配 Level / Grid / Tile / Resource / Combat / Building / 相机与调试 HUD。
-## 这是 M3 的验收入口场景。
+## 职责：装配 Level / Grid / Tile / Resource / Combat / Building / 相机与正式 HUD。
 ##
 ## 操作：
 ##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放
@@ -11,6 +10,8 @@
 ##   右键：回到选择模式
 ##   R    旋转选中建筑朝向
 ##   F    清除锁定的可破坏障碍
+##   F1   打开/关闭调试控制台
+class_name MainController
 extends Node3D
 
 const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
@@ -32,6 +33,7 @@ const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInt
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
 const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
+const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
@@ -41,6 +43,12 @@ const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBa
 @export var camera_presets_enabled: bool = true
 @export_range(0.0, 5.0, 0.01, "or_greater") var camera_preset_transition_duration: float = 0.35
 @export var camera_preset_transition_curve: Curve
+
+@export_group("M6 Debug Console")
+@export var debug_console_enabled: bool = true
+
+signal return_to_level_select_requested
+signal startup_level_load_resolved(success: bool, reason: String)
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
@@ -72,14 +80,32 @@ var mirror_manager: MirrorManager
 var level_reflection_surface: LevelReflectionSurfaceScript
 var path_hover_preview: PathHoverPreviewScript
 var camera_preset_controller: CameraPresetControllerScript
+var runtime_debug_bindings: RuntimeDebugBindingsScript
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
 var _selected_edge_index: int = -1
 var _selected_edge_id: String = ""
+var _debug_cell_pick: Dictionary = {}
+var _debug_edge_pick: Dictionary = {}
+var _startup_level: LevelResource
+
+
+func configure_startup_level(level: LevelResource) -> bool:
+	if is_node_ready() or level == null:
+		return false
+	_startup_level = level
+	return true
+
 
 func _ready() -> void:
 	_camera = cam_rig.get_camera()
+	hud_label.get_parent().visible = false
+	hint_label.visible = false
+	m3_debug_panel.feature_enabled = false
+	m3_debug_panel.visible = false
+	runtime_hud.debug_console.feature_enabled = debug_console_enabled
+	runtime_hud.debug_overlay_panel.feature_enabled = debug_console_enabled
 	camera_preset_controller = CameraPresetControllerScript.new()
 	add_child(camera_preset_controller)
 	camera_preset_controller.feature_enabled = camera_presets_enabled
@@ -128,11 +154,10 @@ func _ready() -> void:
 		mirror_manager
 	)
 	runtime_hud.restart_level_requested.connect(_on_restart_level_requested)
-	runtime_hud.exit_game_requested.connect(_on_exit_game_requested)
+	runtime_hud.exit_level_requested.connect(_on_exit_level_requested)
 	runtime_hud.modal_state_changed.connect(_on_runtime_modal_state_changed)
 	runtime_hud.wave_paths_preview_requested.connect(_on_wave_paths_preview_requested)
 	runtime_hud.wave_paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
-	m3_debug_panel.configure(building_manager, resource_manager, combat_manager, mirror_manager)
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
 	_building_action_panel.configure(building_manager, _camera)
@@ -180,12 +205,36 @@ func _ready() -> void:
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
 	runtime_hud.configure_global_info(resource_manager, wave_manager, base_core)
-	runtime_hud.configure_wave_timeline(wave_manager)
+	runtime_hud.configure_wave_controls(wave_manager)
+	runtime_debug_bindings = RuntimeDebugBindingsScript.new()
+	add_child(runtime_debug_bindings)
+	runtime_debug_bindings.configure(
+		level_loader,
+		resource_manager,
+		wave_manager,
+		path_manager,
+		path_route_planner,
+		grid,
+		combat_manager,
+		mirror_manager
+	)
+	runtime_debug_bindings.set_pick_provider(Callable(self, "_get_debug_pick_summary"))
+	runtime_hud.configure_debug_console(
+		runtime_debug_bindings.command_registry,
+		runtime_debug_bindings.category_registry
+	)
 	level_loader.configure(grid, tile_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
-	level_loader.load_initial_level()
-	_update_hint()
+	var startup_loaded := false
+	if _startup_level != null:
+		startup_loaded = level_loader.load_level(_startup_level, _startup_level.resource_path)
+	else:
+		startup_loaded = level_loader.load_initial_level()
+	startup_level_load_resolved.emit(
+		startup_loaded,
+		"" if startup_loaded else "初始关卡加载失败"
+	)
 
 func _process(_delta: float) -> void:
 	if runtime_hud != null and runtime_hud.is_modal_open():
@@ -198,7 +247,7 @@ func _process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):
-			runtime_hud.close_pause_menu()
+			runtime_hud.close_top_modal()
 			get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("cancel_action"):
@@ -211,6 +260,8 @@ func _update_pick() -> void:
 
 	var edge := grid.pick_edge(_camera, mp)
 	var cell := grid.pick_cell(_camera, mp)
+	_debug_cell_pick = cell
+	_debug_edge_pick = edge
 	mirror_manager.set_inspected_cell(cell.cell if cell.hit else null)
 	_update_building_preview(cell, edge)
 
@@ -222,7 +273,20 @@ func _update_pick() -> void:
 		renderer.highlight_edge(Vector3i.ZERO, 0, false)
 		renderer.highlight_cell(cell.cell if cell.hit else Vector3i.ZERO, cell.hit)
 
-	_update_hud(cell, edge)
+
+
+func _get_debug_pick_summary() -> String:
+	var lines: Array[String] = []
+	if bool(_debug_cell_pick.get("hit", false)):
+		var cell: Vector3i = _debug_cell_pick.get("cell", Vector3i.ZERO)
+		lines.append("格 %s | 高度 %.2f" % [str(cell), tile_manager.get_world_height(cell)])
+	else:
+		lines.append("格：未命中")
+	if bool(_debug_edge_pick.get("hit", false)):
+		lines.append("边 %s" % str(_debug_edge_pick.get("id", "")))
+	else:
+		lines.append("边：未命中")
+	return "\n".join(lines)
 
 func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	var shape_name := "六边形(HEX)" if grid.grid_shape == GridManager.Shape.HEX else "正方形(SQUARE)"
@@ -447,6 +511,8 @@ func _destroy_selected_obstacle() -> void:
 	tile_manager.destroy_obstacle_at(_selected_cell)
 
 func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
+	if path_hover_preview != null:
+		path_hover_preview.clear_preview()
 	resource_manager.apply_level_configuration(level_resource)
 	combat_manager.clear_targets()
 	path_manager.load_level(level_resource)
@@ -488,13 +554,24 @@ func _on_world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String
 			return
 
 
+func prepare_for_level_transition() -> void:
+	if runtime_hud != null:
+		runtime_hud.prepare_for_level_transition()
+	elif game_time_controller != null:
+		game_time_controller.reset_runtime_state()
+	if path_hover_preview != null:
+		path_hover_preview.clear_preview()
+	Engine.time_scale = 1.0
+
+
 func _on_restart_level_requested() -> void:
 	if level_loader.reload_current_level():
-		runtime_hud.close_pause_menu()
+		prepare_for_level_transition()
 
 
-func _on_exit_game_requested() -> void:
-	get_tree().quit()
+func _on_exit_level_requested() -> void:
+	prepare_for_level_transition()
+	return_to_level_select_requested.emit()
 
 
 func _on_runtime_modal_state_changed(open: bool) -> void:
