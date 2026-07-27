@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="LevelSelectCatalog" format=3]
+[gd_resource type="Resource" script_class="LevelSelectCatalog" format=3 uid="uid://b3kbx3o8wr22k"]
 
-[ext_resource type="Script" path="res://scripts/level/LevelSelectCatalog.gd" id="1_catalog"]
-[ext_resource type="Script" path="res://scripts/level/LevelSelectPageDefinition.gd" id="2_page_script"]
+[ext_resource type="Script" uid="uid://c6628o7egi0iq" path="res://scripts/level/LevelSelectCatalog.gd" id="1_catalog"]
+[ext_resource type="Script" uid="uid://ckayuxy8ijk2o" path="res://scripts/level/LevelSelectPageDefinition.gd" id="2_page_script"]
+[ext_resource type="Resource" path="res://resources/level_select/LevelSelectPage02.tres" id="3_007y0"]
 [ext_resource type="Resource" path="res://resources/level_select/LevelSelectPage01.tres" id="3_page"]
+[ext_resource type="Resource" path="res://resources/level_select/LevelSelectPage03.tres" id="4_pl14m"]
 
 [resource]
 script = ExtResource("1_catalog")
-pages = Array[ExtResource("2_page_script")]([ExtResource("3_page")])
+pages = Array[ExtResource("2_page_script")]([ExtResource("3_page"), ExtResource("3_007y0"), ExtResource("4_pl14m")])

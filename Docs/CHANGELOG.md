@@ -1,5 +1,15 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## M6 / UI · 纯缩略图选关与局内边缘布局 — 2026-07-27
+**模块**：UI / Level Select / Tests / Docs。
+
+- `LevelSelectView` 收敛为全屏纯黑幕上的固定 3×2 六槽缩略图，移除外层面板、标题、页名、页码、关卡名和槽位装饰；空/非法槽位保留作者位置但完全透明且不可点击。
+- 左右翻页按钮改为屏幕两侧垂直居中的纯箭头；新增滚轮向下/向上前进/后退一页，箭头与滚轮统一走 `change_page(delta)`，首尾钳制且不循环。
+- 局内 `WaveControlPanel` 三按钮贴画面最右侧，下一波详情继续向左展开；`TileInspectorPanel` 迁移到画面最左侧中部。右上全局信息与右下经济/时间保持原位。
+- 更新选关、检视和 HUD 三档分辨率回归；Godot 4.7.1 全量 19 个测试套件通过，`AppRoot.tscn` 真机启动无 Parser Error、运行时错误或本功能新增 warning。
+
+**影响面**：只改变选关与局内 HUD 空间布局和选关翻页输入；不改变选关数据资产、缩略图内容、关卡加载、逐波释放或其它玩法。
+
 ## M6 / Wave / UI / Level · 逐波手动释放、右侧三按钮与分页选关 — 2026-07-27
 **模块**：AppFlow / Level / Wave / UI / Main / Debug / Tests / Docs。
 

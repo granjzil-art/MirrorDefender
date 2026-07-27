@@ -16,16 +16,16 @@
 - **右上全局信息（批次 3 已实现）**：`GlobalInfoPanel` 展示关卡显示名、据点生命、场上敌人数、建筑数/上限与镜子数/上限。数据只读来自 `LevelResource`、`BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
 - **右下经济反馈（批次 3 已实现）**：`EconomyPanel` 保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
-- **右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 在右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；最后一波释放后禁用，另外两按钮仍可用。
+- **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；最后一波释放后禁用，另外两按钮仍可用。
 - **下一波悬停预览（2026-07-27 现役）**：悬停释放按钮时，`WaveTimelineModel` 仅作为只读摘要模型聚合释放游标所指下一波的敌人构成与唯一路径。详情向左展开；路径请求经 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发。离开、点击、切关、暂停或控制台模态打开都会清除预览。
 - **旧左侧时间轴（历史兼容）**：`WaveTimelinePanel.gd/.tscn` 保留 2026-07-22 批次 4 历史实现，但 `RuntimeHud.tscn` 已不再实例化；“首波手动、后续自动”和纵向绝对时间轴不再是现役事实。
 - **F1 调试控制台（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。控制台与暂停菜单共享 `RuntimeHud.is_modal_open()` 输入边界；控制台打开时阻断世界、相机、六机位和波次路径预览，但不自动改变游戏时间。
 - **左上常驻调试信息（批次 6 已实现）**：控制台勾选或 `debug set` 启用的分类会同步显示在游戏画面左上角；关闭控制台后继续按真实时间刷新，全部关闭时自动收起。旧“波次时间轴上方预留区”仅是历史布局描述，现役左侧无正式时间轴。
-- **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
-- **现役布局**：程序启动/退关时由 `LevelSelectView` 全屏显示 2×3 六槽分页选关；局内底部是镜子/建筑卡，右上是全局信息，右侧中部是三波次按钮与按需地块详情，右下是经济/时间，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
+- **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。详情板位于画面最左侧中部；虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
+- **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，左侧中部是按需地块详情，右上是全局信息，最右侧中部是三波次按钮，右下是经济/时间，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
 - **全局信息**：右上显示我方据点生命、当前场上敌人数、建筑/镜子容量与关卡名；不维护“本波剩余”第二份状态。
 - 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、释放游标、场上敌人、选中对象和 AppFlow 生命周期）。
-- **基础分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；null 保留为空槽。`LevelThumbnail` 只读程序化绘制 LevelResource，不实例化玩法节点。
+- **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`，滚轮向下/向上分别前进/后退一页，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 作为 Main 内开发快捷入口保留，但不属于正式 `RuntimeHud`、不替代 AppFlow 选关。F1 注册表仍并行提供关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
 - **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
@@ -53,7 +53,7 @@
 | BuildCardBar.`card_size` | `(96,126)` | 单张卡片的基准尺寸。 |
 | BuildCardBar.`card_separation` | 6 | 建筑卡之间的像素间距。 |
 | BuildCardBar.`mirror_slot_separation` | 14 | 独立镜子槽与建筑槽组之间的间距。 |
-| TileInspectorPanel.`feature_enabled` | true | 批次 2 右侧详情板总开关。 |
+| TileInspectorPanel.`feature_enabled` | true | 批次 2 左侧详情板总开关。 |
 | TileInspectorPanel.`preview_size` | 82 | 每条内容的图标/灰盒预览边长。 |
 | TileInspectorPanel.`entry_minimum_height` / `compact_entry_minimum_height` / `entry_separation` | 112 / 54 / 8 | 有图标条目、隐藏图标后的紧凑条目最小高度及间距；超出面板高度后滚动。 |
 | TileInspectorPanel.`fallback_icon` | null | 全局条目占位图；为空时用内容名称前两字灰盒。 |
@@ -101,16 +101,16 @@
 | `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 跨建筑、镜子、地块共享的两级只读检视显示策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
-| `scripts/ui/TileInspectorPanel.gd` | `TileInspectorPanel` / `Control` | 把检视模型渲染为右侧镜面滚动条目，不执行玩法修改。 |
-| `scenes/ui/TileInspectorPanel.tscn` | `Control` 场景 | 右侧中部响应式详情板场景和美术资源接口。 |
+| `scripts/ui/TileInspectorPanel.gd` | `TileInspectorPanel` / `Control` | 把检视模型渲染为左侧镜面滚动条目，不执行玩法修改。 |
+| `scenes/ui/TileInspectorPanel.tscn` | `Control` 场景 | 左侧中部响应式详情板场景和美术资源接口。 |
 | `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、检视、全局/经济、时间、暂停、右侧波次三按钮和调试控制台。 |
 | `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 WaveControlPanel，不实例化旧 WaveTimelinePanel。 |
-| `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 固定 2×3 六槽分页、页名/页码、左右翻页与关卡选择信号。 |
-| `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 单个关卡槽；空/非法资源禁用，合法资源点击返回原 LevelResource。 |
+| `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 纯黑幕固定 2×3 六槽、两侧箭头、滚轮翻页与关卡选择信号。 |
+| `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 无框无文字缩略图槽；空/非法资源透明禁用，合法资源点击返回原 LevelResource。 |
 | `scripts/ui/LevelThumbnail.gd` | `LevelThumbnail` / `Control` | 只读程序化绘制网格、地形、路径、出生点和据点；不创建玩法节点。 |
-| `scenes/ui/LevelSelectView.tscn` | 无 class_name / `Control` 场景 | 全屏基础分页选关，GridContainer 固定三列两行。 |
-| `resources/level_select/LevelSelectCatalog.tres` | `LevelSelectCatalog` / `Resource` | 默认选关目录；当前引用一个正式页面。 |
-| `resources/level_select/LevelSelectPage01.tres` | `LevelSelectPageDefinition` / `Resource` | 默认第一页；第一槽上架 M4DemoLevel，其余五槽为空。 |
+| `scenes/ui/LevelSelectView.tscn` | 无 class_name / `Control` 场景 | 全屏纯黑选关；仅含固定三列两行缩略图网格与两侧纯箭头。 |
+| `resources/level_select/LevelSelectCatalog.tres` | `LevelSelectCatalog` / `Resource` | 正式选关目录；按作者顺序显式引用页面资源。 |
+| `resources/level_select/LevelSelectPage*.tres` | `LevelSelectPageDefinition` / `Resource` | 各页固定六槽的作者关卡顺序；null 位置保持透明占位。 |
 | `scripts/ui/DebugConsole.gd` / `scenes/ui/DebugConsole.tscn` | `DebugConsole` / `Control` | 响应式镜面 F1 模态、分类勾选、实时摘要和命令输入；业务实现外置。 |
 | `scripts/ui/DebugOverlayPanel.gd` / `scenes/ui/DebugOverlayPanel.tscn` | `DebugOverlayPanel` / `Control` | 在控制台关闭后仍持续显示已启用分类的左上角只读摘要。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 右上角运行时选关快捷入口；显示当前关卡并通过正式 LevelLoader 打开资源选择器。 |
@@ -147,8 +147,8 @@ project.godot -> AppRoot.tscn -> AppFlowController (persistent)
 RuntimeHud (Main/HUD)
   ├─ BuildCardBar: 底部镜子/建筑卡
   ├─ GlobalInfoPanel: 右上关卡/据点/敌人/容量
-  ├─ WaveControlPanel: 右侧下一波/重启/退出三按钮
-  ├─ TileInspectorPanel: 右侧按需只读详情
+  ├─ WaveControlPanel: 最右侧下一波/重启/退出三按钮
+  ├─ TileInspectorPanel: 左侧按需只读详情
   ├─ EconomyPanel + TimeControlPanel: 右下经济/慢放/2x/暂停
   ├─ PauseMenu: 模态设置/重启/退出当前关卡
   └─ DebugConsole + DebugOverlayPanel
@@ -205,8 +205,11 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `AppFlowController.gd` | `_on_startup_level_load_resolved(success: bool, reason: String) -> void` | 记录 Main 首载结果并延迟提交。 |
 | `AppFlowController.gd` | `_commit_start_level() -> void` | 成功时释放选关并启用 Main；失败时只释放候选 Main、保留选关。 |
 | `LevelSelectView.gd` | `configure(catalog: LevelSelectCatalog) -> void` | 注入目录并回到第一页；按作者顺序刷新固定六槽。 |
+| `LevelSelectView.gd` | `change_page(delta: int) -> void` | 箭头和滚轮共用的非循环分页入口；首尾页钳制。 |
+| `LevelSelectView.gd` | `get_slot_control(slot_index: int) -> LevelSelectSlot` | 返回固定位置的槽控件；越界返回 null。 |
 | `LevelSelectView.gd` | `get_slot_level(slot_index: int) -> LevelResource` | 返回当前页零基槽位的原关卡引用；越界/空槽为 null。 |
-| `LevelSelectSlot.gd` | `set_level(value: LevelResource) -> void` | 只读校验并刷新标题/缩略图；空或非法资源禁用。 |
+| `LevelSelectView.gd` | `_gui_input(event: InputEvent) -> void` | 消费真实滚轮按下事件；下滚前进一页、上滚后退一页。 |
+| `LevelSelectSlot.gd` | `set_level(value: LevelResource) -> void` | 只读校验并刷新缩略图；空或非法资源透明禁用。 |
 | `LevelSelectSlot.gd` | `get_thumbnail() -> LevelThumbnail` | 返回槽位内程序化缩略图控件。 |
 | `LevelThumbnail.gd` | `set_level(value: LevelResource) -> void` | 只读重建绘制缓存并请求重绘，不写回资源。 |
 | `LevelThumbnail.gd` | `debug_get_draw_data() -> Array[Dictionary]` | 返回单元绘制缓存深副本，防止测试修改内部状态。 |

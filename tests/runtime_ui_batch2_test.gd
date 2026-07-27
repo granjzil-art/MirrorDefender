@@ -138,7 +138,7 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 	)
 	var panel: TileInspectorPanelScript = hud.get_node("TileInspectorPanel")
 	_expect(hud.get_node_or_null("TileInspectionService") != null, "runtime HUD owns the read-only inspection service")
-	_expect(panel != null, "runtime HUD owns the right-side inspector panel")
+	_expect(panel != null, "runtime HUD owns the left-side inspector panel")
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(4, 3, 0)}, {"hit": false})
 	await process_frame
@@ -154,7 +154,7 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 
 	interaction.cancel_to_select(true)
 	await process_frame
-	_expect(not panel.visible, "right-click contract collapses the inspector")
+	_expect(not panel.visible, "right-click contract collapses the left inspector")
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0), "cancelling inspection restores normal time")
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(2, 1, 0)}, {"hit": false})
@@ -163,16 +163,19 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 	_expect(fixture["building"].get_selected_building() == null, "virtual projection inspection does not select a real building")
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0), "projection-only inspection does not activate tactical slow")
 
-	var original_window_size := root.size
+	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	hud.position = Vector2.ZERO
 	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		root.size = resolution
+		hud.size = Vector2(resolution)
 		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)
+		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
 		var panel_rect: Rect2 = panel.get_global_rect()
 		var cards_rect := (hud.get_node("BuildCardBar/Layout/Cards") as Control).get_global_rect()
+		var wave_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
 		_expect(viewport_rect.encloses(panel_rect), "inspector stays inside the %dx%d viewport" % [resolution.x, resolution.y])
+		_expect(panel_rect.position.x >= 14.0 and panel_rect.position.x <= 18.1 and panel_rect.end.x < viewport_rect.size.x * 0.5, "inspector stays on the left with a safe margin at %dx%d" % [resolution.x, resolution.y])
 		_expect(not panel_rect.intersects(cards_rect), "inspector does not overlap cards at %dx%d" % [resolution.x, resolution.y])
-	root.size = original_window_size
+		_expect(not panel_rect.intersects(wave_rect), "inspector does not overlap right-side wave buttons at %dx%d" % [resolution.x, resolution.y])
 
 	var many_entries: Array[Dictionary] = []
 	for index in range(12):
@@ -202,6 +205,7 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 	interaction.queue_free()
 	time_controller.queue_free()
 	await process_frame
+	return
 
 
 func _make_fixture() -> Dictionary:

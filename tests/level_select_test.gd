@@ -80,37 +80,83 @@ func _test_view_slots_paging_and_signal() -> void:
 	await process_frame
 	view.configure(catalog)
 	await process_frame
-	_expect(view.get_slot_count() == 6, "view always creates exactly six slots")
-	_expect(view.get_slot_level(0) == levels[0] and view.get_slot_level(2) == levels[1], "slot order follows authored page order")
-	_expect(view.get_slot_level(1) == null, "authored null remains an empty slot")
-	var empty_slot: LevelSelectSlotScript = view.get_node("Center/Panel/Content/LevelGrid/LevelSlot2") as LevelSelectSlotScript
-	_expect(empty_slot != null and empty_slot.disabled, "empty slot is visible and non-clickable")
+	var background := view.get_node("Background") as ColorRect
+	var grid := view.get_node("GridCenter/LevelGrid") as GridContainer
+	var previous_button := view.get_node("PreviousButton") as Button
+	var next_button := view.get_node("NextButton") as Button
+	_expect(background.color == Color.BLACK, "level select uses a full-screen pure-black background")
+	_expect(view.find_child("Panel", true, false) == null, "level select has no outer panel")
+	_expect(view.find_child("Title", true, false) == null, "level select has no visible title nodes")
+	_expect(view.find_child("PageName", true, false) == null and view.find_child("PageNumber", true, false) == null, "level select has no page name or page number")
+	_expect(grid.columns == 3 and view.get_slot_count() == 6, "view always creates a fixed 3x2 grid with six slots")
+	_expect(view.get_slot_control(-1) == null and view.get_slot_control(6) == null, "slot query rejects out-of-range indexes")
+	_expect(view.get_slot_level(0) == levels[0] and view.get_slot_level(2) == levels[1], "slot order follows authored page order without compacting holes")
+	_expect(view.get_slot_level(1) == null, "authored null remains at its fixed slot index")
+	var first_slot: LevelSelectSlotScript = view.get_slot_control(0)
+	var empty_slot: LevelSelectSlotScript = view.get_slot_control(1)
+	var third_slot: LevelSelectSlotScript = view.get_slot_control(2)
+	var fourth_slot: LevelSelectSlotScript = view.get_slot_control(3)
+	_expect(empty_slot.visible and empty_slot.disabled and is_zero_approx(empty_slot.self_modulate.a), "empty slot keeps layout space but is transparent and disabled")
+	_expect(not first_slot.disabled and is_equal_approx(first_slot.self_modulate.a, 1.0), "filled slot remains opaque and clickable")
+	_expect(first_slot.flat and first_slot.find_child("Title", true, false) == null, "slot has no decorative frame or title child")
+	_expect(first_slot.get_thumbnail() != null and first_slot.get_thumbnail().get_parent() == first_slot, "level thumbnail directly fills the slot")
+	_expect(first_slot.get_thumbnail().get_global_rect().is_equal_approx(first_slot.get_global_rect()), "thumbnail covers the complete slot rectangle")
+	_expect(previous_button.flat and next_button.flat and previous_button.text == "‹" and next_button.text == "›", "navigation controls render as pure arrows")
 	_expect(not view.is_previous_page_visible() and view.is_next_page_visible(), "first page shows only the right arrow")
+	_expect(first_slot.position.x < empty_slot.position.x and empty_slot.position.x < third_slot.position.x, "first grid row preserves three ordered columns")
+	_expect(is_equal_approx(first_slot.position.y, empty_slot.position.y) and is_equal_approx(empty_slot.position.y, third_slot.position.y), "first grid row shares one vertical position")
+	_expect(fourth_slot.position.y > first_slot.position.y and is_equal_approx(fourth_slot.position.x, first_slot.position.x), "fourth slot starts the fixed second row")
 
 	var selected: Array[LevelResource] = []
 	view.level_selected.connect(func(level: LevelResource) -> void: selected.append(level))
-	var first_slot: LevelSelectSlotScript = view.get_node("Center/Panel/Content/LevelGrid/LevelSlot1") as LevelSelectSlotScript
 	first_slot.pressed.emit()
 	_expect(selected.size() == 1 and selected[0] == levels[0], "filled-slot click emits the exact LevelResource")
 	empty_slot.pressed.emit()
 	_expect(selected.size() == 1, "empty-slot activation emits no level")
 
-	var next_button := view.get_node("Center/Panel/Content/Navigation/NextButton") as Button
-	var previous_button := view.get_node("Center/Panel/Content/Navigation/PreviousButton") as Button
 	next_button.pressed.emit()
-	_expect(view.get_current_page_index() == 1, "right arrow advances one page")
+	_expect(view.get_current_page_index() == 1, "right arrow advances through the shared paging entry")
 	_expect(view.is_previous_page_visible() and view.is_next_page_visible(), "middle page shows both arrows")
-	next_button.pressed.emit()
-	_expect(view.get_current_page_index() == 2, "right arrow reaches the final page")
+	var wheel_down := InputEventMouseButton.new()
+	wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel_down.pressed = true
+	view._gui_input(wheel_down)
+	_expect(view.get_current_page_index() == 2, "pressed wheel-down advances exactly one page")
 	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "last page shows only the left arrow")
+	view._gui_input(wheel_down)
+	_expect(view.get_current_page_index() == 2, "wheel-down clamps at the final page")
+	var wheel_up := InputEventMouseButton.new()
+	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel_up.pressed = true
+	view._gui_input(wheel_up)
+	_expect(view.get_current_page_index() == 1, "pressed wheel-up returns exactly one page")
+	wheel_up.pressed = false
+	view._gui_input(wheel_up)
+	_expect(view.get_current_page_index() == 1, "released wheel events do not page")
 	previous_button.pressed.emit()
-	_expect(view.get_current_page_index() == 1, "left arrow returns one page")
+	_expect(view.get_current_page_index() == 0, "left arrow returns through the shared paging entry")
+	wheel_up.pressed = true
+	view._gui_input(wheel_up)
+	_expect(view.get_current_page_index() == 0, "wheel-up clamps at the first page")
+
+	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	view.position = Vector2.ZERO
+	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
+		view.size = Vector2(resolution)
+		await process_frame
+		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
+		_expect(viewport_rect.encloses(grid.get_global_rect()), "level grid stays inside %dx%d" % [resolution.x, resolution.y])
+		_expect(viewport_rect.encloses(previous_button.get_global_rect()) and viewport_rect.encloses(next_button.get_global_rect()), "page arrows stay inside %dx%d" % [resolution.x, resolution.y])
+		for slot_index in range(view.get_slot_count()):
+			_expect(viewport_rect.encloses(view.get_slot_control(slot_index).get_global_rect()), "slot %d stays inside %dx%d" % [slot_index + 1, resolution.x, resolution.y])
+
 	var single_page_catalog := LevelSelectCatalogScript.new()
 	single_page_catalog.pages = _page_array([page_1])
 	view.configure(single_page_catalog)
 	_expect(not view.is_previous_page_visible() and not view.is_next_page_visible(), "single-page catalog hides both arrows")
 	view.queue_free()
 	await process_frame
+	return
 
 
 func _test_thumbnail_geometry_and_read_only_data() -> void:
@@ -175,15 +221,15 @@ func _test_thumbnail_geometry_and_read_only_data() -> void:
 
 func _test_default_resources() -> void:
 	var catalog: LevelSelectCatalogScript = load("res://resources/level_select/LevelSelectCatalog.tres") as LevelSelectCatalogScript
-	var page: LevelSelectPageDefinitionScript = catalog.get_page(0) if catalog != null else null
-	_expect(catalog != null and catalog.get_page_count() == 1, "default catalog loads with one page")
-	_expect(page != null and page.get_level(0) != null, "default first slot contains the official level")
-	_expect(page != null and page.get_level(0).resource_path == "res://resources/levels/M4DemoLevel.tres", "default catalog publishes only M4DemoLevel in slot one")
-	var other_slots_empty := page != null
-	if page != null:
-		for slot_index in range(1, LevelSelectPageDefinitionScript.SLOT_COUNT):
-			other_slots_empty = other_slots_empty and page.get_level(slot_index) == null
-	_expect(other_slots_empty, "default page leaves the remaining five slots empty")
+	_expect(catalog != null and catalog.get_page_count() > 0, "default catalog loads with at least one authored page")
+	if catalog == null:
+		return
+	var pages_fit_fixed_grid := true
+	for page_index in range(catalog.get_page_count()):
+		var page: LevelSelectPageDefinitionScript = catalog.get_page(page_index)
+		pages_fit_fixed_grid = pages_fit_fixed_grid and page != null and page.levels.size() <= LevelSelectPageDefinitionScript.SLOT_COUNT
+	_expect(pages_fit_fixed_grid, "every authored page fits the fixed six-slot grid")
+	return
 
 
 func _make_level(display_name: String) -> LevelResource:

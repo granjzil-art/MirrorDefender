@@ -135,27 +135,35 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 	hud.configure_wave_controls(fixture["wave"])
 	hud.apply_level_configuration(fixture["level"], "memory://runtime-ui-batch4")
 	await process_frame
-	var original_window_size := root.size
+	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	hud.position = Vector2.ZERO
 	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		root.size = resolution
+		hud.size = Vector2(resolution)
 		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)
+		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
 		var controls: WaveControlPanelScript = hud.get_node("WaveControlPanel")
 		var cards := hud.get_node("BuildCardBar") as Control
 		var global_panel := hud.get_node("GlobalInfoPanel") as Control
 		var inspector := hud.get_node("TileInspectorPanel") as Control
 		var controls_rect := controls.get_global_rect()
+		var inspector_rect := inspector.get_global_rect()
+		var right_margin := viewport_rect.end.x - controls_rect.end.x
 		_expect(viewport_rect.encloses(controls_rect), "wave controls stay inside %dx%d" % [resolution.x, resolution.y])
+		_expect(right_margin >= 14.0 and right_margin <= 18.1, "wave controls stay against the right edge with a safe margin at %dx%d" % [resolution.x, resolution.y])
+		_expect(controls.start_button.global_position.y < controls.restart_button.global_position.y and controls.restart_button.global_position.y < controls.exit_button.global_position.y, "wave controls remain a vertical three-button column at %dx%d" % [resolution.x, resolution.y])
+		_expect(inspector_rect.position.x >= 14.0 and inspector_rect.position.x <= 18.1, "tile inspector stays against the left edge at %dx%d" % [resolution.x, resolution.y])
 		_expect(not controls_rect.intersects(cards.get_global_rect()), "wave controls leave the building cards clear at %dx%d" % [resolution.x, resolution.y])
-		_expect(not controls_rect.intersects(global_panel.get_global_rect()) and not controls_rect.intersects(inspector.get_global_rect()), "wave controls leave core right-side panels clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not controls_rect.intersects(global_panel.get_global_rect()) and not controls_rect.intersects(inspector_rect), "wave controls leave information panels clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not inspector_rect.intersects(cards.get_global_rect()), "left inspector leaves the building cards clear at %dx%d" % [resolution.x, resolution.y])
 		controls.preview_next_wave_for_test()
 		await process_frame
 		var info_rect: Rect2 = controls.info_panel.get_global_rect()
 		_expect(viewport_rect.encloses(info_rect), "wave hover information stays inside %dx%d" % [resolution.x, resolution.y])
+		_expect(info_rect.end.x <= controls_rect.position.x, "wave hover information expands to the left at %dx%d" % [resolution.x, resolution.y])
 		controls.clear_hover_preview()
-	root.size = original_window_size
 	hud.queue_free()
 	await process_frame
+	return
 
 
 func _make_fixture() -> Dictionary:

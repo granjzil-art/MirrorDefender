@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="LevelSelectPageDefinition" format=3 uid="uid://wxl0y24ytyfw"]
+
+[ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="1_ho1l5"]
+[ext_resource type="Resource" uid="uid://c2jwklxxgif82" path="res://resources/levels/M4DemoLevel.tres" id="2_33cjt"]
+[ext_resource type="Script" uid="uid://ckayuxy8ijk2o" path="res://scripts/level/LevelSelectPageDefinition.gd" id="6_66rt7"]
+
+[resource]
+script = ExtResource("6_66rt7")
+display_name = "正式关卡"
+levels = Array[ExtResource("1_ho1l5")]([ExtResource("2_33cjt")])

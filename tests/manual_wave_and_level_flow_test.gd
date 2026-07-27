@@ -35,7 +35,7 @@ func _test_app_flow() -> void:
 	var view := app.get_active_level_select() as LevelSelectView
 	var selected_level := view.get_slot_level(0)
 	_expect(selected_level != null, "default selection exposes a playable LevelResource")
-	var slot := view.get_node("Center/Panel/Content/LevelGrid/LevelSlot1") as Button
+	var slot := view.get_slot_control(0) as Button
 	slot.pressed.emit()
 	await process_frame
 	await process_frame
@@ -73,7 +73,7 @@ func _test_configuration_failure_fallback() -> void:
 	root.add_child(app)
 	await process_frame
 	var view := app.get_active_level_select() as LevelSelectView
-	var slot := view.get_node("Center/Panel/Content/LevelGrid/LevelSlot1") as Button
+	var slot := view.get_slot_control(0) as Button
 	slot.pressed.emit()
 	await process_frame
 	_expect(app.get_active_main() == null and app.get_active_level_select() == view, "missing Main configuration safely keeps level selection")

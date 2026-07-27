@@ -207,11 +207,12 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	await process_frame
 	_expect(not hud.is_modal_open() and not fixture["time"].is_paused(), "closing the HUD modal resumes simulation")
 
-	var original_window_size := root.size
+	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	hud.position = Vector2.ZERO
 	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		root.size = resolution
+		hud.size = Vector2(resolution)
 		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, hud.get_viewport_rect().size)
+		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
 		var cards_rect := (hud.get_node("BuildCardBar/Layout/Cards") as Control).get_global_rect()
 		var global_rect := (hud.get_node("GlobalInfoPanel") as Control).get_global_rect()
 		var inspector_rect := (hud.get_node("TileInspectorPanel") as Control).get_global_rect()
@@ -220,14 +221,16 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 		var wave_controls_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
 		for rect in [global_rect, inspector_rect, economy_rect, time_rect, wave_controls_rect]:
 			_expect(viewport_rect.encloses(rect), "batch 3 HUD region stays inside %dx%d" % [resolution.x, resolution.y])
+		_expect(inspector_rect.position.x >= 14.0 and inspector_rect.position.x <= 18.1 and inspector_rect.end.x < viewport_rect.size.x * 0.5, "tile inspector stays at the left-middle safe area at %dx%d" % [resolution.x, resolution.y])
+		var wave_right_margin := viewport_rect.end.x - wave_controls_rect.end.x
+		_expect(wave_right_margin >= 14.0 and wave_right_margin <= 18.1, "wave buttons keep a 14-18px right safety margin at %dx%d" % [resolution.x, resolution.y])
 		_expect(not global_rect.intersects(inspector_rect), "global and tile information do not overlap at %dx%d" % [resolution.x, resolution.y])
-		_expect(not inspector_rect.intersects(economy_rect), "tile and economy information do not overlap at %dx%d" % [resolution.x, resolution.y])
+		_expect(not inspector_rect.intersects(economy_rect) and not inspector_rect.intersects(cards_rect), "left inspector leaves economy and cards clear at %dx%d" % [resolution.x, resolution.y])
 		_expect(not economy_rect.intersects(time_rect), "economy and time controls do not overlap at %dx%d" % [resolution.x, resolution.y])
-		_expect(not wave_controls_rect.intersects(global_rect) and not wave_controls_rect.intersects(inspector_rect), "wave buttons leave the core right-side panels clear at %dx%d" % [resolution.x, resolution.y])
-		_expect(not cards_rect.intersects(economy_rect) and not cards_rect.intersects(time_rect), "card row leaves the right-bottom cluster clear at %dx%d" % [resolution.x, resolution.y])
-	root.size = original_window_size
+		_expect(not wave_controls_rect.intersects(global_rect) and not wave_controls_rect.intersects(inspector_rect), "right-edge wave buttons leave information panels clear at %dx%d" % [resolution.x, resolution.y])
 	hud.queue_free()
 	await process_frame
+	return
 
 
 func _test_level_reload(fixture: Dictionary) -> void:
