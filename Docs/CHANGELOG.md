@@ -1,5 +1,16 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Stuff · 体素地块重构批次1数据契约 — 2026-07-31
+**模块**：Level / Terrain / Stuff / Presentation / Tests / Docs。
+
+- 将规范关卡内容拆为 `TerrainDefinition`、`GridCellData`、`RampPlacementData`、`StuffDefinition` 与 `StuffPlacementData`；草地、沙地、水、泥土只描述地形及模型，建造权限改为逐格独立属性。
+- 固化1～4层体素高度和1:1、1:2、1:3、1:4多格斜坡数据契约；斜坡锚点从最低坡格沿上坡方向占N格并升高一层，正方形/六边形共用 `IGridShape` 计算。
+- Stuff默认互斥，只有双方关闭互斥才可同格共存；每种Stuff独立配置块建筑/边建筑限制、效果、灰盒和模型资产。新增石头、尖刺、黑洞、树规范资源。
+- `LevelResource` 新增规范Grid/Ramp/Stuff数组、默认地形和单层高度；兼容适配器可只读拆分旧Tile数据，显式迁移仍保留旧数组，确保批次1不改变现运行时玩法。
+- 新增规范内容校验与31项专项回归；关卡编辑器波次页、镜头页和现运行时Manager/Renderer未修改。
+
+**影响面**：本批次建立下一阶段事实源和无损迁移边界，不切换现有渲染、效果、寻路、镜像或关卡编辑操作。
+
 ## Presentation / Assets · 统一运行时模型资产契约 — 2026-07-31
 **模块**：Presentation / Tile / Building / Combat / Unit / Mirror / Tests / Docs。
 

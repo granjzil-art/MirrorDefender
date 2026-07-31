@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="StuffDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
+
+[resource]
+script = ExtResource("1_stuff")
+stuff_id = &"tree"
+display_name = "树"
+blocks_tile_building = true
+blocks_edge_building = false
+fallback_visual_kind = 5
+fallback_color = Color(0.12, 0.42, 0.16, 1)

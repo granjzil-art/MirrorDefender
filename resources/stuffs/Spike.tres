@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StuffDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
+[ext_resource type="Resource" path="res://resources/tile_effects/Spike.tres" id="2_effect"]
+
+[resource]
+script = ExtResource("1_stuff")
+stuff_id = &"spike"
+display_name = "尖刺"
+blocks_tile_building = true
+blocks_edge_building = false
+effect = ExtResource("2_effect")
+fallback_visual_kind = 2
+fallback_color = Color(0.95, 0.28, 0.2, 1)

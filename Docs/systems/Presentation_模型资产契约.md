@@ -1,6 +1,6 @@
 # 模型资产契约 · Model Asset
 
-> 实现状态：已统一接入地块基底、建筑等级、地块元素、敌人、建筑投射物、敌人投射物和复制体投射物。
+> 实现状态：现运行时已统一接入旧地块基底/元素、建筑等级、敌人和三类投射物；Terrain/Stuff规范资源已在体素地块重构批次1开放模型槽，运行时切换列入后续批次。
 
 ## 职责
 
@@ -19,6 +19,9 @@
 
 | 使用者 | 字段 | 作用 |
 |---|---|---|
+| `TerrainDefinition` | `flat_model_asset` | 一个体素层的平地模型；1～4层运行时重复堆叠。 |
+| `TerrainDefinition` | `ramp_1_to_1_model_asset`～`ramp_1_to_4_model_asset` | 跨1～4格且升高一层的完整斜坡模型。 |
+| `StuffDefinition` | `model_asset` | 石头、树、尖刺、黑洞等独立关卡元素模型。 |
 | `LevelResource` | `tile_model_asset` | 本关全部地块基底的默认模型。 |
 | `TileDefinition` | `terrain_model_asset` | 指定地块定义对关卡默认基底模型的覆盖。 |
 | `TileDefinition` | `element_model_asset` | 尖刺、空洞、石头或可破坏内容层模型。 |
@@ -36,6 +39,8 @@
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/presentation/ModelAssetDefinition.gd` | `ModelAssetDefinition` / `Resource` | 模型场景、附加运行时 Scale、实例化和配置校验的共享契约。 |
+| `scripts/terrain/TerrainDefinition.gd` | `TerrainDefinition` / `Resource` | 平地体素与四档多格斜坡模型槽。 |
+| `scripts/stuff/StuffDefinition.gd` | `StuffDefinition` / `Resource` | 独立Stuff模型槽和旧`visual_scene`兼容包装。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 基底/内容资产实例化、灰盒批次回退和镜像快照。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 读取当前等级建筑模型和建筑投射物模型。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 实例化 EnemyUnit 注入的敌人模型，失败时生成胶囊灰盒。 |
@@ -64,6 +69,13 @@ TileDefinition.element_model_asset
   -> create_tile_content_visual_snapshot
   -> MirrorProjection exact reflected snapshot
 
+TerrainDefinition.flat_model_asset + ramp_1_to_N_model_asset
+  -> 后续 TerrainRenderer 体素堆叠/斜坡实例化
+
+StuffDefinition.model_asset
+  -> 后续 StuffRenderer 实例化
+  -> 按格内容快照 -> MirrorProjection（不包含Terrain/Ramp）
+
 BuildingLevelStats.projectile_model_asset
   -> CombatManager -> Projectile
   -> Building copy_attack_triggered
@@ -82,12 +94,15 @@ BuildingLevelStats.projectile_model_asset
 | `TileDefinition.get_element_model_asset` | `() -> ModelAssetDefinition` | 返回内容层有效模型资产并兼容旧字段。 |
 | `TileCellData.get_terrain_model_asset` | `(fallback: ModelAssetDefinition = null) -> ModelAssetDefinition` | 返回定义覆盖或关卡默认地块模型。 |
 | `TileCellData.get_element_model_asset` | `() -> ModelAssetDefinition` | 返回未被摧毁内容的元素模型。 |
+| `TerrainDefinition.get_ramp_model_asset` | `(run_length: int) -> ModelAssetDefinition` | 返回1:1～1:4斜坡模型槽。 |
+| `StuffDefinition.get_model_asset` | `() -> ModelAssetDefinition` | 返回Stuff规范模型并兼容旧`visual_scene`。 |
 
 ## 约定事实源
 
 - `PackedScene` 内保存的 Transform 属于美术资产；`runtime_scale` 属于玩法项目配置，两者禁止互相覆盖。
 - `runtime_scale` 三轴必须都是有限正数；镜像翻转由 Mirror 的反射矩阵负责，不能用负 Scale 冒充。
 - 地块基底和地块内容是两个独立槽。复制镜只请求内容快照，不复制基底资产。
+- 新规范进一步固定为Terrain与Stuff两个资源域：Terrain平地/斜坡永不进入镜像内容，Stuff模型可被按格复制。
 - 自定义模型成功实例化后替换对应灰盒；未配置时不改变现有画面、玩法、碰撞、命中点或寻路。
 - 投射物的速度、长度和宽度仍是玩法/灰盒参数；自定义模型尺寸只由场景自身 Transform 与 `runtime_scale` 决定。
 

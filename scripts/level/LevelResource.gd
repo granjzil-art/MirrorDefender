@@ -9,6 +9,12 @@ extends Resource
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
 const CameraPresetDefinitionScript := preload("res://scripts/camera/CameraPresetDefinition.gd")
+const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
+const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
+const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
+const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const LevelContentMigrationAdapterScript := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
+const LevelContentValidatorScript := preload("res://scripts/level/LevelContentValidator.gd")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
@@ -31,6 +37,18 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 ## resources may override it with terrain_model_asset.
 @export var tile_model_asset: ModelAssetDefinition
 @export var tiles: Array = []
+
+@export_group("Terrain Grid")
+## Version 0/1 means legacy TileCellData. Version 2 is the canonical split
+## between terrain Grid, ramps, and Stuff.
+@export_storage var terrain_content_version: int = 0
+@export var default_terrain: TerrainDefinitionScript
+@export_range(0.05, 5.0, 0.05, "or_greater") var layer_height: float = 0.45
+@export var grid_cells: Array[GridCellDataScript] = []
+@export var ramp_placements: Array[RampPlacementDataScript] = []
+
+@export_group("Level Stuff")
+@export var stuff_placements: Array[StuffPlacementDataScript] = []
 
 @export_group("Editor Terrain Colors")
 @export var height_color_low: Color = Color(0.18, 0.60, 0.31, 1.0)
@@ -141,6 +159,22 @@ func store_tile(tile: Resource) -> void:
 func clear_tiles() -> void:
 	tiles.clear()
 	emit_changed()
+
+
+## Canonical read entry for later runtime/editor batches. Legacy levels are
+## converted to a transient snapshot without changing their Resource.
+func get_effective_content_snapshot() -> Dictionary:
+	return LevelContentMigrationAdapterScript.build_snapshot(self)
+
+
+func uses_canonical_content() -> bool:
+	return LevelContentMigrationAdapterScript.uses_canonical_content(self)
+
+
+## Explicit one-way editor migration. Legacy tiles remain present during batch
+## 1 so the current runtime continues to load exactly as before.
+func migrate_legacy_content_in_place() -> bool:
+	return LevelContentMigrationAdapterScript.migrate_in_place(self)
 
 func clamp_tile_heights() -> void:
 	for raw_tile in tiles:
@@ -312,6 +346,10 @@ func get_path_for_spawn_point(spawn_point: SpawnPointDefinition) -> PathDefiniti
 func validate_runtime() -> Array[String]:
 	var errors: Array[String] = []
 	_validate_grid_and_tiles(errors)
+	if grid_shape == 0 or grid_shape == 1:
+		var content_shape: IGridShape = _make_validation_shape()
+		content_shape.setup(grid_cell_size)
+		errors.append_array(LevelContentValidatorScript.validate(self, content_shape))
 	_validate_level_parameters(errors)
 	_validate_m4_content(errors)
 	return errors

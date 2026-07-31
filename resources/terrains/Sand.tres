@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+
+[resource]
+script = ExtResource("1_terrain")
+terrain_id = &"sand"
+display_name = "沙地"
+fallback_color = Color(0.78, 0.62, 0.31, 1)

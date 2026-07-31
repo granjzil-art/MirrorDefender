@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StuffDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
+[ext_resource type="Resource" path="res://resources/tile_effects/Void.tres" id="2_effect"]
+
+[resource]
+script = ExtResource("1_stuff")
+stuff_id = &"void"
+display_name = "黑洞"
+blocks_tile_building = true
+blocks_edge_building = false
+effect = ExtResource("2_effect")
+fallback_visual_kind = 3
+fallback_color = Color(0.01, 0.015, 0.025, 1)
