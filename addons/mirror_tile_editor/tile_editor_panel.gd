@@ -1086,11 +1086,21 @@ func _refresh_base_controls() -> void:
 	_base_set_cell.disabled = not enabled or _path_canvas == null or not _path_canvas.has_selected_cell
 	_base_remove.disabled = not enabled or (_level != null and _level.get_effective_base_points().size() <= 1)
 
+## Path-page overlay isolation: only the selected route line/nodes are shown.
+## Terrain path colors still come from LevelResource.paths, and all endpoint markers remain visible.
+func _get_visible_path_overlays() -> Array[PathDefinition]:
+	var visible_paths: Array[PathDefinition] = []
+	var selected_path := _get_selected_path()
+	if selected_path != null:
+		visible_paths.append(selected_path)
+	return visible_paths
+
+
 func _refresh_path_overlay() -> void:
 	if _path_canvas != null and _level != null:
 		_path_canvas.call(
 			"set_m4_overlay",
-			_level.paths,
+			_get_visible_path_overlays(),
 			_level.spawn_points,
 			_level.get_effective_base_points(),
 			_get_selected_path()

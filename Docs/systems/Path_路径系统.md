@@ -18,6 +18,7 @@
 - **表现**：全部 `PathDefinition.cells` 的并集使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，运行时与关卡编辑器一致。PathManager 另行绘制可关闭的路线与出生点调试标记；BaseCore 绘制据点标记。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
 - **M6 悬停流向**：`PathHoverPreview` 只在波次块悬停时读取 PathManager 世界点，为该波全部唯一路径绘制发光折线和从入口向据点循环移动的标记；使用真实时间，不改变路径、敌人或波次。悬停离开、暂停和切关会清空。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，可按住左键连续拖过地块，画布会按鼠标轨迹采样并逐格记录。四边形同行/同列的跳格端点会自动补全中间格；加载旧关卡时也执行同一无歧义修复并标记为未保存。其它非相邻落点仍会被拒绝。
+- **路径页隔离显示**：路径列表选中某条路径后，路径画布只绘制该路径的折线和节点圆点；切换选择立即切换覆盖层。全部路径经过格仍保留 `path_terrain_color` 基底，全部出生点和据点数字仍显示。隔离仅作用于路径页，地块页和镜头页继续表现全部路径格。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
 
 ## 关键参数
@@ -76,6 +77,9 @@ LevelResource.paths -> BuildingManager path-cell cache
   -> ordinary towers rejected / barrier allowed outside spawn and base
 
 Level Editor path page
+  -> path list selection -> TileEditorPanel._get_visible_path_overlays()
+     -> TileEditorCanvas.set_m4_overlay([selected_path], all spawns, all bases, selected_path)
+     -> draw only selected route line/nodes; terrain path-cell union remains all LevelResource.paths
   -> author numbered spawn/base locations independently
   -> select origin + target, then record neighboring cells -> PathDefinition
   -> wave path selection -> derive the path's SpawnPointDefinition
@@ -118,6 +122,9 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `PathHoverPreview.advance_visual_time` | `(real_delta: float) -> void` | 以真实时间推进所有标记，暂停时仍可独立运行。 |
 | `LevelResource.validate_m4` | `() -> Array[String]` | 只读检查据点边界，路径长度/边界/逐段相邻/终点，出生点边界，以及波次组数量、间隔和引用；空数组表示通过。 |
 | `TileEditorCanvas._record_path_between` | `(from: Vector2, to: Vector2) -> void` | 按屏幕轨迹采样鼠标拖动，为路径页依次发送经过格。 |
+| `TileEditorCanvas.set_m4_overlay` | `(paths: Array[PathDefinition], spawn_points: Array[SpawnPointDefinition], base_points: Array, selected_path: PathDefinition) -> void` | 替换路径页折线/端点覆盖层；路径地表并集仍从完整 LevelResource 重建。 |
+| `TileEditorPanel._get_visible_path_overlays` | `() -> Array[PathDefinition]` | 返回仅含当前选中路径的覆盖层数组；无选中路径时返回空数组。 |
+| `TileEditorPanel._refresh_path_overlay` | `() -> void` | 向路径画布提交隔离后的折线与完整出生点/据点集合。 |
 | `TileEditorPanel._on_path_canvas_clicked` | `(cell: Vector3i) -> void` | 仅在记录开启时追加格；四边形同行/同列跳格会补全中间格，其它非相邻落点仍拒绝。 |
 | `TileEditorPanel._normalize_square_path_gaps` | `(level: LevelResource) -> int` | 加载时将旧四边形路径中同行/同列的首尾段补成逐格路径，返回新增格数。 |
 | `TileEditorPanel._sync_spawn_for_path` | `(path: PathDefinition, known_spawn: SpawnPointDefinition = null) -> SpawnPointDefinition` | 为路径复用或创建唯一出生点并同步命名/起点。 |
@@ -126,7 +133,7 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 ## 约定事实源
 
 - 路径顺序是出生点到据点，敌人不可反向解释。
-- 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色、永久端点数字与可关闭的 PathManager 调试线是三个独立表现层。
+- 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色、永久端点数字与路径页折线覆盖是三个独立表现层。路径页可只显示当前路径折线，但不得过滤地表并集或全部端点标记。
 - 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
 - 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
 - 候选后缀只排除大石头等导航阻碍；空洞与尖刺均可被选中，敌人进入后再结算地块效果。建筑屏障不使路径失效，仍由敌人停步攻击。
