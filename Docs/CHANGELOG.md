@@ -1,5 +1,15 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime / Camera · 中键平移与右键拖动旋转 — 2026-07-31
+**模块**：Camera / Main / Runtime UI / Tests / Docs。
+
+- 运行时 CameraController 新增中键屏幕平面平移和右键 yaw/pitch 旋转；平移速度随缩放距离变化，鼠标手势参数均可在 Inspector 调整。
+- 右键改为释放时分类：不足 6 px 为短点击并请求取消，超过阈值后只旋转镜头。HUD 起手不会导航相机，但短点击仍保持全局取消；移除卡槽自身的重复右键取消分发。
+- 暂停/控制台和六机位过渡会清空手势；WASD/QE/XC/滚轮保持兼容。新增 30 项相机输入回归及 Main/卡槽集成回归，三项受影响测试均通过。
+- 全量入口与 `AppRoot.tscn` 真机启动当前被工作区未提交的箭塔模型依赖错误阻断：FBX 导入仍引用 `res://assets/buildings/ArrowTower_0.png` / `_1.png`，不属于本功能改动。
+
+**影响面**：改变非模态右键取消的触发时机（按下改为释放），不改变放置、选择、朝向、时间倍率或关卡编辑器输入。
+
 ## Editor / Path · 路径页当前路径隔离显示 — 2026-07-31
 **模块**：Level Editor / Path / Tests / Docs。
 

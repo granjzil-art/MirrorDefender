@@ -16,7 +16,6 @@ extends Control
 
 signal building_card_selected(definition: BuildingDefinition)
 signal mirror_card_selected
-signal cancel_requested
 
 var _resource_manager: ResourceManager
 var _mirror_definition: CopyMirrorDefinition
@@ -176,7 +175,6 @@ func _create_card_button(
 	button.custom_minimum_size = card_size
 	button.focus_mode = Control.FOCUS_NONE
 	button.tooltip_text = "%s · 费用 %d" % [display_name, ceili(cost)]
-	button.gui_input.connect(_on_card_gui_input)
 
 	var content := VBoxContainer.new()
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
@@ -228,7 +226,6 @@ func _create_empty_card(index: int) -> Control:
 	label.modulate = Color(0.60, 0.68, 0.72, 0.75)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(label)
-	panel.gui_input.connect(_on_card_gui_input)
 	return panel
 
 
@@ -296,12 +293,6 @@ func _on_building_pressed(definition: BuildingDefinition) -> void:
 func _on_mirror_pressed() -> void:
 	if _is_mirror_available():
 		mirror_card_selected.emit()
-
-
-func _on_card_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		cancel_requested.emit()
-		get_viewport().set_input_as_handled()
 
 
 func _on_resource_changed(_current: float, _delta: float, _reason: String) -> void:

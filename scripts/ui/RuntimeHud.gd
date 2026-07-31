@@ -71,7 +71,6 @@ func configure(
 	)
 	build_card_bar.building_card_selected.connect(_on_building_card_selected)
 	build_card_bar.mirror_card_selected.connect(_on_mirror_card_selected)
-	build_card_bar.cancel_requested.connect(_on_cancel_requested)
 	economy_panel.configure(resource_manager)
 	time_control_panel.configure(_time_controller)
 	pause_menu.configure(get_window())
@@ -177,12 +176,6 @@ func _on_mirror_card_selected() -> void:
 		build_card_bar.set_mirror_selected(true)
 
 
-func _on_cancel_requested() -> void:
-	if _interaction != null:
-		_interaction.cancel_to_select(true)
-	build_card_bar.show_status("已取消")
-
-
 func _on_mode_changed(mode: RuntimeInteractionControllerScript.Mode) -> void:
 	if mode == RuntimeInteractionControllerScript.Mode.SELECT:
 		build_card_bar.clear_selection()
@@ -261,8 +254,6 @@ func _disconnect_sources() -> void:
 			build_card_bar.building_card_selected.disconnect(_on_building_card_selected)
 		if build_card_bar.mirror_card_selected.is_connected(_on_mirror_card_selected):
 			build_card_bar.mirror_card_selected.disconnect(_on_mirror_card_selected)
-		if build_card_bar.cancel_requested.is_connected(_on_cancel_requested):
-			build_card_bar.cancel_requested.disconnect(_on_cancel_requested)
 	if _interaction != null:
 		if _interaction.mode_changed.is_connected(_on_mode_changed):
 			_interaction.mode_changed.disconnect(_on_mode_changed)

@@ -59,6 +59,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		building_manager.barrier,
 	]
 	card_bar.configure(resource_manager, mirror_manager.copy_mirror_definition, cards, 6)
+	_expect(not card_bar.has_signal("cancel_requested"), "right-click cancellation is centralized in the runtime camera click classifier")
 	_expect(card_bar.get_building_slot_count() == 6, "card bar respects the configured six-slot capacity")
 	_expect(card_bar.get_filled_building_card_count() == 3, "default loadout fills arrow, laser, and barrier cards")
 	_expect(card_bar.get_empty_building_card_count() == 3, "unused loadout positions render as three empty mirror slots")

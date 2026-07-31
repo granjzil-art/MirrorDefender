@@ -6,13 +6,23 @@
 ##   WASD  cam_move_*   —— 沿当前 yaw 朝向在 XZ 平面平移焦点
 ##   QE    cam_rotate_* —— 绕 Y 轴旋转 yaw
 ##   XC    cam_pitch_*  —— 降低/提高俯仰角
+##   中键拖动           —— 沿相机屏幕平面平移焦点
+##   右键拖动           —— 环绕旋转；短点击请求取消
 ##   鼠标滚轮           —— 唯一缩放输入
 ## 铁律「参数化」：速度/角度/缩放范围全 @export，运行时可调。
 class_name CameraController
 extends Node3D
 
+signal cancel_requested
+
 @export_group("Feature")
 @export var input_enabled: bool = true
+
+@export_group("Mouse Navigation")
+@export var mouse_navigation_enabled: bool = true
+@export_range(0.0, 0.02, 0.0001, "or_greater") var pan_sensitivity: float = 0.003
+@export_range(0.0, 2.0, 0.01, "or_greater") var orbit_sensitivity: float = 0.2
+@export_range(0.0, 64.0, 0.5, "or_greater") var drag_threshold_pixels: float = 6.0
 
 @export_group("Move")
 @export var move_speed: float = 8.0
@@ -37,6 +47,13 @@ extends Node3D
 
 @onready var _camera: Camera3D = $Camera3D
 var _preset_transition_active: bool = false
+var _middle_drag_active: bool = false
+var _right_drag_active: bool = false
+var _right_orbit_allowed: bool = false
+var _right_dragging: bool = false
+var _right_drag_distance: float = 0.0
+var _pointer_over_gui_override_enabled: bool = false
+var _pointer_over_gui_override: bool = false
 
 func _ready() -> void:
 	zoom_distance = clampf(zoom_distance, zoom_min, zoom_max)
@@ -94,6 +111,119 @@ func _handle_pitch(delta: float) -> void:
 	if value != 0.0:
 		_set_pitch(pitch_angle + pitch_speed * delta * value)
 
+
+func _input(event: InputEvent) -> void:
+	if not input_enabled or _preset_transition_active:
+		return
+	if not mouse_navigation_enabled:
+		_middle_drag_active = false
+		_right_orbit_allowed = false
+	var mouse_button := event as InputEventMouseButton
+	if mouse_button != null:
+		_handle_mouse_button(mouse_button)
+		return
+	var mouse_motion := event as InputEventMouseMotion
+	if mouse_motion != null:
+		_handle_mouse_motion(mouse_motion)
+	return
+
+
+func _handle_mouse_button(event: InputEventMouseButton) -> void:
+	if event.button_index == MOUSE_BUTTON_MIDDLE:
+		if event.pressed:
+			if _can_start_mouse_navigation():
+				_middle_drag_active = true
+				get_viewport().set_input_as_handled()
+		elif _middle_drag_active:
+			_middle_drag_active = false
+			get_viewport().set_input_as_handled()
+		return
+	if event.button_index != MOUSE_BUTTON_RIGHT:
+		return
+	if event.pressed:
+		_right_drag_active = true
+		_right_orbit_allowed = _can_start_mouse_navigation()
+		_right_dragging = false
+		_right_drag_distance = 0.0
+		if _right_orbit_allowed:
+			get_viewport().set_input_as_handled()
+		return
+	if not _right_drag_active:
+		return
+	var should_cancel := not _right_dragging
+	_right_drag_active = false
+	_right_orbit_allowed = false
+	_right_dragging = false
+	_right_drag_distance = 0.0
+	get_viewport().set_input_as_handled()
+	if should_cancel:
+		cancel_requested.emit()
+	return
+
+
+func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
+	var handled := false
+	if _middle_drag_active:
+		_pan_from_mouse(event.relative)
+		handled = true
+	if _right_drag_active:
+		_right_drag_distance += event.relative.length()
+		if not _right_dragging and _right_drag_distance >= drag_threshold_pixels:
+			_right_dragging = true
+		if _right_dragging and _right_orbit_allowed:
+			_orbit_from_mouse(event.relative)
+			handled = true
+	if handled:
+		get_viewport().set_input_as_handled()
+	return
+
+
+func _can_start_mouse_navigation() -> bool:
+	if not mouse_navigation_enabled:
+		return false
+	if _pointer_over_gui_override_enabled:
+		return not _pointer_over_gui_override
+	var viewport := get_viewport()
+	return viewport != null and viewport.gui_get_hovered_control() == null
+
+
+func set_pointer_over_gui_for_test(enabled: bool, over_gui: bool = false) -> void:
+	_pointer_over_gui_override_enabled = enabled
+	_pointer_over_gui_override = over_gui
+	return
+
+
+func _pan_from_mouse(relative: Vector2) -> void:
+	if _camera == null or relative == Vector2.ZERO:
+		return
+	var right := _camera.global_basis.x.normalized()
+	var up := _camera.global_basis.y.normalized()
+	var world_per_pixel := zoom_distance * pan_sensitivity
+	global_position += (-right * relative.x + up * relative.y) * world_per_pixel
+	return
+
+
+func _orbit_from_mouse(relative: Vector2) -> void:
+	if relative == Vector2.ZERO:
+		return
+	rotation.y = wrapf(
+		rotation.y + deg_to_rad(relative.x * orbit_sensitivity),
+		-PI,
+		PI
+	)
+	_set_pitch(pitch_angle - relative.y * orbit_sensitivity)
+	return
+
+
+func _clear_mouse_gestures() -> void:
+	_middle_drag_active = false
+	_right_drag_active = false
+	_right_orbit_allowed = false
+	_right_dragging = false
+	_right_drag_distance = 0.0
+	return
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled or _preset_transition_active:
 		return
@@ -133,6 +263,9 @@ func get_pitch_angle() -> float:
 
 func set_input_enabled(enabled: bool) -> void:
 	input_enabled = enabled
+	if not enabled:
+		_clear_mouse_gestures()
+	return
 
 
 func is_input_enabled() -> bool:
@@ -141,6 +274,9 @@ func is_input_enabled() -> bool:
 
 func set_preset_transition_active(active: bool) -> void:
 	_preset_transition_active = active
+	if active:
+		_clear_mouse_gestures()
+	return
 
 
 func is_preset_transition_active() -> bool:

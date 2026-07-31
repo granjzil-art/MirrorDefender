@@ -100,6 +100,7 @@ func configure_startup_level(level: LevelResource) -> bool:
 
 func _ready() -> void:
 	_camera = cam_rig.get_camera()
+	cam_rig.cancel_requested.connect(_on_camera_cancel_requested)
 	hud_label.get_parent().visible = false
 	hint_label.visible = false
 	m3_debug_panel.feature_enabled = false
@@ -242,17 +243,14 @@ func _process(_delta: float) -> void:
 	_update_pick()
 
 
-## Cancellation is global and intentionally runs before GUI dispatch so a
-## right-click over any HUD control still returns to SELECT.
+## Modal cancellation remains press-based. Non-modal world cancellation is
+## emitted by CameraController only when a right press/release stays a click.
 func _input(event: InputEvent) -> void:
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):
 			runtime_hud.close_top_modal()
 			get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("cancel_action"):
-		runtime_interaction.cancel_to_select(true)
-		get_viewport().set_input_as_handled()
 
 func _update_pick() -> void:
 	var vp := get_viewport()
@@ -572,6 +570,14 @@ func _on_restart_level_requested() -> void:
 func _on_exit_level_requested() -> void:
 	prepare_for_level_transition()
 	return_to_level_select_requested.emit()
+
+
+func _on_camera_cancel_requested() -> void:
+	if runtime_hud != null and runtime_hud.is_modal_open():
+		return
+	runtime_interaction.cancel_to_select(true)
+	get_viewport().set_input_as_handled()
+	return
 
 
 func _on_runtime_modal_state_changed(open: bool) -> void:

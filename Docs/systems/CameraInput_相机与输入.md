@@ -1,21 +1,23 @@
 # 相机与输入 · CameraInput
 
 ## 职责
-提供 3C 中的相机控制与输入映射，所有键位走 InputMap 可改键。
+提供 3C 中的运行时相机控制与输入映射；键盘动作走 InputMap，鼠标中键/右键/滚轮由 CameraController 统一分类。
 
 ## 分类 / 做法
 - **相机控制**：
   - `WASD` 移动镜头
   - `QE` 旋转镜头
   - `X` 降低俯仰角，`C` 提高俯仰角
+  - 按住中键拖动：沿相机屏幕平面“抓住画面”平移焦点，允许改变焦点 Y
+  - 按住右键拖动：水平调整 yaw、垂直调整 pitch
   - 仅鼠标滚轮缩放，不保留键盘缩放动作
 - **交互输入**：
   - `R` 在建造模式旋转塔虚影；其它模式旋转选中的实际塔。镜子接入后复用同一动作。
   - 鼠标左键：放置 / 选择
-  - 鼠标右键：取消
-- **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。右键由 Main 的 `_input` 在 GUI 分发前全局消费，确保鼠标位于 HUD 上时也能取消。
+  - 鼠标右键短点击：取消；超过拖动阈值后转为相机旋转且不取消
+- **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；HUD 上起手禁止相机旋转，但短点击仍保留全局取消。
 - **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
-- **模态输入边界**：M6 暂停菜单展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮；继续后统一解锁。
+- **模态输入边界**：M6 暂停菜单或调试控制台展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮及鼠标拖动，并清除未完成的中/右键手势；继续后统一解锁。
 - **六机位预设**：数字键 `1`～`6` 读取当前 `LevelResource` 的同号可选机位。已配置槽位按真实时间平滑过渡焦点、yaw、pitch 和缩放距离；空槽、无效槽或未加载关卡无动作。
 - **过渡输入边界**：过渡期间 `CameraController` 只抑制手动移动/旋转/俯仰/滚轮；结束或切关后恢复。暂停及后续控制台通过既有 `input_enabled` 总锁冻结过渡，避免模态层背后移动镜头。
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
@@ -29,6 +31,10 @@
 | 参数名 | 分组 | 默认值 | 说明 |
 |---|---|---|---|
 | input_enabled | Feature | true | 运行时相机输入总开关；暂停模态层开启时由 Main 暂时关闭。 |
+| mouse_navigation_enabled | Mouse Navigation | true | 中键平移和右键拖动旋转总开关；关闭后仍保留右键短点击取消。 |
+| pan_sensitivity | Mouse Navigation | 0.003 | 中键每像素平移系数，实际世界位移再乘当前 zoom_distance。 |
+| orbit_sensitivity | Mouse Navigation | 0.2 | 右键每像素旋转角度。 |
+| drag_threshold_pixels | Mouse Navigation | 6.0 | 右键点击与拖动的累计像素阈值。 |
 | move_speed | Move | 8.0 | 镜头平移速度 |
 | edge_pan | Move | false | 是否启用屏幕边缘平移 |
 | edge_pan_margin | Move | 16.0 | 边缘平移触发像素带宽 |
@@ -51,7 +57,7 @@
 ### gimbal 相机结构（`scripts/camera/CameraController.gd`，`class_name CameraController extends Node3D`）
 ```
 CameraController (本节点 = pivot 焦点)
- ├─ position: 焦点在世界 XZ 平面移动
+ ├─ position: WASD 在 XZ 平面移动；中键可沿相机屏幕平面移动 XYZ
  ├─ rotation.y: yaw（QE 绕 Y 轴旋转）
  └─ 子节点 Camera3D（在 Main.tscn 中作为 $CameraRig/Camera3D）
       └─ 由 _apply_camera_transform() 依可调 pitch_angle + zoom_distance 放到
@@ -83,8 +89,8 @@ InputMap camera_preset_1 ... camera_preset_6
 - Godot 4.7 的 `EditorInterface.get_editor_main_screen()` 将插件页面放入名为 `MainScreen` 的 `VBoxContainer`；锚点在 Container 下不负责分配尺寸，因此 `tile_editor_plugin.gd` 和面板 `_ready()` 都显式设置横纵 `SIZE_EXPAND_FILL`。缺少此契约时根面板高度为 0，子控件即使 `visible=true` 也无法显示。
 
 ### 输入现状（M6 批次 1）
-- **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理移动、旋转和俯仰；`_unhandled_input` 独占滚轮缩放。关卡编辑画布保持相同的 XC/滚轮语义。
-- **Main 场景路由**：`place_select` 把格/边拾取交给 RuntimeInteractionController；`cancel_action` 全局回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。
+- **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理键盘移动、旋转和俯仰；`_input` 分类中键平移与右键点击/旋转，`_unhandled_input` 独占滚轮缩放。鼠标手势仅从无 GUI 命中的世界区域起手；关卡编辑画布不复用该运行时手势。
+- **Main 场景路由**：`place_select` 把格/边拾取交给 RuntimeInteractionController；CameraController 的 `cancel_requested()` 全局回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。
 - **世界固定朝向**：建筑与镜子方向只读 Grid 形状及自身 facing/active side；CameraRig yaw 不参与玩法方向计算。独立 InputRouter 尚未拆分。
 
 ## 函数索引
@@ -99,6 +105,10 @@ InputMap camera_preset_1 ... camera_preset_6
 | `_edge_pan_input` | `() -> Vector2` | 屏幕边缘平移输入（edge_pan 开关） |
 | `_handle_rotate` | `(delta) -> void` | QE 绕 Y 轴旋转 yaw |
 | `_handle_pitch` | `(delta: float) -> void` | X 降低、C 提高俯仰并按参数限位 |
+| `_input` | `(event: InputEvent) -> void` | 分类中键平移、右键短点击与右键拖动旋转。 |
+| `_pan_from_mouse` | `(relative: Vector2) -> void` | 沿 Camera3D 屏幕 right/up 基向量平移焦点；位移随 zoom 缩放。 |
+| `_orbit_from_mouse` | `(relative: Vector2) -> void` | 按像素调整 yaw/pitch，并限制俯仰范围。 |
+| `_clear_mouse_gestures` | `() -> void` | 清理中键、右键、拖动阈值和HUD起手状态。 |
 | `_unhandled_input` | `(event: InputEvent) -> void` | 唯一缩放入口；鼠标滚轮 WHEEL_UP/DOWN 缩放 |
 | `_set_zoom` | `(v: float) -> void` | `clampf` 到 [zoom_min,zoom_max] 并刷新相机 |
 | `_set_pitch` | `(v: float) -> void` | `clampf` 到 [pitch_min,pitch_max] 并刷新相机 |
@@ -111,6 +121,8 @@ InputMap camera_preset_1 ... camera_preset_6
 | `is_preset_transition_active` | `() -> bool` | 返回是否正由机位控制器接管视角。 |
 | `get_view_state` | `() -> Dictionary` | 返回 `{focus_position: Vector3, yaw_degrees: float, pitch_degrees: float, zoom_distance: float}`。 |
 | `apply_view_state` | `(focus_position: Vector3, yaw_degrees: float, pitch_degrees: float, distance: float) -> void` | 原子应用完整视角并按 CameraController 范围收紧 pitch/zoom。 |
+
+**信号**：`cancel_requested()` 仅在右键按下到释放始终未超过拖动阈值时发送；右键旋转不会发送。
 
 ### CameraPresetDefinition.gd
 
@@ -169,7 +181,8 @@ InputMap camera_preset_1 ... camera_preset_6
 ### Main.gd（M6 正式输入路由）
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `_input` | `(event: InputEvent) -> void` | 在 GUI 前全局消费右键取消，清除卡片、预览和实体选择。 |
+| `_input` | `(event: InputEvent) -> void` | 仅处理暂停/控制台模态关闭；非模态右键交给 CameraController 延迟分类。 |
+| `_on_camera_cancel_requested` | `() -> void` | 接收右键短点击，清除卡片、预览和实体选择。 |
 | `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/R/F 到当前模块入口；GUI 已消费的左键不会到达这里。 |
 | `_handle_primary_action` | `() -> void` | 拾取格/边并交给 RuntimeInteractionController 选择或单次放置。 |
 | `_lock_current_pick` | `() -> void` | 保存当前格/边选择供 HUD 与建筑选择使用。 |
@@ -185,19 +198,19 @@ InputMap camera_preset_1 ... camera_preset_6
 | `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
 | `rotate_facing` | R | 镜子预览/实体翻面，或建筑预览/实体顺时针旋转 | Main -> MirrorManager / BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择或一次正式卡片放置 | Main.gd -> RuntimeInteractionController |
-| `cancel_action` | 鼠标右键 | 全局回到选择模式并清除选择/预览 | Main.gd -> RuntimeInteractionController |
+| `cancel_action` | 鼠标右键 | 模态层按下关闭；非模态由 CameraController 在短点击释放后请求取消 | CameraController -> Main -> RuntimeInteractionController |
 
 ### 实现文件
 
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
-| `scripts/camera/CameraController.gd` | `CameraController` / `Node3D` | 运行时 gimbal 平移、yaw、pitch 与滚轮缩放。 |
+| `scripts/camera/CameraController.gd` | `CameraController` / `Node3D` | 运行时 gimbal 键盘/鼠标平移、yaw、pitch、滚轮缩放与右键点击分类。 |
 | `scripts/camera/CameraPresetDefinition.gd` | `CameraPresetDefinition` / `Resource` | 一个关卡镜头槽位的焦点、yaw、pitch 和缩放距离。 |
 | `scripts/camera/CameraPresetController.gd` | `CameraPresetController` / `Node` | 数字键解析、关卡生命周期和真实时间平滑过渡。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control`（tool） | 关卡编辑器斜投影视角，复用 XC 俯仰与滚轮缩放语义。 |
 | `addons/mirror_tile_editor/camera_preset_editor.gd` | `CameraPresetEditor` / `VBoxContainer`（tool） | 六槽写入、预览、清空和配置状态侧栏。 |
 | `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin`（tool） | 将关卡编辑器作为 Godot 主屏幕插件挂载并保证 Container 扩展布局。 |
-| `tests/camera_input_test.gd` | `SceneTree` | InputMap、俯仰限位、仅滚轮缩放和双端放大倍率回归。 |
+| `tests/camera_input_test.gd` | `SceneTree` | InputMap、中键屏幕平面平移、右键点击/旋转阈值、HUD边界、俯仰限位、输入锁与滚轮缩放回归。 |
 | `tests/runtime_ui_batch5_test.gd` | `SceneTree` | 六槽持久化、插值、输入锁、旧关卡兼容和编辑器集成回归。 |
 
 ## 已知限制 / 初版不做的部分

@@ -110,6 +110,14 @@ func _test_direct_main_compatibility() -> void:
 	await process_frame
 	await process_frame
 	_expect(main.level_loader.get_current_level() != null, "direct Main scene keeps LevelLoader.initial_level compatibility")
+	_expect(main.runtime_interaction.select_copy_mirror_card(), "direct Main can enter placement mode before cancellation input")
+	var right_press := InputEventMouseButton.new()
+	right_press.button_index = MOUSE_BUTTON_RIGHT
+	right_press.pressed = true
+	main._input(right_press)
+	_expect(not main.runtime_interaction.is_select_mode(), "non-modal right press no longer cancels before drag classification")
+	main.cam_rig.cancel_requested.emit()
+	_expect(main.runtime_interaction.is_select_mode(), "camera short-click release signal performs Main cancellation")
 	var first_wave_result: Dictionary = main.runtime_debug_bindings.command_registry.execute("wave start")
 	var second_wave_result: Dictionary = main.runtime_debug_bindings.command_registry.execute("wave start")
 	_expect(bool(first_wave_result.get("success", false)) and bool(second_wave_result.get("success", false)), "debug wave start releases the next wave on every command")
