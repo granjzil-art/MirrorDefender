@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime / Camera · 对调右键旋转方向 — 2026-07-31
+**模块**：Camera / Tests / Docs。
+
+- 同时反转运行时右键拖动的 yaw 与 pitch：鼠标向右使 yaw 减小，鼠标向上使 pitch 降低；中键平移、滚轮缩放、右键短点击取消和 6 px 拖动阈值保持不变。
+- 更新相机输入专项方向与俯仰边界回归，继续保证 pitch 限制在 18°～82°；相机专项 30 项及全量 19 套测试通过，`AppRoot.tscn` 真机启动无 Parser Error、运行时错误或本功能新增 warning。
+
+**影响面**：只改变运行时右键拖动旋转的两轴方向，不影响关卡编辑器或其它相机输入。
+
 ## Assets / Building · 修复箭塔 FBX 同目录纹理依赖 — 2026-07-31
 **模块**：Assets / Building / Import / Tests / Docs。
 

@@ -207,11 +207,11 @@ func _orbit_from_mouse(relative: Vector2) -> void:
 	if relative == Vector2.ZERO:
 		return
 	rotation.y = wrapf(
-		rotation.y + deg_to_rad(relative.x * orbit_sensitivity),
+		rotation.y - deg_to_rad(relative.x * orbit_sensitivity),
 		-PI,
 		PI
 	)
-	_set_pitch(pitch_angle - relative.y * orbit_sensitivity)
+	_set_pitch(pitch_angle + relative.y * orbit_sensitivity)
 	return
 
 
