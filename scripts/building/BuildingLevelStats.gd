@@ -32,11 +32,26 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_range(0.1, 100.0, 0.1, "or_greater") var projectile_speed: float = 7.0
 @export_range(0.1, 5.0, 0.05, "or_greater") var projectile_length: float = 0.32
 @export_range(0.02, 2.0, 0.01, "or_greater") var projectile_width: float = 0.07
+@export var projectile_model_asset: ModelAssetDefinition
 
 @export_group("Presentation")
-@export var visual_scene: PackedScene
+@export var model_asset: ModelAssetDefinition
 @export var tower_color: Color = Color(0.90, 0.52, 0.16, 1.0)
 @export var attack_color: Color = Color(1.0, 0.82, 0.28, 1.0)
+
+## Serialized compatibility for pre-contract resources. New content must use
+## model_asset so scene and additive runtime scale stay one atomic setting.
+@export_storage var visual_scene: PackedScene
+
+
+func get_model_asset() -> ModelAssetDefinition:
+	if model_asset != null:
+		return model_asset
+	if visual_scene == null:
+		return null
+	var legacy_asset := ModelAssetDefinition.new()
+	legacy_asset.scene = visual_scene
+	return legacy_asset
 
 
 func validate_configuration() -> Array[String]:
@@ -61,4 +76,9 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "投射物宽度", projectile_width, 0.0, INF, false)
 	ConfigValidator.require_color(errors, "建筑颜色", tower_color)
 	ConfigValidator.require_color(errors, "攻击颜色", attack_color)
+	var effective_model_asset := get_model_asset()
+	if effective_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "建筑模型", effective_model_asset.validate_configuration())
+	if projectile_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "建筑投射物模型", projectile_model_asset.validate_configuration())
 	return errors

@@ -646,7 +646,8 @@ func _on_copy_attack_triggered(
 				damage,
 				building.get_projectile_length_world(),
 				building.get_projectile_width_world(),
-				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55)
+				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
+				building.get_projectile_model_asset()
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"laser" and projection.payload.copy_kind == &"laser_tower":

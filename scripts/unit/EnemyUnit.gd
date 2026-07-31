@@ -115,6 +115,7 @@ func configure_unit(
 	_attack_strategy = EnemyAttackStrategyScript.new()
 	airborne = definition != null and definition.is_airborne
 	_flight_height = maxf(0.0, definition.flight_height) if airborne else 0.0
+	model_asset = definition.get_model_asset() if definition != null else null
 	if definition != null:
 		max_hp = maxf(1.0, definition.max_hp)
 		current_hp = max_hp
@@ -470,7 +471,8 @@ func _launch_projectile(target: Node) -> EnemyProjectile:
 		maximum_distance,
 		definition.projectile_length * _grid_cell_size,
 		definition.projectile_width * _grid_cell_size,
-		definition.attack_color
+		definition.attack_color,
+		definition.projectile_model_asset
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile_spawned.emit(self, projectile)

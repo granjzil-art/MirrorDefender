@@ -13,7 +13,7 @@
 - **大石头障碍**：存活时不可通行。敌人到达石头前一格中心时先请求换路；没有可用路径则把石头视为普通可攻击障碍。耐久归零后清除元素与阻挡，并允许块建筑和边建筑。
 - **空中适用性**：每个 TileEffect 用 `affects_airborne` 独立决定进入、停留和导航阻挡是否作用于飞行敌人；关闭后飞行敌人沿原手工路径穿过，不触发该效果或换路。
 - **建筑权限**：三者默认 `allows_tile_building = false` 且 `allows_edge_building = true`。边建筑所在共享边的两个相邻格都必须允许边建筑。
-- **基底/元素分层**：尖刺、空洞和大石头只用 `visual_color` / `visual_scene` 绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
+- **基底/元素分层**：尖刺、空洞和大石头使用 `element_model_asset` 或 `visual_kind/visual_color` 灰盒绘制内容层，不覆盖地块基底；因此路径格仍显示 `#FFB93B`，非路径格仍显示自身高度/路面色。
 - **复制镜投影**：三类效果通过 `get_copy_kind/display_name/color` 进入统一 payload。投影只复制元素内容几何，不复制地表基底色/高度几何，也不修改目标 TileCellData；空洞直接/递归投影与真实源格共享装填量、恢复时钟和吞噬检查时钟，其坑洞深度同步更新；石头投影把结构伤害转发到真实源石头。
 
 ## 编辑器使用
@@ -35,7 +35,7 @@
 | `TileDefinition` | `allows_edge_building` | 是否允许该格参与的共享边放置边建筑。 |
 | `TileDefinition` | `effect` | 敌人遍历效果策略，可替换为新 `TileEffect` 变种。 |
 | `TileDefinition` | `override_terrain_color` / `terrain_color` | 非 `ELEMENT` 表面可用的基底覆盖；元素表面始终忽略此覆盖并保留路径/高度基底。 |
-| `TileDefinition` | `visual_kind` / `visual_color` / `visual_scene` | 灰盒类型、灰盒颜色与未来正式世界美术场景接口。 |
+| `TileDefinition` | `element_model_asset` / `visual_kind` / `visual_color` | 正式内容模型与灰盒类型/颜色；每份模型资产可独立配置运行时 Scale。 |
 | `TileDefinition` | `ui_icon` | M6 地块详情可选图标；为空时由面板显示稳定文字灰盒。 |
 | `TileEffect` | `enemy_traversal` | `PASSABLE` 或 `BLOCKED`。 |
 | `TileEffect` | `affects_airborne` | 进入/停留效果与导航阻挡是否作用于飞行敌人；默认 true 兼容旧资源。 |
@@ -67,7 +67,7 @@
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 在手工路径集中选择确定性最短可用后缀。 |
 | `scripts/tile/TileCellData.gd` | `TileCellData` / `Resource` | 引用 TileDefinition，保留旧 `tile_type` 兼容分支。 |
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 关卡编辑器画笔预设。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 绘制地形与三种元素灰盒。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 实例化元素模型，未配置时绘制三种元素灰盒，并生成复制镜内容快照。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 提供不受护甲伤害和指定掉落倍率的击杀入口。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐格分发效果，在阻碍前一格安装临时路由。 |
 | `tests/tile_elements_and_rerouting_test.gd` | 无 / `SceneTree` | 81 项地块权限、双网格换路、黑洞容量/间隔/优先级/深度、高速跨格和资源不变性回归。 |
@@ -145,7 +145,7 @@ BuildingPlacementRules
 ## 已知限制
 
 - 不做全地图自由格网 A* 或导航网格；自动搜索边界固定为同目标手工路径格并集。
-- `visual_scene` 为正式美术资产预留接口，当前编辑器与运行时使用 `visual_kind` 灰盒绘制。
+- `element_model_asset` 已由运行时和复制镜快照读取；关卡编辑器二维画布仍使用 `visual_kind` 图形，不渲染三维 PackedScene。
 - 黑洞吞噬检查时钟归属真实源格，不是每个敌人独立计时；一次运行时更新最多吞噬一个敌人，长帧不回放错过的检查。
 - 编辑器画布通过 `get_visual_tag()` 读取灰盒类型；新增可视类型时需同步扩展标签映射与画布图形。
 - 大石头虽然可被敌人攻击，但仍是关卡元素而不是 Building：不参与建筑上限、升级、退款和玩家删除事务。

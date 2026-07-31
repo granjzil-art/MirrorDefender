@@ -31,13 +31,27 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_range(0.0, 100.0, 0.1, "or_greater") var projectile_speed: float = 0.0
 @export_range(0.1, 5.0, 0.05, "or_greater") var projectile_length: float = 0.55
 @export_range(0.02, 2.0, 0.01, "or_greater") var projectile_width: float = 0.08
+@export var projectile_model_asset: ModelAssetDefinition
 
 @export_group("Presentation")
 @export var ui_icon: Texture2D
-@export var visual_scene: PackedScene
+@export var model_asset: ModelAssetDefinition
 @export var body_color: Color = Color(0.84, 0.20, 0.24, 1.0)
 @export_range(0.1, 3.0, 0.05, "or_greater") var body_height: float = 0.8
 @export var attack_color: Color = Color(1.0, 0.36, 0.18, 1.0)
+
+## Serialized compatibility for old EnemyDefinition resources.
+@export_storage var visual_scene: PackedScene
+
+
+func get_model_asset() -> ModelAssetDefinition:
+	if model_asset != null:
+		return model_asset
+	if visual_scene == null:
+		return null
+	var legacy_asset := ModelAssetDefinition.new()
+	legacy_asset.scene = visual_scene
+	return legacy_asset
 
 
 func validate_configuration() -> Array[String]:
@@ -60,4 +74,9 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "模型高度", body_height, 0.0, INF, false)
 	ConfigValidator.require_color(errors, "敌人颜色", body_color)
 	ConfigValidator.require_color(errors, "攻击颜色", attack_color)
+	var effective_model_asset := get_model_asset()
+	if effective_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "敌人模型", effective_model_asset.validate_configuration())
+	if projectile_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "敌人投射物模型", projectile_model_asset.validate_configuration())
 	return errors

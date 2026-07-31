@@ -12,7 +12,7 @@
 - **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
 - **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
 - **路径基底**：只要至少一条 `PathDefinition` 经过某格，运行时和关卡编辑器都将该格的地块基底显示为 `LevelResource.path_terrain_color`（默认 `#FFB93B`）；多条路径重叠仍只计一个路径格。复制镜只复制格内容，不复制该基底。
-- **运行时表现**：TileRenderer 以一个带顶点色的 `ImmediateMesh` 批量构建地形；非路径的不可建造路面使用灰色，其余地块由 LevelResource 的低绿/中黄/高红高度色插值得到；只在高于相邻格的边生成崖壁。建筑 occupant 和石头/尖刺/空洞元素只绘制在内容层，不改写地块基底色；空洞内容几何按运行时装填比升降坑底。
+- **运行时表现**：`LevelResource.tile_model_asset` 可替换全关地块基底，`TileDefinition.terrain_model_asset` 可逐定义覆盖；未配置时 TileRenderer 仍用带顶点色的 `ImmediateMesh` 批量构建地形。地块元素使用独立 `element_model_asset`，不覆盖基底。
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
@@ -29,10 +29,12 @@
 | TileCellData | `obstacle_destroyed` | false | 对旧类型 1 和声明运行时耐久的地块效果有效；true 时按效果配置恢复建筑权限。 |
 | LevelResource | `height_levels` | 3 | 本关卡可用的高度档数。 |
 | LevelResource | `height_step` | 0.45 | 每档对应的世界 Y 高度。 |
+| LevelResource | `tile_model_asset` | null | 全关地块基底的默认模型资产与运行时 Scale；为空使用程序化地形。 |
 | LevelResource | `height_color_low` / `height_color_middle` / `height_color_high` | 绿 / 黄 / 红 | 编辑器与运行时共用的下/中/上高度色标，保存到关卡 `.tres`。 |
 | LevelResource | `path_terrain_color` | `#FFB93B` | 所有路径经过格共用的地块基底色。 |
 | TileManager | `feature_enabled` | true | 地块模块总开关；关闭时不加载布局。 |
 | TileDefinition | `ui_icon` | null | M6 地块详情中的可替换图标，不影响世界表现与玩法。 |
+| TileDefinition | `terrain_model_asset` / `element_model_asset` | null | 单类地块基底覆盖 / 独立地块内容模型。 |
 | TileDefinition | `inspection_display` | 独立配置 | 地块元素在右侧详情中的对象开关、显示名称、功能说明与字段开关；关闭对象级开关后对应元素虚像也隐藏。 |
 | TileRenderer | `feature_enabled` | true | 地块灰盒表现总开关。 |
 | TileRenderer | `blocked_color` | 灰 | 运行时不可建造路面的颜色，覆盖该格的高度色。 |
@@ -51,7 +53,8 @@
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 调色板预制参数，显式预加载 TileCellData 脚本创建地块。 |
 | `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | **运行时唯一 Tile 查询入口**；按 `Vector3i` 索引格子并发信号。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 单个真实耐久地块的当前/最大耐久、攻击位置与归零事件。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，以路径/高度顶点色生成三维灰盒基底，并在独立内容层绘制障碍与地块元素。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，实例化基底/内容模型，并为未配置项生成路径/高度灰盒批次。 |
+| `scripts/presentation/ModelAssetDefinition.gd` | `ModelAssetDefinition` / `Resource` | 地块与其它模块共用的模型场景和附加运行时 Scale 契约。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 地块布局的持久化容器；完整说明见 Level 文档。 |
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |
 | `resources/tiles/DestructibleTile.tres` | `TilePreset` | 可破坏障碍调色板预制。 |
@@ -72,7 +75,7 @@ Main (scene composition)
   ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
 		├─ LevelResource.paths union -> path_terrain_color base
-		└─ base ImmediateMesh terrain + independent obstacle / element meshes
+		└─ configured per-cell model instances + fallback ImmediateMesh batches
 
 Mirror Tile Editor (Godot editor)
   TilePreset .tres click / drag path -> TileEditorCanvas
@@ -125,12 +128,15 @@ Level Editor M4 pages
 | `set_tile_type` | `(value: int) -> void` | 切换类型并恢复未清障状态。 |
 | `get_display_name` | `() -> String` | 返回 HUD 用中文状态文本。 |
 | `get_terrain_color` | `(fallback: Color) -> Color` | 通过 TileDefinition 解析基底色；元素格直接保留回退色。 |
+| `get_terrain_model_asset` | `(fallback: ModelAssetDefinition = null) -> ModelAssetDefinition` | 返回定义覆盖或关卡默认基底模型。 |
+| `get_element_model_asset` | `() -> ModelAssetDefinition` | 返回仍有效的内容层模型；已摧毁石头返回 null。 |
 
 ### TileDefinition.gd
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `get_base_terrain_color` | `(fallback: Color) -> Color` | 非元素可应用自定义基底覆盖；`SurfaceKind.ELEMENT` 永返回路径/路面/高度回退色。 |
+| `get_element_model_asset` | `() -> ModelAssetDefinition` | 返回新模型资产或兼容包装旧 `visual_scene`。 |
 
 ### TilePreset.gd
 
@@ -183,7 +189,7 @@ Level Editor M4 pages
 | `set_tile_manager` | `(value: TileManager) -> void` | 订阅 TileManager 的布局/单格变化。 |
 | `set_effect_visual_state_resolver` | `(value: Callable) -> void` | 注入单格有状态效果的 0~1 表现比例查询，不持有 TileEffectSystem。 |
 | `refresh_effect_visual` | `(source_cell: Vector3i = Vector3i.ZERO, fill_ratio: float = 0.0) -> void` | 响应效果状态信号重建内容几何。 |
-| `_rebuild` | `() -> void` | 以路径并集、路面和高度色解析基底，重建地形、障碍和元素独立 mesh；无顶点批次清空实例，不调用 `surface_end()`。 |
+| `_rebuild` | `() -> void` | 逐格优先实例化基底/内容模型，其余项进入独立灰盒批次；无顶点批次不调用 `surface_end()`。 |
 | `is_path_terrain_cell` | `(cell: Vector3i) -> bool` | 查询该格是否属于任一手工路径的并集。 |
 | `get_base_terrain_color` | `(cell: Vector3i) -> Color` | 按路径 > 非元素覆盖 > 路面/高度规则返回单格基底色，供主地形和完整地块快照共用。 |
 | `create_tile_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 生成包含地形基底、障碍和元素的完整单格快照，供调试/通用表现使用。 |

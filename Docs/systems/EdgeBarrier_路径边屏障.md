@@ -26,7 +26,7 @@
 | Defense | `max_durability` | 当前等级最大耐久；升级增加最大值并保留已有损伤。 |
 | Defense | `regeneration_delay` / `regeneration_per_second` | 脱战等待时间与每秒回血。 |
 | Defense | `damage_reflection_ratio` | 对攻击者反伤比例，范围 0..1。 |
-| Presentation | `visual_scene` / `tower_color` | 可替换外观与默认灰盒颜色。 |
+| Presentation | `model_asset` / `tower_color` | 可替换外观、附加运行时 Scale 与默认灰盒颜色；沿用 BuildingLevelStats 统一模型契约。 |
 | Placement | `blocks_both_directions` | 默认 `true`，正反两面均阻挡；关闭后成为按放置侧记录的单向变种。 |
 
 ## 关键架构

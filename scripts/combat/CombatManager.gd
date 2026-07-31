@@ -97,7 +97,8 @@ func spawn_projectile(
 	maximum_distance: float,
 	visual_length: float,
 	visual_width: float,
-	color: Color
+	color: Color,
+	model_asset: ModelAssetDefinition = null
 ) -> Projectile:
 	if not feature_enabled or target == null or not target.is_alive():
 		return null
@@ -111,7 +112,8 @@ func spawn_projectile(
 		maximum_distance,
 		visual_length,
 		visual_width,
-		color
+		color,
+		model_asset
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))

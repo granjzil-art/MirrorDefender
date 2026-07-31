@@ -27,6 +27,9 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export_group("Tiles")
 @export_range(1, 16, 1) var height_levels: int = 3
 @export_range(0.05, 5.0, 0.05, "or_greater") var height_step: float = 0.45
+## Default runtime model for every tile base. Individual TileDefinition
+## resources may override it with terrain_model_asset.
+@export var tile_model_asset: ModelAssetDefinition
 @export var tiles: Array = []
 
 @export_group("Editor Terrain Colors")
@@ -376,6 +379,8 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		errors.append("关卡基础资源产出必须为有限非负数")
 	if not is_finite(base_max_hp) or base_max_hp <= 0.0:
 		errors.append("据点生命值必须为有限正数")
+	if tile_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "关卡地块模型", tile_model_asset.validate_configuration())
 
 func _validate_m4_content(errors: Array[String]) -> void:
 	if grid_shape != 0 and grid_shape != 1 or not is_finite(grid_cell_size) or grid_cell_size <= 0.0:

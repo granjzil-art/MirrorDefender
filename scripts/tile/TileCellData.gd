@@ -93,6 +93,16 @@ func get_visual_tag() -> StringName:
 func get_visual_color() -> Color:
 	return definition.visual_color if definition != null else Color.WHITE
 
+func get_terrain_model_asset(fallback: ModelAssetDefinition = null) -> ModelAssetDefinition:
+	if definition != null and definition.terrain_model_asset != null:
+		return definition.terrain_model_asset
+	return fallback
+
+func get_element_model_asset() -> ModelAssetDefinition:
+	if definition == null or _has_destroyed_runtime_obstacle():
+		return null
+	return definition.get_element_model_asset()
+
 func get_terrain_color(fallback: Color) -> Color:
 	return definition.get_base_terrain_color(fallback) if definition != null else fallback
 

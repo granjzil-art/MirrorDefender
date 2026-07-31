@@ -20,7 +20,7 @@
 - **反伤与摧毁**：`damage_reflection_ratio` 按屏障实际承受伤害反射给攻击者；归零后由 BuildingManager 无退款移除、释放路径占位和建筑上限。玩家主动删除仍使用本级 `refund_amount`。
 - **放置预览**：建造模式悬停可建造空格时创建不占格、不攻击的 1 级半透明建筑；预览保留塔种和朝向，R 旋转虚影，左键放置时继承该朝向。
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
-- **美术替换**：每一级可指定 `visual_scene: PackedScene`。未指定时使用该级 `tower_color` 生成灰盒塔；`attack_color` 控制方向标记、箭/激光颜色。箭塔正式模型、纹理及导入元数据统一位于 `assets/buildings/ArrowTower/`，禁止只移动 FBX 而保留旧 `.godot/imported` 缓存；路径调整后必须强制重新导入，确保生成场景依赖同目录纹理。
+- **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；`projectile_model_asset` 配置该级建筑及其虚像发射的投射物模型。未指定时继续使用 `tower_color/attack_color` 灰盒。箭塔三级当前共用同一模型，运行时 Scale 分别为 1.0/1.1/1.2。
 - **卡片美术替换**：`BuildingDefinition.card_icon` 是 M6 正式卡槽的可选 `Texture2D` 接口；未配置时 BuildCardBar 使用建筑名首字灰盒，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
 - **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。
@@ -69,7 +69,8 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | Projectile | `projectile_speed` | 单发投射物速度，单位为格/秒。 |
 | Projectile | `projectile_length` | 短直线投射物长度，运行时下限 0.1，不会缩成点。 |
 | Projectile | `projectile_width` | 投射物宽度。 |
-| Presentation | `visual_scene` | 本级外观场景接口；根节点应为 Node3D。 |
+| Projectile | `projectile_model_asset` | 建筑和对应复制体投射物共用的模型资产与运行时 Scale；为空使用短方块。 |
+| Presentation | `model_asset` | 本级模型资产与运行时 Scale；根节点必须继承 Node3D。 |
 | Presentation | `tower_color` | 无外观场景时的塔体颜色。 |
 | Presentation | `attack_color` | 投射物、激光和方向标记颜色。 |
 
@@ -149,6 +150,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `get_level_stats` | `(value: int) -> BuildingLevelStats` | 把等级钳制到已配置范围并返回对应完整参数。 |
+| `BuildingLevelStats.get_model_asset` | `() -> ModelAssetDefinition` | 返回新模型契约，或兼容包装旧 `visual_scene`。 |
 | `get_max_level` | `() -> int` | 返回 `min(3, levels.size())`。 |
 | `validate_configuration` | `() -> Array[String]` | 校验身份、放置/朝向枚举、转向速度、1~3 级完整性，并逐级校验全部可编辑参数。BuildingLevelStats 提供同名数值校验。 |
 | `is_configured` | `() -> bool` | 仅当 `validate_configuration()` 无错误时返回 true。 |
@@ -171,7 +173,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `is_target_in_attack_range` | `(target: CombatTarget) -> bool` | 用独立攻击范围判断目标是否可发射。 |
 | `get_targeting_range_world` / `get_attack_range_world` | `() -> float` | 把格数范围转换为世界距离。 |
 | `get_instant_damage` / `get_laser_damage_per_second` | `() -> float` | 用当前级三个乘区返回单发伤害或最终 DPS。 |
-| `launch_projectile` | `(target: CombatTarget, damage: float) -> Projectile` | 用当前级速度/尺寸/颜色通过 CombatManager 发射。 |
+| `launch_projectile` | `(target: CombatTarget, damage: float) -> Projectile` | 用当前级速度/尺寸/颜色/模型资产通过 CombatManager 发射。 |
+| `get_projectile_model_asset` | `() -> ModelAssetDefinition` | 返回复制体投射物必须沿用的当前等级资产。 |
 | `get_action_anchor` | `() -> Vector3` | 返回悬浮操作按钮使用的建筑上方世界锚点。 |
 | `rotate_facing` / `set_facing_index` | `(step: int = 1) -> void` / `(value: int) -> void` | 更新世界固定离散朝向。 |
 | `update_visual_orientation` / `get_visual_facing_direction` | `(delta: float) -> bool` / `() -> Vector3` | 按 Definition 的追踪能力平滑更新模型姿态，并读取当前视觉前向；不改逻辑 `facing_index`。 |
@@ -229,6 +232,6 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 
 ## 已知限制 / 初版不做的部分
 
-- 当前正式美术为空时使用逐级颜色灰盒；`visual_scene` 已预留，但资产制作与动画不属于 M3。
+- 当前正式美术为空时使用逐级颜色灰盒；模型场景和附加 Scale 的通用规则见 `Presentation_模型资产契约.md`。
 - 暂无分支升级树或降级；删除只使用每级固定退款，不支持全局售卖比例或确认弹窗。
 - M5 投影镜像已覆盖塔、地块屏障和地块元素；当前由 MirrorManager 枚举复制来源，尚未形成 CONTRIBUTING 所述统一 `ICopyable` 契约，该扩展点在架构治理批次 5 处理。M6 再加入反射镜与镜面光路。

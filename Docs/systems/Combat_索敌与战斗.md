@@ -13,7 +13,7 @@
 - **持续伤害**：读取当前级 `laser_dps`，每帧对射线段中的全部目标结算 `final_dps × delta`。
 - **索敌范围**：箭塔仅从 `targeting_range` 内建立候选并应用优先级。
 - **攻击范围**：所选目标必须在独立的 `attack_range` 内才会发射；投射物最大飞行距离也使用该范围。激光用它作为线段长度。
-- **投射物表现**：Projectile 使用固定尺寸 BoxMesh 形成短直线，朝飞行方向旋转；飞近目标时不缩短，所以不会退化成点。
+- **投射物表现**：建筑、敌人与复制体投射物均可读取 `ModelAssetDefinition`；为空或非法时使用固定尺寸 BoxMesh 短直线回退。复制体沿用源建筑当前等级投射物资产并叠加虚像发光层。
 - **投射物跟踪**：目标存活时刷新目标位置；目标失效后飞向最后位置并在最大距离处销毁，不对失效目标结算伤害。
 - **索敌优先级**：最近、最远、最高血、最低血、最快、首个进入、锁定；锁定失效后回退到最近。
 - **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
@@ -37,9 +37,11 @@
 | BuildingLevelStats | `attacks_per_second` | 单发冷却频率。 |
 | BuildingLevelStats | `projectile_speed` | 投射物格/秒速度。 |
 | BuildingLevelStats | `projectile_length` / `projectile_width` | 恒定短直线尺寸。 |
+| BuildingLevelStats | `projectile_model_asset` | 建筑及其复制体投射物共用的模型场景与附加 Scale。 |
 | BuildingLevelStats | `target_priority` | 七种索敌优先级枚举。 |
 | EnemyDefinition | `attack_damage` / `attacks_per_second` / `attack_range` | 敌人攻击屏障的伤害、频率和格数射程。 |
 | EnemyDefinition | `projectile_speed` / `projectile_length` / `projectile_width` | 0 为近战；正数及尺寸驱动 EnemyProjectile。 |
+| EnemyDefinition | `projectile_model_asset` | 敌人投射物模型场景与附加 Scale。 |
 
 ## 关键架构
 
@@ -117,7 +119,7 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 | `unregister_target` | `(target: CombatTarget) -> void` | 幂等移除候选、解除生命周期回调并广播。 |
 | `get_targets_in_range` | `(origin: Vector3, range_world: float) -> Array[CombatTarget]` | 按 XZ 距离返回范围候选。 |
 | `get_targets_on_segment` | `(start: Vector3, end: Vector3) -> Array[CombatTarget]` | 用点到线段距离返回全部激光触碰目标。 |
-| `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color) -> Projectile` | 创建、配置并跟踪投射物。 |
+| `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null) -> Projectile` | 创建、配置并跟踪投射物；模型为空时保留灰盒。 |
 | `spawn_debug_target` | `(world_position: Vector3) -> CombatTarget` | 生成并注册 M3 靶标。 |
 | `clear_projectiles` | `() -> void` | 清理全部飞行投射物。 |
 | `clear_targets` | `() -> void` | 切关时清空目标、投射物和进入序号。 |
@@ -126,7 +128,7 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `configure` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color) -> void` | 配置飞行、伤害、距离和恒定短直线外观。 |
+| `configure` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null) -> void` | 配置飞行、伤害、距离和可替换模型。 |
 | `_process` | `(delta: float) -> void` | 追踪/飞向最后目标点，处理命中和最大距离。 |
 | `_impact` | `() -> void` | 仅对仍存活目标结算伤害并广播 `impacted`。 |
 
@@ -136,7 +138,7 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 |---|---|---|
 | `EnemyAttackStrategy.tick` | `(attacker: Node, delta: float) -> void` | 冷却到期时读取攻击者当前结构目标并调用 `perform_attack`。 |
 | `EnemyAttackStrategy.reset` | `(attacker: Node) -> void` | 目标切换/离开攻击状态时允许下一次进入立即攻击。 |
-| `EnemyProjectile.configure` | `(start: Vector3, target: Node, attacker: Node, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color) -> void` | 配置结构目标、攻击者、飞行和外观。 |
+| `EnemyProjectile.configure` | `(start: Vector3, target: Node, attacker: Node, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null) -> void` | 配置结构目标、攻击者、飞行和可替换模型。 |
 | `EnemyProjectile._process` | `(delta: float) -> void` | 仅在攻击者与屏障都有效时追踪飞行。 |
 | `EnemyProjectile._impact` | `() -> void` | 调用屏障 `take_structure_damage` 并广播实际伤害。 |
 

@@ -25,13 +25,15 @@ signal died(target: CombatTarget, reward_amount: float)
 
 var current_hp: float = 100.0
 var entry_order: int = -1
+var model_asset: ModelAssetDefinition
 var _alive: bool = true
+var _visual_root: Node3D
 var _mesh_instance: MeshInstance3D
 var _health_label: Label3D
 
 func _ready() -> void:
 	current_hp = max_hp
-	if debug_visual_enabled:
+	if model_asset != null or debug_visual_enabled:
 		_build_debug_visual()
 	_update_debug_status()
 
@@ -90,24 +92,30 @@ func get_target_position() -> Vector3:
 	return global_position + Vector3(0.0, debug_height * 0.55, 0.0)
 
 func _build_debug_visual() -> void:
-	_mesh_instance = MeshInstance3D.new()
-	var mesh := CapsuleMesh.new()
-	mesh.radius = hit_radius
-	mesh.height = debug_height
-	_mesh_instance.mesh = mesh
-	_mesh_instance.position.y = debug_height * 0.5
-	var material := StandardMaterial3D.new()
-	material.albedo_color = debug_color
-	material.roughness = 0.7
-	_mesh_instance.material_override = material
-	add_child(_mesh_instance)
-	_health_label = Label3D.new()
-	_health_label.position.y = debug_height + 0.35
-	_health_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_health_label.no_depth_test = true
-	_health_label.font_size = 28
-	_health_label.modulate = Color.WHITE
-	add_child(_health_label)
+	if model_asset != null:
+		_visual_root = model_asset.instantiate_model(&"EnemyModel")
+		if _visual_root != null:
+			add_child(_visual_root)
+	if _visual_root == null and debug_visual_enabled:
+		_mesh_instance = MeshInstance3D.new()
+		var mesh := CapsuleMesh.new()
+		mesh.radius = hit_radius
+		mesh.height = debug_height
+		_mesh_instance.mesh = mesh
+		_mesh_instance.position.y = debug_height * 0.5
+		var material := StandardMaterial3D.new()
+		material.albedo_color = debug_color
+		material.roughness = 0.7
+		_mesh_instance.material_override = material
+		add_child(_mesh_instance)
+	if debug_visual_enabled:
+		_health_label = Label3D.new()
+		_health_label.position.y = debug_height + 0.35
+		_health_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_health_label.no_depth_test = true
+		_health_label.font_size = 28
+		_health_label.modulate = Color.WHITE
+		add_child(_health_label)
 
 func _update_debug_status() -> void:
 	if _health_label != null:

@@ -26,6 +26,7 @@ var _obstacle_instance: MeshInstance3D
 var _obstacle_material: StandardMaterial3D
 var _element_instance: MeshInstance3D
 var _element_material: StandardMaterial3D
+var _custom_visuals_root: Node3D
 var _path_cells: Dictionary = {}
 var _path_terrain_color: Color = Color("ffb93b")
 var _effect_visual_state_resolver: Callable
@@ -75,6 +76,9 @@ func _setup_instances() -> void:
 	_element_material = _make_terrain_material()
 	_element_instance.material_override = _element_material
 	add_child(_element_instance)
+	_custom_visuals_root = Node3D.new()
+	_custom_visuals_root.name = "CustomTileModels"
+	add_child(_custom_visuals_root)
 
 func _make_material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
@@ -122,23 +126,27 @@ func _create_tile_visual_snapshot(cell: Vector3i, include_base_terrain: bool) ->
 	var snapshot := Node3D.new()
 	snapshot.name = "TileVisualSnapshot" if include_base_terrain else "TileContentVisualSnapshot"
 	if include_base_terrain:
-		var terrain_mesh := ImmediateMesh.new()
-		terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-		if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
-			terrain_mesh.surface_end()
-			_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material, "Terrain")
-	if tile.is_destructible():
-		var obstacle_mesh := ImmediateMesh.new()
-		obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-		_add_obstacle_geometry(obstacle_mesh, tile)
-		obstacle_mesh.surface_end()
-		_add_snapshot_instance(snapshot, obstacle_mesh, _obstacle_material, "Obstacle")
-	if tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
-		var element_mesh := ImmediateMesh.new()
-		element_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-		if _add_element_geometry(element_mesh, tile):
-			element_mesh.surface_end()
-			_add_snapshot_instance(snapshot, element_mesh, _element_material, "Element")
+		var terrain_asset := _get_terrain_model_asset(tile)
+		if _add_custom_tile_model(snapshot, terrain_asset, tile, &"TerrainModel", TOP_LIFT) == null:
+			var terrain_mesh := ImmediateMesh.new()
+			terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+			if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
+				terrain_mesh.surface_end()
+				_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material, "Terrain")
+	var element_asset := tile.get_element_model_asset()
+	if _add_custom_tile_model(snapshot, element_asset, tile, &"ElementModel", TOP_LIFT * 2.0) == null:
+		if tile.is_destructible():
+			var obstacle_mesh := ImmediateMesh.new()
+			obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+			_add_obstacle_geometry(obstacle_mesh, tile)
+			obstacle_mesh.surface_end()
+			_add_snapshot_instance(snapshot, obstacle_mesh, _obstacle_material, "Obstacle")
+		if tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
+			var element_mesh := ImmediateMesh.new()
+			element_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+			if _add_element_geometry(element_mesh, tile):
+				element_mesh.surface_end()
+				_add_snapshot_instance(snapshot, element_mesh, _element_material, "Element")
 	return snapshot
 
 func _add_snapshot_instance(parent: Node3D, mesh: Mesh, source_material: Material, instance_name: String) -> void:
@@ -151,6 +159,7 @@ func _add_snapshot_instance(parent: Node3D, mesh: Mesh, source_material: Materia
 func _rebuild() -> void:
 	if not feature_enabled or _grid == null or _tile_manager == null or _terrain_instance == null:
 		return
+	_clear_custom_tile_models()
 	var terrain_mesh := ImmediateMesh.new()
 	terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_terrain_geometry: bool = false
@@ -164,9 +173,16 @@ func _rebuild() -> void:
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
 			continue
-		var terrain_color := get_base_terrain_color(tile.cell)
-		var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
-		has_terrain_geometry = has_terrain_geometry or did_add_terrain
+		var terrain_asset := _get_terrain_model_asset(tile)
+		var terrain_name := StringName("TileBase_%d_%d_%d" % [cell.x, cell.y, cell.z])
+		if _add_custom_tile_model(_custom_visuals_root, terrain_asset, tile, terrain_name, TOP_LIFT) == null:
+			var terrain_color := get_base_terrain_color(tile.cell)
+			var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
+			has_terrain_geometry = has_terrain_geometry or did_add_terrain
+		var element_asset := tile.get_element_model_asset()
+		var element_name := StringName("TileElement_%d_%d_%d" % [cell.x, cell.y, cell.z])
+		if _add_custom_tile_model(_custom_visuals_root, element_asset, tile, element_name, TOP_LIFT * 2.0) != null:
+			continue
 		if tile.is_destructible():
 			_add_obstacle_geometry(obstacle_mesh, tile)
 			has_obstacle_geometry = true
@@ -187,6 +203,36 @@ func _rebuild() -> void:
 		_element_instance.mesh = element_mesh
 	else:
 		_element_instance.mesh = null
+
+func _get_terrain_model_asset(tile: TileCellData) -> ModelAssetDefinition:
+	var level_resource := _tile_manager.get_level_resource() if _tile_manager != null else null
+	var fallback: ModelAssetDefinition = level_resource.tile_model_asset if level_resource != null else null
+	return tile.get_terrain_model_asset(fallback)
+
+func _add_custom_tile_model(
+	parent: Node3D,
+	model_asset: ModelAssetDefinition,
+	tile: TileCellData,
+	instance_name: StringName,
+	vertical_offset: float
+) -> Node3D:
+	if parent == null or model_asset == null or tile == null:
+		return null
+	var custom_visual := model_asset.instantiate_model(instance_name)
+	if custom_visual == null:
+		return null
+	custom_visual.position = (
+		_grid.cell_to_world(tile.cell)
+		+ Vector3(0.0, _tile_manager.get_world_height(tile.cell) + vertical_offset, 0.0)
+	)
+	parent.add_child(custom_visual)
+	return custom_visual
+
+func _clear_custom_tile_models() -> void:
+	if _custom_visuals_root == null:
+		return
+	for child in _custom_visuals_root.get_children():
+		child.free()
 
 func _cache_path_terrain(level_resource: LevelResource) -> void:
 	_path_cells.clear()

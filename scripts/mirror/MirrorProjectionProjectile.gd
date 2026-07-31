@@ -20,7 +20,8 @@ func configure(
 	damage: float,
 	visual_length: float,
 	visual_width: float,
-	color: Color
+	color: Color,
+	model_asset: ModelAssetDefinition = null
 ) -> void:
 	_combat_manager = combat_manager
 	_source_building = source_building
@@ -28,7 +29,7 @@ func configure(
 	_end = end
 	_speed = maxf(0.1, speed)
 	_damage = maxf(0.0, damage)
-	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color)
+	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color, model_asset)
 	_update_orientation((_end - start).normalized())
 	_active = true
 
@@ -69,7 +70,18 @@ func _find_target_at_endpoint() -> CombatTarget:
 			best_distance = distance
 	return best
 
-func _build_visual(length: float, width: float, color: Color) -> void:
+func _build_visual(
+	length: float,
+	width: float,
+	color: Color,
+	model_asset: ModelAssetDefinition
+) -> void:
+	if model_asset != null:
+		var custom_visual := model_asset.instantiate_model(&"MirrorProjectileModel")
+		if custom_visual != null:
+			add_child(custom_visual)
+			_apply_projection_overlay(custom_visual, color)
+			return
 	var instance := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(width, width, length)
@@ -82,6 +94,20 @@ func _build_visual(length: float, width: float, color: Color) -> void:
 	material.emission_energy_multiplier = 2.4
 	instance.material_override = material
 	add_child(instance)
+
+func _apply_projection_overlay(node: Node, color: Color) -> void:
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		var overlay := StandardMaterial3D.new()
+		overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		overlay.albedo_color = Color(color.r, color.g, color.b, 0.28)
+		overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		overlay.emission_enabled = true
+		overlay.emission = color
+		overlay.emission_energy_multiplier = 1.4
+		mesh_instance.material_overlay = overlay
+	for child in node.get_children():
+		_apply_projection_overlay(child, color)
 
 func _update_orientation(direction: Vector3) -> void:
 	if direction.length_squared() > 0.000001:

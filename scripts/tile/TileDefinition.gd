@@ -4,6 +4,7 @@ class_name TileDefinition
 extends Resource
 
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 
 enum SurfaceKind {
 	BUILDABLE,
@@ -40,10 +41,15 @@ enum VisualKind {
 @export var ui_icon: Texture2D
 @export var override_terrain_color: bool = false
 @export var terrain_color: Color = Color.WHITE
+## Optional per-tile-definition override for the level's base tile model.
+@export var terrain_model_asset: ModelAssetDefinition
 @export_enum("无", "尖刺", "空洞", "岩石") var visual_kind: int = VisualKind.NONE
 @export var visual_color: Color = Color(0.2, 0.2, 0.2, 1.0)
-## Future art hook. Greybox renderers use visual_kind until a scene is assigned.
-@export var visual_scene: PackedScene
+## Optional content-layer model for spikes, holes, rocks, and destructible props.
+@export var element_model_asset: ModelAssetDefinition
+
+## Serialized compatibility for old tile-element resources.
+@export_storage var visual_scene: PackedScene
 
 func is_buildable(obstacle_destroyed: bool) -> bool:
 	return surface_kind == SurfaceKind.BUILDABLE or (
@@ -79,6 +85,15 @@ func get_visual_tag() -> StringName:
 			return &"rock"
 	return &"none"
 
+func get_element_model_asset() -> ModelAssetDefinition:
+	if element_model_asset != null:
+		return element_model_asset
+	if visual_scene == null:
+		return null
+	var legacy_asset := ModelAssetDefinition.new()
+	legacy_asset.scene = visual_scene
+	return legacy_asset
+
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	if tile_id.is_empty():
@@ -87,4 +102,9 @@ func validate_configuration() -> Array[String]:
 		errors.append("地块定义显示名不能为空")
 	if effect != null:
 		errors.append_array(effect.validate_configuration())
+	if terrain_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "地块基底模型", terrain_model_asset.validate_configuration())
+	var effective_element_asset := get_element_model_asset()
+	if effective_element_asset != null:
+		ConfigValidator.append_prefixed(errors, "地块元素模型", effective_element_asset.validate_configuration())
 	return errors

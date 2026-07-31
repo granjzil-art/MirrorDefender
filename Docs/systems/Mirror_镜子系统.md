@@ -67,7 +67,7 @@
 - 攻击起点、目标点、固定朝向和激光线段通过投影的复合镜像变换获得。
 - 投影不重新校正敌人，因此镜像位置没有敌人时允许打空。
 - 投影无独立转向决策；实体建筑因目标追踪或手动逻辑朝向发生任何模型姿态变化时，既有投影在原节点上实时同步完整姿态。
-- 投射物投影仍按原塔等级参数使用飞行速度、尺寸、伤害与空中目标开关；飞向镜像后的固定目标点，而不是独立追踪目标。
+- 投射物投影仍按原塔等级参数使用飞行速度、尺寸、伤害、空中目标开关与 `projectile_model_asset`；自定义模型保留源场景 Transform 和运行时 Scale，并叠加虚像发光层，飞向镜像后的固定目标点而不独立追踪。
 - 激光投影按镜像线段逐 tick 结算，继承原塔等级的持续伤害和空中目标开关。
 
 ### 2.6 屏障投影
@@ -234,6 +234,7 @@ MirrorProjection
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
 | `Building.sync_copy_visual_snapshot` | `(snapshot: Node3D) -> bool` | 把当前子节点与骨骼姿态同步到既有无行为快照，不启动独立动画时钟。 |
 | `MirrorProjection.sync_source_visual_pose` | `() -> bool` | 不重建投影，先同步源模型姿态，再将 payload 的全部镜轴组合变换作用于视觉根。 |
+| `MirrorProjectionProjectile.configure` | `(combat_manager, source_building, start, end, speed, damage, visual_length, visual_width, color, model_asset = null) -> void` | 配置固定镜像终点，并沿用源建筑投射物模型资产或灰盒。 |
 | `MirrorProjection.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 把屏障或石头投影承伤转发到 payload 的真实根源耐久。 |
 | `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 镜面矩形进入视锥时按当前观察侧更新实体表面与反射相机，并请求 SubViewport 单帧刷新。 |

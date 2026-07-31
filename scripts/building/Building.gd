@@ -379,6 +379,9 @@ func get_projectile_width_world() -> float:
 func get_attack_color() -> Color:
 	return _stats.attack_color if _stats != null else Color.WHITE
 
+func get_projectile_model_asset() -> ModelAssetDefinition:
+	return _stats.projectile_model_asset if _stats != null else null
+
 func notify_copy_attack(attack_kind: StringName, world_start: Vector3, world_end: Vector3, damage: float) -> void:
 	copy_attack_triggered.emit(self, attack_kind, world_start, world_end, maxf(0.0, damage))
 
@@ -393,7 +396,8 @@ func launch_projectile(target: CombatTarget, damage: float) -> Projectile:
 		get_attack_range_world(),
 		_stats.projectile_length * _grid.cell_size,
 		_stats.projectile_width * _grid.cell_size,
-		_stats.attack_color
+		_stats.attack_color,
+		_stats.projectile_model_asset
 	)
 	if projectile != null:
 		projectile.impacted.connect(_on_projectile_impacted)
@@ -467,14 +471,12 @@ func _build_visual() -> void:
 	_durability_label = null
 	_visual_root = Node3D.new()
 	add_child(_visual_root)
-	if _stats.visual_scene != null:
-		var custom_visual := _stats.visual_scene.instantiate()
-		if custom_visual is Node3D:
-			_visual_root.add_child(custom_visual)
-			if _preview_mode:
-				_apply_preview_materials(custom_visual)
-		else:
-			custom_visual.queue_free()
+	var model_asset: ModelAssetDefinition = _stats.get_model_asset()
+	var custom_visual: Node3D = model_asset.instantiate_model(&"BuildingModel") if model_asset != null else null
+	if custom_visual != null:
+		_visual_root.add_child(custom_visual)
+		if _preview_mode:
+			_apply_preview_materials(custom_visual)
 	else:
 		_build_default_body()
 	if is_edge_path_blocker():

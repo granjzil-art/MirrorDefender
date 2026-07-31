@@ -8,7 +8,7 @@
 
 ## 分类 / 做法
 
-- **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击伤害、攻速、射程、投射物、灰盒颜色与可选 UI 图标。
+- **敌人定义**：EnemyDefinition 在 Inspector 配置生命、移速、护甲、据点伤害、掉落、攻击参数，以及敌人/投射物各自的 `ModelAssetDefinition`。
 - **飞行分类**：`is_airborne` 是敌人类别事实源；EnemyUnit 将它复制到 CombatTarget 的运行时 `airborne` 标签。飞行单位仍沿波次指定的手工路径移动，但路径点会增加 `flight_height` 形成可辨识的离地表现。
 - **效果适用性**：EnemyUnit 作为 `target` 传给地块导航、换路和建筑屏障解析器；地块效果与建筑当前等级可分别用 `affects_airborne` 决定是否作用于飞行敌人。
 - **固定路径移动**：EnemyUnit 同时接收 `PackedVector3Array` 世界点和 `Array[Vector3i]` 路径格；前者驱动移动，后者按顺序查询前方屏障。
@@ -38,8 +38,9 @@
 | Attack | `attack_range` | 攻击射程，单位为格；生成时乘本关 `grid_cell_size`。 |
 | Attack | `projectile_speed` | 0 为即时近战；大于 0 时为敌方投射物速度（格/秒）。 |
 | Attack | `projectile_length` / `projectile_width` | 远程投射物短直线尺寸。 |
+| Attack | `projectile_model_asset` | 敌方远程投射物模型场景与附加运行时 Scale；为空使用短方块。 |
 | Presentation | `ui_icon` | 波次时间轴和敌人构成列表使用的可选图标；为空时 UI 使用灰盒。 |
-| Presentation | `visual_scene` / `body_color` / `body_height` | 美术替换接口与灰盒身体表现。 |
+| Presentation | `model_asset` / `body_color` / `body_height` | 正式敌人模型资产与灰盒身体表现；模型为空或非法时回退胶囊体。 |
 | Presentation | `attack_color` | 敌方投射物颜色。 |
 
 ## 关键架构
@@ -88,6 +89,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `EnemyDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、移动、战斗、投射物和表现数值；空数组表示配置可用。 |
+| `EnemyDefinition.get_model_asset` | `() -> ModelAssetDefinition` | 返回敌人模型契约，或兼容包装旧 `visual_scene`。 |
 | `EnemyUnit.configure_unit` | `(enemy_definition, path_points, path_cells = [], grid_cell_size = 1.0, blocker_resolver = Callable(), path_definition = null, route_resolver = Callable(), cell_world_resolver = Callable(), tile_enter_resolver = Callable(), tile_stay_resolver = Callable(), navigation_blocker_resolver = Callable()) -> void` | 在入树前装配数值、手工路径、换路、地块效果和阻挡接口。 |
 | `EnemyUnit._process` | `(delta: float) -> void` | 查询前方屏障，在移动/攻击状态间切换；攻击时不移动。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前屏障有效且仍在射程内时返回 true。 |

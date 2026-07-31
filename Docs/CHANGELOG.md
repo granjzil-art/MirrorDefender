@@ -1,5 +1,15 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Presentation / Assets · 统一运行时模型资产契约 — 2026-07-31
+**模块**：Presentation / Tile / Building / Combat / Unit / Mirror / Tests / Docs。
+
+- 新增 `ModelAssetDefinition(scene, runtime_scale)`；运行时 Scale 位于包装节点，不改写模型场景自身 Transform。
+- 修通关卡默认地块、地块定义基底覆盖、地块元素、建筑等级、敌人，以及建筑/敌人/复制体投射物的模型实例化链路；所有入口未配置时保留原灰盒。
+- 建筑、敌人和地块元素兼容读取旧 `visual_scene`；地块基底与内容模型继续分层，复制镜只复制内容模型。
+- 箭塔三级迁移到统一契约，共用同一模型并分别使用 1.0/1.1/1.2 运行时 Scale。新增 30 项资产契约测试，相关健壮性、地块、镜像、空中单位和边障回归全部通过。
+
+**影响面**：只扩展三维表现资产与资源校验，不改变伤害、碰撞、命中点、寻路、占位或经济数值。
+
 ## Runtime / Camera · 对调右键旋转方向 — 2026-07-31
 **模块**：Camera / Tests / Docs。
 

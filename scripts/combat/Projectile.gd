@@ -45,7 +45,8 @@ func configure(
 	maximum_distance: float,
 	visual_length: float,
 	visual_width: float,
-	color: Color
+	color: Color,
+	model_asset: ModelAssetDefinition = null
 ) -> void:
 	global_position = start
 	_target = target
@@ -53,7 +54,7 @@ func configure(
 	_speed = maxf(0.1, speed)
 	_damage = maxf(0.0, damage)
 	_maximum_distance = maxf(0.1, maximum_distance)
-	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color)
+	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color, model_asset)
 	_update_orientation((_last_target_position - start).normalized())
 	_active = true
 
@@ -65,7 +66,17 @@ func _impact() -> void:
 		impacted.emit(_target, applied_damage)
 	queue_free()
 
-func _build_visual(length: float, width: float, color: Color) -> void:
+func _build_visual(
+	length: float,
+	width: float,
+	color: Color,
+	model_asset: ModelAssetDefinition
+) -> void:
+	if model_asset != null:
+		var custom_visual := model_asset.instantiate_model(&"ProjectileModel")
+		if custom_visual != null:
+			add_child(custom_visual)
+			return
 	var mesh_instance := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(width, width, length)
