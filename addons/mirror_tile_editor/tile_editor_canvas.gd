@@ -28,6 +28,10 @@ const RUNTIME_PRESET_ZOOM_MIN := 2.0
 const RUNTIME_PRESET_ZOOM_MAX := 30.0
 const BRUSH_SAMPLE_SPACING := 4.0
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
+const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
+const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
+const StuffDefinitionScript := preload("res://scripts/stuff/StuffDefinition.gd")
+const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const VISUAL_SPIKES: StringName = &"spikes"
 const VISUAL_HOLE: StringName = &"hole"
 const VISUAL_ROCK: StringName = &"rock"
@@ -70,6 +74,7 @@ var _overlay_spawn_points: Array[SpawnPointDefinition] = []
 var _overlay_base_points: Array = []
 var _overlay_selected_path: PathDefinition
 var _path_cells: Dictionary = {}
+var _ramp_bindings: Dictionary = {}
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
@@ -263,6 +268,7 @@ func _refresh_layout() -> void:
 	_shape = HexGridShape.new() if level.grid_shape == HEX_SHAPE else SquareGridShape.new()
 	_shape.setup(level.grid_cell_size)
 	_ordered_cells = _shape.enumerate_cells(level.grid_size)
+	_rebuild_ramp_bindings()
 	_refresh_draw_order()
 	queue_redraw()
 	if _reset_view_pending:
@@ -302,11 +308,11 @@ func _draw_cell(cell: Vector3i) -> void:
 	var tile: Resource = level.get_tile(cell)
 	var top_color := _terrain_color(cell, tile)
 	var corners := _shape.get_corners(cell)
-	var current_height := _tile_world_height(tile)
+	var current_height := _cell_world_height(cell, tile)
 	for edge_index in range(corners.size()):
 		var neighbor_cell := _shape.neighbor_across_edge(cell, edge_index)
 		var neighbor_tile: Resource = level.get_tile(neighbor_cell)
-		var neighbor_height := _tile_world_height(neighbor_tile)
+		var neighbor_height := _cell_world_height(neighbor_cell, neighbor_tile)
 		if current_height <= neighbor_height:
 			continue
 		var a := corners[edge_index]
@@ -330,6 +336,45 @@ func _draw_cell(cell: Vector3i) -> void:
 	draw_polyline(outline, OUTLINE_COLOR, 1.2, true)
 	if tile != null:
 		_draw_tile_marker(cell, tile, current_height)
+	elif level.uses_canonical_content():
+		_draw_canonical_stuff_markers(cell, current_height)
+
+
+func _draw_canonical_stuff_markers(cell: Vector3i, world_height: float) -> void:
+	var placements: Array = []
+	for raw_placement in level.stuff_placements:
+		if raw_placement is StuffPlacementDataScript and raw_placement.cell == cell:
+			placements.append(raw_placement)
+	if placements.is_empty():
+		return
+	var center_world := _shape.cell_to_world(cell)
+	var center := _project_world(Vector3(center_world.x, world_height, center_world.z))
+	var marker_radius := clampf(_view_zoom * 0.10, 4.0, 11.0)
+	for index in range(placements.size()):
+		var placement: StuffPlacementDataScript = placements[index]
+		var definition: StuffDefinitionScript = placement.definition
+		if definition == null:
+			continue
+		var angle := -PI * 0.5 + TAU * float(index) / float(maxi(1, placements.size()))
+		var offset := Vector2.ZERO if placements.size() == 1 else Vector2(cos(angle), sin(angle)) * marker_radius
+		var marker_center := center + offset
+		match definition.fallback_visual_kind:
+			StuffDefinitionScript.FallbackVisualKind.SPIKES:
+				_draw_spike_marker(marker_center, marker_radius, definition.fallback_color)
+			StuffDefinitionScript.FallbackVisualKind.HOLE:
+				draw_circle(marker_center, marker_radius * 1.2, definition.fallback_color)
+			StuffDefinitionScript.FallbackVisualKind.ROCK:
+				var rock := PackedVector2Array([
+					marker_center + Vector2(-marker_radius, marker_radius * 0.55),
+					marker_center + Vector2(-marker_radius * 0.72, -marker_radius * 0.58),
+					marker_center + Vector2(-marker_radius * 0.12, -marker_radius),
+					marker_center + Vector2(marker_radius * 0.82, -marker_radius * 0.52),
+					marker_center + Vector2(marker_radius, marker_radius * 0.48),
+				])
+				draw_colored_polygon(rock, definition.fallback_color)
+			_:
+				draw_circle(marker_center, marker_radius, definition.fallback_color)
+		draw_arc(marker_center, marker_radius * 1.18, 0.0, TAU, 20, OUTLINE_COLOR.darkened(0.4), 1.3, true)
 
 func _draw_tile_marker(cell: Vector3i, tile: Resource, world_height: float) -> void:
 	var center_world := _shape.cell_to_world(cell)
@@ -412,7 +457,7 @@ func _cell_center_screen(cell: Vector3i) -> Vector2:
 		return Vector2.ZERO
 	var tile: Resource = level.get_tile(cell) if level != null else null
 	var world := _shape.cell_to_world(cell)
-	return _project_world(Vector3(world.x, _tile_world_height(tile) + 0.02, world.z))
+	return _project_world(Vector3(world.x, _cell_world_height(cell, tile) + 0.02, world.z))
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -585,11 +630,9 @@ func _find_cell(point: Vector2) -> Dictionary:
 func _top_polygon(cell: Vector3i) -> PackedVector2Array:
 	if level == null or _shape == null:
 		return PackedVector2Array()
-	var tile: Resource = level.get_tile(cell)
-	var world_height := _tile_world_height(tile)
 	var points := PackedVector2Array()
 	for corner in _shape.get_corners(cell):
-		points.append(_project_world(Vector3(corner.x, world_height, corner.z)))
+		points.append(_project_world(Vector3(corner.x, _surface_height_at(cell, corner), corner.z)))
 	return points
 
 func _project_world(world: Vector3) -> Vector2:
@@ -611,6 +654,40 @@ func _tile_world_height(tile: Resource) -> float:
 	var height_level: int = int(tile.get("height_level"))
 	return float(height_level) * level.height_step
 
+
+func _cell_world_height(cell: Vector3i, legacy_tile: Resource = null) -> float:
+	if level == null:
+		return 0.0
+	if not level.uses_canonical_content():
+		return _tile_world_height(legacy_tile)
+	var center := _shape.cell_to_world(cell)
+	return _surface_height_at(cell, center)
+
+
+func _surface_height_at(cell: Vector3i, world_position: Vector3) -> float:
+	if level == null or _shape == null or not _shape.is_in_bounds(cell, level.grid_size):
+		return 0.0
+	if not level.uses_canonical_content():
+		return _tile_world_height(level.get_tile(cell))
+	var data := _canonical_grid_cell(cell)
+	var layer_count := data.layer_count if data != null else 1
+	var binding: Dictionary = _ramp_bindings.get(cell, {})
+	var ramp: RampPlacementDataScript = binding.get("ramp") as RampPlacementDataScript
+	if ramp == null:
+		return float(layer_count - 1) * level.layer_height
+	var next_cell := _shape.neighbor_across_edge(ramp.anchor_cell, ramp.facing_index)
+	var axis := _shape.cell_to_world(next_cell) - _shape.cell_to_world(ramp.anchor_cell)
+	axis.y = 0.0
+	var spacing := axis.length()
+	if spacing <= 0.0:
+		return float(ramp.base_layer - 1) * level.layer_height
+	axis = axis.normalized()
+	var anchor_center := _shape.cell_to_world(ramp.anchor_cell)
+	var offset := Vector3(world_position.x - anchor_center.x, 0.0, world_position.z - anchor_center.z)
+	var distance_from_low_edge := offset.dot(axis) + spacing * 0.5
+	var ratio := clampf(distance_from_low_edge / (spacing * float(ramp.run_length)), 0.0, 1.0)
+	return float(ramp.base_layer - 1) * level.layer_height + ratio * level.layer_height
+
 func _height_color(tile: Resource) -> Color:
 	if level == null:
 		return Color.WHITE
@@ -623,6 +700,10 @@ func _height_color(tile: Resource) -> Color:
 func _terrain_color(cell: Vector3i, tile: Resource) -> Color:
 	if level != null and _path_cells.has(cell):
 		return level.path_terrain_color
+	if level != null and level.uses_canonical_content():
+		var data := _canonical_grid_cell(cell)
+		var terrain: TerrainDefinition = data.get_effective_terrain(level.default_terrain) if data != null else level.default_terrain
+		return terrain.fallback_color if terrain != null else Color.WHITE
 	return _height_color(tile)
 
 func _rebuild_path_cells() -> void:
@@ -634,6 +715,29 @@ func _rebuild_path_cells() -> void:
 			continue
 		for cell in path.cells:
 			_path_cells[cell] = true
+	_rebuild_ramp_bindings()
+
+
+func _canonical_grid_cell(cell: Vector3i) -> GridCellDataScript:
+	if level == null:
+		return null
+	for raw_cell in level.grid_cells:
+		if raw_cell is GridCellDataScript and raw_cell.cell == cell:
+			return raw_cell
+	return null
+
+
+func _rebuild_ramp_bindings() -> void:
+	_ramp_bindings.clear()
+	if level == null or _shape == null or not level.uses_canonical_content():
+		return
+	for raw_ramp in level.ramp_placements:
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		var ramp: RampPlacementDataScript = raw_ramp
+		var footprint := ramp.get_footprint_cells(_shape)
+		for index in range(footprint.size()):
+			_ramp_bindings[footprint[index]] = {"ramp": ramp, "index": index}
 
 func _wall_color(top_color: Color) -> Color:
 	return Color(

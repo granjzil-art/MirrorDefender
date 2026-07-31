@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TerrainStuffAuthoringScript := preload("res://addons/mirror_tile_editor/terrain_stuff_authoring.gd")
+
 const TileEditorPanel := preload("res://addons/mirror_tile_editor/tile_editor_panel.gd")
 const TileEditorCanvas := preload("res://addons/mirror_tile_editor/tile_editor_canvas.gd")
 const TileEditorPlugin := preload("res://addons/mirror_tile_editor/tile_editor_plugin.gd")
@@ -114,7 +116,10 @@ func _test_editor_creation_and_wave_binding() -> void:
 	var level := panel.get("_level") as LevelResource
 	level.grid_shape = GridManager.Shape.SQUARE
 	level.grid_size = Vector2i(6, 3)
-	level.tiles.clear()
+	var authored_shape := SquareGridShape.new()
+	authored_shape.setup(level.grid_cell_size)
+	TerrainStuffAuthoringScript.rebuild_grid(level, authored_shape, GridManager.Shape.SQUARE, level.grid_size)
+	(panel.get("_terrain_stuff_editor") as Control).call("set_level", level)
 	level.base_cell = Vector3i(5, 1, 0)
 	var path_canvas: Control = panel.get("_path_canvas")
 	path_canvas.set("has_selected_cell", true)

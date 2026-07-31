@@ -6,6 +6,7 @@ const SQUARE_SHAPE := 1
 const DEFAULT_SAVE_PATH := "res://resources/levels/CustomLevel.tres"
 const PaletteItem := preload("res://addons/mirror_tile_editor/tile_palette_item.gd")
 const TileEditorCanvas := preload("res://addons/mirror_tile_editor/tile_editor_canvas.gd")
+const TerrainStuffEditorScript := preload("res://addons/mirror_tile_editor/terrain_stuff_editor.gd")
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 const PathDefinitionScript := preload("res://scripts/path/PathDefinition.gd")
 const SpawnPointDefinitionScript := preload("res://scripts/path/SpawnPointDefinition.gd")
@@ -17,6 +18,8 @@ const CameraPresetEditorScript := preload("res://addons/mirror_tile_editor/camer
 var _level: LevelResource
 var _tabs: TabContainer
 var _canvas: Control
+var _terrain_stuff_editor: TerrainStuffEditorScript
+var _last_content_prepare: Dictionary = {}
 var _save_path: LineEdit
 var _status: Label
 var _m4_status: Label
@@ -142,46 +145,21 @@ func _build_interface() -> void:
 	_m4_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_m4_status.add_theme_color_override("font_color", Color(0.65, 0.77, 0.88, 1.0))
 	root.add_child(_m4_status)
+	# Path/wave/camera operations keep using the shared top status line. The
+	# canonical terrain page owns its more specific local status label.
+	_status = _m4_status
 
 	var tabs := TabContainer.new()
 	_tabs = tabs
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.tab_changed.connect(_on_editor_tab_changed)
 	root.add_child(tabs)
-	var splitter := HSplitContainer.new()
-	splitter.name = "地块"
-	splitter.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tabs.add_child(splitter)
-	var sidebar := VBoxContainer.new()
-	sidebar.custom_minimum_size = Vector2(250.0, 0.0)
-	sidebar.add_theme_constant_override("separation", 8)
-	splitter.add_child(sidebar)
-	_add_level_controls(sidebar)
-	_add_height_brush_controls(sidebar)
-	var palette_title := Label.new()
-	palette_title.text = "地块调色板"
-	palette_title.add_theme_font_size_override("font_size", 16)
-	sidebar.add_child(palette_title)
-	_tile_preset_options = _load_tile_presets()
-	for option in _tile_preset_options:
-		_add_palette_item(sidebar, str(option["label"]), str(option["path"]))
-	_status = Label.new()
-	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.add_theme_color_override("font_color", Color(0.65, 0.77, 0.88, 1.0))
-	sidebar.add_child(_status)
-
-	_canvas = TileEditorCanvas.new()
-	_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_canvas.cell_selected.connect(_on_cell_selected)
-	_canvas.layout_changed.connect(_on_layout_changed)
-	splitter.add_child(_canvas)
-
-	_inspector = VBoxContainer.new()
-	_inspector.custom_minimum_size = Vector2(245.0, 0.0)
-	_inspector.add_theme_constant_override("separation", 8)
-	splitter.add_child(_inspector)
-	_add_inspector_controls()
+	_terrain_stuff_editor = TerrainStuffEditorScript.new()
+	_terrain_stuff_editor.name = "地块"
+	_terrain_stuff_editor.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_terrain_stuff_editor.level_changed.connect(_on_terrain_stuff_level_changed)
+	tabs.add_child(_terrain_stuff_editor)
+	_canvas = _terrain_stuff_editor.call("get_editor_canvas") as Control
 	_add_path_tab(tabs)
 	_add_wave_tab(tabs)
 	_add_camera_tab(tabs)
@@ -474,8 +452,8 @@ func _refresh_active_editor_tab() -> void:
 		(page as Container).queue_sort()
 	match page.name:
 		&"地块":
-			if _canvas != null:
-				_canvas.call("ensure_view_initialized")
+			if _terrain_stuff_editor != null:
+				_terrain_stuff_editor.refresh()
 		&"路径":
 			if _path_canvas != null:
 				_path_canvas.call("ensure_view_initialized")
@@ -601,35 +579,24 @@ func _create_new_level() -> void:
 	level.grid_shape = HEX_SHAPE
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(6, 6)
-	level.height_levels = 3
+	level.terrain_content_version = 2
+	level.default_terrain = load("res://resources/terrains/Grass.tres")
+	level.height_levels = 4
 	level.height_step = 0.45
+	level.layer_height = 0.45
 	if _save_path != null:
 		_save_path.text = DEFAULT_SAVE_PATH
-	_set_level(level)
-	level.tiles = _make_default_tiles(level.grid_shape, level.grid_size)
 	_set_level(level)
 	_undo_redo.clear_history()
 	_update_history_buttons()
 	_set_dirty(false)
-	_status.text = "新关卡已创建。拖拽左侧预制地块到地图。"
+	_status.text = "新关卡已创建。请在地块页分别编辑 Terrain、层数、权限、斜坡与 Stuff。"
 
 func _set_level(value: LevelResource) -> void:
 	_level = value
 	if _path_record != null:
 		_path_record.button_pressed = false
-	_set_level_controls_blocked(true)
-	_shape_select.select(_level.grid_shape)
-	_geometry_tag_label.text = str(_level.get_geometry_tag())
-	_size_x.value = _level.grid_size.x
-	_size_y.value = _level.grid_size.y
-	_height_levels.value = _level.height_levels
-	_height_step.value = _level.height_step
-	_height_color_low.color = _level.height_color_low
-	_height_color_middle.color = _level.height_color_middle
-	_height_color_high.color = _level.height_color_high
-	_refresh_height_brush_options()
-	_set_level_controls_blocked(false)
-	_canvas.call("set_level", _level)
+	_last_content_prepare = _terrain_stuff_editor.set_level(_level) if _terrain_stuff_editor != null else {}
 	if _path_canvas != null:
 		_path_canvas.call("set_level", _level)
 	if _camera_canvas != null:
@@ -637,7 +604,6 @@ func _set_level(value: LevelResource) -> void:
 	if _camera_preset_editor != null:
 		_camera_preset_editor.configure(_level, _camera_canvas)
 	call_deferred("_refresh_active_editor_tab")
-	_set_inspector_enabled(false)
 	_refresh_path_controls()
 	_refresh_wave_controls()
 
@@ -779,7 +745,16 @@ func _on_height_brush_changed(index: int) -> void:
 		_status.text = "高度刷已选择。左键拖动只修改高度。"
 
 func _reset_canvas_view() -> void:
-	_canvas.call("reset_view")
+	if _terrain_stuff_editor != null:
+		_terrain_stuff_editor.reset_view()
+
+
+func _on_terrain_stuff_level_changed() -> void:
+	_mark_level_changed()
+	if _path_canvas != null:
+		_path_canvas.call("refresh")
+	if _camera_canvas != null:
+		_camera_canvas.call("refresh")
 
 func _on_cell_selected(cell: Vector3i) -> void:
 	if _level == null:
@@ -1845,9 +1820,14 @@ func _load_level_file(path: String) -> void:
 		_save_path.text = path
 		_undo_redo.clear_history()
 		_update_history_buttons()
-		_set_dirty(inserted_path_cells > 0)
-		if inserted_path_cells > 0:
+		var content_changed := bool(_last_content_prepare.get("changed", false))
+		_set_dirty(inserted_path_cells > 0 or content_changed)
+		if bool(_last_content_prepare.get("migrated", false)):
+			_status.text = "已加载 %s，并将旧 Tile 单向导入 Terrain / Stuff；请保存关卡。" % path
+		elif inserted_path_cells > 0:
 			_status.text = "已加载 %s，并补齐 %d 个四边形路径中间格；请保存关卡。" % [path, inserted_path_cells]
+		elif content_changed:
+			_status.text = "已加载 %s，并补齐规范 Grid 作者数据；请保存关卡。" % path
 		else:
 			_status.text = "已加载 %s" % path
 	else:

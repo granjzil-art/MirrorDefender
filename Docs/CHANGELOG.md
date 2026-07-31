@@ -1,5 +1,17 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Stuff · 体素地块重构批次4关卡编辑器 — 2026-07-31
+**模块**：Level Editor / Terrain / Stuff / Compatibility Canvas / Tests / Docs。
+
+- 地块页改为规范 Terrain Grid 工具：Terrain、1～4层、块/边建筑基础权限可独立连续涂刷，单格检查器可精确编辑。
+- 新增 Stuff 调色板和同格多实例管理；双向互斥校验、稳定 `placement_id`、朝向编辑和逐实例删除全部写入 `stuff_placements`。
+- 新增 S1 斜坡工具：点击最低坡格，按方向/1:N/基础层生成预览和斜坡，自动对齐占格及高低连接端。
+- 旧 Tile 关卡在内存中单向导入规范数组并标记未保存；作者文档清除第二套 `tiles` 事实源。
+- 路径/镜头共用画布改为只读显示规范Terrain、真实坡面和多Stuff；波次页、镜头页及其序列化数据未改。
+- 新增41项编辑器专项回归并纳入完整入口；路径编辑回归升级为通过规范网格重建事务切换形状。
+
+**影响面**：不改运行时玩法和数值；批次1～3的数据、Terrain、Stuff、镜像、寻路和检查面板保持兼容。
+
 ## Terrain / Stuff · 体素地块重构批次 3 独立关卡元素运行时 — 2026-07-31
 
 **模块**：Stuff / Tile 兼容 / Effects / Navigation / Mirror / Runtime Inspection / LevelLoader / Presentation / Tests / Docs。

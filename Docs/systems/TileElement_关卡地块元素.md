@@ -2,7 +2,7 @@
 
 > 实现状态：已完成尖刺、带容量的周期吞噬黑洞、大石头障碍，以及基于手工路径的动态换路。支持正方形与六边形关卡。
 >
-> 迁移说明（2026-07-31）：本文件描述当前生产运行时的旧 `TileDefinition + TileEffect` 链路。体素地块重构批次1已建立独立 `Terrain/Grid/Stuff` 规范契约，详见 `TerrainGrid_体素地块与斜坡.md` 与 `Stuff_关卡元素.md`；运行时和编辑器将在后续批次切换，期间旧链路继续工作。
+> 迁移说明（2026-07-31）：本文件仅作为旧 `TileDefinition + TileEffect` 数据参考。生产运行时已于批次2/3切换到 `TerrainManager + StuffManager`，关卡编辑器已于批次4只写 `Terrain/Grid/Stuff` 规范数据；旧链路仅作只读导入和独立兼容测试使用。
 
 ## 职责
 

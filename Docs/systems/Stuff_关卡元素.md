@@ -1,6 +1,6 @@
 # Stuff · 关卡元素
 
-> 实现状态：体素重构批次 3 已完成。运行时的石头、树、尖刺、黑洞等关卡元素由独立 `StuffManager / StuffRuntime / StuffRenderer` 驱动；旧 `TileDefinition` 只保留为只读迁移输入。关卡编辑器的地块页迁移属于后续批次，波次页与镜头页不在本批次范围内。
+> 实现状态：批次3已完成独立 Stuff 运行时，批次4已完成规范 Stuff 编辑工具。旧 `TileDefinition` 只保留为只读迁移输入；波次页与镜头页未修改。
 
 ## 职责与边界
 
@@ -43,7 +43,10 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `scripts/level/LevelContentMigrationAdapter.gd` | `LevelContentMigrationAdapter / RefCounted` | 旧 Tile 元素到规范 Stuff 的只读映射。 |
 | `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem / Node` | 调度 Stuff 与镜像的进入、停留、黑洞容量效果。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager / Node3D` | 从最近非空格收集全部 Building 与 Stuff，明确排除 Terrain。 |
+| `addons/mirror_tile_editor/terrain_stuff_authoring.gd` | `TerrainStuffAuthoring / RefCounted` | 编辑器互斥校验、稳定ID、朝向和单实例删除。 |
+| `addons/mirror_tile_editor/terrain_stuff_editor.gd` | `TerrainStuffEditor / HSplitContainer` | Stuff 调色板与同格多实例检查器。 |
 | `tests/stuff_runtime_test.gd` | `SceneTree` | 多 Stuff、权限、耐久、镜像、迁移与回滚回归。 |
+| `tests/terrain_stuff_editor_test.gd` | `SceneTree` | 多 Stuff 作者数据、互斥、朝向与单实例删除回归。 |
 
 ## 核心 API
 
@@ -58,6 +61,8 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `StuffManager.remove_stuff` | `(placement_id: StringName) -> bool` | 只移除一个实例及其限制，并发出刷新信号。 |
 | `StuffRuntime.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 修改独立运行时耐久；归零后通知 Manager 删除自身。 |
 | `StuffRenderer.create_stuff_visual_snapshot` | `(placement_id: StringName) -> Node3D` | 为复制镜生成与实体模型/灰盒一致的无行为快照。 |
+| `TerrainStuffAuthoring.add_stuff` | `(level: Resource, cell: Vector3i, definition: Resource, facing_index: int) -> Dictionary` | 返回 `{success, message, placement}`；双向校验互斥并生成稳定ID。 |
+| `TerrainStuffAuthoring.remove_stuff` | `(level: Resource, placement_id: StringName) -> bool` | 编辑器只删除一个 Stuff 作者实例。 |
 
 ## 数据流
 
@@ -106,4 +111,4 @@ StuffManager
 
 - 旧 `TileCellData / TileDefinition` 仍可加载，但只作为迁移输入；正式 Main 中旧元素渲染和旧耐久已关闭。
 - 独立 `TileManager` 测试与旧工具默认保留 `legacy_content_runtime_enabled=true`，防止一次切换破坏旧模块回归。
-- 当前关卡编辑器仍在后续批次迁移作者操作；本批次没有修改波次页、镜头页或它们的序列化数据。
+- 关卡编辑器已可按定义的双向互斥规则放置同格多 Stuff，并逐实例编辑朝向/删除；波次页、镜头页及它们的序列化数据未修改。

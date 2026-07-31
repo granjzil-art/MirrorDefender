@@ -1,9 +1,9 @@
 ﻿# 地块系统 · Tile
 
-> 实现状态：本系统是批次3前的旧Tile/Stuff玩法兼容层。批次2起Terrain基底、高度与斜坡由TerrainManager/Renderer负责；旧占位、元素效果与清障仍暂由TileManager负责。
+> 实现状态：本系统是旧Tile兼容层。批次2起Terrain由TerrainManager/Renderer负责，批次3起Stuff效果/耐久/清障由StuffManager负责，批次4起关卡编辑器也只写规范Grid/Ramp/Stuff。
 
 ## 职责
-保留旧关卡的类型、元素效果、障碍和运行时占用查询，并为既有玩法提供兼容接口。规范地形、1～4层高度和斜坡详见Terrain Grid文档；编辑器切换列入后续批次。
+保留旧关卡的只读导入以及既有建筑/寻路的占位兼容查询。规范地形、1～4层高度和斜坡详见Terrain Grid文档；编辑器用法见Level Editor文档。
 
 ## 分类 / 做法
 - **可建造**：`tile_type = 0`，可放建筑，前提是 `occupant == null`。
@@ -54,7 +54,7 @@
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 调色板预制参数，显式预加载 TileCellData 脚本创建地块。 |
 | `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | **运行时唯一 Tile 查询入口**；按 `Vector3i` 索引格子并发信号。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 单个真实耐久地块的当前/最大耐久、攻击位置与归零事件。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 批次3前只读TileManager渲染旧Stuff内容并生成镜像内容快照；旧基底由兼容开关控制。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer / Node3D` | 仅供旧独立工具/回归兼容；正式Main已关闭。 |
 | `scripts/presentation/ModelAssetDefinition.gd` | `ModelAssetDefinition` / `Resource` | 地块与其它模块共用的模型场景和附加运行时 Scale 契约。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 地块布局的持久化容器；完整说明见 Level 文档。 |
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |

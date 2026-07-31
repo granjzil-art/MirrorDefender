@@ -1,6 +1,6 @@
 # Terrain Grid · 体素地块与斜坡
 
-> 实现状态：批次2已完成运行时 Terrain；批次3已完成独立 Stuff 运行时。关卡编辑器地块页切换仍列入后续批次，波次页与镜头页不在改造范围内。
+> 实现状态：批次2已完成运行时 Terrain，批次3已完成独立 Stuff 运行时，批次4已将关卡编辑器地块页切换到规范 Grid/Ramp/Stuff。波次页与镜头页未修改。
 
 ## 职责
 
@@ -50,8 +50,11 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 块建筑取格心高度，边建筑取物理边坡高。 |
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 复制镜实体取物理边坡高，镜像玩法不复制Terrain。 |
 | `scripts/Main.gd` | `MainController` / `Node3D` | 装配Terrain服务、兼容Callable和唯一基底渲染器。 |
+| `addons/mirror_tile_editor/terrain_stuff_authoring.gd` | `TerrainStuffAuthoring / RefCounted` | 编辑器规范Terrain/斜坡写入事务。 |
+| `addons/mirror_tile_editor/terrain_stuff_canvas.gd` | `TerrainStuffCanvas / Control` | 编辑器体素与真实斜坡画布。 |
 | `tests/terrain_stuff_contract_test.gd` | 无 / `SceneTree` | 数据分离、四层高度、双网格斜坡、迁移与互斥回归。 |
 | `tests/terrain_runtime_test.gd` | 无 / `SceneTree` | 双网格坡面采样、Grid权限桥、平地/整坡模型实例化、灰盒回退、兼容高度与加载回滚回归。 |
+| `tests/terrain_stuff_editor_test.gd` | 无 / `SceneTree` | 地块页导入、独立工具、S1斜坡与分页边界回归。 |
 
 ### 数据流
 
@@ -114,6 +117,7 @@ TerrainManager
 | `LevelResource.get_effective_content_snapshot` | `() -> Dictionary` | 返回 `{content_version, migrated, default_terrain, layer_height, grid_cells, ramp_placements, stuff_placements}`。 |
 | `LevelResource.migrate_legacy_content_in_place` | `() -> bool` | 显式物化规范数组；批次1保留旧`tiles`以维持现运行时。 |
 | `LevelContentValidator.validate` | `(level: Resource, shape: IGridShape) -> Array[String]` | 对规范内容执行只读完整校验。 |
+| `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int) -> Dictionary` | S1放置；校验占格并自动对齐高低端。 |
 
 ## 约定事实源
 
@@ -132,7 +136,7 @@ TerrainManager
 
 ## 已知限制 / 后续批次
 
-- 关卡编辑器尚未提供地形、层数、属性、斜坡和Stuff独立工具；波次页与镜头页明确不在改动范围。
+- 关卡编辑器已提供 Terrain、1～4层、两类权限、S1斜坡和 Stuff 独立工具；用法见 `LevelEditor_关卡编辑器.md`。
 - Stuff效果、互斥、摧毁、综合建造权限与镜像快照已由独立 `StuffManager / StuffRuntime / StuffRenderer` 承担。
 - 旧资源只读迁移无法推断元素下方曾经被混合格式抹去的特殊地形；默认迁移为关卡草地/默认地形，模型覆盖仍原样引用。
-- 规范数组和旧`tiles`暂时并存是过渡措施；批次2起Terrain只读规范快照，旧Tile仅是Stuff/占位兼容，不再绘制地块基底。
+- 运行时仍可只读加载旧 `tiles`；一旦用批次4编辑器导入，作者文档会清空旧数组，只保留规范事实源。

@@ -21,6 +21,7 @@
 | 调试控制台 | [Debug_调试控制台.md](Debug_调试控制台.md) | F1 模态、八类开关与命令注册表 |
 | AI | [AI_敌方AI系统.md](AI_敌方AI系统.md) | 手工路径移动 + 受阻时在手工路径间换路 |
 | 关卡存档 | [Level_关卡与存档.md](Level_关卡与存档.md) | LevelLoader 原子装配 + Catalog/Page 六槽分页选关 + 六机位；无解锁/进度存档 |
+| 关卡编辑器 | [LevelEditor_关卡编辑器.md](LevelEditor_关卡编辑器.md) | 规范 Terrain/Ramp/Stuff 作者工具 + 旧Tile单向导入 |
 | 表现音效 | [FX_表现与音效.md](FX_表现与音效.md) | 反射/倒影/命中 |
 
 跨系统配置校验由 `scripts/shared/ConfigurationValidator.gd` 提供无副作用的文本、数值范围、颜色和嵌套错误工具；各资源仍在所属系统文档登记自身 `validate_configuration()` 契约。
