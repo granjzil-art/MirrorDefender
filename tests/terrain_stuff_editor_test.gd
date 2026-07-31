@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Authoring := preload("res://addons/mirror_tile_editor/terrain_stuff_authoring.gd")
+const EditorCanvasScript := preload("res://addons/mirror_tile_editor/terrain_stuff_canvas.gd")
 const EditorPageScript := preload("res://addons/mirror_tile_editor/terrain_stuff_editor.gd")
 const EditorPanelScript := preload("res://addons/mirror_tile_editor/tile_editor_panel.gd")
 const LevelResourceScript := preload("res://scripts/level/LevelResource.gd")
@@ -141,7 +142,21 @@ func _test_editor_page_contract() -> void:
 	var result := page.set_level(level)
 	_expect(not bool(result["migrated"]), "canonical editor page accepts canonical level without migration")
 	_expect(page.find_child("SelectedCellHelp", true, false) != null, "editor page exposes independent cell inspector")
-	_expect(page.get_child_count() == 4, "editor page uses sidebar, canonical canvas, inspector, and local confirmation dialog")
+	_expect(page.get_child_count() == 3, "editor page outer split keeps exactly two layout children plus its dialog")
+	var content_split := page.get_child(1) as HSplitContainer
+	_expect(content_split != null and content_split.get_child_count() == 2, "canonical canvas and inspector use a legal nested two-child split")
+	var hidden_canvas: TerrainStuffCanvas = EditorCanvasScript.new()
+	hidden_canvas.visible = false
+	hidden_canvas.size = Vector2.ZERO
+	root.add_child(hidden_canvas)
+	hidden_canvas.set_level(level)
+	_expect(bool(hidden_canvas.get("_view_reset_pending")), "zero-size hidden editor records one pending view reset")
+	hidden_canvas.size = Vector2(640.0, 480.0)
+	# SceneTree._init() runs before a rendered layout frame, so exercise the
+	# resized callback explicitly instead of depending on frame delivery here.
+	hidden_canvas.call("_on_canvas_resized")
+	_expect(not bool(hidden_canvas.get("_view_reset_pending")), "first valid resize consumes the pending view reset")
+	hidden_canvas.queue_free()
 	page.queue_free()
 
 

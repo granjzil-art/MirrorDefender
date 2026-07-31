@@ -51,6 +51,7 @@ Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 | `TerrainStuffAuthoring.remove_stuff` | `(level: Resource, placement_id: StringName) -> bool` | 只删除一个稳定ID的 Stuff。 |
 | `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int) -> Dictionary` | S1放置与自动高低端整理，返回 `{success, message, ramp}`。 |
 | `TerrainStuffEditor.set_level` | `(value: LevelResource) -> Dictionary` | 准备作者文档、同步UI并返回导入结果。 |
+| `TerrainStuffCanvas.reset_view` | `() -> void` | 有有效布局尺寸时立即重置视图；隐藏零尺寸时只记录一次待重置状态。 |
 
 ## 数据流
 
@@ -71,3 +72,9 @@ Author click/drag -> Canvas intent -> Authoring canonical mutation
 - 逐笔 Terrain/Stuff 编辑尚未纳入通用 UndoRedo 事务。
 - 旧混合格无法推断元素下方曾被覆盖的自定义 Terrain；导入使用关卡默认地形。
 - 斜坡存在时不允许逐格改其 Terrain/层数；须先删除斜坡。
+
+## 编辑器生命周期约定
+
+- 主界面插件在 Godot 启动时先构建、后隐藏，因此画布可能长时间保持 `0×0` 尺寸。
+- 零尺寸时禁止递归 `call_deferred()` 等待布局；只保存待处理标记，由 `resized` 或可见性变化触发一次重置。
+- `SplitContainer` 的每一层只放两个布局子控件；地块页用嵌套分割容器组成“工具栏 / 画布 / 检查器”。

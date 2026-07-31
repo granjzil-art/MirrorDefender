@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Level Editor · 修复正常模式启动原生崩溃 — 2026-07-31
+**模块**：Level Editor / Terrain Canvas / Tests / Docs。
+
+- 修复主界面插件默认隐藏时，零尺寸 Terrain 画布递归积累延迟视图重置调用，最终导致 Godot 4.7 以 `0xc0000005` 退出的问题。
+- 改为单次待重置状态，仅在画布获得有效尺寸或重新可见时执行；补充零尺寸生命周期回归。
+- 地块页改为两层合法 `HSplitContainer` 布局，保留工具栏、规范画布与检查器三栏。
+
+**影响面**：不改关卡数据、玩法、数值、波次页或镜头页功能。
+
 ## Terrain / Stuff · 体素地块重构批次4关卡编辑器 — 2026-07-31
 **模块**：Level Editor / Terrain / Stuff / Compatibility Canvas / Tests / Docs。
 

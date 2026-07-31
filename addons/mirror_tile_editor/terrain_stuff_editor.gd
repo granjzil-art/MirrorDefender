@@ -108,6 +108,14 @@ func _build_interface() -> void:
 	sidebar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sidebar.add_theme_constant_override("separation", 7)
 	sidebar_scroll.add_child(sidebar)
+	# SplitContainer only supports two layout children. Keep the outer split for
+	# the authoring toolbar, then nest the canvas/inspector split on the right.
+	# This keeps Godot 4.7's native container contract valid when the editor
+	# restores this main-screen plugin outside recovery mode.
+	var content_split := HSplitContainer.new()
+	content_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(content_split)
 
 	_add_heading(sidebar, "Terrain Grid")
 	var select_tool := Button.new()
@@ -216,12 +224,12 @@ func _build_interface() -> void:
 	_canvas.cell_selected.connect(_on_cell_selected)
 	_canvas.content_changed.connect(_on_canvas_content_changed)
 	_canvas.operation_reported.connect(_on_operation_reported)
-	add_child(_canvas)
+	content_split.add_child(_canvas)
 
 	var inspector_scroll := ScrollContainer.new()
 	inspector_scroll.custom_minimum_size = Vector2(300.0, 0.0)
 	inspector_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(inspector_scroll)
+	content_split.add_child(inspector_scroll)
 	var inspector := VBoxContainer.new()
 	inspector.custom_minimum_size = Vector2(282.0, 0.0)
 	inspector.size_flags_horizontal = Control.SIZE_EXPAND_FILL

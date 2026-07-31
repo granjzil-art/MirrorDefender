@@ -69,11 +69,14 @@ var _last_paint_position := Vector2.ZERO
 var _painted_cells: Dictionary = {}
 var _hover_cell: Vector3i = Vector3i.ZERO
 var _has_hover_cell: bool = false
+var _view_reset_pending: bool = false
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
+	resized.connect(_on_canvas_resized)
+	visibility_changed.connect(_on_canvas_visibility_changed)
 	set_process(true)
 
 
@@ -180,8 +183,12 @@ func reset_view() -> void:
 	_camera_yaw = DEFAULT_YAW
 	_camera_pitch = DEFAULT_PITCH
 	if _ordered_cells.is_empty() or size.x <= 1.0 or size.y <= 1.0:
-		call_deferred("reset_view")
+		# Main-screen plugins start hidden and can remain at a zero layout size
+		# indefinitely. Never enqueue reset_view recursively in that state: the
+		# unbounded deferred-call queue can crash the Godot 4.7 editor process.
+		_view_reset_pending = true
 		return
+	_view_reset_pending = false
 	var minimum := Vector3(INF, 0.0, INF)
 	var maximum := Vector3(-INF, 0.0, -INF)
 	for cell in _ordered_cells:
@@ -200,6 +207,16 @@ func reset_view() -> void:
 	_view_zoom = clampf(viewport_span / maxf(1.0, world_span * 1.45), MIN_ZOOM, MAX_ZOOM)
 	_refresh_draw_order()
 	queue_redraw()
+
+
+func _on_canvas_resized() -> void:
+	if _view_reset_pending:
+		reset_view()
+
+
+func _on_canvas_visibility_changed() -> void:
+	if _view_reset_pending and is_visible_in_tree():
+		reset_view()
 
 
 func _refresh_layout() -> void:
