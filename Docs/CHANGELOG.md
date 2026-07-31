@@ -1,5 +1,17 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Stuff · 体素地块重构批次 3 独立关卡元素运行时 — 2026-07-31
+
+**模块**：Stuff / Tile 兼容 / Effects / Navigation / Mirror / Runtime Inspection / LevelLoader / Presentation / Tests / Docs。
+
+- 新增 `StuffManager`、`StuffRuntime` 与 `StuffRenderer`，支持同格多个合法 Stuff、逐实例耐久、逐实例状态型效果键、模型资产/Runtime Scale、灰盒回退和同格可区分表现。
+- 正式 Main 关闭旧 Tile 元素运行时与旧元素渲染；`TileManager` 保留建筑/寻路兼容门面，将两类建造权限、效果阻挡、具体攻击目标和清障转发至 Stuff。
+- `LevelLoader` 将 Stuff 纳入 Grid/Terrain/Tile 同一加载与回滚事务；旧关卡经只读迁移快照运行，不改写作者资源。
+- 复制镜从最近非空格收集全部 Stuff，直接/递归虚像共享根 Stuff 的效果状态与耐久；Terrain、路径色、体素层和斜坡继续明确排除。
+- 运行时检查面板改读全部 Stuff，并显示独立耐久、容量、朝向和建造限制；新增 31 项 Stuff 专项回归并纳入全量入口。
+
+**影响面**：保持现有玩法数值与旧关卡表现；关卡编辑器波次页、镜头页未修改，地块页作者操作迁移留给后续批次。
+
 ## Terrain · 体素地块重构批次2运行时 — 2026-07-31
 **模块**：Terrain / Grid / LevelLoader / Tile兼容 / Building / Mirror / Presentation / Tests / Docs。
 

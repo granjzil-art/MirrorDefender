@@ -34,6 +34,8 @@ const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.g
 const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
 const TerrainManagerScript := preload("res://scripts/terrain/TerrainManager.gd")
 const TerrainRendererScript := preload("res://scripts/terrain/TerrainRenderer.gd")
+const StuffManagerScript := preload("res://scripts/stuff/StuffManager.gd")
+const StuffRendererScript := preload("res://scripts/stuff/StuffRenderer.gd")
 const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
 const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
@@ -56,6 +58,8 @@ signal startup_level_load_resolved(success: bool, reason: String)
 @onready var renderer: GridRenderer = $GridRenderer
 @onready var terrain_manager: TerrainManagerScript = $TerrainManager
 @onready var terrain_renderer: TerrainRendererScript = $TerrainRenderer
+@onready var stuff_manager: StuffManagerScript = $StuffManager
+@onready var stuff_renderer: StuffRendererScript = $StuffRenderer
 @onready var tile_manager: TileManager = $TileManager
 @onready var tile_renderer: TileRenderer = $TileRenderer
 @onready var resource_manager: ResourceManager = $ResourceManager
@@ -121,7 +125,11 @@ func _ready() -> void:
 	terrain_manager.set_grid(grid)
 	terrain_renderer.set_grid(grid)
 	terrain_renderer.set_terrain_manager(terrain_manager)
+	stuff_manager.configure(grid, terrain_manager)
+	stuff_renderer.configure(grid, stuff_manager)
 	tile_manager.set_grid(grid)
+	tile_manager.legacy_content_runtime_enabled = false
+	tile_manager.set_stuff_runtime_provider(stuff_manager)
 	tile_manager.set_surface_height_resolver(Callable(terrain_manager, "get_world_height"))
 	tile_manager.set_base_placement_resolvers(
 		Callable(terrain_manager, "allows_tile_building"),
@@ -152,6 +160,7 @@ func _ready() -> void:
 		edge_occupancy_registry
 	)
 	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
+	mirror_manager.set_stuff_manager(stuff_manager)
 	mirror_manager.set_reflection_camera(_camera)
 	building_manager.building_selected.connect(_on_building_selected_for_exclusivity)
 	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)
@@ -191,16 +200,20 @@ func _ready() -> void:
 	tile_effect_system = TileEffectSystemScript.new()
 	add_child(tile_effect_system)
 	tile_effect_system.configure(tile_manager)
+	tile_effect_system.set_base_effect_provider(stuff_manager)
 	tile_effect_system.set_effect_overlay_resolver(Callable(mirror_manager, "get_projected_effects"))
 	tile_effect_system.set_effect_overlay_binding_resolver(Callable(mirror_manager, "get_projected_effect_bindings"))
-	tile_renderer.set_effect_visual_state_resolver(Callable(tile_effect_system, "get_void_fill_ratio"))
+	stuff_renderer.set_effect_visual_state_resolver(Callable(tile_effect_system, "get_void_fill_ratio_for_key"))
 	tile_effect_system.effect_visual_state_changed.connect(_on_effect_visual_state_changed)
+	tile_effect_system.effect_binding_visual_state_changed.connect(stuff_renderer.refresh_effect_visual)
 	runtime_hud.configure_inspection(
 		grid,
 		tile_manager,
 		building_manager,
 		mirror_manager,
-		tile_effect_system
+		tile_effect_system,
+		stuff_manager,
+		terrain_manager
 	)
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
@@ -238,7 +251,7 @@ func _ready() -> void:
 		runtime_debug_bindings.command_registry,
 		runtime_debug_bindings.category_registry
 	)
-	level_loader.configure(grid, tile_manager, terrain_manager)
+	level_loader.configure(grid, tile_manager, terrain_manager, stuff_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
 	var startup_loaded := false

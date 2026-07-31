@@ -10,6 +10,10 @@ const TileObstacleRuntimeScript := preload("res://scripts/tile/TileObstacleRunti
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
+## Batch-3 compatibility switch. Main disables legacy mixed Tile content after
+## StuffManager becomes the canonical element/effect owner. Standalone legacy
+## tests and tools keep their previous behavior by default.
+@export var legacy_content_runtime_enabled: bool = true
 
 @export_group("Level")
 @export var level: Resource
@@ -28,6 +32,7 @@ var _navigation_overlay_blocker_resolver: Callable
 var _surface_height_resolver: Callable
 var _base_tile_building_resolver: Callable
 var _base_edge_building_resolver: Callable
+var _stuff_runtime_provider: Node
 
 func _ready() -> void:
 	var level_data := _get_level()
@@ -58,6 +63,17 @@ func set_base_placement_resolvers(tile_building_resolver: Callable, edge_buildin
 	_base_tile_building_resolver = tile_building_resolver
 	_base_edge_building_resolver = edge_building_resolver
 
+
+func set_stuff_runtime_provider(value: Node) -> void:
+	_disconnect_stuff_runtime_provider()
+	_stuff_runtime_provider = value
+	if _stuff_runtime_provider == null:
+		return
+	if _stuff_runtime_provider.has_signal(&"obstacle_destroyed"):
+		_stuff_runtime_provider.connect(&"obstacle_destroyed", _on_stuff_obstacle_destroyed)
+	if _stuff_runtime_provider.has_signal(&"obstacle_durability_changed"):
+		_stuff_runtime_provider.connect(&"obstacle_durability_changed", _on_stuff_obstacle_durability_changed)
+
 func load_level(level_resource: LevelResource) -> bool:
 	if not feature_enabled or level_resource == null or _grid == null:
 		return false
@@ -84,7 +100,8 @@ func load_level(level_resource: LevelResource) -> bool:
 	level = level_resource
 	_clear_runtime_obstacles()
 	_tiles = next_tiles
-	_rebuild_runtime_obstacles()
+	if legacy_content_runtime_enabled:
+		_rebuild_runtime_obstacles()
 	level_loaded.emit(level_resource)
 	return true
 
@@ -129,26 +146,47 @@ func get_height_color(cell: Vector3i) -> Color:
 
 func can_place(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and _allows_base_tile_building(cell) and tile.can_place()
+	if not allows_tile_building(cell):
+		return false
+	return tile.can_place() if legacy_content_runtime_enabled else tile.occupant == null
+
+
+## Effective cell-level permission before the current block occupant is
+## considered. Building placement adds the occupant check in can_place().
+func allows_tile_building(cell: Vector3i) -> bool:
+	var tile := get_tile(cell)
+	if tile == null or not _allows_base_tile_building(cell) or not _allows_stuff_tile_building(cell):
+		return false
+	return tile.allows_tile_building() if legacy_content_runtime_enabled else true
 
 func can_place_path_occupant(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.can_place_path_occupant()
+	if tile == null or not _allows_stuff_tile_building(cell):
+		return false
+	return tile.can_place_path_occupant() if legacy_content_runtime_enabled else tile.occupant == null
 
 func allows_edge_building(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and _allows_base_edge_building(cell) and tile.allows_edge_building()
+	if tile == null or not _allows_base_edge_building(cell) or not _allows_stuff_edge_building(cell):
+		return false
+	return tile.allows_edge_building() if legacy_content_runtime_enabled else true
 
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	if tile != null and tile.blocks_enemy_navigation(target):
+	if legacy_content_runtime_enabled and tile != null and tile.blocks_enemy_navigation(target):
+		return true
+	if _stuff_runtime_provider != null and bool(_stuff_runtime_provider.call("blocks_enemy_navigation", cell, target)):
 		return true
 	return bool(_navigation_overlay_resolver.call(cell, target)) if _navigation_overlay_resolver.is_valid() else false
 
 ## Returns the concrete attack target responsible for a navigation obstruction.
 ## Real tile obstacles take priority over projected overlays in the same cell.
 func resolve_navigation_blocker(cell: Vector3i, target: Node = null) -> Node:
-	var obstacle := get_runtime_obstacle(cell)
+	var obstacle: Node
+	if legacy_content_runtime_enabled:
+		obstacle = _get_legacy_runtime_obstacle(cell)
+	elif _stuff_runtime_provider != null:
+		obstacle = _stuff_runtime_provider.call("resolve_navigation_blocker", cell, target) as Node
 	if obstacle != null and obstacle.affects_target(target):
 		return obstacle
 	if _navigation_overlay_blocker_resolver.is_valid():
@@ -158,6 +196,12 @@ func resolve_navigation_blocker(cell: Vector3i, target: Node = null) -> Node:
 	return null
 
 func get_runtime_obstacle(cell: Vector3i) -> Node:
+	if not legacy_content_runtime_enabled and _stuff_runtime_provider != null:
+		return _stuff_runtime_provider.call("get_runtime_obstacle", cell) as Node
+	return _get_legacy_runtime_obstacle(cell)
+
+
+func _get_legacy_runtime_obstacle(cell: Vector3i) -> Node:
 	if not _runtime_obstacles.has(cell):
 		return null
 	var obstacle: Node = _runtime_obstacles[cell]
@@ -167,7 +211,11 @@ func get_runtime_obstacle(cell: Vector3i) -> Node:
 
 func can_use_for_reroute(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.can_use_for_reroute(target) and not blocks_enemy_navigation(cell, target)
+	if tile == null:
+		return false
+	if not legacy_content_runtime_enabled and _stuff_runtime_provider != null:
+		return bool(_stuff_runtime_provider.call("can_use_for_reroute", cell, target)) and not blocks_enemy_navigation(cell, target)
+	return tile.can_use_for_reroute(target) and not blocks_enemy_navigation(cell, target)
 
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)
@@ -230,6 +278,8 @@ func update_tile_height(cell: Vector3i, height_level: int) -> bool:
 	return true
 
 func destroy_obstacle_at(cell: Vector3i) -> bool:
+	if not legacy_content_runtime_enabled and _stuff_runtime_provider != null:
+		return bool(_stuff_runtime_provider.call("destroy_obstacle_at", cell))
 	var tile := get_tile(cell)
 	if tile == null or not tile.destroy_obstacle():
 		return false
@@ -241,7 +291,8 @@ func destroy_obstacle_at(cell: Vector3i) -> bool:
 func _set_tile(tile: TileCellData) -> void:
 	_remove_runtime_obstacle(tile.cell)
 	_tiles[tile.cell] = tile
-	_create_runtime_obstacle(tile)
+	if legacy_content_runtime_enabled:
+		_create_runtime_obstacle(tile)
 	_notify_tile_changed(tile)
 
 func _notify_tile_changed(tile: TileCellData) -> void:
@@ -256,6 +307,14 @@ func _allows_base_tile_building(cell: Vector3i) -> bool:
 
 func _allows_base_edge_building(cell: Vector3i) -> bool:
 	return bool(_base_edge_building_resolver.call(cell)) if _base_edge_building_resolver.is_valid() else true
+
+
+func _allows_stuff_tile_building(cell: Vector3i) -> bool:
+	return bool(_stuff_runtime_provider.call("allows_tile_building", cell)) if _stuff_runtime_provider != null else true
+
+
+func _allows_stuff_edge_building(cell: Vector3i) -> bool:
+	return bool(_stuff_runtime_provider.call("allows_edge_building", cell)) if _stuff_runtime_provider != null else true
 
 func _make_default_tile(cell: Vector3i) -> TileCellData:
 	var tile := TileCellData.new()
@@ -321,3 +380,22 @@ func _on_runtime_obstacle_depleted(obstacle: Node, _attacker: Node) -> void:
 	if obstacle == null or not _runtime_obstacles.has(obstacle.cell):
 		return
 	destroy_obstacle_at(obstacle.cell)
+
+
+func _disconnect_stuff_runtime_provider() -> void:
+	if _stuff_runtime_provider == null:
+		return
+	var destroyed_callback := Callable(self, "_on_stuff_obstacle_destroyed")
+	if _stuff_runtime_provider.is_connected(&"obstacle_destroyed", destroyed_callback):
+		_stuff_runtime_provider.disconnect(&"obstacle_destroyed", destroyed_callback)
+	var durability_callback := Callable(self, "_on_stuff_obstacle_durability_changed")
+	if _stuff_runtime_provider.is_connected(&"obstacle_durability_changed", durability_callback):
+		_stuff_runtime_provider.disconnect(&"obstacle_durability_changed", durability_callback)
+
+
+func _on_stuff_obstacle_destroyed(cell: Vector3i) -> void:
+	obstacle_destroyed.emit(cell)
+
+
+func _on_stuff_obstacle_durability_changed(cell: Vector3i, current: float, maximum: float) -> void:
+	obstacle_durability_changed.emit(cell, current, maximum)

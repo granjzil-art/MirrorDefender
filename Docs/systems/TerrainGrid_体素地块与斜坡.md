@@ -1,6 +1,6 @@
 # Terrain Grid · 体素地块与斜坡
 
-> 实现状态：批次2已完成运行时 TerrainManager、TerrainRenderer、平地/坡面统一高度采样和旧关卡兼容接入。Stuff独立运行时与关卡编辑器切换仍列入后续批次。
+> 实现状态：批次2已完成运行时 Terrain；批次3已完成独立 Stuff 运行时。关卡编辑器地块页切换仍列入后续批次，波次页与镜头页不在改造范围内。
 
 ## 职责
 
@@ -45,8 +45,8 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | 把Grid、Terrain与旧Tile作为同一运行时装配/回滚事务。 |
 | `scripts/grid/GridManager.gd` | `GridManager` / `Node3D` | 接收Terrain高度/坡面/射线Callable并维持形状模块边界。 |
 | `scripts/grid/GridRenderer.gd` | `GridRenderer` / `Node3D` | 对每个顶点采样真实表面，绘制坡面线框与高亮。 |
-| `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | 批次3前提供旧玩法状态，并把高度查询兼容委托给Terrain。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | Main关闭旧基底，仅保留旧Stuff内容与镜像快照。 |
+| `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | 正式 Main 中作为既有模块兼容门面：高度委托 Terrain，关卡元素查询委托 Stuff。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 仅供旧工具/专项回归兼容；正式 Main 已关闭。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 块建筑取格心高度，边建筑取物理边坡高。 |
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 复制镜实体取物理边坡高，镜像玩法不复制Terrain。 |
 | `scripts/Main.gd` | `MainController` / `Node3D` | 装配Terrain服务、兼容Callable和唯一基底渲染器。 |
@@ -71,7 +71,8 @@ LevelResource
 LevelLoader successful transaction
   -> GridManager.apply_configuration
   -> TerrainManager.load_level
-  -> TileManager.load_level（批次3前保留Stuff/占位兼容）
+  -> StuffManager.load_level（关卡元素、效果与耐久）
+  -> TileManager.load_level（建筑 occupant 兼容状态）
   -> Main broadcasts remaining runtime rebuilds
 
 TerrainManager
@@ -124,7 +125,7 @@ TerrainManager
 - 正方形坡向使用4条边，六边形使用6条边。Stuff朝向仍按关卡建筑朝向约定使用正方形8向、六边形6向。
 - 平地模型槽表示“一个体素块”，运行时按 `layer_count` 从Y=0逐层实例化；模型自身变换保持不动，外层继续叠加 `ModelAssetDefinition.runtime_scale`。
 - 1:N斜坡模型槽表示横跨N格、从坡底升高一层的完整模型；本地 `+Z` 视为上坡方向，运行时仅实例化一次并按 `facing_index` 旋转。
-- 未配置模型时，TerrainRenderer生成顶面、坡面和逐层深浅崖壁灰盒；TileRenderer在Main中关闭旧基底，但仍保留批次3前的旧Stuff内容渲染与镜像内容快照。
+- 未配置模型时，TerrainRenderer生成顶面、坡面和逐层深浅崖壁灰盒；StuffRenderer生成独立关卡元素灰盒。正式 Main 不再使用 TileRenderer 的旧混合内容。
 - 路径格颜色是由 `LevelResource.paths` 推导的表现覆盖，不改变Terrain种类、层数或建造权限。
 - 边建筑与复制镜在坡面上使用物理边中点采样；平地断崖仍取两侧较高表面，保持原有不嵌入地形的表现。
 - 普通块建筑和边建筑必须同时通过Grid基础权限与旧Tile/Stuff限制；屏障的路径专用占位继续复用原有专用接口，避免改变旧道路玩法。
@@ -132,6 +133,6 @@ TerrainManager
 ## 已知限制 / 后续批次
 
 - 关卡编辑器尚未提供地形、层数、属性、斜坡和Stuff独立工具；波次页与镜头页明确不在改动范围。
-- Stuff效果、互斥、摧毁和综合建造权限仍暂由旧Tile运行时承担，批次3才切到独立StuffManager/Renderer。
+- Stuff效果、互斥、摧毁、综合建造权限与镜像快照已由独立 `StuffManager / StuffRuntime / StuffRenderer` 承担。
 - 旧资源只读迁移无法推断元素下方曾经被混合格式抹去的特殊地形；默认迁移为关卡草地/默认地形，模型覆盖仍原样引用。
 - 规范数组和旧`tiles`暂时并存是过渡措施；批次2起Terrain只读规范快照，旧Tile仅是Stuff/占位兼容，不再绘制地块基底。

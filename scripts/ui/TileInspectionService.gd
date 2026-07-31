@@ -21,6 +21,8 @@ var _tile_manager: TileManager
 var _building_manager: BuildingManager
 var _mirror_manager: MirrorManager
 var _tile_effect_system: TileEffectSystem
+var _stuff_manager: Node
+var _terrain_manager: Node
 var _model_builder: TileInspectionModelBuilderScript = TileInspectionModelBuilderScript.new()
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
@@ -35,7 +37,9 @@ func configure(
 	tile_manager: TileManager,
 	building_manager: BuildingManager,
 	mirror_manager: MirrorManager,
-	tile_effect_system: TileEffectSystem
+	tile_effect_system: TileEffectSystem,
+	stuff_manager: Node = null,
+	terrain_manager: Node = null
 ) -> void:
 	_disconnect_records(_dependency_connections)
 	_disconnect_records(_dynamic_connections)
@@ -44,7 +48,9 @@ func configure(
 	_building_manager = building_manager
 	_mirror_manager = mirror_manager
 	_tile_effect_system = tile_effect_system
-	_model_builder.configure(_grid, _tile_manager, _building_manager, _mirror_manager, _tile_effect_system)
+	_stuff_manager = stuff_manager
+	_terrain_manager = terrain_manager
+	_model_builder.configure(_grid, _tile_manager, _building_manager, _mirror_manager, _tile_effect_system, _stuff_manager, _terrain_manager)
 	_connect_dependency(_tile_manager, &"tile_changed")
 	_connect_dependency(_tile_manager, &"occupant_changed")
 	_connect_dependency(_tile_manager, &"obstacle_durability_changed")
@@ -57,6 +63,9 @@ func configure(
 	_connect_dependency(_mirror_manager, &"mirror_changed")
 	_connect_dependency(_mirror_manager, &"projections_rebuilt")
 	_connect_dependency(_tile_effect_system, &"effect_visual_state_changed")
+	_connect_dependency(_stuff_manager, &"stuff_loaded")
+	_connect_dependency(_stuff_manager, &"stuff_changed")
+	_connect_dependency(_stuff_manager, &"stuff_removed")
 	_refresh_selected()
 
 
@@ -99,8 +108,12 @@ func _connect_dynamic_sources(cell: Vector3i) -> void:
 	var unique_sources: Dictionary = {}
 	var occupant: Node = _tile_manager.get_occupant(cell) if _tile_manager != null else null
 	_add_dynamic_source(unique_sources, occupant)
-	var obstacle: Node = _tile_manager.get_runtime_obstacle(cell) if _tile_manager != null else null
-	_add_dynamic_source(unique_sources, obstacle)
+	if _stuff_manager != null:
+		for runtime in _stuff_manager.call("get_stuff_at", cell):
+			_add_dynamic_source(unique_sources, runtime)
+	else:
+		var obstacle: Node = _tile_manager.get_runtime_obstacle(cell) if _tile_manager != null else null
+		_add_dynamic_source(unique_sources, obstacle)
 	if _grid != null:
 		for edge_index in range(_grid.edge_count()):
 			var edge_id := _grid.canonical_edge_id(cell, edge_index)

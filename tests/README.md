@@ -6,7 +6,14 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps1
 ```
 
-可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 13 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
+可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 21 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
+
+体素 Terrain 与独立 Stuff 运行时、加载回滚、多 Stuff 权限/效果、旧关卡只读迁移和复制镜整格复制回归：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/terrain_runtime_test.gd
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/stuff_runtime_test.gd
+```
 
 M6 批次 1 的正式卡槽、单卡单次放置、成功/资源/上限/非法格/非法边退出语义，以及 `暂停 > 战术慢放 > 2x > 1x` 时间优先级回归测试：
 

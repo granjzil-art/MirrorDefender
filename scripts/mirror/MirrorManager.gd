@@ -23,6 +23,7 @@ signal preview_cleared
 
 var _grid: GridManager
 var _tile_manager: TileManager
+var _stuff_manager: Node
 var _resource_manager: ResourceManager
 var _combat_manager: CombatManager
 var _building_manager: BuildingManager
@@ -82,6 +83,17 @@ func configure(
 
 func set_tile_visual_snapshot_resolver(resolver: Callable) -> void:
 	_tile_visual_snapshot_resolver = resolver
+	queue_rebuild()
+
+
+func set_stuff_manager(value: Node) -> void:
+	_disconnect_stuff_manager()
+	_stuff_manager = value
+	if _stuff_manager != null:
+		if _stuff_manager.has_signal(&"stuff_loaded"):
+			_stuff_manager.connect(&"stuff_loaded", _on_stuff_loaded)
+		if _stuff_manager.has_signal(&"stuff_changed"):
+			_stuff_manager.connect(&"stuff_changed", _on_stuff_changed)
 	queue_rebuild()
 
 func set_reflection_camera(camera: Camera3D) -> void:
@@ -289,7 +301,12 @@ func get_projected_effect_bindings(cell: Vector3i) -> Array[Dictionary]:
 		bindings.append({
 			"effect": effect,
 			"source_cell": projection.payload.root_source_cell,
-			"state_key": effect.get_runtime_state_key(projection.payload.root_source_cell),
+			"state_key": (
+				projection.payload.root_source.call("get_effect_state_key")
+				if projection.payload.root_source != null
+				and projection.payload.root_source.has_method("get_effect_state_key")
+				else effect.get_runtime_state_key(projection.payload.root_source_cell)
+			),
 		})
 	return bindings
 
@@ -469,7 +486,25 @@ func _build_base_content_map() -> Dictionary:
 			payload.root_source = building
 			payload.primary_color = building.get_copy_color()
 			_append_content(content, building.cell, payload)
-	if _tile_manager != null:
+	if _stuff_manager != null:
+		for runtime in _stuff_manager.call("get_all_stuff"):
+			if runtime == null or not is_instance_valid(runtime):
+				continue
+			var kind: StringName = runtime.call("get_copy_kind")
+			if kind.is_empty():
+				continue
+			var payload := MirrorCopyPayload.new()
+			payload.stable_key = "stuff:%s" % String(runtime.get("placement_id"))
+			payload.copy_kind = kind
+			payload.display_name = runtime.call("get_copy_display_name")
+			payload.source_cell = runtime.get("cell")
+			payload.root_source_cell = runtime.get("cell")
+			payload.projected_cell = runtime.get("cell")
+			payload.root_source = runtime
+			payload.tile_effect = runtime.call("get_effect")
+			payload.primary_color = runtime.call("get_copy_color")
+			_append_content(content, payload.source_cell, payload)
+	elif _tile_manager != null:
 		for tile in _tile_manager.get_tiles():
 			var effect := tile.get_effect()
 			if effect == null:
@@ -713,8 +748,17 @@ func _disconnect_mirror_exit(mirror: CopyMirror) -> void:
 func _on_level_loaded(_level_resource: LevelResource) -> void:
 	clear_mirrors(true)
 
+
+func _on_stuff_loaded(_level_resource: LevelResource) -> void:
+	queue_rebuild()
+
+
+func _on_stuff_changed(_cell: Vector3i) -> void:
+	queue_rebuild()
+
 func _disconnect_dependencies() -> void:
 	_disconnect_attack_sources()
+	_disconnect_stuff_manager()
 	if copy_mirror_definition != null and copy_mirror_definition.changed.is_connected(_on_definition_changed):
 		copy_mirror_definition.changed.disconnect(_on_definition_changed)
 	if _building_manager != null:
@@ -731,3 +775,14 @@ func _disconnect_dependencies() -> void:
 			_tile_manager.tile_changed.disconnect(_on_tile_changed)
 		if _tile_manager.obstacle_destroyed.is_connected(_on_obstacle_destroyed):
 			_tile_manager.obstacle_destroyed.disconnect(_on_obstacle_destroyed)
+
+
+func _disconnect_stuff_manager() -> void:
+	if _stuff_manager == null:
+		return
+	var loaded_callback := Callable(self, "_on_stuff_loaded")
+	if _stuff_manager.is_connected(&"stuff_loaded", loaded_callback):
+		_stuff_manager.disconnect(&"stuff_loaded", loaded_callback)
+	var changed_callback := Callable(self, "_on_stuff_changed")
+	if _stuff_manager.is_connected(&"stuff_changed", changed_callback):
+		_stuff_manager.disconnect(&"stuff_changed", changed_callback)

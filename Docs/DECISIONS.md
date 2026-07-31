@@ -1,5 +1,17 @@
 # 技术与玩法决策记录
 
+## 2026-07-31 · StuffManager 是关卡元素唯一运行时事实源
+
+**正式决策**：`StuffDefinition + StuffPlacementData` 进入运行时后必须实例化为独立 `StuffRuntime`，并只由 `StuffManager` 索引和移除。同格合法 Stuff 不得合并为一个 Tile 类型；状态型效果使用 `stuff:<placement_id>` 作为根状态键。正式 Main 关闭旧 Tile 元素状态，`TileManager` 只保留面向既有 Building/Path/Enemy 的兼容查询门面。
+
+**权限与销毁**：有效建造权限为 Grid 基础权限与全部存活 Stuff 否决的交集。可破坏 Stuff 归零时只删除自身及自身限制，不写回 Grid、Terrain 或作者资源。大石头继续先参与换路，无可达同据点路径时作为具体攻击目标。
+
+**镜像**：复制镜从最近非空格收集全部可复制 Stuff，每个 Stuff 形成独立 payload，但保留同一个根 `StuffRuntime`；直接/递归虚像共享根效果状态和耐久。Terrain、路径色、体素层和斜坡永远不进入内容图。
+
+**理由**：独立实例边界允许同格组合、独立黑洞容量、局部销毁与模型替换，同时避免地形权限和动态耐久相互污染。兼容门面使寻路和建筑模块不必在同一批次重写，又不会保留第二份真实状态。
+
+**范围**：本决策切换运行时与检查面板；关卡编辑器地块页在后续批次迁移，波次页与镜头页保持不变。
+
 ## 2026-07-31 · TerrainManager成为唯一运行时表面事实源
 
 **正式决策**：独立 `TerrainManager` 持有 `GridCellData/RampPlacementData` 的运行时副本，并通过只读Callable向 `GridManager` 与过渡期 `TileManager` 提供格心高度、任意点坡高和射线求交。`TerrainRenderer` 是Main中唯一地块基底渲染器；`TileRenderer` 在批次3前仅保留旧Stuff内容和镜像内容快照。

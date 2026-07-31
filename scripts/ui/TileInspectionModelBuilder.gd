@@ -9,6 +9,8 @@ var _tile_manager: TileManager
 var _building_manager: BuildingManager
 var _mirror_manager: MirrorManager
 var _tile_effect_system: TileEffectSystem
+var _stuff_manager: Node
+var _terrain_manager: Node
 
 
 func configure(
@@ -16,13 +18,17 @@ func configure(
 	tile_manager: TileManager,
 	building_manager: BuildingManager,
 	mirror_manager: MirrorManager,
-	tile_effect_system: TileEffectSystem
+	tile_effect_system: TileEffectSystem,
+	stuff_manager: Node = null,
+	terrain_manager: Node = null
 ) -> void:
 	_grid = grid_manager
 	_tile_manager = tile_manager
 	_building_manager = building_manager
 	_mirror_manager = mirror_manager
 	_tile_effect_system = tile_effect_system
+	_stuff_manager = stuff_manager
+	_terrain_manager = terrain_manager
 
 
 ## Returns `{has_content, cell, selected_edge_id, terrain_name, height_level,
@@ -39,9 +45,13 @@ func inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary:
 	var occupant: Node = _tile_manager.get_occupant(cell)
 	if occupant is Building:
 		_append_entry(entries, _make_building_entry(occupant as Building))
-	var effect: TileEffect = tile.get_effect()
-	if effect != null or tile.is_destructible() or tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
-		_append_entry(entries, _make_tile_element_entry(tile, effect))
+	if _stuff_manager != null:
+		for runtime in _stuff_manager.call("get_stuff_at", cell):
+			_append_entry(entries, _make_stuff_entry(runtime))
+	else:
+		var effect: TileEffect = tile.get_effect()
+		if effect != null or tile.is_destructible() or tile.get_visual_kind() != TileDefinition.VisualKind.NONE:
+			_append_entry(entries, _make_tile_element_entry(tile, effect))
 	_append_adjacent_edge_entries(cell, entries)
 	if _mirror_manager != null:
 		for projection in _mirror_manager.get_projections(cell):
@@ -51,10 +61,10 @@ func inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary:
 		"has_content": not entries.is_empty(),
 		"cell": cell,
 		"selected_edge_id": selected_edge_id,
-		"terrain_name": tile.get_display_name(),
-		"height_level": tile.height_level,
-		"allows_tile_building": tile.allows_tile_building(),
-		"allows_edge_building": tile.allows_edge_building(),
+		"terrain_name": _get_terrain_name(cell, tile),
+		"height_level": _get_layer_count(cell, tile),
+		"allows_tile_building": _tile_manager.allows_tile_building(cell),
+		"allows_edge_building": _tile_manager.allows_edge_building(cell),
 		"entries": entries,
 	}
 
@@ -157,19 +167,74 @@ func _make_tile_element_entry(tile: TileCellData, effect: TileEffect) -> Diction
 		_tile_description(definition, effect))
 
 
-func _append_tile_effect_lines(lines: Array[String], source_cell: Vector3i, effect: TileEffect, config: InspectionDisplayConfigScript, shared: bool) -> void:
+func _make_stuff_entry(runtime: Object) -> Dictionary:
+	if runtime == null or not is_instance_valid(runtime) or not runtime.has_method("get_stuff_definition"):
+		return {}
+	var definition: StuffDefinition = runtime.call("get_stuff_definition") as StuffDefinition
+	if definition == null:
+		return {}
+	var config: InspectionDisplayConfigScript = definition.inspection_display
+	if not _is_object_visible(config):
+		return {}
+	var cell: Vector3i = runtime.get("cell")
+	var effect: TileEffect = runtime.call("get_effect") as TileEffect
+	var lines: Array[String] = []
+	if _shows(config, &"show_position"):
+		lines.append("格位置：%s" % str(cell))
+	if _shows(config, &"show_orientation"):
+		lines.append("朝向：%d" % (int(runtime.get("facing_index")) + 1))
+	if _shows(config, &"show_build_permissions"):
+		lines.append("块建筑：%s · 边建筑：%s" % [
+			"禁止" if definition.blocks_tile_building else "不限制",
+			"禁止" if definition.blocks_edge_building else "不限制",
+		])
+	_append_tile_effect_lines(
+		lines,
+		cell,
+		effect,
+		config,
+		false,
+		runtime as Node,
+		str(runtime.call("get_effect_state_key"))
+	)
+	return _make_entry(
+		&"stuff",
+		_resolve_name(config, definition.display_name),
+		"关卡元素",
+		"实体",
+		definition.ui_icon,
+		definition.fallback_color,
+		lines,
+		config,
+		_tile_description(null, effect)
+	)
+
+
+func _append_tile_effect_lines(
+	lines: Array[String],
+	source_cell: Vector3i,
+	effect: TileEffect,
+	config: InspectionDisplayConfigScript,
+	shared: bool,
+	runtime_obstacle: Node = null,
+	state_key: String = ""
+) -> void:
 	var prefix := "共享" if shared else ""
 	if effect is RockTileEffect and _shows(config, &"show_durability"):
-		var obstacle: Node = _tile_manager.get_runtime_obstacle(source_cell) if _tile_manager != null else null
-		if obstacle is TileObstacleRuntime:
-			lines.append("%s耐久：%d / %d" % [prefix, ceili(obstacle.current_durability), ceili(obstacle.max_durability)])
+		var obstacle: Node = runtime_obstacle if runtime_obstacle != null else (_tile_manager.get_runtime_obstacle(source_cell) if _tile_manager != null else null)
+		if obstacle is TileObstacleRuntime or (obstacle != null and obstacle.has_method("get_stuff_definition")):
+			lines.append("%s耐久：%d / %d" % [prefix, ceili(float(obstacle.get("current_durability"))), ceili(float(obstacle.get("max_durability")))])
 	elif effect is SpikeTileEffect and _shows(config, &"show_combat"):
 		var spike: SpikeTileEffect = effect
 		lines.append("持续伤害：%.1f/s · %s护甲" % [spike.damage_per_second, "忽略" if spike.ignores_armor else "计算"])
 	elif effect is VoidTileEffect:
 		var void_effect: VoidTileEffect = effect
 		if _shows(config, &"show_capacity"):
-			var current_fill := _tile_effect_system.get_void_current_fill(source_cell) if _tile_effect_system != null else 0
+			var current_fill := (
+				_tile_effect_system.get_void_current_fill_for_key(state_key)
+				if _tile_effect_system != null and not state_key.is_empty()
+				else (_tile_effect_system.get_void_current_fill(source_cell) if _tile_effect_system != null else 0)
+			)
 			lines.append("%s装填：%d / %d" % [prefix, current_fill, void_effect.max_capacity])
 		if not shared and _shows(config, &"show_timing"):
 			lines.append("吞噬间隔 %.2fs · 每点恢复 %.2fs" % [void_effect.swallow_interval, void_effect.recovery_seconds_per_point])
@@ -181,11 +246,15 @@ func _make_projection_entry(projection: MirrorProjection) -> Dictionary:
 	var payload: MirrorCopyPayload = projection.payload
 	var source_building: Building = payload.root_source as Building
 	var source_tile: TileCellData = _tile_manager.get_tile(payload.root_source_cell) if _tile_manager != null else null
+	var source_stuff: Object = payload.root_source if payload.root_source != null and payload.root_source.has_method("get_stuff_definition") else null
 	var config: InspectionDisplayConfigScript
 	if source_building != null and source_building.definition != null:
 		config = source_building.definition.inspection_display
 	elif source_tile != null and source_tile.definition != null:
 		config = source_tile.definition.inspection_display
+	if source_stuff != null:
+		var stuff_definition: StuffDefinition = source_stuff.call("get_stuff_definition") as StuffDefinition
+		config = stuff_definition.inspection_display if stuff_definition != null else null
 	if not _is_object_visible(config):
 		return {}
 	var producing_mirror := String(payload.lineage.back()) if not payload.lineage.is_empty() else "未知"
@@ -211,7 +280,15 @@ func _make_projection_entry(projection: MirrorProjection) -> Dictionary:
 			lines.append("源逻辑朝向：%d / %d" % [source_building.facing_index + 1, source_building.get_facing_slot_count()])
 		_append_building_gameplay_lines(lines, source_building, config, true)
 	else:
-		_append_tile_effect_lines(lines, payload.root_source_cell, payload.tile_effect, config, true)
+		_append_tile_effect_lines(
+			lines,
+			payload.root_source_cell,
+			payload.tile_effect,
+			config,
+			true,
+			source_stuff as Node,
+			str(source_stuff.call("get_effect_state_key")) if source_stuff != null else ""
+		)
 	if icon == null and source_tile != null and source_tile.definition != null:
 		icon = source_tile.definition.ui_icon
 	var entry := _make_entry(&"projection", _resolve_name(config, payload.display_name), category, "虚像",
@@ -220,6 +297,22 @@ func _make_projection_entry(projection: MirrorProjection) -> Dictionary:
 	entry["source_cell"] = payload.root_source_cell
 	entry["mirror_edge_id"] = producing_mirror
 	return entry
+
+
+func _get_terrain_name(cell: Vector3i, fallback_tile: TileCellData) -> String:
+	if _terrain_manager != null:
+		var terrain: Object = _terrain_manager.call("get_terrain", cell)
+		if terrain != null:
+			return str(terrain.get("display_name"))
+	return fallback_tile.get_display_name()
+
+
+func _get_layer_count(cell: Vector3i, fallback_tile: TileCellData) -> int:
+	if _terrain_manager != null:
+		var grid_cell: Object = _terrain_manager.call("get_grid_cell", cell)
+		if grid_cell != null:
+			return int(grid_cell.get("layer_count"))
+	return fallback_tile.height_level
 
 
 ## Entity and projection entries share this exact gameplay-row contract so a

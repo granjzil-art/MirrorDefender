@@ -111,14 +111,18 @@ func configure_inspection(
 	tile_manager: TileManager,
 	building_manager: BuildingManager,
 	mirror_manager: MirrorManager,
-	tile_effect_system: TileEffectSystem
+	tile_effect_system: TileEffectSystem,
+	stuff_manager: Node = null,
+	terrain_manager: Node = null
 ) -> void:
 	tile_inspection_service.configure(
 		grid_manager,
 		tile_manager,
 		building_manager,
 		mirror_manager,
-		tile_effect_system
+		tile_effect_system,
+		stuff_manager,
+		terrain_manager
 	)
 	_sync_world_selection()
 

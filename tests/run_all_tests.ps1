@@ -35,6 +35,8 @@ $Tests = @(
 	"runtime_ui_batch4_test.gd",
 	"runtime_ui_batch5_test.gd",
 	"runtime_ui_batch6_test.gd",
+	"stuff_runtime_test.gd",
+	"terrain_runtime_test.gd",
 	"tile_elements_and_rerouting_test.gd"
 )
 

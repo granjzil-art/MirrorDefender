@@ -20,6 +20,8 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/RuntimeHud.tscn" id="19_runtime_hud"]
 [ext_resource type="Script" path="res://scripts/terrain/TerrainManager.gd" id="20_terrain_manager"]
 [ext_resource type="Script" path="res://scripts/terrain/TerrainRenderer.gd" id="21_terrain_renderer"]
+[ext_resource type="Script" path="res://scripts/stuff/StuffManager.gd" id="22_stuff_manager"]
+[ext_resource type="Script" path="res://scripts/stuff/StuffRenderer.gd" id="23_stuff_renderer"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -51,11 +53,18 @@ script = ExtResource("20_terrain_manager")
 [node name="TerrainRenderer" type="Node3D" parent="."]
 script = ExtResource("21_terrain_renderer")
 
+[node name="StuffManager" type="Node3D" parent="."]
+script = ExtResource("22_stuff_manager")
+
+[node name="StuffRenderer" type="Node3D" parent="."]
+script = ExtResource("23_stuff_renderer")
+
 [node name="TileManager" type="Node3D" parent="." unique_id=1417949125]
 script = ExtResource("5_tile_manager")
 
 [node name="TileRenderer" type="Node3D" parent="." unique_id=93287498]
 script = ExtResource("6_tile_renderer")
+feature_enabled = false
 render_terrain_base = false
 
 [node name="ResourceManager" type="Node" parent="." unique_id=1674246223]

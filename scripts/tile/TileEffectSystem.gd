@@ -9,10 +9,12 @@ const VoidCapacityRuntimeScript := preload("res://scripts/tile/VoidCapacityRunti
 @export var feature_enabled: bool = true
 
 signal effect_visual_state_changed(source_cell: Vector3i, fill_ratio: float)
+signal effect_binding_visual_state_changed(state_key: String, source_cell: Vector3i, fill_ratio: float)
 
 var _tile_manager: TileManager
 var _effect_overlay_resolver: Callable
 var _effect_overlay_binding_resolver: Callable
+var _base_effect_provider: Node
 var _target_locations: Dictionary = {}
 var _void_states: Dictionary = {}
 
@@ -60,6 +62,21 @@ func set_effect_overlay_resolver(value: Callable) -> void:
 func set_effect_overlay_binding_resolver(value: Callable) -> void:
 	_effect_overlay_binding_resolver = value
 
+
+## Optional canonical Stuff provider. Without it the legacy single-Tile effect
+## path remains available to standalone tests and migration tooling.
+func set_base_effect_provider(value: Node) -> void:
+	_disconnect_base_effect_provider()
+	_base_effect_provider = value
+	if _base_effect_provider != null:
+		if _base_effect_provider.has_signal(&"stuff_loaded"):
+			_base_effect_provider.connect(&"stuff_loaded", _on_base_effects_loaded)
+		if _base_effect_provider.has_signal(&"stuff_changed"):
+			_base_effect_provider.connect(&"stuff_changed", _on_base_effects_changed)
+	_target_locations.clear()
+	_clear_void_states()
+	_rebuild_void_states()
+
 func apply_enter(target: Node, cell: Vector3i) -> void:
 	if not feature_enabled or target == null or not is_instance_valid(target):
 		return
@@ -86,6 +103,16 @@ func get_void_fill_ratio(source_cell: Vector3i) -> float:
 	var state := _get_void_state_for_source_cell(source_cell)
 	return state.get_fill_ratio() if state != null else 0.0
 
+
+func get_void_current_fill_for_key(state_key: String) -> int:
+	var state: VoidCapacityRuntime = _void_states.get(state_key)
+	return state.current_fill if state != null else 0
+
+
+func get_void_fill_ratio_for_key(state_key: String) -> float:
+	var state: VoidCapacityRuntime = _void_states.get(state_key)
+	return state.get_fill_ratio() if state != null else 0.0
+
 func _get_effect(cell: Vector3i) -> TileEffect:
 	if _tile_manager == null:
 		return null
@@ -94,9 +121,16 @@ func _get_effect(cell: Vector3i) -> TileEffect:
 
 func _get_effect_bindings(cell: Vector3i) -> Array[Dictionary]:
 	var bindings: Array[Dictionary] = []
-	var base_effect := _get_effect(cell)
-	if base_effect != null:
-		bindings.append(_make_effect_binding(base_effect, cell))
+	if _base_effect_provider != null:
+		var base_bindings: Variant = _base_effect_provider.call("get_effect_bindings", cell)
+		if base_bindings is Array:
+			for raw_binding in base_bindings:
+				if raw_binding is Dictionary and raw_binding.get("effect") is TileEffect:
+					bindings.append(raw_binding)
+	else:
+		var base_effect := _get_effect(cell)
+		if base_effect != null:
+			bindings.append(_make_effect_binding(base_effect, cell))
 	if _effect_overlay_binding_resolver.is_valid():
 		var projected_bindings: Variant = _effect_overlay_binding_resolver.call(cell)
 		if projected_bindings is Array:
@@ -181,6 +215,27 @@ func _is_target_available(target: Node) -> bool:
 	return not target.has_method("is_alive") or bool(target.call("is_alive"))
 
 func _rebuild_void_states() -> void:
+	if _base_effect_provider != null:
+		var active_keys: Dictionary = {}
+		var raw_bindings: Variant = _base_effect_provider.call("get_all_effect_bindings")
+		if raw_bindings is Array:
+			for raw_binding in raw_bindings:
+				if not raw_binding is Dictionary:
+					continue
+				var effect: TileEffect = raw_binding.get("effect") as TileEffect
+				if not effect is VoidTileEffect:
+					continue
+				var key := str(raw_binding.get("state_key", ""))
+				var source_cell: Vector3i = raw_binding.get("source_cell", Vector3i.ZERO)
+				if key.is_empty():
+					continue
+				active_keys[key] = true
+				_ensure_void_state(key, source_cell, effect)
+		for raw_key in _void_states.keys():
+			var existing_key := str(raw_key)
+			if not active_keys.has(existing_key):
+				_remove_void_state(existing_key)
+		return
 	if _tile_manager == null:
 		return
 	for tile in _tile_manager.get_tiles():
@@ -200,6 +255,12 @@ func _ensure_void_state(key: String, source_cell: Vector3i, effect: VoidTileEffe
 	return state
 
 func _get_void_state_for_source_cell(source_cell: Vector3i) -> VoidCapacityRuntime:
+	if _base_effect_provider != null:
+		for binding in _base_effect_provider.call("get_effect_bindings", source_cell):
+			var effect: TileEffect = binding.get("effect") as TileEffect
+			if effect is VoidTileEffect:
+				return _ensure_void_state(str(binding.get("state_key", "")), source_cell, effect)
+		return null
 	var effect := _get_effect(source_cell)
 	if not effect is VoidTileEffect:
 		return null
@@ -212,6 +273,13 @@ func _clear_void_states() -> void:
 			state.fill_changed.disconnect(_on_void_fill_changed)
 	_void_states.clear()
 
+
+func _remove_void_state(key: String) -> void:
+	var state: VoidCapacityRuntime = _void_states.get(key)
+	if state != null and state.fill_changed.is_connected(_on_void_fill_changed):
+		state.fill_changed.disconnect(_on_void_fill_changed)
+	_void_states.erase(key)
+
 func _on_level_loaded(_level_resource: LevelResource) -> void:
 	_target_locations.clear()
 	_clear_void_states()
@@ -219,3 +287,25 @@ func _on_level_loaded(_level_resource: LevelResource) -> void:
 
 func _on_void_fill_changed(state: VoidCapacityRuntime, _current: int, _maximum: int) -> void:
 	effect_visual_state_changed.emit(state.source_cell, state.get_fill_ratio())
+	effect_binding_visual_state_changed.emit(state.state_key, state.source_cell, state.get_fill_ratio())
+
+
+func _disconnect_base_effect_provider() -> void:
+	if _base_effect_provider == null:
+		return
+	var loaded_callback := Callable(self, "_on_base_effects_loaded")
+	if _base_effect_provider.is_connected(&"stuff_loaded", loaded_callback):
+		_base_effect_provider.disconnect(&"stuff_loaded", loaded_callback)
+	var changed_callback := Callable(self, "_on_base_effects_changed")
+	if _base_effect_provider.is_connected(&"stuff_changed", changed_callback):
+		_base_effect_provider.disconnect(&"stuff_changed", changed_callback)
+
+
+func _on_base_effects_loaded(_level_resource: LevelResource) -> void:
+	_target_locations.clear()
+	_clear_void_states()
+	_rebuild_void_states()
+
+
+func _on_base_effects_changed(_cell: Vector3i) -> void:
+	_rebuild_void_states()
