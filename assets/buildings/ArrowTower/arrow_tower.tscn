@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b3simo8n0x3ec"]
+
+[ext_resource type="PackedScene" uid="uid://cgt1qqvglql4a" path="res://assets/buildings/ArrowTower/ArrowTower.fbx" id="1_nj4mp"]
+
+[node name="ArrowTower" unique_id=1987373717 instance=ExtResource("1_nj4mp")]
+transform = Transform3D(-8.742278e-08, 0, -2, 0, 2, 0, 2, 0, -8.742278e-08, 0, 0, 0)

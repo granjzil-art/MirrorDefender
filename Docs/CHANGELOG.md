@@ -1,12 +1,21 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Assets / Building · 修复箭塔 FBX 同目录纹理依赖 — 2026-07-31
+**模块**：Assets / Building / Import / Tests / Docs。
+
+- 将箭塔 FBX、四张纹理和外观包装场景统一纳入 `assets/buildings/ArrowTower/`，`ArrowTower.tres` 的 1 级 `visual_scene` 正式绑定该场景；Godot 的 `.import` 元数据由本地重新生成。
+- 强制重新导入 FBX，清除旧 `.godot/imported` 缓存中错误的 `assets/buildings/ArrowTower_0.png` / `_1.png` 根目录依赖；新缓存从同目录纹理正常解析。
+- `manual_wave_and_level_flow_test.gd` 23 项、`robustness_baseline_test.gd` 81 项及全量 19 套测试通过；`AppRoot.tscn` 真机启动无箭塔纹理缺失、Parse Error 或本功能新增 warning。
+
+**影响面**：只修复箭塔正式美术资源及导入依赖，不改变箭塔数值、索敌、攻击、升级或镜像逻辑。
+
 ## Runtime / Camera · 中键平移与右键拖动旋转 — 2026-07-31
 **模块**：Camera / Main / Runtime UI / Tests / Docs。
 
 - 运行时 CameraController 新增中键屏幕平面平移和右键 yaw/pitch 旋转；平移速度随缩放距离变化，鼠标手势参数均可在 Inspector 调整。
 - 右键改为释放时分类：不足 6 px 为短点击并请求取消，超过阈值后只旋转镜头。HUD 起手不会导航相机，但短点击仍保持全局取消；移除卡槽自身的重复右键取消分发。
 - 暂停/控制台和六机位过渡会清空手势；WASD/QE/XC/滚轮保持兼容。新增 30 项相机输入回归及 Main/卡槽集成回归，三项受影响测试均通过。
-- 全量入口与 `AppRoot.tscn` 真机启动当前被工作区未提交的箭塔模型依赖错误阻断：FBX 导入仍引用 `res://assets/buildings/ArrowTower_0.png` / `_1.png`，不属于本功能改动。
+- 当时全量入口与 `AppRoot.tscn` 真机启动曾被工作区未提交的箭塔模型旧导入缓存阻断；已由上方“箭塔 FBX 同目录纹理依赖”条目修复。
 
 **影响面**：改变非模态右键取消的触发时机（按下改为释放），不改变放置、选择、朝向、时间倍率或关卡编辑器输入。
 

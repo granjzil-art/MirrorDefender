@@ -20,7 +20,7 @@
 - **反伤与摧毁**：`damage_reflection_ratio` 按屏障实际承受伤害反射给攻击者；归零后由 BuildingManager 无退款移除、释放路径占位和建筑上限。玩家主动删除仍使用本级 `refund_amount`。
 - **放置预览**：建造模式悬停可建造空格时创建不占格、不攻击的 1 级半透明建筑；预览保留塔种和朝向，R 旋转虚影，左键放置时继承该朝向。
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
-- **美术替换**：每一级可指定 `visual_scene: PackedScene`。未指定时使用该级 `tower_color` 生成灰盒塔；`attack_color` 控制方向标记、箭/激光颜色。
+- **美术替换**：每一级可指定 `visual_scene: PackedScene`。未指定时使用该级 `tower_color` 生成灰盒塔；`attack_color` 控制方向标记、箭/激光颜色。箭塔正式模型、纹理及导入元数据统一位于 `assets/buildings/ArrowTower/`，禁止只移动 FBX 而保留旧 `.godot/imported` 缓存；路径调整后必须强制重新导入，确保生成场景依赖同目录纹理。
 - **卡片美术替换**：`BuildingDefinition.card_icon` 是 M6 正式卡槽的可选 `Texture2D` 接口；未配置时 BuildCardBar 使用建筑名首字灰盒，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
 - **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。
