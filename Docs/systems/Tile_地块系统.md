@@ -1,18 +1,18 @@
 ﻿# 地块系统 · Tile
 
-> 实现状态：M2 地块/编辑器已完成，M3 已接入建筑运行时占用公共接口，M4 据点复用该接口占用据点格，并为大石头接入逐格运行时耐久与摧毁后建筑权限；编辑器已扩展为关卡编辑器。
+> 实现状态：本系统是批次3前的旧Tile/Stuff玩法兼容层。批次2起Terrain基底、高度与斜坡由TerrainManager/Renderer负责；旧占位、元素效果与清障仍暂由TileManager负责。
 
 ## 职责
-定义每个网格格子的类型、高度、障碍和运行时占用；提供查询、清障、灰盒地形渲染，以及可保存 `.tres` 关卡布局的拖拽式编辑器。
+保留旧关卡的类型、元素效果、障碍和运行时占用查询，并为既有玩法提供兼容接口。规范地形、1～4层高度和斜坡详见Terrain Grid文档；编辑器切换列入后续批次。
 
 ## 分类 / 做法
 - **可建造**：`tile_type = 0`，可放建筑，前提是 `occupant == null`。
 - **可破坏障碍**：`tile_type = 1`。障碍未清除时不可放置；清除后仍保留类型与高度，但 `obstacle_destroyed = true`，因此转为可建造。
 - **不可建造路面**：`tile_type = 2`，不可破坏、普通建筑不可建造；M4 路径通常使用该类型明确道路，屏障可通过专用路径占位接口放置。
 - **路径专用占位**：`can_place_path_occupant/place_path_occupant` 允许屏障占据 BUILDABLE 或 BLOCKED 路径格，但仍拒绝未清除障碍和任何已有 occupant；是否真是路径格由 BuildingManager 校验。
-- **离散高度**：`height_level` 必须在 `[0, LevelResource.height_levels - 1]`；世界高度为 `height_level * LevelResource.height_step`。
+- **旧高度兼容**：旧 `height_level` 在只读迁移快照中映射为规范 `layer_count = height_level + 1`（最高4层）；运行时世界高度由TerrainManager统一返回。
 - **路径基底**：只要至少一条 `PathDefinition` 经过某格，运行时和关卡编辑器都将该格的地块基底显示为 `LevelResource.path_terrain_color`（默认 `#FFB93B`）；多条路径重叠仍只计一个路径格。复制镜只复制格内容，不复制该基底。
-- **运行时表现**：`LevelResource.tile_model_asset` 可替换全关地块基底，`TileDefinition.terrain_model_asset` 可逐定义覆盖；未配置时 TileRenderer 仍用带顶点色的 `ImmediateMesh` 批量构建地形。地块元素使用独立 `element_model_asset`，不覆盖基底。
+- **运行时表现**：TerrainRenderer唯一绘制地块基底；TileRenderer在Main中关闭旧基底，只绘制旧元素内容并继续提供不含基底的镜像快照。
 - **编辑器工作流**：启用的 `Mirror Level Editor` 主屏插件由地块、路径、波次三页组成；地块页读取三份 TilePreset `.tres`，支持连续涂刷和单格编辑，三个页面保存同一份 LevelResource `.tres`。未保存的新建/加载会确认，形状/尺寸重建会确认且可撤销/重做，非法关卡保存需要二次确认。
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
@@ -36,7 +36,8 @@
 | TileDefinition | `ui_icon` | null | M6 地块详情中的可替换图标，不影响世界表现与玩法。 |
 | TileDefinition | `terrain_model_asset` / `element_model_asset` | null | 单类地块基底覆盖 / 独立地块内容模型。 |
 | TileDefinition | `inspection_display` | 独立配置 | 地块元素在右侧详情中的对象开关、显示名称、功能说明与字段开关；关闭对象级开关后对应元素虚像也隐藏。 |
-| TileRenderer | `feature_enabled` | true | 地块灰盒表现总开关。 |
+| TileRenderer | `feature_enabled` | true | 旧Tile内容灰盒表现总开关。 |
+| TileRenderer | `render_terrain_base` | Main=false | 兼容开关；Main由TerrainRenderer唯一绘制Grid基底，独立测试默认仍可开启旧基底。 |
 | TileRenderer | `blocked_color` | 灰 | 运行时不可建造路面的颜色，覆盖该格的高度色。 |
 | TileRenderer | `obstacle_color` | 灰 | 未清除可破坏障碍的岩石占位色；其它可建造地块顶面颜色由 LevelResource 高度色决定。 |
 | TileRenderer | `obstacle_radius_ratio` / `obstacle_height_ratio` | 0.28 / 0.6 | 岩石占位的相对尺寸。 |
@@ -53,7 +54,7 @@
 | `scripts/tile/TilePreset.gd` | `TilePreset` / `Resource` | 调色板预制参数，显式预加载 TileCellData 脚本创建地块。 |
 | `scripts/tile/TileManager.gd` | `TileManager` / `Node3D` | **运行时唯一 Tile 查询入口**；按 `Vector3i` 索引格子并发信号。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 单个真实耐久地块的当前/最大耐久、攻击位置与归零事件。 |
-| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 只读 TileManager，实例化基底/内容模型，并为未配置项生成路径/高度灰盒批次。 |
+| `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 批次3前只读TileManager渲染旧Stuff内容并生成镜像内容快照；旧基底由兼容开关控制。 |
 | `scripts/presentation/ModelAssetDefinition.gd` | `ModelAssetDefinition` / `Resource` | 地块与其它模块共用的模型场景和附加运行时 Scale 契约。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 地块布局的持久化容器；完整说明见 Level 文档。 |
 | `resources/tiles/BuildableTile.tres` | `TilePreset` | 可建造调色板预制。 |
@@ -70,12 +71,13 @@
 ```text
 Main (scene composition)
   ├─ LevelLoader -> GridManager.apply_configuration(...)
+  ├─ LevelLoader -> TerrainManager.load_level(LevelResource effective snapshot)
+  │     └─ TerrainRenderer -> voxel/ramp models or greybox fallback
   ├─ LevelLoader -> TileManager.load_level(LevelResource)
   │     └─ validated serialized tiles -> cloned runtime Dictionary[Vector3i, TileCellData]
   ├─ BuildingManager -> normal place_occupant / barrier place_path_occupant / clear_occupant
   └─ TileRenderer <- level_loaded / tile_changed - TileManager
-		├─ LevelResource.paths union -> path_terrain_color base
-		└─ configured per-cell model instances + fallback ImmediateMesh batches
+		└─ legacy Stuff content models + fallback ImmediateMesh + mirror content snapshot
 
 Mirror Tile Editor (Godot editor)
   TilePreset .tres click / drag path -> TileEditorCanvas
@@ -100,9 +102,9 @@ Level Editor M4 pages
 - LevelResource 中缺失的有效格不是“空洞”，而是默认高度 0 可建造格；编辑器和运行时必须使用同一解释。编辑器只在修改时将该隐式格实体化，避免加载稀疏关卡后误写满数组。
 - `TileCellData.TileType` 的数值固定为 `0/1/2`；TilePreset `.tres` 与编辑器 OptionButton 使用同一顺序。
 - `place_path_occupant` 只放宽 BLOCKED 路面的普通建造限制，不放宽未清障 DESTRUCTIBLE 或已有占位；路径/保护格规则不属于 Tile，由 BuildingManager 持有。
-- 地块高度只改变 Tile 顶面与崖壁的 Y；Grid 几何仍定义在 Y=0 平面，M6 的低层激光可据 `TileManager.get_world_height()` 判定遮挡。
+- Terrain表面可为水平面或真实1:N坡面；GridManager通过Terrain注入接口拾取，旧玩法继续从`TileManager.get_world_height()`兼容读取格心表面Y。
 - `height_color_low`、`height_color_middle`、`height_color_high` 是关卡资源的一部分；当高度档数多于 3 时，编辑器在下→中与中→上两个区间线性插值。
-- 地块基底色优先级是：任一路径经过格的 `path_terrain_color` > 非 `ELEMENT` 定义的 `override_terrain_color` > 非路径不可建造路面的 `blocked_color` > 高度三色插值。`ELEMENT` 始终保留外部解析的基底色。
+- 旧关卡兼容色由迁移后的Terrain快照解释；路径色只覆盖Terrain表现，石头、尖刺、空洞的内容色不再改变基底。
 - 建筑占位从不参与基底颜色解析；石头、尖刺、空洞使用 `visual_color` 绘制独立几何，不得以 `terrain_color` 代替地块基底。
 - 地块编辑画布的键盘控制只在画布获得焦点后生效：WASD 沿当前视角平移、QE 绕关卡焦点旋转、X 降低/C 提高俯仰角；缩放仅使用滚轮，最大画布倍率为 300。
 - 镜子挂在 Grid Edge，不占 Tile；地块类型不限制 M5/M6 的边镜放置。
@@ -149,6 +151,8 @@ Level Editor M4 pages
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `set_grid` | `(value: GridManager) -> void` | 注入唯一 Grid 入口；节点就绪后自动加载已配置关卡。 |
+| `set_surface_height_resolver` | `(value: Callable) -> void` | 注入Terrain格心表面高度；`get_world_height()`优先委托，未注入时回退旧Tile高度。 |
+| `set_base_placement_resolvers` | `(tile_building_resolver: Callable, edge_building_resolver: Callable) -> void` | 普通块/边建筑查询同时合并规范Grid基础权限；路径专用占位保留旧例外。 |
 | `load_level` | `(level_resource: LevelResource) -> bool` | 要求资源校验通过且 Grid 配置一致；先构造独立运行时副本和默认格，再原子替换索引。失败保留当前状态。 |
 | `get_tile` | `(cell: Vector3i) -> TileCellData` | 按格坐标返回运行时单格，界外/未索引返回 null。 |
 | `get_tiles` | `() -> Array[TileCellData]` | 按当前 Grid 枚举顺序返回完整布局。 |

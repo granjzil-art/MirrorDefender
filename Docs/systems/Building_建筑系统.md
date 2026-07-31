@@ -216,6 +216,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 ## 约定事实源
 
 - 建筑空间唯一键是 Grid `Vector3i cell`；占用事实源是 TileManager。
+- 块建筑读取共享格心表面高度；边建筑读取物理边中点的两侧坡面采样并取较高值，因此连续坡面贴边、断崖边不嵌入地形。
 - 当前等级事实源是 `Building.level + Building._stats`；禁止把等级差写成隐式全局倍率。
 - 1 级 `cost` 是建造费用，2/3 级 `cost` 是升到该级的费用；`refund_amount` 是删除当前级的精确返还，不由 `cost` 自动计算。
 - `targeting_range` 只决定候选；`attack_range` 决定是否能发射或激光长度，两者不得互相代替。

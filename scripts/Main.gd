@@ -32,6 +32,8 @@ const LevelReflectionSurfaceScript := preload("res://scripts/fx/LevelReflectionS
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
+const TerrainManagerScript := preload("res://scripts/terrain/TerrainManager.gd")
+const TerrainRendererScript := preload("res://scripts/terrain/TerrainRenderer.gd")
 const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
 const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
@@ -52,6 +54,8 @@ signal startup_level_load_resolved(success: bool, reason: String)
 
 @onready var grid: GridManager = $GridManager
 @onready var renderer: GridRenderer = $GridRenderer
+@onready var terrain_manager: TerrainManagerScript = $TerrainManager
+@onready var terrain_renderer: TerrainRendererScript = $TerrainRenderer
 @onready var tile_manager: TileManager = $TileManager
 @onready var tile_renderer: TileRenderer = $TileRenderer
 @onready var resource_manager: ResourceManager = $ResourceManager
@@ -114,8 +118,18 @@ func _ready() -> void:
 	camera_preset_controller.transition_curve = camera_preset_transition_curve
 	camera_preset_controller.configure(cam_rig)
 	renderer.set_grid(grid)
+	terrain_manager.set_grid(grid)
+	terrain_renderer.set_grid(grid)
+	terrain_renderer.set_terrain_manager(terrain_manager)
 	tile_manager.set_grid(grid)
-	grid.set_cell_height_resolver(Callable(tile_manager, "get_world_height"))
+	tile_manager.set_surface_height_resolver(Callable(terrain_manager, "get_world_height"))
+	tile_manager.set_base_placement_resolvers(
+		Callable(terrain_manager, "allows_tile_building"),
+		Callable(terrain_manager, "allows_edge_building")
+	)
+	grid.set_cell_height_resolver(Callable(terrain_manager, "get_world_height"))
+	grid.set_cell_surface_height_resolver(Callable(terrain_manager, "sample_surface_height"))
+	grid.set_surface_raycast_resolver(Callable(terrain_manager, "raycast_surface"))
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
 	level_reflection_surface = LevelReflectionSurfaceScript.new()
@@ -224,7 +238,7 @@ func _ready() -> void:
 		runtime_debug_bindings.command_registry,
 		runtime_debug_bindings.category_registry
 	)
-	level_loader.configure(grid, tile_manager)
+	level_loader.configure(grid, tile_manager, terrain_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	level_debug_panel.configure(level_loader)
 	var startup_loaded := false
@@ -511,6 +525,7 @@ func _destroy_selected_obstacle() -> void:
 func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
 	if path_hover_preview != null:
 		path_hover_preview.clear_preview()
+	renderer.refresh_surface()
 	resource_manager.apply_level_configuration(level_resource)
 	combat_manager.clear_targets()
 	path_manager.load_level(level_resource)

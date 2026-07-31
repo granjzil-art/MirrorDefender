@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain · 体素地块重构批次2运行时 — 2026-07-31
+**模块**：Terrain / Grid / LevelLoader / Tile兼容 / Building / Mirror / Presentation / Tests / Docs。
+
+- 新增 `TerrainManager` 与 `TerrainRenderer`，运行时统一读取规范Grid/Ramp快照，支持1～4层体素、方形/六边形1:1～1:4真实坡面采样、模型槽与灰盒回退。
+- `LevelLoader`把Terrain纳入加载与回滚事务；`TileManager`保留高度与两类Grid基础建造权限的过渡兼容桥，路径、建筑、据点与旧Stuff无需复制Terrain逻辑；路径专用屏障占位例外保持不变。
+- Grid射线、线框与高亮改为真实坡面；边建筑和复制镜使用物理边中点坡高。Main关闭TileRenderer旧基底，只保留批次3前的旧Stuff内容与镜像快照。
+- 新增33项Terrain运行时回归；Stuff玩法、波次编辑页与镜头编辑页均未修改。
+
 ## Terrain / Stuff · 体素地块重构批次1数据契约 — 2026-07-31
 **模块**：Level / Terrain / Stuff / Presentation / Tests / Docs。
 

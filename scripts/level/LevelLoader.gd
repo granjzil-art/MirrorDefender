@@ -2,6 +2,8 @@
 class_name LevelLoader
 extends Node
 
+const TerrainManagerScript := preload("res://scripts/terrain/TerrainManager.gd")
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -13,12 +15,14 @@ signal level_load_failed(source_path: String, reason: String)
 
 var _grid: GridManager
 var _tile_manager: TileManager
+var _terrain_manager: TerrainManagerScript
 var _current_level: LevelResource
 var _current_source_path: String = ""
 
-func configure(grid_manager: GridManager, tile_manager: TileManager) -> void:
+func configure(grid_manager: GridManager, tile_manager: TileManager, terrain_manager: TerrainManagerScript = null) -> void:
 	_grid = grid_manager
 	_tile_manager = tile_manager
+	_terrain_manager = terrain_manager
 
 func load_initial_level() -> bool:
 	if initial_level == null:
@@ -44,16 +48,27 @@ func load_level(level_resource: LevelResource, source_path: String = "") -> bool
 	if not _tile_manager.feature_enabled:
 		_report_failure(resolved_path, "TileManager 已关闭，无法装配关卡")
 		return false
+	if _terrain_manager != null and not _terrain_manager.feature_enabled:
+		_report_failure(resolved_path, "TerrainManager 已关闭，无法装配关卡")
+		return false
 	var previous_grid_shape := _grid.grid_shape
 	var previous_cell_size := _grid.cell_size
 	var previous_grid_size := _grid.grid_size
-	_grid.apply_configuration(
-		level_resource.grid_shape,
-		level_resource.grid_cell_size,
-		level_resource.grid_size
-	)
+	var previous_terrain_level: LevelResource = null
+	if _terrain_manager != null:
+		previous_terrain_level = _terrain_manager.get_level_resource()
+	_grid.apply_configuration(level_resource.grid_shape, level_resource.grid_cell_size, level_resource.grid_size)
+	if _terrain_manager != null and not _terrain_manager.load_level(level_resource):
+		_grid.apply_configuration(previous_grid_shape, previous_cell_size, previous_grid_size)
+		_report_failure(resolved_path, "TerrainManager 拒绝加载关卡")
+		return false
 	if not _tile_manager.load_level(level_resource):
 		_grid.apply_configuration(previous_grid_shape, previous_cell_size, previous_grid_size)
+		if _terrain_manager != null:
+			if previous_terrain_level != null:
+				_terrain_manager.load_level(previous_terrain_level)
+			else:
+				_terrain_manager.clear_level()
 		_report_failure(resolved_path, "TileManager 拒绝加载关卡")
 		return false
 	_current_level = level_resource
@@ -69,11 +84,7 @@ func load_level_path(path: String) -> bool:
 	if not normalized_path.ends_with(".tres"):
 		_report_failure(normalized_path, "关卡文件必须为 .tres")
 		return false
-	var resource: Resource = ResourceLoader.load(
-		normalized_path,
-		"",
-		ResourceLoader.CACHE_MODE_REPLACE_DEEP
-	)
+	var resource: Resource = ResourceLoader.load(normalized_path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	if not resource is LevelResource:
 		_report_failure(normalized_path, "所选资源不是 LevelResource")
 		return false

@@ -1,5 +1,11 @@
 # 技术与玩法决策记录
 
+## 2026-07-31 · TerrainManager成为唯一运行时表面事实源
+
+**正式决策**：独立 `TerrainManager` 持有 `GridCellData/RampPlacementData` 的运行时副本，并通过只读Callable向 `GridManager` 与过渡期 `TileManager` 提供格心高度、任意点坡高和射线求交。`TerrainRenderer` 是Main中唯一地块基底渲染器；`TileRenderer` 在批次3前仅保留旧Stuff内容和镜像内容快照。
+
+**理由**：路径、建筑、据点、镜子与旧Stuff可立即共享真实坡面，而无需各模块解析斜坡；失败加载可连同Grid/Terrain一起回滚；同时不提前改变Stuff效果、占位和清障玩法。模型约定为平地槽代表一个体素块、斜坡槽代表横跨N格升高一层的完整模型，本地 `+Z` 指向上坡。
+
 ## 2026-07-31 · 地形Grid、逐格属性与Stuff成为三个独立事实源
 
 **正式决策**：关卡地表采用 `TerrainDefinition + GridCellData`：草地、沙地、水、泥土只拥有身份和模型，逐格独立保存1～4层高度及两类基础建造权限；手工 `PathDefinition` 的格并集只读推导“敌人路径”属性，不写回地形。石头、树、尖刺、黑洞改为 `StuffDefinition + StuffPlacementData` 独立实例。Stuff默认互斥，只有同格双方都关闭 `exclusive_with_other_stuff` 才允许共存；有效建造权限由底层Grid、全部存活Stuff限制和实体占位合成。

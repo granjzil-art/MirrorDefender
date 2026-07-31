@@ -42,6 +42,9 @@ func _connect_grid() -> void:
 		grid.grid_changed.connect(_rebuild_grid_lines)
 	_rebuild_grid_lines()
 
+func refresh_surface() -> void:
+	_rebuild_grid_lines()
+
 func _setup_materials() -> void:
 	_line_mat = _make_unshaded(line_color)
 	_cell_mat = _make_unshaded(cell_highlight_color)
@@ -84,8 +87,10 @@ func _rebuild_grid_lines() -> void:
 			if not has_grid_geometry:
 				im.surface_begin(Mesh.PRIMITIVE_LINES)
 				has_grid_geometry = true
-			var a := corners[i] + Vector3(0, line_lift, 0)
-			var b := corners[(i + 1) % n] + Vector3(0, line_lift, 0)
+			var a := corners[i]
+			var b := corners[(i + 1) % n]
+			a.y = grid.sample_cell_surface_height(cell, a) + line_lift
+			b.y = grid.sample_cell_surface_height(cell, b) + line_lift
 			im.surface_add_vertex(a)
 			im.surface_add_vertex(b)
 	if has_grid_geometry:
@@ -106,10 +111,13 @@ func highlight_cell(cell: Vector3i, has: bool) -> void:
 		return
 	var im := ImmediateMesh.new()
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	var center := grid.cell_to_world(cell) + Vector3(0, line_lift + 0.005, 0)
+	var center := grid.cell_to_world(cell)
+	center.y = grid.sample_cell_surface_height(cell, center) + line_lift + 0.005
 	for i in range(n):
-		var a := corners[i] + Vector3(0, line_lift + 0.005, 0)
-		var b := corners[(i + 1) % n] + Vector3(0, line_lift + 0.005, 0)
+		var a := corners[i]
+		var b := corners[(i + 1) % n]
+		a.y = grid.sample_cell_surface_height(cell, a) + line_lift + 0.005
+		b.y = grid.sample_cell_surface_height(cell, b) + line_lift + 0.005
 		im.surface_add_vertex(center)
 		im.surface_add_vertex(a)
 		im.surface_add_vertex(b)
@@ -128,9 +136,12 @@ func highlight_edge(cell: Vector3i, edge_index: int, has: bool) -> void:
 		return
 	var im := ImmediateMesh.new()
 	im.surface_begin(Mesh.PRIMITIVE_LINES)
-	var lift := Vector3(0, edge_highlight_lift, 0)
-	im.surface_add_vertex(ep[0] + lift)
-	im.surface_add_vertex(ep[1] + lift)
+	var a: Vector3 = ep[0]
+	var b: Vector3 = ep[1]
+	a.y = grid.sample_cell_surface_height(cell, a) + edge_highlight_lift
+	b.y = grid.sample_cell_surface_height(cell, b) + edge_highlight_lift
+	im.surface_add_vertex(a)
+	im.surface_add_vertex(b)
 	im.surface_end()
 	_edge_hi_inst.mesh = im
 	_edge_hi_inst.visible = true

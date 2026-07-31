@@ -113,7 +113,10 @@ func _update_transform() -> void:
 	var midpoint := _grid.cell_to_world(from_cell)
 	if endpoints.size() == 2:
 		midpoint = (endpoints[0] + endpoints[1]) * 0.5
-	var height := maxf(_tile_manager.get_world_height(from_cell), _tile_manager.get_world_height(to_cell))
+	var height := maxf(
+		_grid.sample_cell_surface_height(from_cell, midpoint),
+		_grid.sample_cell_surface_height(to_cell, midpoint)
+	)
 	position = midpoint + Vector3(0.0, height, 0.0)
 
 func _build_visual() -> void:

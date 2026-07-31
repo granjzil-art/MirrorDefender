@@ -9,6 +9,9 @@ const TOP_LIFT := 0.01
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
+## Disabled in Main after TerrainRenderer becomes the only Grid-base renderer.
+## Content visuals remain active until StuffManager migration in batch 3.
+@export var render_terrain_base: bool = true
 
 @export_group("Obstacle Colors")
 @export var blocked_color: Color = Color(0.34, 0.37, 0.40, 1.0)
@@ -173,12 +176,13 @@ func _rebuild() -> void:
 		var tile := _tile_manager.get_tile(cell)
 		if tile == null:
 			continue
-		var terrain_asset := _get_terrain_model_asset(tile)
-		var terrain_name := StringName("TileBase_%d_%d_%d" % [cell.x, cell.y, cell.z])
-		if _add_custom_tile_model(_custom_visuals_root, terrain_asset, tile, terrain_name, TOP_LIFT) == null:
-			var terrain_color := get_base_terrain_color(tile.cell)
-			var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
-			has_terrain_geometry = has_terrain_geometry or did_add_terrain
+		if render_terrain_base:
+			var terrain_asset := _get_terrain_model_asset(tile)
+			var terrain_name := StringName("TileBase_%d_%d_%d" % [cell.x, cell.y, cell.z])
+			if _add_custom_tile_model(_custom_visuals_root, terrain_asset, tile, terrain_name, TOP_LIFT) == null:
+				var terrain_color := get_base_terrain_color(tile.cell)
+				var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
+				has_terrain_geometry = has_terrain_geometry or did_add_terrain
 		var element_asset := tile.get_element_model_asset()
 		var element_name := StringName("TileElement_%d_%d_%d" % [cell.x, cell.y, cell.z])
 		if _add_custom_tile_model(_custom_visuals_root, element_asset, tile, element_name, TOP_LIFT * 2.0) != null:

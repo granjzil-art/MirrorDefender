@@ -129,8 +129,8 @@ func _configure_common(
 		if endpoints.size() == 2:
 			edge_midpoint = (endpoints[0] + endpoints[1]) * 0.5
 		var edge_height := maxf(
-			_tile_manager.get_world_height(cell),
-			_tile_manager.get_world_height(edge_to_cell)
+			_grid.sample_cell_surface_height(cell, edge_midpoint),
+			_grid.sample_cell_surface_height(edge_to_cell, edge_midpoint)
 		)
 		position = edge_midpoint + Vector3(0.0, edge_height, 0.0)
 	else:

@@ -39,6 +39,8 @@ signal grid_changed
 
 var shape: IGridShape
 var _cell_height_resolver: Callable
+var _cell_surface_height_resolver: Callable
+var _surface_raycast_resolver: Callable
 
 func _ready() -> void:
 	_rebuild_shape()
@@ -148,10 +150,35 @@ func enumerate_cells() -> Array[Vector3i]:
 func is_in_bounds(cell: Vector3i) -> bool:
 	return shape.is_in_bounds(cell, grid_size)
 
+func get_shape() -> IGridShape:
+	return shape
+
 ## Injects a read-only `func(cell: Vector3i) -> float` height query without
 ## creating a Grid -> Tile module dependency.
 func set_cell_height_resolver(resolver: Callable) -> void:
 	_cell_height_resolver = resolver
+
+## Injects `func(cell: Vector3i, world_position: Vector3) -> float` for ramps.
+## The original center-height resolver remains the compatibility fallback.
+func set_cell_surface_height_resolver(resolver: Callable) -> void:
+	_cell_surface_height_resolver = resolver
+
+## Injects `func(origin: Vector3, direction: Vector3) -> Dictionary` so Grid
+## picking can intersect sloped terrain without depending on TerrainManager.
+func set_surface_raycast_resolver(resolver: Callable) -> void:
+	_surface_raycast_resolver = resolver
+
+func get_cell_world_height(cell: Vector3i) -> float:
+	return _resolve_cell_height(cell)
+
+func sample_cell_surface_height(cell: Vector3i, world_position: Vector3) -> float:
+	if _cell_surface_height_resolver.is_valid():
+		var resolved: Variant = _cell_surface_height_resolver.call(cell, world_position)
+		if resolved is float or resolved is int:
+			var height := float(resolved)
+			if is_finite(height):
+				return height
+	return _resolve_cell_height(cell)
 
 ## Applies level-owned grid data through GridManager, preserving its public API.
 func apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void:
@@ -177,6 +204,10 @@ func raycast_ground_from_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 
 ## Returns the nearest visible tile-top intersection for an arbitrary ray.
 func raycast_grid_surface(origin: Vector3, direction: Vector3) -> Dictionary:
+	if _surface_raycast_resolver.is_valid():
+		var resolved: Variant = _surface_raycast_resolver.call(origin, direction)
+		if resolved is Dictionary:
+			return resolved
 	if shape == null or direction.is_zero_approx() or absf(direction.y) < 1e-6:
 		return {"hit": false, "pos": Vector3.ZERO, "cell": Vector3i.ZERO}
 	var nearest_distance := INF
@@ -221,13 +252,12 @@ func pick_edge_from_ray(origin: Vector3, direction: Vector3) -> Dictionary:
 		return {"hit": false}
 	var hit_pos: Vector3 = g.pos
 	var cell: Vector3i = g.cell
-	var surface_height := _resolve_cell_height(cell)
 	var best_i: int = -1
 	var best_d: float = INF
 	var n: int = edge_count()
 	for i in range(n):
 		var mid: Vector3 = shape.get_edge_midpoint(cell, i)
-		mid.y = surface_height
+		mid.y = sample_cell_surface_height(cell, mid)
 		var d: float = hit_pos.distance_to(mid)
 		if d < best_d:
 			best_d = d

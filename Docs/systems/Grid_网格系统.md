@@ -47,7 +47,8 @@
 Main（场景装配）
  ├─ GridManager  ──(signal grid_changed)──▶ GridRenderer._rebuild_grid_lines()
 │     └─ shape: IGridShape  (HEX / SQUARE，运行时可换)
- ├─ TileManager.get_world_height ──(只读 Callable)──▶ GridManager 顶面拾取
+ ├─ TerrainManager.get_world_height / sample_surface_height / raycast_surface
+ │     ──(只读 Callable)──▶ GridManager 平地与坡面拾取
  └─ 每帧: grid.pick_edge/pick_cell(camera, mouse)
           └─▶ renderer.highlight_edge / highlight_cell
 其它模块(Tile/Mirror/Path/UI) 一律只依赖 GridManager，不直接 new 具体 shape。
@@ -107,6 +108,9 @@ Main（场景装配）
 - **镜像离散几何 API**：`get_mirror_cell_pair(from_cell, edge_index, active_from_side, distance_from_edge) -> Dictionary` 返回 `{valid, source_cell, target_cell}`；方形/六边形坐标步进只存在于 GridManager，Mirror 不读取具体坐标布局。
 - **关卡装配 API**：`apply_configuration(p_shape: int, p_cell_size: float, p_grid_size: Vector2i) -> void`。LevelResource 只传数据，仍由 GridManager 自己触发 shape 重建和 `grid_changed`；Tile 模块不直接 new 具体 shape。
 - **高度查询注入**：`set_cell_height_resolver(resolver: Callable) -> void`，契约为 `(cell: Vector3i) -> float`；无效返回值安全回退为 0，GridManager 不持有 TileManager。
+- **坡面采样注入**：`set_cell_surface_height_resolver(resolver: Callable) -> void`，契约为 `(cell: Vector3i, world_position: Vector3) -> float`；`sample_cell_surface_height()`供线框、边建筑与镜子统一使用。
+- **坡面射线注入**：`set_surface_raycast_resolver(resolver: Callable) -> void`，契约为 `(origin: Vector3, direction: Vector3) -> Dictionary`；配置后`raycast_grid_surface()`委托Terrain精确求交，未配置时保持水平格心高度兼容。
+- **形状只读入口**：`get_shape() -> IGridShape`供Terrain斜坡占格计算，不向调用方暴露具体Square/Hex实现。
 - **拾取**（供放置/UI）：
   | 函数 | 签名 | 返回 Dictionary 结构 |
   |---|---|---|
@@ -129,6 +133,7 @@ Main（场景装配）
 ### GridRenderer.gd（Node3D · 纯表现层）
 - **@export**：`grid: GridManager`（引用）、颜色(line/cell_highlight/edge_highlight)、抬升(line_lift/edge_highlight_lift 防 z-fighting)。
 - `set_grid(value: GridManager) -> void`：由 Main 在子节点就绪后注入网格，解除旧订阅、建立新订阅并首次绘制。
+- `refresh_surface() -> void`：Terrain事务提交后重建线框；每个顶点通过GridManager采样坡面高度。
 - `_ready()` → 建材质/实例；若编辑器已提供 `grid`，调用私有 `_connect_grid()` 完成订阅与首次重建。
 - `_rebuild_grid_lines() -> void`：遍历 `enumerate_cells` 用 `ImmediateMesh`(PRIMITIVE_LINES) 画所有格边线；空网格直接令 mesh 为 null，不调用零顶点 `surface_end()`。
 - `highlight_cell(cell: Vector3i, has: bool) -> void`：填充多边形高亮格（has=false 隐藏）。

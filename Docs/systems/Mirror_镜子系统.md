@@ -185,6 +185,7 @@ MirrorProjection
 模块协作规则：
 
 - GridManager 负责四/六边形的边法线射线与镜像格对，Mirror 不读取具体坐标布局。
+- CopyMirror的实体边位置通过GridManager采样物理边中点坡高；连续斜坡上与边贴合，断崖仍取两侧较高表面。
 - BuildingManager 只通过注入的边占用表和投影阻挡查询协作。
 - TileManager 与 TileEffectSystem 只通过注入的投影覆盖查询协作，不持有 Mirror 节点。
 - 塔只发出“原件攻击事件”；MirrorManager 负责生成同步投影攻击，塔不直接依赖镜子模块。

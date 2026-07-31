@@ -1,6 +1,6 @@
 # 模型资产契约 · Model Asset
 
-> 实现状态：现运行时已统一接入旧地块基底/元素、建筑等级、敌人和三类投射物；Terrain/Stuff规范资源已在体素地块重构批次1开放模型槽，运行时切换列入后续批次。
+> 实现状态：现运行时已接入Terrain平地/斜坡、旧Stuff内容、建筑等级、敌人和三类投射物；Stuff规范模型的独立运行时切换列入批次3。
 
 ## 职责
 
@@ -42,6 +42,7 @@
 | `scripts/terrain/TerrainDefinition.gd` | `TerrainDefinition` / `Resource` | 平地体素与四档多格斜坡模型槽。 |
 | `scripts/stuff/StuffDefinition.gd` | `StuffDefinition` / `Resource` | 独立Stuff模型槽和旧`visual_scene`兼容包装。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | 基底/内容资产实例化、灰盒批次回退和镜像快照。 |
+| `scripts/terrain/TerrainRenderer.gd` | `TerrainRenderer` / `Node3D` | 按层实例化单体素平地模型、按坡长实例化整段斜坡模型及灰盒回退。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 读取当前等级建筑模型和建筑投射物模型。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 实例化 EnemyUnit 注入的敌人模型，失败时生成胶囊灰盒。 |
 | `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 建筑投射物模型或短方块回退。 |
@@ -60,9 +61,9 @@
   -> runtime owner adds wrapper
   -> null/invalid -> owner-specific greybox fallback
 
-LevelResource.tile_model_asset
-  -> TileDefinition.terrain_model_asset optional override
-  -> TileRenderer per-cell base model
+LevelResource legacy tile model / TerrainDefinition flat+ramp assets
+  -> LevelContentMigrationAdapter effective Terrain snapshot
+  -> TerrainRenderer per-layer flat model / one full-width ramp model
 
 TileDefinition.element_model_asset
   -> TileRenderer content model
@@ -70,7 +71,7 @@ TileDefinition.element_model_asset
   -> MirrorProjection exact reflected snapshot
 
 TerrainDefinition.flat_model_asset + ramp_1_to_N_model_asset
-  -> 后续 TerrainRenderer 体素堆叠/斜坡实例化
+  -> TerrainRenderer 体素堆叠/整段斜坡实例化
 
 StuffDefinition.model_asset
   -> 后续 StuffRenderer 实例化
@@ -108,6 +109,6 @@ BuildingLevelStats.projectile_model_asset
 
 ## 已知限制
 
-- 自定义地块基底模型成功实例化后不再自动生成该格程序化崖壁；资产需自行包含所需侧面。
+- 自定义平地模型是一个完整体素块，运行时逐层堆叠；自定义斜坡模型是横跨N格的完整坡体，资产需自行包含所需侧面。
 - 正式模型不会自动继承路径色、高度色或 `attack_color`；这些颜色只用于灰盒和复制体投射物叠加层。
 - 模型契约只负责三维场景与缩放，不定义动画状态机、骨骼插槽、命中特效或声音接口。

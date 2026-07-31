@@ -25,6 +25,9 @@ var _tiles: Dictionary = {}
 var _runtime_obstacles: Dictionary = {}
 var _navigation_overlay_resolver: Callable
 var _navigation_overlay_blocker_resolver: Callable
+var _surface_height_resolver: Callable
+var _base_tile_building_resolver: Callable
+var _base_edge_building_resolver: Callable
 
 func _ready() -> void:
 	var level_data := _get_level()
@@ -43,6 +46,17 @@ func set_navigation_overlay_resolver(value: Callable) -> void:
 
 func set_navigation_overlay_blocker_resolver(value: Callable) -> void:
 	_navigation_overlay_blocker_resolver = value
+
+## Compatibility bridge while gameplay modules still query TileManager for
+## world height. TerrainManager owns the canonical Grid/Ramp surface.
+func set_surface_height_resolver(value: Callable) -> void:
+	_surface_height_resolver = value
+
+## Canonical Grid permissions are combined with legacy Tile/Stuff restrictions.
+## Path-only occupants keep their existing dedicated exception until batch 3.
+func set_base_placement_resolvers(tile_building_resolver: Callable, edge_building_resolver: Callable) -> void:
+	_base_tile_building_resolver = tile_building_resolver
+	_base_edge_building_resolver = edge_building_resolver
 
 func load_level(level_resource: LevelResource) -> bool:
 	if not feature_enabled or level_resource == null or _grid == null:
@@ -94,6 +108,12 @@ func get_level_resource() -> LevelResource:
 	return _get_level()
 
 func get_world_height(cell: Vector3i) -> float:
+	if _surface_height_resolver.is_valid():
+		var resolved: Variant = _surface_height_resolver.call(cell)
+		if resolved is float or resolved is int:
+			var height := float(resolved)
+			if is_finite(height):
+				return height
 	var tile := get_tile(cell)
 	var level_data := _get_level()
 	if tile == null or level_data == null:
@@ -109,7 +129,7 @@ func get_height_color(cell: Vector3i) -> Color:
 
 func can_place(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.can_place()
+	return tile != null and _allows_base_tile_building(cell) and tile.can_place()
 
 func can_place_path_occupant(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
@@ -117,7 +137,7 @@ func can_place_path_occupant(cell: Vector3i) -> bool:
 
 func allows_edge_building(cell: Vector3i) -> bool:
 	var tile := get_tile(cell)
-	return tile != null and tile.allows_edge_building()
+	return tile != null and _allows_base_edge_building(cell) and tile.allows_edge_building()
 
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
@@ -230,6 +250,12 @@ func _notify_tile_changed(tile: TileCellData) -> void:
 func _get_level() -> LevelResource:
 	var level_data: LevelResource = level
 	return level_data
+
+func _allows_base_tile_building(cell: Vector3i) -> bool:
+	return bool(_base_tile_building_resolver.call(cell)) if _base_tile_building_resolver.is_valid() else true
+
+func _allows_base_edge_building(cell: Vector3i) -> bool:
+	return bool(_base_edge_building_resolver.call(cell)) if _base_edge_building_resolver.is_valid() else true
 
 func _make_default_tile(cell: Vector3i) -> TileCellData:
 	var tile := TileCellData.new()
