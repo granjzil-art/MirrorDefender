@@ -244,6 +244,18 @@ func get_active_path_requests() -> Array[Dictionary]:
 	return requests
 
 
+## Profile-aware route requests belonging only to the next unreleased wave.
+## Multiple groups sharing the same authored path/profile are deduplicated.
+func get_next_wave_path_requests() -> Array[Dictionary]:
+	var requests: Array[Dictionary] = []
+	var wave := get_next_wave()
+	if wave == null:
+		return requests
+	for group in wave.spawn_groups:
+		_append_path_request(requests, group)
+	return requests
+
+
 func get_all_path_requests() -> Array[Dictionary]:
 	var requests: Array[Dictionary] = []
 	if _level == null:

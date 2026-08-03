@@ -152,7 +152,7 @@ func _refresh_continuous_preview() -> void:
 	if _phase != DisplayPhase.CONTINUOUS or _external_preview_active or _wave_manager == null:
 		_continuous_preview.clear_preview()
 		return
-	_continuous_preview.preview_paths(_wave_manager.get_all_path_requests())
+	_continuous_preview.preview_paths(_wave_manager.get_next_wave_path_requests())
 
 
 func _queue_transition(next_phase: DisplayPhase, active_paths: Array[Dictionary]) -> void:

@@ -16,7 +16,7 @@
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
 - **地形换路**：大石头是“先换路、后攻击”的导航阻碍。EnemyUnit 逻辑上进入“前一格→石头格”路径段时，PathRoutePlanner 仅查找与敌人初始路径相同 `target_base` 的候选。先选“当前格相交/相邻 + 后缀可通行”的最短完整手工后缀；无候选时，用可替换 `IAutoRouteStrategy` 在同目标路径格并集上做确定性 A*。两层都失败才返回当前石头实体/投影作为攻击目标。
 - **共享实时路线快照**：`PathRoutePlanner` 每 `route_refresh_interval` 秒按整条作者路径统一检查阻碍；`PathRouteSnapshotCache` 为地面/空中导航档案分别计算“作者前缀 + 同目标最短后缀/A*”的弯折路线。快照只在格序列改变时广播，所有地面敌人抵达记录的阻挡段后复用同一结果；敌人出生仍读取原始 `PathDefinition.cells`，不会因后台预计算而提前转弯。无可用绕路时快照保留原路径，因为实际行为是攻击石头后继续该路径。
-- **分阶段表现**：`RuntimePathDisplayController` 在首波释放前和真正波间复用 `PathHoverPreview.tscn`，持续显示与鼠标悬停完全一致的青色发光折线和循环流向标记，不启用 PathManager 的黄色运行时线。波次进行中由 `PathMovingSegmentRenderer` 为每条尚未完成的活动路线绘制一条从出生点流向目标据点的短发光线段；线段跑出终点后等待 `restart_delay` 再循环。波次结束时停止创建下一轮，但已经生成的线段会冻结结束瞬间的路线并完整流出终点，之后才进入波间或终局。重叠波次取活动路径并集，同一路径的地面/空中档案可分别显示。
+- **分阶段表现**：`RuntimePathDisplayController` 在首波释放前和真正波间复用 `PathHoverPreview.tscn`，只持续显示“下一波”全部组实际引用的去重后路径/导航档案，表现与鼠标悬停完全一致，使用青色发光折线和循环流向标记，不启用 PathManager 的黄色运行时线；没有下一波时不显示。波次进行中由 `PathMovingSegmentRenderer` 为每条尚未完成的活动路线绘制一条从出生点流向目标据点的短发光线段；线段跑出终点后等待 `restart_delay` 再循环。波次结束时停止创建下一轮，但已经生成的线段会冻结结束瞬间的路线并完整流出终点，之后才进入波间或终局。重叠波次取活动路径并集，同一路径的地面/空中档案可分别显示。
 - **地表与调试层**：全部 `PathDefinition.cells` 的并集仍使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，不随动态换路改变。`PathManager.show_paths` 只额外绘制黄色作者路径调试线，默认正式阶段表现不依赖该层；出生点和据点数字保持独立。没有有效线段时直接清空 mesh，不结束零顶点 surface。
 - **M6 悬停流向**：`PathHoverPreview` 读取同一实时路线快照，为下一波全部“路径 + 地面/空中档案”绘制发光折线和入口到据点循环标记；快照改变时保持动画时间并重建几何。悬停离开、暂停和切关会清空。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，可按住左键连续拖过地块，画布会按鼠标轨迹采样并逐格记录。四边形同行/同列的跳格端点会自动补全中间格；加载旧关卡时也执行同一无歧义修复并标记为未保存。其它非相邻落点仍会被拒绝。
@@ -100,7 +100,9 @@ Level Editor path page
   -> validate_m4 -> base/path/spawn/wave consistency report (read-only)
 
 WaveManager state_changed -> RuntimePathDisplayController
-  ├─ READY / true inter-wave gap -> shared PathHoverPreview scene
+  ├─ READY / true inter-wave gap -> WaveManager.get_next_wave_path_requests
+  │    -> shared PathHoverPreview scene
+  │    -> only the next unreleased wave's deduplicated route/profile requests
   │    -> cyan emissive full routes + looping direction markers
   └─ active released waves -> PathMovingSegmentRenderer
        -> one short segment per unique active effective route, spawn to target
@@ -146,6 +148,7 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `PathRoutePlanner.get_effective_route_cells` | `(path: PathDefinition, airborne: bool = false) -> Array[Vector3i]` | 返回只读实时路线格序列。 |
 | `PathRoutePlanner.set_auto_route_strategy` | `(strategy: IAutoRouteStrategy) -> void` | 注入可替换自动寻路策略。 |
 | `PathRoutePlanner.set_debug_route_visible` | `(enabled: bool) -> void` | 开关换路调试线；关闭时立即清除已绘制路线。 |
+| `WaveManager.get_next_wave_path_requests` | `() -> Array[Dictionary]` | 返回仅属于下一未释放波次的去重 `{path, airborne}` 请求；无下一波时为空。 |
 | `PathHoverPreview.configure` | `(path_manager: PathManager) -> void` | 注入只读世界点入口并订阅切关信号。 |
 | `PathHoverPreview.preview_paths` | `(paths: Array) -> void` | 清理旧内容并同时构建全部有效路径的发光线和流动标记。 |
 | `PathHoverPreview.clear_preview` | `() -> void` | 清除全部悬停路径状态、线 Mesh 和标记。 |

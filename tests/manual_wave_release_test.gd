@@ -59,6 +59,11 @@ func _test_manual_release_flow() -> void:
 	manager._process(30.0)
 	_expect(manager.get_active_enemy_count() == 0, "no enemy spawns before the first manual release")
 	_expect(manager.should_show_continuous_paths(), "paths remain continuous before the first manual release")
+	var first_requests := manager.get_next_wave_path_requests()
+	_expect(
+		first_requests.size() == 1 and first_requests[0].get("path") == level.paths[0],
+		"the pre-wave path request set contains only wave one's route"
+	)
 	_expect(not path_manager.is_runtime_path_display_visible(), "the legacy yellow runtime layer stays hidden before wave one")
 	_expect(path_manager._path_mesh.mesh == null, "the legacy yellow route geometry is not used for continuous presentation")
 	_expect(continuous_preview.get_active_path_count() == 1, "continuous presentation reuses the hover-style route preview")
@@ -111,12 +116,18 @@ func _test_manual_release_flow() -> void:
 	path_display.advance_display_time(0.70)
 	_expect(not flow_renderer.is_finishing(), "the finishing pass ends only after the segment leaves its target")
 	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.CONTINUOUS, "the controller enters inter-wave mode after the short segment finishes")
-	_expect(continuous_preview.get_active_path_count() == 1, "all routes use hover-style presentation throughout the wave interval")
+	var final_wave_requests := manager.get_next_wave_path_requests()
+	_expect(
+		final_wave_requests.size() == 1 and final_wave_requests[0].get("path") == level.paths[1],
+		"the inter-wave request set advances to the final wave's distinct route"
+	)
+	_expect(continuous_preview.get_active_path_count() == 1, "only the next wave route uses hover-style presentation throughout the wave interval")
 	_expect(not path_manager.is_runtime_path_display_visible() and path_manager._path_mesh.mesh == null, "wave intervals never restore the legacy yellow line")
 	_expect(manager.get_next_wave_number() == 3 and manager.can_start_next_wave(), "the final unreleased wave remains explicitly available")
 
 	_expect(manager.start_next_wave(), "the final wave can be released manually")
 	_expect(manager.are_all_waves_released() and released_numbers == [1, 2, 3], "all-waves query changes only after the final release")
+	_expect(manager.get_next_wave_path_requests().is_empty(), "no continuous path request remains after the final release")
 	_expect(next_numbers == [2, 3, 0], "next-wave signal advances after each release and reports zero after the last")
 	_expect(manager.get_state() == WaveManager.State.ACTIVE, "the battle does not win while the final wave enemy remains")
 	var debug_result := manager.spawn_debug_enemy(_make_enemy(&"debug", "Debug"), level.paths[0])
@@ -205,6 +216,12 @@ func _make_three_wave_level() -> LevelResource:
 	path.spawn_point = spawn_point
 	level.paths.append(path)
 	level.spawn_points.append(spawn_point)
+	var final_path := PathDefinition.new()
+	final_path.path_id = &"manual_final_wave_path"
+	final_path.display_name = "Manual Final Wave Path"
+	final_path.cells = path.cells.duplicate()
+	final_path.spawn_point = spawn_point
+	level.paths.append(final_path)
 
 	var first_wave := WaveDefinition.new()
 	first_wave.display_name = "Wave 1"
@@ -219,7 +236,7 @@ func _make_three_wave_level() -> LevelResource:
 
 	var third_wave := WaveDefinition.new()
 	third_wave.display_name = "Wave 3"
-	third_wave.spawn_groups.append(_make_group(_make_enemy(&"w3", "W3"), path, spawn_point, 0.0))
+	third_wave.spawn_groups.append(_make_group(_make_enemy(&"w3", "W3"), final_path, spawn_point, 0.0))
 	level.waves.append(third_wave)
 	return level
 
