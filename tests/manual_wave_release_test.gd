@@ -28,9 +28,11 @@ func _test_manual_release_flow() -> void:
 	var path_manager: PathManager = fixture["path"]
 	path_manager.set_debug_paths_visible(false)
 	var path_display := RuntimePathDisplayController.new()
-	path_display.pulse_period = 1.0
-	path_display.pulse_visible_duration = 0.25
 	host.add_child(path_display)
+	var flow_renderer := path_display.get_flow_renderer()
+	flow_renderer.flow_speed = 2.0
+	flow_renderer.segment_length = 0.5
+	flow_renderer.restart_delay = 0.25
 	path_display.configure(manager, path_manager)
 	var spawned_names: Array[String] = []
 	var released_numbers: Array[int] = []
@@ -63,15 +65,19 @@ func _test_manual_release_flow() -> void:
 
 	_expect(manager.start_battle(), "start_battle compatibility entry releases the first wave")
 	_expect(manager.is_wave_action_active(), "a released wave with living or pending enemies is action-active")
-	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.PULSED, "active combat changes path display to pulsed mode")
-	_expect(path_manager.is_runtime_path_display_visible(), "an active-wave pulse starts visible")
+	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.FLOWING, "active combat changes path display to moving-segment mode")
+	_expect(not path_manager.is_runtime_path_display_visible(), "active combat hides the continuous whole-route layer")
+	_expect(flow_renderer.get_active_path_ids() == [&"manual_wave_path"], "moving hints are filtered to active authored paths")
+	_expect(flow_renderer.has_visible_geometry() and flow_renderer.get_visible_segment_count() == 1, "one short segment starts at the active path origin")
+	var initial_heads := flow_renderer.get_segment_head_positions()
 	path_display.advance_display_time(0.30)
-	_expect(not path_manager.is_runtime_path_display_visible(), "active paths hide after the configurable pulse duration")
-	_expect(path_manager._path_mesh.mesh == null, "hidden pulse phase clears only route geometry")
-	path_display.advance_display_time(0.70)
-	_expect(path_manager.is_runtime_path_display_visible(), "active paths reappear on the next configurable pulse")
-	_expect(path_manager._path_mesh.mesh != null, "the next pulse rebuilds active route geometry")
-	_expect(path_manager.get_runtime_path_ids() == [&"manual_wave_path"], "active-wave pulses are filtered to active authored paths")
+	var moved_heads := flow_renderer.get_segment_head_positions()
+	_expect(not initial_heads.is_empty() and not moved_heads.is_empty() and initial_heads[0].distance_to(moved_heads[0]) > 0.1, "the short segment advances from spawn toward the base")
+	path_display.advance_display_time(0.80)
+	_expect(not flow_renderer.has_visible_geometry(), "the segment clears during its configurable restart gap")
+	path_display.advance_display_time(0.20)
+	_expect(flow_renderer.has_visible_geometry(), "the segment restarts from the path origin after the gap")
+	_expect(path_manager._path_mesh.mesh == null, "moving hints never restore continuous whole-route geometry during combat")
 	_expect(manager.get_released_wave_count() == 1 and released_numbers == [1], "one click releases exactly one wave")
 	_expect(manager.get_current_wave_number() == 1 and manager.get_next_wave_number() == 2, "current and next wave numbers follow the release cursor")
 	_expect(spawned_names == ["W1 Early"], "the earliest group starts immediately even with a non-zero authored delay")
