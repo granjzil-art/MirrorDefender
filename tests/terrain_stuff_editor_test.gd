@@ -20,6 +20,7 @@ func _init() -> void:
 	_test_independent_grid_tools()
 	_test_multi_stuff_authoring()
 	_test_s1_ramp_authoring()
+	_test_continuous_ramp_authoring()
 	_test_grid_rebuild_scope()
 	_test_editor_page_contract()
 	if _failures == 0:
@@ -131,6 +132,40 @@ func _test_s1_ramp_authoring() -> void:
 	_expect(Authoring.remove_ramp(level, ramp.ramp_id), "selected ramp can be removed")
 	_expect(level.ramp_placements.is_empty(), "ramp removal deletes only ramp placement")
 	_expect(Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2, "ramp removal preserves author-visible layer edits")
+
+
+func _test_continuous_ramp_authoring() -> void:
+	var level := _make_canonical_level(Vector2i(7, 3))
+	var shape := _make_square_shape(level)
+	Authoring.prepare_level(level, shape)
+	var lower_result := Authoring.place_ramp(level, shape, Vector3i(2, 1, 0), 0, 1, 1)
+	_expect(bool(lower_result["success"]), "editor places the lower segment of a continuous ramp")
+	var side_result := Authoring.place_ramp(level, shape, Vector3i(3, 1, 0), 1, 1, 1)
+	_expect(not bool(side_result["success"]), "editor rejects connecting an existing ramp endpoint to a new ramp side")
+	var mismatch_result := Authoring.place_ramp(level, shape, Vector3i(3, 1, 0), 0, 1, 3)
+	_expect(not bool(mismatch_result["success"]), "editor rejects a continuous ramp with mismatched shared-edge layers")
+	var upper_result := Authoring.place_ramp(level, shape, Vector3i(3, 1, 0), 0, 1, 2)
+	_expect(bool(upper_result["success"]), "editor accepts a height-compatible high-edge to low-edge ramp chain")
+	var lower_ramp: RampPlacementData = lower_result["ramp"]
+	var lower_constraint := Authoring.get_ramp_layer_constraint(level, shape, Vector3i(2, 1, 0))
+	_expect(
+		lower_constraint["ramp"] == lower_ramp and int(lower_constraint["expected_layer"]) == 1,
+		"continuous-ramp footprint ownership takes priority over a neighbor's connector constraint"
+	)
+	_expect(Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count == 1, "upper ramp creation preserves the lower ramp's base voxel layer")
+	_expect(Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2, "upper ramp keeps its own base voxel layer")
+	_expect(Authoring.get_grid_cell(level, Vector3i(4, 1, 0)).layer_count == 3, "continuous chain still normalizes its terminal high flat")
+	_expect(level.validate_runtime().is_empty(), "editor-authored continuous square ramp passes canonical validation")
+	Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count = 4
+	Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count = 1
+	var repaired := Authoring.normalize_ramp_constraints(level, shape)
+	_expect(int(repaired["normalized_ramps"]) == 2, "normalization repairs both ramp footprints without treating their shared edge as a conflict")
+	_expect(
+		Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count == 1
+		and Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2,
+		"continuous normalization restores each ramp's independent base layer"
+	)
+	_expect(level.validate_runtime().is_empty(), "normalized continuous ramp remains valid")
 
 
 func _test_grid_rebuild_scope() -> void:

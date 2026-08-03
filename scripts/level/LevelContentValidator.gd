@@ -85,6 +85,7 @@ static func _validate_ramps(
 	if not raw_ramps is Array:
 		errors.append("斜坡数组类型无效")
 		return
+	var footprint_lookup := _build_ramp_footprint_lookup(raw_ramps, shape, grid_size)
 	for index in range(raw_ramps.size()):
 		var raw_ramp: Variant = raw_ramps[index]
 		if not raw_ramp is RampPlacementDataScript:
@@ -133,10 +134,100 @@ static func _validate_ramps(
 		if not shape.is_in_bounds(low_cell, grid_size) or not shape.is_in_bounds(high_cell, grid_size):
 			errors.append("斜坡 %s 的高低连接端必须都位于地图内" % ramp.ramp_id)
 			continue
-		if int(_effective_grid_cell(grid_lookup, low_cell)["layer_count"]) != ramp.base_layer:
-			errors.append("斜坡 %s 的低端必须连接第 %d 层平地" % [ramp.ramp_id, ramp.base_layer])
-		if int(_effective_grid_cell(grid_lookup, high_cell)["layer_count"]) != ramp.base_layer + 1:
-			errors.append("斜坡 %s 的高端必须连接第 %d 层平地" % [ramp.ramp_id, ramp.base_layer + 1])
+		_validate_ramp_connection(
+			errors,
+			ramp,
+			"低端",
+			low_cell,
+			footprint[0],
+			ramp.base_layer,
+			shape,
+			grid_lookup,
+			footprint_lookup
+		)
+		_validate_ramp_connection(
+			errors,
+			ramp,
+			"高端",
+			high_cell,
+			footprint[footprint.size() - 1],
+			ramp.base_layer + 1,
+			shape,
+			grid_lookup,
+			footprint_lookup
+		)
+
+
+static func _build_ramp_footprint_lookup(
+	raw_ramps: Array,
+	shape: IGridShape,
+	grid_size: Vector2i
+) -> Dictionary:
+	var lookup: Dictionary = {}
+	for raw_ramp in raw_ramps:
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		var ramp: RampPlacementDataScript = raw_ramp
+		if (
+			ramp.facing_index < 0
+			or ramp.facing_index >= shape.edge_count()
+			or ramp.run_length < RampPlacementDataScript.MIN_RUN_LENGTH
+			or ramp.run_length > RampPlacementDataScript.MAX_RUN_LENGTH
+		):
+			continue
+		var footprint := ramp.get_footprint_cells(shape)
+		if footprint.size() != ramp.run_length:
+			continue
+		for footprint_cell in footprint:
+			if not shape.is_in_bounds(footprint_cell, grid_size):
+				continue
+			# An overlapped footprint is already invalid. Store null so it cannot
+			# masquerade as one deterministic continuous-ramp connection.
+			if lookup.has(footprint_cell):
+				lookup[footprint_cell] = null
+			else:
+				lookup[footprint_cell] = ramp
+	return lookup
+
+
+static func _validate_ramp_connection(
+	errors: Array[String],
+	ramp: RampPlacementDataScript,
+	endpoint_name: String,
+	connection_cell: Vector3i,
+	ramp_boundary_cell: Vector3i,
+	expected_layer: int,
+	shape: IGridShape,
+	grid_lookup: Dictionary,
+	footprint_lookup: Dictionary
+) -> void:
+	var connected_ramp := footprint_lookup.get(connection_cell) as RampPlacementDataScript
+	if connected_ramp != null and connected_ramp != ramp:
+		var connected_layer := connected_ramp.get_connection_layer_toward(
+			shape,
+			ramp_boundary_cell
+		)
+		if connected_layer == RampPlacementDataScript.INVALID_CONNECTION_LAYER:
+			errors.append("斜坡 %s 的%s连接到斜坡 %s 的侧边" % [
+				ramp.ramp_id,
+				endpoint_name,
+				connected_ramp.ramp_id,
+			])
+		elif connected_layer != expected_layer:
+			errors.append("斜坡 %s 的%s与斜坡 %s 的共享边层数不一致：需要第 %d 层，实际第 %d 层" % [
+				ramp.ramp_id,
+				endpoint_name,
+				connected_ramp.ramp_id,
+				expected_layer,
+				connected_layer,
+			])
+		return
+	if int(_effective_grid_cell(grid_lookup, connection_cell)["layer_count"]) != expected_layer:
+		errors.append("斜坡 %s 的%s必须连接第 %d 层平地或等高斜坡端" % [
+			ramp.ramp_id,
+			endpoint_name,
+			expected_layer,
+		])
 
 
 static func _validate_stuff(

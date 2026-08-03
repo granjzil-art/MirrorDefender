@@ -482,6 +482,9 @@ func _apply_tool_at(position: Vector2) -> void:
 		return
 	var layer_constraint := Authoring.get_ramp_layer_constraint(level, _shape, cell)
 	if _tool_mode == ToolMode.LAYER and not layer_constraint.is_empty():
+		if bool(layer_constraint.get("conflict", false)):
+			operation_reported.emit("该平地同时被多个斜坡要求为不同层数；请调整斜坡连接。", false)
+			return
 		operation_reported.emit(
 			"%s的层数由斜坡 %s 约束为 %d 层；请先移除斜坡。" % [
 				str(layer_constraint["role"]),

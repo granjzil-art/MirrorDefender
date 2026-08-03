@@ -97,6 +97,7 @@ TerrainManager
 | `RampPlacementData.get_footprint_cells` | `(shape: IGridShape) -> Array[Vector3i]` | 从最低坡格沿上坡方向生成N个占格。 |
 | `RampPlacementData.get_low_neighbor` | `(shape: IGridShape) -> Vector3i` | 返回坡体外的低端连接格。 |
 | `RampPlacementData.get_high_neighbor` | `(shape: IGridShape) -> Vector3i` | 返回坡体外的高端连接格。 |
+| `RampPlacementData.get_connection_layer_toward` | `(shape: IGridShape, outside_cell: Vector3i) -> int` | 返回朝指定外部相邻格暴露的高/低端表面层；侧边返回0。 |
 | `TerrainManager.load_level` | `(level_resource: LevelResource) -> bool` | 构建隔离的规范运行时副本，全部成功后一次提交。 |
 | `TerrainManager.get_grid_cell` | `(cell: Vector3i) -> GridCellData` | 返回当前运行时Terrain格。 |
 | `TerrainManager.get_world_height` | `(cell: Vector3i) -> float` | 返回平地或斜坡格中心的表面Y。 |
@@ -117,9 +118,9 @@ TerrainManager
 | `LevelResource.get_effective_content_snapshot` | `() -> Dictionary` | 返回 `{content_version, migrated, default_terrain, layer_height, grid_cells, ramp_placements, stuff_placements}`。 |
 | `LevelResource.migrate_legacy_content_in_place` | `() -> bool` | 显式物化规范数组；批次1保留旧`tiles`以维持现运行时。 |
 | `LevelContentValidator.validate` | `(level: Resource, shape: IGridShape) -> Array[String]` | 对规范内容执行只读完整校验。 |
-| `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int) -> Dictionary` | S1放置；校验占格并自动对齐高低端。 |
+| `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int) -> Dictionary` | S1放置；校验占格、连续坡共享边，并自动对齐坡体与平地连接端。 |
 | `TerrainStuffAuthoring.normalize_ramp_constraints` | `(level: Resource, shape: IGridShape) -> Dictionary` | 将结构合法且无冲突的斜坡规约回规范Grid；返回`{changed, normalized_ramps, skipped_ramps, skipped_ramp_ids}`。 |
-| `TerrainStuffAuthoring.get_ramp_layer_constraint` | `(level: Resource, shape: IGridShape, cell: Vector3i) -> Dictionary` | 查询坡体或高低连接格的斜坡、角色与期望层数。 |
+| `TerrainStuffAuthoring.get_ramp_layer_constraint` | `(level: Resource, shape: IGridShape, cell: Vector3i) -> Dictionary` | 优先返回坡体自身所有权；平地连接格返回关联斜坡、期望层及多约束冲突状态。 |
 
 ## 约定事实源
 
@@ -128,7 +129,9 @@ TerrainManager
 - 斜坡是Grid形状，不是Stuff，也不属于复制镜可复制内容。
 - `anchor_cell` 是最低坡格，`facing_index` 永远指向上坡；反向坡通过反转方向并改锚点表达。
 - 1:N斜坡占N格且只升一层。全部坡格基础层相同、地形ID相同，高低端必须位于图内并分别连接基础层与基础层+1。
-- `RampPlacementData` 是斜坡体素约束的事实源：创建、载入编辑器和保存前都会自动把坡体/低端规约为`base_layer`、高端规约为`base_layer + 1`；这些格的层数在斜坡存在期间不可手工涂刷。结构越界、斜坡重叠或层约束互相冲突时不自动改写，继续由校验器明确报错。
+- `RampPlacementData` 是斜坡体素约束的事实源：坡体Grid层恒为自身`base_layer`；连接端是平地时，低端规约为`base_layer`、高端规约为`base_layer + 1`。连接端被另一段斜坡占据时，不改写对方坡体层，而是比较双方共享物理边的表面层。
+- 连续斜坡仅允许高/低端完整共享边且表面层相同；高接低、低接高、高接高（山脊）或低接低（谷底）均按共享边层判断。接到另一斜坡侧边、共享边层数不一致、坡体重叠或越界仍为非法。
+- 创建、载入编辑器和保存前共用上述规约；斜坡坡体和仍为平地的连接格在斜坡存在期间不可手工修改层数。
 - 正方形坡向使用4条边，六边形使用6条边。Stuff朝向仍按关卡建筑朝向约定使用正方形8向、六边形6向。
 - 平地模型槽表示“一个体素块”，运行时按 `layer_count` 从Y=0逐层实例化；模型自身变换保持不动，外层继续叠加 `ModelAssetDefinition.runtime_scale`。
 - 1:N斜坡模型槽表示横跨N格、从坡底升高一层的完整模型；本地 `+Z` 视为上坡方向，运行时仅实例化一次并按 `facing_index` 旋转。

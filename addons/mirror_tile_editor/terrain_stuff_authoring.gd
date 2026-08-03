@@ -289,6 +289,9 @@ static func get_ramp_layer_constraint(
 ) -> Dictionary:
 	if level == null or shape == null:
 		return {}
+	# A ramp footprint owns its Grid base layer. Connector constraints are only
+	# applicable when the connector is flat; this first pass is what makes a
+	# valid continuous ramp keep the lower ramp's own base layer.
 	for raw_ramp in _as_array(level.get("ramp_placements")):
 		if not raw_ramp is RampPlacementDataScript:
 			continue
@@ -297,20 +300,36 @@ static func get_ramp_layer_constraint(
 				"ramp": raw_ramp,
 				"role": "坡体",
 				"expected_layer": raw_ramp.base_layer,
+				"conflict": false,
 			}
+	var constraints: Array[Dictionary] = []
+	for raw_ramp in _as_array(level.get("ramp_placements")):
+		if not raw_ramp is RampPlacementDataScript:
+			continue
 		if cell == raw_ramp.get_low_neighbor(shape):
-			return {
+			constraints.append({
 				"ramp": raw_ramp,
 				"role": "低端连接格",
 				"expected_layer": raw_ramp.base_layer,
-			}
+			})
 		if cell == raw_ramp.get_high_neighbor(shape):
-			return {
+			constraints.append({
 				"ramp": raw_ramp,
 				"role": "高端连接格",
 				"expected_layer": raw_ramp.base_layer + 1,
-			}
-	return {}
+			})
+	if constraints.is_empty():
+		return {}
+	var result: Dictionary = constraints[0].duplicate()
+	var expected_layer := int(result["expected_layer"])
+	var conflict := false
+	for constraint in constraints:
+		if int(constraint["expected_layer"]) != expected_layer:
+			conflict = true
+			break
+	result["conflict"] = conflict
+	result["constraints"] = constraints
+	return result
 
 
 ## Enforces every non-conflicting ramp's invariant on canonical Grid data.
@@ -368,37 +387,47 @@ static func normalize_ramp_constraints(level: Resource, shape: IGridShape) -> Di
 
 	var conflicted_candidates: Dictionary = {}
 	var footprint_owners: Dictionary = {}
-	var layer_requirements: Dictionary = {}
 	for candidate_index in range(candidates.size()):
 		var candidate: Dictionary = candidates[candidate_index]
-		var ramp: RampPlacementDataScript = candidate["ramp"]
 		for footprint_cell in candidate["footprint"]:
 			var owners: Array = footprint_owners.get(footprint_cell, [])
 			owners.append(candidate_index)
 			footprint_owners[footprint_cell] = owners
-			_append_layer_requirement(
-				layer_requirements,
-				footprint_cell,
-				candidate_index,
-				ramp.base_layer
-			)
-		_append_layer_requirement(
-			layer_requirements,
-			candidate["low_cell"],
-			candidate_index,
-			ramp.base_layer
-		)
-		_append_layer_requirement(
-			layer_requirements,
-			candidate["high_cell"],
-			candidate_index,
-			ramp.base_layer + 1
-		)
 	for owners_value in footprint_owners.values():
 		var owners: Array = owners_value
 		if owners.size() > 1:
 			for candidate_index in owners:
 				conflicted_candidates[int(candidate_index)] = true
+	var footprint_lookup: Dictionary = {}
+	for footprint_cell in footprint_owners:
+		var owners: Array = footprint_owners[footprint_cell]
+		if owners.size() == 1 and not conflicted_candidates.has(int(owners[0])):
+			footprint_lookup[footprint_cell] = int(owners[0])
+
+	# Only flat connector cells receive a Grid layer requirement. A connector
+	# occupied by another ramp is validated by the two ramps' shared boundary
+	# layers and must retain that other ramp's own base layer.
+	var layer_requirements: Dictionary = {}
+	for candidate_index in range(candidates.size()):
+		if conflicted_candidates.has(candidate_index):
+			continue
+		var candidate: Dictionary = candidates[candidate_index]
+		var ramp: RampPlacementDataScript = candidate["ramp"]
+		if not footprint_lookup.has(candidate["low_cell"]):
+			_append_layer_requirement(
+				layer_requirements,
+				candidate["low_cell"],
+				candidate_index,
+				ramp.base_layer
+			)
+		if not footprint_lookup.has(candidate["high_cell"]):
+			_append_layer_requirement(
+				layer_requirements,
+				candidate["high_cell"],
+				candidate_index,
+				ramp.base_layer + 1
+			)
+	var conflicted_connector_cells: Dictionary = {}
 	for requirements_value in layer_requirements.values():
 		var requirements: Array = requirements_value
 		if requirements.is_empty():
@@ -411,23 +440,45 @@ static func normalize_ramp_constraints(level: Resource, shape: IGridShape) -> Di
 				break
 		if has_conflict:
 			for requirement in requirements:
-				conflicted_candidates[int(requirement["candidate_index"])] = true
+				var candidate_index := int(requirement["candidate_index"])
+				conflicted_candidates[candidate_index] = true
+	for connection_cell in layer_requirements:
+		var requirements: Array = layer_requirements[connection_cell]
+		for requirement in requirements:
+			if conflicted_candidates.has(int(requirement["candidate_index"])):
+				conflicted_connector_cells[connection_cell] = true
+				break
 
 	var changed := false
-	var normalized_ramps := 0
+	var changed_candidates: Dictionary = {}
 	for candidate_index in range(candidates.size()):
 		var candidate: Dictionary = candidates[candidate_index]
 		var ramp: RampPlacementDataScript = candidate["ramp"]
 		if conflicted_candidates.has(candidate_index):
 			skipped_ids.append(ramp.ramp_id)
 			continue
-		if _apply_ramp_constraints(level, shape, ramp):
+		if _apply_ramp_footprint_constraints(level, shape, ramp):
 			changed = true
-			normalized_ramps += 1
+			changed_candidates[candidate_index] = true
+	for connection_cell in layer_requirements:
+		if conflicted_connector_cells.has(connection_cell):
+			continue
+		var requirements: Array = layer_requirements[connection_cell]
+		if requirements.is_empty():
+			continue
+		var expected_layer := int(requirements[0]["layer"])
+		var connection_data := get_or_create_grid_cell(level, connection_cell)
+		if connection_data == null or connection_data.layer_count == expected_layer:
+			continue
+		connection_data.layer_count = expected_layer
+		connection_data.emit_changed()
+		changed = true
+		for requirement in requirements:
+			changed_candidates[int(requirement["candidate_index"])] = true
 	if changed:
 		level.emit_changed()
 	result["changed"] = changed
-	result["normalized_ramps"] = normalized_ramps
+	result["normalized_ramps"] = changed_candidates.size()
 	result["skipped_ramps"] = skipped_ids.size()
 	result["skipped_ramp_ids"] = skipped_ids
 	return result
@@ -469,7 +520,12 @@ static func place_ramp(
 	for footprint_cell in footprint:
 		if get_ramp_at(level, shape, footprint_cell) != null:
 			return {"success": false, "message": "斜坡与已有斜坡重叠", "ramp": null}
-	_apply_ramp_constraints(level, shape, ramp)
+	var connection_error := _find_ramp_connection_error(level, shape, ramp)
+	if not connection_error.is_empty():
+		return {"success": false, "message": connection_error, "ramp": null}
+	_apply_ramp_footprint_constraints(level, shape, ramp)
+	_apply_flat_connector_constraint(level, shape, low_cell, ramp.base_layer)
+	_apply_flat_connector_constraint(level, shape, high_cell, ramp.base_layer + 1)
 	var next_ramps: Array[RampPlacementDataScript] = []
 	for raw_ramp in _as_array(level.get("ramp_placements")):
 		if raw_ramp is RampPlacementDataScript:
@@ -508,7 +564,7 @@ static func _append_layer_requirement(
 	requirements[cell] = cell_requirements
 
 
-static func _apply_ramp_constraints(
+static func _apply_ramp_footprint_constraints(
 	level: Resource,
 	shape: IGridShape,
 	ramp: RampPlacementDataScript
@@ -529,17 +585,115 @@ static func _apply_ramp_constraints(
 			data.layer_count = ramp.base_layer
 			data.emit_changed()
 			changed = true
-	var low_data := get_or_create_grid_cell(level, ramp.get_low_neighbor(shape))
-	if low_data != null and low_data.layer_count != ramp.base_layer:
-		low_data.layer_count = ramp.base_layer
-		low_data.emit_changed()
-		changed = true
-	var high_data := get_or_create_grid_cell(level, ramp.get_high_neighbor(shape))
-	if high_data != null and high_data.layer_count != ramp.base_layer + 1:
-		high_data.layer_count = ramp.base_layer + 1
-		high_data.emit_changed()
-		changed = true
 	return changed
+
+
+static func _apply_flat_connector_constraint(
+	level: Resource,
+	shape: IGridShape,
+	cell: Vector3i,
+	expected_layer: int
+) -> bool:
+	if get_ramp_at(level, shape, cell) != null:
+		return false
+	var data := get_or_create_grid_cell(level, cell)
+	if data == null or data.layer_count == expected_layer:
+		return false
+	data.layer_count = expected_layer
+	data.emit_changed()
+	return true
+
+
+static func _find_ramp_connection_error(
+	level: Resource,
+	shape: IGridShape,
+	new_ramp: RampPlacementDataScript
+) -> String:
+	for raw_ramp in _as_array(level.get("ramp_placements")):
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		var existing: RampPlacementDataScript = raw_ramp
+		var error := _directed_ramp_connection_error(new_ramp, existing, shape)
+		if not error.is_empty():
+			return error
+		error = _directed_ramp_connection_error(existing, new_ramp, shape)
+		if not error.is_empty():
+			return error
+	var flat_connections: Array[Dictionary] = [
+		{
+			"name": "低端",
+			"cell": new_ramp.get_low_neighbor(shape),
+			"expected_layer": new_ramp.base_layer,
+		},
+		{
+			"name": "高端",
+			"cell": new_ramp.get_high_neighbor(shape),
+			"expected_layer": new_ramp.base_layer + 1,
+		},
+	]
+	for connection in flat_connections:
+		var connection_cell: Vector3i = connection["cell"]
+		if get_ramp_at(level, shape, connection_cell) != null:
+			continue
+		var constraint := get_ramp_layer_constraint(level, shape, connection_cell)
+		if constraint.is_empty():
+			continue
+		var expected_layer := int(connection["expected_layer"])
+		if bool(constraint.get("conflict", false)):
+			return "斜坡%s连接的平地已存在互相冲突的斜坡层数要求" % str(connection["name"])
+		var existing_layer := int(constraint["expected_layer"])
+		if existing_layer != expected_layer:
+			return "斜坡%s与该平地已有连接要求不一致：需要第 %d 层，已有要求为第 %d 层" % [
+				str(connection["name"]),
+				expected_layer,
+				existing_layer,
+			]
+	return ""
+
+
+static func _directed_ramp_connection_error(
+	from_ramp: RampPlacementDataScript,
+	to_ramp: RampPlacementDataScript,
+	shape: IGridShape
+) -> String:
+	var to_footprint := to_ramp.get_footprint_cells(shape)
+	var from_footprint := from_ramp.get_footprint_cells(shape)
+	if to_footprint.is_empty() or from_footprint.is_empty():
+		return ""
+	var connections: Array[Dictionary] = [
+		{
+			"name": "低端",
+			"cell": from_ramp.get_low_neighbor(shape),
+			"boundary": from_footprint[0],
+			"expected_layer": from_ramp.base_layer,
+		},
+		{
+			"name": "高端",
+			"cell": from_ramp.get_high_neighbor(shape),
+			"boundary": from_footprint[from_footprint.size() - 1],
+			"expected_layer": from_ramp.base_layer + 1,
+		},
+	]
+	for connection in connections:
+		var connection_cell: Vector3i = connection["cell"]
+		if connection_cell not in to_footprint:
+			continue
+		var boundary_cell: Vector3i = connection["boundary"]
+		var actual_layer := to_ramp.get_connection_layer_toward(shape, boundary_cell)
+		if actual_layer == RampPlacementDataScript.INVALID_CONNECTION_LAYER:
+			return "斜坡%s不能连接到已有斜坡 %s 的侧边" % [
+				str(connection["name"]),
+				to_ramp.ramp_id,
+			]
+		var expected_layer := int(connection["expected_layer"])
+		if actual_layer != expected_layer:
+			return "斜坡%s与已有斜坡 %s 的共享边层数不一致：需要第 %d 层，实际第 %d 层" % [
+				str(connection["name"]),
+				to_ramp.ramp_id,
+				expected_layer,
+				actual_layer,
+			]
+	return ""
 
 
 static func _materialize_missing_cells(

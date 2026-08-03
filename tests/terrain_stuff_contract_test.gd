@@ -17,6 +17,7 @@ var _checks: int = 0
 func _init() -> void:
 	_test_separate_contracts()
 	_test_ramp_footprints()
+	_test_continuous_ramp_connections()
 	_test_legacy_snapshot()
 	_test_canonical_validation()
 	if _failures == 0:
@@ -79,6 +80,38 @@ func _test_ramp_footprints() -> void:
 		Vector3i(0, 0, 0), Vector3i(1, 0, -1), Vector3i(2, 0, -2)
 	], "hex 1:3 ramp follows one of six edge directions")
 	_expect(hex_ramp.get_low_neighbor(hex) == Vector3i(-1, 0, 1), "hex ramp resolves opposite low connection")
+	_expect(hex_ramp.get_connection_layer_toward(hex, hex_ramp.get_low_neighbor(hex)) == 1, "ramp exposes its low boundary layer")
+	_expect(hex_ramp.get_connection_layer_toward(hex, hex_ramp.get_high_neighbor(hex)) == 2, "ramp exposes its high boundary layer")
+	_expect(hex_ramp.get_connection_layer_toward(hex, Vector3i(0, 1, -1)) == 0, "ramp rejects a side edge as a continuous connection")
+
+
+func _test_continuous_ramp_connections() -> void:
+	var square_level := _make_canonical_level(1, Vector2i(7, 3))
+	var square_lower := _make_ramp(&"square_lower", Vector3i(2, 1, 0), 0, 1)
+	var square_upper := _make_ramp(&"square_upper", Vector3i(3, 1, 0), 0, 2)
+	_set_grid_layer(square_level, Vector3i(3, 1, 0), 2)
+	_set_grid_layer(square_level, Vector3i(4, 1, 0), 3)
+	square_level.ramp_placements = [square_lower, square_upper]
+	_expect(square_level.validate_runtime().is_empty(), "square ramps can connect high-edge to low-edge without an intermediate flat")
+	square_upper.base_layer = 3
+	_set_grid_layer(square_level, Vector3i(3, 1, 0), 3)
+	_set_grid_layer(square_level, Vector3i(4, 1, 0), 4)
+	_expect(_contains_text(square_level.validate_runtime(), "共享边层数不一致"), "continuous square ramps reject mismatched shared-edge layers")
+
+	var side_level := _make_canonical_level(1, Vector2i(5, 5))
+	var horizontal := _make_ramp(&"horizontal", Vector3i(1, 2, 0), 0, 1)
+	var vertical := _make_ramp(&"vertical", Vector3i(2, 2, 0), 1, 1)
+	_set_grid_layer(side_level, Vector3i(2, 3, 0), 2)
+	side_level.ramp_placements = [horizontal, vertical]
+	_expect(_contains_text(side_level.validate_runtime(), "侧边"), "a ramp endpoint cannot connect to another ramp's side edge")
+
+	var hex_level := _make_canonical_level(0, Vector2i(3, 3))
+	var hex_lower := _make_ramp(&"hex_lower", Vector3i.ZERO, 0, 1)
+	var hex_upper := _make_ramp(&"hex_upper", Vector3i(1, -1, 0), 0, 2)
+	_set_grid_layer(hex_level, Vector3i(1, -1, 0), 2)
+	_set_grid_layer(hex_level, Vector3i(2, -2, 0), 3)
+	hex_level.ramp_placements = [hex_lower, hex_upper]
+	_expect(hex_level.validate_runtime().is_empty(), "hex ramps use the same high-edge to low-edge continuity rule")
 
 
 func _test_legacy_snapshot() -> void:
@@ -159,6 +192,41 @@ func _contains_text(errors: Array[String], needle: String) -> bool:
 		if needle in error:
 			return true
 	return false
+
+
+func _make_canonical_level(grid_shape: int, grid_size: Vector2i) -> LevelResource:
+	var level := LevelResourceScript.new()
+	level.grid_shape = grid_shape
+	level.grid_size = grid_size
+	level.terrain_content_version = 2
+	level.default_terrain = load("res://resources/terrains/Grass.tres")
+	level.layer_height = 0.5
+	level.height_step = 0.5
+	return level
+
+
+func _make_ramp(
+	ramp_id: StringName,
+	anchor_cell: Vector3i,
+	facing_index: int,
+	base_layer: int
+) -> RampPlacementData:
+	var ramp := RampPlacementDataScript.new()
+	ramp.ramp_id = ramp_id
+	ramp.anchor_cell = anchor_cell
+	ramp.facing_index = facing_index
+	ramp.base_layer = base_layer
+	return ramp
+
+
+func _set_grid_layer(level: LevelResource, cell: Vector3i, layer_count: int) -> void:
+	for raw_cell in level.grid_cells:
+		if raw_cell is GridCellData and raw_cell.cell == cell:
+			raw_cell.layer_count = layer_count
+			return
+	var data := GridCellDataScript.new()
+	data.configure(cell, level.default_terrain, layer_count)
+	level.grid_cells.append(data)
 
 
 func _expect(condition: bool, label: String) -> void:

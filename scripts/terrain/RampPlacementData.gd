@@ -10,6 +10,7 @@ const MIN_RUN_LENGTH: int = 1
 const MAX_RUN_LENGTH: int = 4
 const MIN_BASE_LAYER: int = 1
 const MAX_BASE_LAYER: int = 3
+const INVALID_CONNECTION_LAYER: int = 0
 
 @export_group("Identity")
 @export var ramp_id: StringName = &"ramp_1"
@@ -46,6 +47,19 @@ func get_high_neighbor(shape: IGridShape) -> Vector3i:
 	for _step in range(run_length):
 		current = shape.neighbor_across_edge(current, facing_index)
 	return current
+
+
+## Returns the integer surface layer exposed by this ramp on the boundary
+## facing `outside_cell`. Only the complete low/high edges are valid ramp
+## connections; a side edge returns INVALID_CONNECTION_LAYER.
+func get_connection_layer_toward(shape: IGridShape, outside_cell: Vector3i) -> int:
+	if shape == null or facing_index < 0 or facing_index >= shape.edge_count():
+		return INVALID_CONNECTION_LAYER
+	if outside_cell == get_low_neighbor(shape):
+		return base_layer
+	if outside_cell == get_high_neighbor(shape):
+		return base_layer + 1
+	return INVALID_CONNECTION_LAYER
 
 
 func validate_configuration() -> Array[String]:

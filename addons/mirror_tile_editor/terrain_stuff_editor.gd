@@ -474,7 +474,9 @@ func _refresh_selected_inspector() -> void:
 	if _stuff_list.item_count > 0:
 		_stuff_list.select(0)
 		_sync_selected_stuff_facing()
-	if related_ramp == null:
+	if bool(layer_constraint.get("conflict", false)):
+		_ramp_label.text = "当前平地同时受到多个互相冲突的斜坡连接约束"
+	elif related_ramp == null:
 		_ramp_label.text = "当前格不属于斜坡"
 	else:
 		_ramp_label.text = "%s | %s | 1:%d | 基础层 %d | 上坡方向 %d" % [
@@ -488,7 +490,7 @@ func _refresh_selected_inspector() -> void:
 	_set_inspector_enabled(true)
 	_terrain_select.disabled = ramp != null
 	_layer_select.editable = layer_constraint.is_empty()
-	_remove_ramp_button.disabled = related_ramp == null
+	_remove_ramp_button.disabled = related_ramp == null or bool(layer_constraint.get("conflict", false))
 	_remove_stuff_button.disabled = _stuff_list.item_count == 0
 	_stuff_facing.editable = _stuff_list.item_count > 0
 
