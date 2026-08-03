@@ -477,11 +477,19 @@ func _apply_tool_at(position: Vector2) -> void:
 	var cell: Vector3i = hit["cell"]
 	if _painted_cells.has(cell):
 		return
-	if (
-		_tool_mode in [ToolMode.TERRAIN, ToolMode.LAYER]
-		and Authoring.get_ramp_at(level, _shape, cell) != null
-	):
-		operation_reported.emit("斜坡占格的地形和层数由斜坡约束；请先移除斜坡。", false)
+	if _tool_mode == ToolMode.TERRAIN and Authoring.get_ramp_at(level, _shape, cell) != null:
+		operation_reported.emit("斜坡坡体的地形由斜坡约束；请先移除斜坡。", false)
+		return
+	var layer_constraint := Authoring.get_ramp_layer_constraint(level, _shape, cell)
+	if _tool_mode == ToolMode.LAYER and not layer_constraint.is_empty():
+		operation_reported.emit(
+			"%s的层数由斜坡 %s 约束为 %d 层；请先移除斜坡。" % [
+				str(layer_constraint["role"]),
+				(layer_constraint["ramp"] as RampPlacementData).ramp_id,
+				int(layer_constraint["expected_layer"]),
+			],
+			false
+		)
 		return
 	var changed := false
 	var message := ""

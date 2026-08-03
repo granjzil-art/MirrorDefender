@@ -8,7 +8,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps
 
 可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 22 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
 
-体素 Terrain / Stuff 关卡编辑器的旧Tile单向导入、独立刷子、同格多Stuff、S1斜坡、网格重建分页边界、合法分割布局与隐藏零尺寸画布生命周期回归：
+体素 Terrain / Stuff 关卡编辑器的旧Tile单向导入、独立刷子、同格多Stuff、S1斜坡与体素层自动规约、网格重建分页边界、合法分割布局与隐藏零尺寸画布生命周期回归：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/terrain_stuff_editor_test.gd

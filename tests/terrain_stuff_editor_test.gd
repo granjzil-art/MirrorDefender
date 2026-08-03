@@ -107,6 +107,23 @@ func _test_s1_ramp_authoring() -> void:
 	_expect(Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count == 1, "S1 aligns full multi-cell footprint")
 	_expect(Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2, "S1 raises high connector exactly one layer")
 	_expect(level.validate_runtime().is_empty(), "S1 output passes canonical runtime validation")
+	# Reproduce Inspector/old-resource drift: the ramp stays visually valid because
+	# its mesh reads RampPlacementData, while canonical Grid layers are wrong.
+	Authoring.get_grid_cell(level, Vector3i(0, 1, 0)).layer_count = 4
+	Authoring.get_grid_cell(level, Vector3i(1, 1, 0)).layer_count = 3
+	Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count = 2
+	Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count = 1
+	var repaired := Authoring.prepare_level(level, shape)
+	_expect(bool(repaired["changed"]) and int(repaired["normalized_ramps"]) == 1, "editor load auto-normalizes a visually valid ramp's canonical voxels")
+	_expect(Authoring.get_grid_cell(level, Vector3i(0, 1, 0)).layer_count == 1, "normalization repairs the low connector")
+	_expect(Authoring.get_grid_cell(level, Vector3i(1, 1, 0)).layer_count == 1, "normalization repairs the first footprint voxel")
+	_expect(Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count == 1, "normalization repairs every footprint voxel")
+	_expect(Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2, "normalization repairs the high connector")
+	var high_constraint := Authoring.get_ramp_layer_constraint(level, shape, Vector3i(3, 1, 0))
+	_expect(not high_constraint.is_empty() and int(high_constraint["expected_layer"]) == 2, "high connector is exposed as a ramp-owned layer constraint")
+	_expect(level.validate_runtime().is_empty(), "normalized ramp passes canonical runtime validation")
+	var repaired_again := Authoring.prepare_level(level, shape)
+	_expect(not bool(repaired_again["changed"]), "ramp normalization is idempotent")
 	var overlap := Authoring.place_ramp(level, shape, Vector3i(2, 1, 0), 0, 1, 1)
 	_expect(not bool(overlap["success"]), "ramp authoring rejects overlapping footprints")
 	var outside := Authoring.place_ramp(level, shape, Vector3i(5, 0, 0), 0, 1, 1)

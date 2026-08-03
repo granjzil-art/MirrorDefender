@@ -61,7 +61,13 @@ func set_level(value: LevelResource) -> Dictionary:
 	_level = value
 	if _level == null:
 		_canvas.set_level(null)
-		return {"changed": false, "migrated": false, "added_cells": 0}
+		return {
+			"changed": false,
+			"migrated": false,
+			"added_cells": 0,
+			"normalized_ramps": 0,
+			"skipped_ramps": 0,
+		}
 	_rebuild_shape()
 	var preparation := Authoring.prepare_level(_level, _shape)
 	_sync_level_controls()
@@ -69,6 +75,12 @@ func set_level(value: LevelResource) -> Dictionary:
 	_refresh_selected_inspector()
 	if bool(preparation["migrated"]):
 		_set_status("旧地块已导入为 Terrain / Stuff 规范数据；保存后完成单向迁移。", true)
+	elif int(preparation["normalized_ramps"]) > 0:
+		_set_status(
+			"已自动规约 %d 个斜坡的坡体与高低端体素层；请保存。"
+			% int(preparation["normalized_ramps"]),
+			true
+		)
 	elif int(preparation["added_cells"]) > 0:
 		_set_status("已补齐 %d 个未显式配置的 Grid 格。" % int(preparation["added_cells"]), true)
 	else:
@@ -85,6 +97,25 @@ func refresh() -> void:
 	if _canvas != null:
 		_canvas.refresh()
 	_refresh_selected_inspector()
+
+
+## Reconciles RampPlacementData with canonical Grid voxel layers. The parent
+## editor calls this immediately before validation/save so Inspector-created or
+## externally edited ramps cannot persist a visually valid but invalid Grid.
+func normalize_ramp_constraints() -> Dictionary:
+	if _level == null or _shape == null:
+		return {
+			"changed": false,
+			"normalized_ramps": 0,
+			"skipped_ramps": 0,
+			"skipped_ramp_ids": [],
+		}
+	var result := Authoring.normalize_ramp_constraints(_level, _shape)
+	if bool(result["changed"]):
+		_canvas.refresh()
+		_refresh_selected_inspector()
+		level_changed.emit()
+	return result
 
 
 func get_selected_cell() -> Vector3i:
@@ -417,6 +448,12 @@ func _refresh_selected_inspector() -> void:
 	var cell := _canvas.selected_cell
 	var data := Authoring.get_grid_cell(_level, cell)
 	var ramp := Authoring.get_ramp_at(_level, _shape, cell)
+	var layer_constraint := Authoring.get_ramp_layer_constraint(_level, _shape, cell)
+	var related_ramp: RampPlacementData = (
+		layer_constraint["ramp"] as RampPlacementData
+		if not layer_constraint.is_empty()
+		else null
+	)
 	_controls_blocked = true
 	var selected_help := find_child("SelectedCellHelp", true, false) as Label
 	if selected_help != null:
@@ -437,20 +474,21 @@ func _refresh_selected_inspector() -> void:
 	if _stuff_list.item_count > 0:
 		_stuff_list.select(0)
 		_sync_selected_stuff_facing()
-	if ramp == null:
+	if related_ramp == null:
 		_ramp_label.text = "当前格不属于斜坡"
 	else:
-		_ramp_label.text = "%s | 1:%d | 基础层 %d | 上坡方向 %d" % [
-			ramp.ramp_id,
-			ramp.run_length,
-			ramp.base_layer,
-			ramp.facing_index,
+		_ramp_label.text = "%s | %s | 1:%d | 基础层 %d | 上坡方向 %d" % [
+			related_ramp.ramp_id,
+			str(layer_constraint["role"]),
+			related_ramp.run_length,
+			related_ramp.base_layer,
+			related_ramp.facing_index,
 		]
 	_controls_blocked = false
 	_set_inspector_enabled(true)
 	_terrain_select.disabled = ramp != null
-	_layer_select.editable = ramp == null
-	_remove_ramp_button.disabled = ramp == null
+	_layer_select.editable = layer_constraint.is_empty()
+	_remove_ramp_button.disabled = related_ramp == null
 	_remove_stuff_button.disabled = _stuff_list.item_count == 0
 	_stuff_facing.editable = _stuff_list.item_count > 0
 
@@ -468,7 +506,7 @@ func _on_selected_terrain_changed(index: int) -> void:
 func _on_selected_layer_changed(value: float) -> void:
 	if _controls_blocked or not _has_selection():
 		return
-	if Authoring.get_ramp_at(_level, _shape, _canvas.selected_cell) != null:
+	if not Authoring.get_ramp_layer_constraint(_level, _shape, _canvas.selected_cell).is_empty():
 		return
 	if Authoring.paint_layer(_level, _canvas.selected_cell, int(value)):
 		_canvas.refresh()
@@ -524,7 +562,12 @@ func _remove_selected_stuff() -> void:
 func _remove_selected_ramp() -> void:
 	if not _has_selection():
 		return
-	var ramp := Authoring.get_ramp_at(_level, _shape, _canvas.selected_cell)
+	var constraint := Authoring.get_ramp_layer_constraint(_level, _shape, _canvas.selected_cell)
+	var ramp: RampPlacementData = (
+		constraint["ramp"] as RampPlacementData
+		if not constraint.is_empty()
+		else null
+	)
 	if ramp != null and Authoring.remove_ramp(_level, ramp.ramp_id):
 		_canvas.refresh()
 		_refresh_selected_inspector()

@@ -1843,6 +1843,11 @@ func _save_level() -> void:
 	if not path.ends_with(".tres"):
 		path += ".tres"
 		_save_path.text = path
+	# RampPlacementData owns the voxel layers of its footprint and both
+	# connectors. Reconcile before validation so direct Inspector edits and old
+	# resources cannot surface as visually valid but manually repairable errors.
+	if _terrain_stuff_editor != null:
+		_terrain_stuff_editor.normalize_ramp_constraints()
 	var validation_errors := _level.validate_runtime()
 	if not validation_errors.is_empty():
 		_request_confirmation(
