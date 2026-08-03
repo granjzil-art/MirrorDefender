@@ -25,7 +25,7 @@ next_spawn_time += max(0.01, group.interval)
 - **允许重叠**：新波释放不清理旧波 `_spawn_states` 或活动单位；多波可同时生成、移动和战斗。
 - **释放与开始不同**：`wave_released` 表示该波释放事务成功并推进游标；`wave_started` 表示该波第一只敌人已成功加入 `CombatManager`。立即生成时 `wave_started` 可能在 `wave_released` 之前发出，调用方只能按语义区分，不能依赖二者先后顺序。
 - **逐波完成**：一波至少成功生成过一只敌人、该波全部组生成完且该波活动敌人为空时发送一次 `wave_completed`；完成不自动释放下一波。
-- **路径显示阶段事实**：`ACTIVE` 同时包含“仍在生成/有存活敌人”和“等待玩家释放下一波”的静默区间。`is_wave_action_active()` 用待生成组与活动单位区分二者；`should_show_continuous_paths()` 只在 `READY` 或仍有下一波的真实静默区间返回 true。活动路径请求按未完成的已释放波求并集，并保留地面/空中档案；表现层在行动期为每条唯一实时路线循环一条“出生点 → 目标据点”的短发光线段，不再闪烁整条路线。
+- **路径显示阶段事实**：`ACTIVE` 同时包含“仍在生成/有存活敌人”和“等待玩家释放下一波”的静默区间。`is_wave_action_active()` 用待生成组与活动单位区分二者；`should_show_continuous_paths()` 只在 `READY` 或仍有下一波的真实静默区间返回 true。活动路径请求按未完成的已释放波求并集，并保留地面/空中档案；表现层在行动期为每条唯一实时路线循环一条“出生点 → 目标据点”的短发光线段。行动结束不会截断已经生成的短线，短线离开终点后才切换为与悬停预览一致的波间青色流线，或在终局隐藏。
 - **胜利条件**：仅当 `are_all_waves_released()`、全部已建生成状态的 `remaining == 0`、且 `_active_units` 为空时进入 `VICTORY`。未释放波仍存在时，即使场上清空也不得胜利。Debug spawn 复用 `_active_units`，因此同样阻塞最终胜利。
 - **失败与配置错误**：共享 `BaseCore` 生命归零进入 `DEFEAT`；预检/生成失败进入 `CONFIG_ERROR`。二者都会停止生成并清理活动敌人和敌方投射物，不得误判胜利。
 - **Debug spawn 边界**：`spawn_debug_enemy()` 不释放作者波次、不推进游标、不增加组生成计数；要求非空 EnemyDefinition、当前关卡路径，且当前状态不是 `VICTORY/DEFEAT/CONFIG_ERROR`。F1 `spawn` 业务绑定会额外把敌人限制为当前关卡波次已引用定义；WaveManager 公共入口本身不扫描或验证敌人资源归属。终态一律拒绝。

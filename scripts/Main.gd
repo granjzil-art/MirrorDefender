@@ -625,6 +625,8 @@ func _on_runtime_modal_state_changed(open: bool) -> void:
 
 
 func _on_wave_paths_preview_requested(paths: Array) -> void:
+	if runtime_path_display != null:
+		runtime_path_display.set_external_preview_active(true)
 	if path_hover_preview != null:
 		path_hover_preview.preview_paths(paths)
 
@@ -632,3 +634,5 @@ func _on_wave_paths_preview_requested(paths: Array) -> void:
 func _on_wave_paths_preview_cleared() -> void:
 	if path_hover_preview != null:
 		path_hover_preview.clear_preview()
+	if runtime_path_display != null:
+		runtime_path_display.set_external_preview_active(false)

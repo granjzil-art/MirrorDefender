@@ -34,6 +34,7 @@ func _test_manual_release_flow() -> void:
 	flow_renderer.segment_length = 0.5
 	flow_renderer.restart_delay = 0.25
 	path_display.configure(manager, path_manager)
+	var continuous_preview := path_display.get_continuous_preview()
 	var spawned_names: Array[String] = []
 	var released_numbers: Array[int] = []
 	var started_numbers: Array[int] = []
@@ -58,8 +59,14 @@ func _test_manual_release_flow() -> void:
 	manager._process(30.0)
 	_expect(manager.get_active_enemy_count() == 0, "no enemy spawns before the first manual release")
 	_expect(manager.should_show_continuous_paths(), "paths remain continuous before the first manual release")
-	_expect(path_manager.is_runtime_path_display_visible(), "the runtime path layer is visible before wave one")
-	_expect(path_manager._path_mesh.mesh != null, "continuous phase builds visible route geometry")
+	_expect(not path_manager.is_runtime_path_display_visible(), "the legacy yellow runtime layer stays hidden before wave one")
+	_expect(path_manager._path_mesh.mesh == null, "the legacy yellow route geometry is not used for continuous presentation")
+	_expect(continuous_preview.get_active_path_count() == 1, "continuous presentation reuses the hover-style route preview")
+	_expect(not continuous_preview.get_marker_positions().is_empty(), "continuous presentation includes hover-style flow markers")
+	path_display.set_external_preview_active(true)
+	_expect(continuous_preview.get_active_path_count() == 0, "an external hover preview suppresses the duplicate continuous overlay")
+	path_display.set_external_preview_active(false)
+	_expect(continuous_preview.get_active_path_count() == 1, "clearing external hover restores the continuous preview")
 	_expect(manager.get_released_wave_count() == 0, "no wave is released implicitly")
 	_expect(manager.get_next_wave_number() == 1 and manager.get_next_wave() == level.waves[0], "next-wave queries expose the first pending wave")
 
@@ -67,6 +74,7 @@ func _test_manual_release_flow() -> void:
 	_expect(manager.is_wave_action_active(), "a released wave with living or pending enemies is action-active")
 	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.FLOWING, "active combat changes path display to moving-segment mode")
 	_expect(not path_manager.is_runtime_path_display_visible(), "active combat hides the continuous whole-route layer")
+	_expect(continuous_preview.get_active_path_count() == 0, "active combat clears the inter-wave hover-style preview")
 	_expect(flow_renderer.get_active_path_ids() == [&"manual_wave_path"], "moving hints are filtered to active authored paths")
 	_expect(flow_renderer.has_visible_geometry() and flow_renderer.get_visible_segment_count() == 1, "one short segment starts at the active path origin")
 	var initial_heads := flow_renderer.get_segment_head_positions()
@@ -96,7 +104,15 @@ func _test_manual_release_flow() -> void:
 	await _clear_active_enemies(manager)
 	_expect(manager.get_state() == WaveManager.State.ACTIVE, "clearing released waves cannot win while a wave remains unreleased")
 	_expect(manager.should_show_continuous_paths(), "a cleared interval with another unreleased wave is a continuous-path interval")
-	_expect(path_manager.is_runtime_path_display_visible(), "all routes remain visible throughout the wave interval")
+	_expect(flow_renderer.is_finishing(), "a generated short segment enters a finishing pass when the wave ends")
+	_expect(flow_renderer.has_visible_geometry(), "the wave-end transition keeps the generated segment visible")
+	path_display.advance_display_time(0.40)
+	_expect(flow_renderer.has_visible_geometry(), "the finishing segment continues travelling instead of disappearing abruptly")
+	path_display.advance_display_time(0.70)
+	_expect(not flow_renderer.is_finishing(), "the finishing pass ends only after the segment leaves its target")
+	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.CONTINUOUS, "the controller enters inter-wave mode after the short segment finishes")
+	_expect(continuous_preview.get_active_path_count() == 1, "all routes use hover-style presentation throughout the wave interval")
+	_expect(not path_manager.is_runtime_path_display_visible() and path_manager._path_mesh.mesh == null, "wave intervals never restore the legacy yellow line")
 	_expect(manager.get_next_wave_number() == 3 and manager.can_start_next_wave(), "the final unreleased wave remains explicitly available")
 
 	_expect(manager.start_next_wave(), "the final wave can be released manually")

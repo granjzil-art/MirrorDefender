@@ -3,6 +3,8 @@
 class_name PathMovingSegmentRenderer
 extends Node3D
 
+signal segments_finished
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -28,6 +30,8 @@ var _fallback_material: StandardMaterial3D
 var _requested_routes: Array[Dictionary] = []
 var _route_records: Array[Dictionary] = []
 var _flow_elapsed: float = 0.0
+var _finish_elapsed: float = 0.0
+var _is_finishing: bool = false
 var _visible_segment_count: int = 0
 var _segment_head_positions: Array[Vector3] = []
 
@@ -50,6 +54,8 @@ func show_routes(routes: Array, reset_motion: bool = true) -> void:
 	var normalized := _normalize_requests(routes)
 	var changed := _make_request_signature(normalized) != _make_request_signature(_requested_routes)
 	_requested_routes = normalized
+	_is_finishing = false
+	_finish_elapsed = 0.0
 	if reset_motion or changed:
 		_flow_elapsed = 0.0
 	_rebuild_route_records()
@@ -59,7 +65,35 @@ func clear_routes() -> void:
 	_requested_routes.clear()
 	_route_records.clear()
 	_flow_elapsed = 0.0
+	_finish_elapsed = 0.0
+	_is_finishing = false
 	_clear_mesh()
+
+
+## Stops future loops but lets every currently visible segment leave its target.
+## Returns false when no generated segment needs a finishing pass.
+func finish_current_segments() -> bool:
+	if _route_records.is_empty() or not has_visible_geometry():
+		clear_routes()
+		return false
+	var speed := maxf(0.1, flow_speed)
+	var has_segment_to_finish := false
+	for record in _route_records:
+		var total_length: float = float(record["total_length"])
+		var travel_duration := total_length / speed
+		var cycle_duration := travel_duration + maxf(0.0, restart_delay)
+		var local_time := fposmod(_flow_elapsed, maxf(0.000001, cycle_duration))
+		if local_time < travel_duration:
+			record["finish_local_time"] = local_time
+			has_segment_to_finish = true
+		else:
+			record["finish_local_time"] = -1.0
+	if not has_segment_to_finish:
+		clear_routes()
+		return false
+	_is_finishing = true
+	_finish_elapsed = 0.0
+	return true
 
 
 ## Public deterministic game-time clock for the controller and regressions.
@@ -67,12 +101,21 @@ func advance_visual_time(delta: float) -> void:
 	if not feature_enabled or _route_records.is_empty():
 		_clear_mesh()
 		return
-	_flow_elapsed += maxf(0.0, delta)
+	if _is_finishing:
+		_finish_elapsed += maxf(0.0, delta)
+	else:
+		_flow_elapsed += maxf(0.0, delta)
 	_rebuild_mesh()
+	if _is_finishing and _visible_segment_count == 0:
+		_complete_finishing()
 
 
 func get_active_path_count() -> int:
 	return _route_records.size()
+
+
+func is_finishing() -> bool:
+	return _is_finishing
 
 
 func get_active_path_ids() -> Array[StringName]:
@@ -167,7 +210,11 @@ func _rebuild_mesh() -> void:
 		var travel_duration := total_length / speed
 		var cycle_duration := travel_duration + maxf(0.0, restart_delay)
 		var local_time := fposmod(_flow_elapsed, maxf(0.000001, cycle_duration))
+		if _is_finishing:
+			local_time = float(record.get("finish_local_time", -1.0)) + _finish_elapsed
 		if local_time >= travel_duration:
+			continue
+		if local_time < 0.0:
 			continue
 		var tail_distance := minf(total_length, local_time * speed)
 		var head_distance := minf(total_length, tail_distance + requested_length)
@@ -337,8 +384,19 @@ func _on_paths_loaded(_level_resource: LevelResource) -> void:
 
 
 func _on_runtime_routes_changed() -> void:
-	if not _requested_routes.is_empty():
+	if not _is_finishing and not _requested_routes.is_empty():
 		_rebuild_route_records()
+
+
+func _complete_finishing() -> void:
+	if not _is_finishing:
+		return
+	_is_finishing = false
+	_finish_elapsed = 0.0
+	_requested_routes.clear()
+	_route_records.clear()
+	_clear_mesh()
+	segments_finished.emit()
 
 
 func _disconnect_path_manager() -> void:
