@@ -1,5 +1,15 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Level Editor · 斜坡地形覆盖 — 2026-08-03
+**模块**：Terrain Grid / Runtime / Level Editor / Validation / Tests / Docs。
+
+- `RampPlacementData` 新增可空的整坡 `terrain_override`；旧资源和新建斜坡默认空值，继续严格跟随坡底基底地形。
+- 斜坡工具与已选斜坡检查器开放“跟随坡底基底 / 指定Terrain”选择；显式覆盖只改变整条斜坡的模型或灰盒颜色，不写回坡体下方Grid。
+- TerrainManager、运行时模型实例化、地块页画布及路径/镜头只读预览统一解析覆盖；路径格颜色仍保持既有显示优先级。
+- 新增默认跟随、显式覆盖、恢复跟随、底层Grid不变、运行时副本及编辑器控件回归。
+
+**影响面**：不改变斜坡坡度、层数规约、连接规则、路径、建造权限、Stuff、波次或镜头数据；同一斜坡仍是不可逐格拆分的原子地形表现。
+
 ## Terrain / Presentation · 层高适配模型原始比例 — 2026-08-03
 **模块**：Terrain / Model Asset / Level / Level Editor / Tests / Docs。
 

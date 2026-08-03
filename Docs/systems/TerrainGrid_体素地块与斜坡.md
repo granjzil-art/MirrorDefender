@@ -20,6 +20,7 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `RampPlacementData` | `anchor_cell` / `facing_index` | 最低坡格与上坡方向。 |
 | `RampPlacementData` | `run_length` | 1～4，对应1:1、1:2、1:3、1:4。 |
 | `RampPlacementData` | `base_layer` | 坡底层数1～3；坡顶固定为 `base_layer + 1`。 |
+| `RampPlacementData` | `terrain_override` | 可空。空值表示整条斜坡跟随坡底基底地形；非空时只覆盖整条斜坡的模型/颜色，不修改底层Grid。 |
 | `LevelResource` | `default_terrain` / `layer_height` | 未逐格覆盖时的地形与单层高度；高度固定由 `grid_cell_size × 1.0` 派生。 |
 | `LevelResource` | `grid_cells` / `ramp_placements` | 规范地块覆盖和斜坡数组。 |
 | `TerrainManager` | `feature_enabled` | 规范Terrain运行时总开关；Main默认开启。 |
@@ -100,6 +101,7 @@ TerrainManager
 | `RampPlacementData.get_low_neighbor` | `(shape: IGridShape) -> Vector3i` | 返回坡体外的低端连接格。 |
 | `RampPlacementData.get_high_neighbor` | `(shape: IGridShape) -> Vector3i` | 返回坡体外的高端连接格。 |
 | `RampPlacementData.get_connection_layer_toward` | `(shape: IGridShape, outside_cell: Vector3i) -> int` | 返回朝指定外部相邻格暴露的高/低端表面层；侧边返回0。 |
+| `RampPlacementData.get_effective_terrain` | `(base_terrain: TerrainDefinition) -> TerrainDefinition` | 解析显式斜坡覆盖，空值时返回基底地形。 |
 | `TerrainManager.load_level` | `(level_resource: LevelResource) -> bool` | 构建隔离的规范运行时副本，全部成功后一次提交。 |
 | `TerrainManager.get_grid_cell` | `(cell: Vector3i) -> GridCellData` | 返回当前运行时Terrain格。 |
 | `TerrainManager.get_world_height` | `(cell: Vector3i) -> float` | 返回平地或斜坡格中心的表面Y。 |
@@ -120,7 +122,8 @@ TerrainManager
 | `LevelResource.get_effective_content_snapshot` | `() -> Dictionary` | 返回 `{content_version, migrated, default_terrain, layer_height, grid_cells, ramp_placements, stuff_placements}`。 |
 | `LevelResource.migrate_legacy_content_in_place` | `() -> bool` | 显式物化规范数组；批次1保留旧`tiles`以维持现运行时。 |
 | `LevelContentValidator.validate` | `(level: Resource, shape: IGridShape) -> Array[String]` | 对规范内容执行只读完整校验。 |
-| `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int) -> Dictionary` | S1放置；校验占格、连续坡共享边，并自动对齐坡体与平地连接端。 |
+| `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int, terrain_override: TerrainDefinition = null) -> Dictionary` | S1放置；校验占格、连续坡共享边，自动对齐坡体与平地连接端，并可设置整坡地形覆盖。 |
+| `TerrainStuffAuthoring.set_ramp_terrain_override` | `(level: Resource, ramp_id: StringName, terrain_override: TerrainDefinition) -> bool` | 设置整坡地形覆盖；传空恢复跟随基底，不改底层Grid。 |
 | `TerrainStuffAuthoring.normalize_ramp_constraints` | `(level: Resource, shape: IGridShape) -> Dictionary` | 将结构合法且无冲突的斜坡规约回规范Grid；返回`{changed, normalized_ramps, skipped_ramps, skipped_ramp_ids}`。 |
 | `TerrainStuffAuthoring.get_ramp_layer_constraint` | `(level: Resource, shape: IGridShape, cell: Vector3i) -> Dictionary` | 优先返回坡体自身所有权；平地连接格返回关联斜坡、期望层及多约束冲突状态。 |
 
@@ -130,7 +133,8 @@ TerrainManager
 - `GridCellData.layer_count` 是1起始层数；世界顶面为 `(层数 - 1) × 单层高度`。
 - 斜坡是Grid形状，不是Stuff，也不属于复制镜可复制内容。
 - `anchor_cell` 是最低坡格，`facing_index` 永远指向上坡；反向坡通过反转方向并改锚点表达。
-- 1:N斜坡占N格且只升一层。全部坡格基础层相同、地形ID相同，高低端必须位于图内并分别连接基础层与基础层+1。
+- 1:N斜坡占N格且只升一层。全部坡格的底层Grid基础层和基底地形相同，高低端必须位于图内并分别连接基础层与基础层+1。
+- 斜坡地形是整条坡的原子表现配置：`terrain_override == null` 时跟随坡底基底地形；非空时整条坡使用覆盖地形对应的1:1～1:4模型或灰盒颜色。禁止同一斜坡逐格混用地形，覆盖也不得反写底层Grid。
 - `RampPlacementData` 是斜坡体素约束的事实源：坡体Grid层恒为自身`base_layer`；连接端是平地时，低端规约为`base_layer`、高端规约为`base_layer + 1`。连接端被另一段斜坡占据时，不改写对方坡体层，而是比较双方共享物理边的表面层。
 - 连续斜坡仅允许高/低端完整共享边且表面层相同；高接低、低接高、高接高（山脊）或低接低（谷底）均按共享边层判断。接到另一斜坡侧边、共享边层数不一致、坡体重叠或越界仍为非法。
 - 创建、载入编辑器和保存前共用上述规约；斜坡坡体和仍为平地的连接格在斜坡存在期间不可手工修改层数。
@@ -146,7 +150,7 @@ TerrainManager
 
 ## 已知限制 / 后续批次
 
-- 关卡编辑器已提供 Terrain、1～4层、两类权限、S1斜坡和 Stuff 独立工具；用法见 `LevelEditor_关卡编辑器.md`。
+- 关卡编辑器已提供 Terrain、1～4层、两类权限、可跟随/覆盖地形的S1斜坡和 Stuff 独立工具；用法见 `LevelEditor_关卡编辑器.md`。
 - Stuff效果、互斥、摧毁、综合建造权限与镜像快照已由独立 `StuffManager / StuffRuntime / StuffRenderer` 承担。
 - 旧资源只读迁移无法推断元素下方曾经被混合格式抹去的特殊地形；默认迁移为关卡草地/默认地形，模型覆盖仍原样引用。
 - 运行时仍可只读加载旧 `tiles`；一旦用批次4编辑器导入，作者文档会清空旧数组，只保留规范事实源。

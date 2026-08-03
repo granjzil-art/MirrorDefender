@@ -41,6 +41,8 @@ var _stuff_brush_facing: SpinBox
 var _ramp_direction: OptionButton
 var _ramp_length: OptionButton
 var _ramp_base_layer: OptionButton
+var _ramp_terrain: OptionButton
+var _selected_ramp_terrain: OptionButton
 var _terrain_options: Array[TerrainDefinitionScript] = []
 var _stuff_options: Array[StuffDefinitionScript] = []
 var _controls_blocked: bool = false
@@ -241,9 +243,13 @@ func _build_interface() -> void:
 	for base_layer in range(1, 4):
 		_ramp_base_layer.add_item("第 %d 层 -> 第 %d 层" % [base_layer, base_layer + 1], base_layer)
 	sidebar.add_child(_with_label("高低端", _ramp_base_layer))
+	_ramp_terrain = OptionButton.new()
+	_ramp_terrain.name = "RampTerrainBrush"
+	_fill_ramp_terrain_options(_ramp_terrain)
+	sidebar.add_child(_with_label("斜坡地形", _ramp_terrain))
 	var ramp_brush := Button.new()
 	ramp_brush.text = "启用斜坡：点击最低坡格"
-	ramp_brush.tooltip_text = "自动统一坡体地形/基础层，并把高端连接格提高一层。"
+	ramp_brush.tooltip_text = "自动统一坡体基底地形/基础层，并把高端连接格提高一层；斜坡地形可跟随基底或独立覆盖。"
 	ramp_brush.pressed.connect(_select_ramp_brush)
 	sidebar.add_child(ramp_brush)
 
@@ -327,6 +333,11 @@ func _build_inspector(inspector: VBoxContainer) -> void:
 	_ramp_label.text = "当前格不属于斜坡"
 	_ramp_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	inspector.add_child(_ramp_label)
+	_selected_ramp_terrain = OptionButton.new()
+	_selected_ramp_terrain.name = "SelectedRampTerrain"
+	_fill_ramp_terrain_options(_selected_ramp_terrain)
+	_selected_ramp_terrain.item_selected.connect(_on_selected_ramp_terrain_changed)
+	inspector.add_child(_with_label("斜坡地形", _selected_ramp_terrain))
 	_remove_ramp_button = Button.new()
 	_remove_ramp_button.text = "移除当前斜坡"
 	_remove_ramp_button.pressed.connect(_remove_selected_ramp)
@@ -424,12 +435,19 @@ func _select_stuff_brush(definition: StuffDefinitionScript) -> void:
 
 
 func _select_ramp_brush() -> void:
+	var terrain_override := _ramp_terrain_from_selection(_ramp_terrain)
 	_canvas.set_ramp_brush(
 		_ramp_direction.get_selected_id(),
 		_ramp_length.get_selected_id(),
-		_ramp_base_layer.get_selected_id()
+		_ramp_base_layer.get_selected_id(),
+		terrain_override
 	)
-	_set_status("斜坡工具：点击最低坡格；青色轮廓为占格预览。", true)
+	var terrain_label := (
+		"跟随坡底基底"
+		if terrain_override == null
+		else terrain_override.display_name
+	)
+	_set_status("斜坡工具：%s；点击最低坡格，青色轮廓为占格预览。" % terrain_label, true)
 
 
 func _on_cell_selected(_cell: Vector3i) -> void:
@@ -483,18 +501,28 @@ func _refresh_selected_inspector() -> void:
 	elif related_ramp == null:
 		_ramp_label.text = "当前格不属于斜坡"
 	else:
-		_ramp_label.text = "%s | %s | 1:%d | 基础层 %d | 上坡方向 %d" % [
+		var ramp_terrain_label := (
+			"跟随基底"
+			if related_ramp.terrain_override == null
+			else related_ramp.terrain_override.display_name
+		)
+		_ramp_label.text = "%s | %s | 1:%d | 基础层 %d | 上坡方向 %d | 地形 %s" % [
 			related_ramp.ramp_id,
 			str(layer_constraint["role"]),
 			related_ramp.run_length,
 			related_ramp.base_layer,
 			related_ramp.facing_index,
+			ramp_terrain_label,
 		]
+	_selected_ramp_terrain.select(
+		_ramp_terrain_selection_index(ramp.terrain_override if ramp != null else null)
+	)
 	_controls_blocked = false
 	_set_inspector_enabled(true)
 	_terrain_select.disabled = ramp != null
 	_layer_select.editable = layer_constraint.is_empty()
 	_remove_ramp_button.disabled = related_ramp == null or bool(layer_constraint.get("conflict", false))
+	_selected_ramp_terrain.disabled = ramp == null
 	_remove_stuff_button.disabled = _stuff_list.item_count == 0
 	_stuff_facing.editable = _stuff_list.item_count > 0
 
@@ -516,6 +544,26 @@ func _on_selected_layer_changed(value: float) -> void:
 		return
 	if Authoring.paint_layer(_level, _canvas.selected_cell, int(value)):
 		_canvas.refresh()
+		level_changed.emit()
+
+
+func _on_selected_ramp_terrain_changed(_index: int) -> void:
+	if _controls_blocked or not _has_selection():
+		return
+	var ramp := Authoring.get_ramp_at(_level, _shape, _canvas.selected_cell)
+	if ramp == null:
+		return
+	var terrain_override := _ramp_terrain_from_selection(_selected_ramp_terrain)
+	if Authoring.set_ramp_terrain_override(_level, ramp.ramp_id, terrain_override):
+		_canvas.refresh()
+		_refresh_selected_inspector()
+		_set_status(
+			"斜坡 %s 已%s。底层 Grid 地形未改变。" % [
+				ramp.ramp_id,
+				"恢复跟随基底" if terrain_override == null else "覆盖为 %s" % terrain_override.display_name,
+			],
+			true
+		)
 		level_changed.emit()
 
 
@@ -602,6 +650,7 @@ func _set_inspector_enabled(enabled: bool) -> void:
 	_stuff_facing.editable = enabled
 	_remove_stuff_button.disabled = not enabled
 	_remove_ramp_button.disabled = not enabled
+	_selected_ramp_terrain.disabled = not enabled
 
 
 func _has_selection() -> bool:
@@ -674,6 +723,29 @@ func _fill_terrain_options(option_button: OptionButton) -> void:
 	for terrain in _terrain_options:
 		option_button.add_item(terrain.display_name)
 		option_button.set_item_tooltip(option_button.item_count - 1, terrain.resource_path)
+
+
+func _fill_ramp_terrain_options(option_button: OptionButton) -> void:
+	option_button.clear()
+	option_button.add_item("跟随坡底基底")
+	option_button.set_item_tooltip(0, "默认：斜坡整体使用最低坡格的 Grid 地形")
+	for terrain in _terrain_options:
+		option_button.add_item(terrain.display_name)
+		option_button.set_item_tooltip(
+			option_button.item_count - 1,
+			"覆盖斜坡整体表现：%s（不修改底层 Grid）" % terrain.resource_path
+		)
+
+
+func _ramp_terrain_from_selection(option_button: OptionButton) -> TerrainDefinitionScript:
+	if option_button == null or option_button.selected <= 0:
+		return null
+	var terrain_index := option_button.selected - 1
+	return _terrain_options[terrain_index] if terrain_index < _terrain_options.size() else null
+
+
+func _ramp_terrain_selection_index(terrain: TerrainDefinitionScript) -> int:
+	return _terrain_index(terrain) + 1 if terrain != null else 0
 
 
 func _terrain_index(terrain: TerrainDefinitionScript) -> int:

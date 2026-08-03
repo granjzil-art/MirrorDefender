@@ -703,6 +703,10 @@ func _terrain_color(cell: Vector3i, tile: Resource) -> Color:
 	if level != null and level.uses_canonical_content():
 		var data := _canonical_grid_cell(cell)
 		var terrain: TerrainDefinition = data.get_effective_terrain(level.default_terrain) if data != null else level.default_terrain
+		var binding: Dictionary = _ramp_bindings.get(cell, {})
+		var ramp: RampPlacementDataScript = binding.get("ramp") as RampPlacementDataScript
+		if ramp != null:
+			terrain = ramp.get_effective_terrain(terrain)
 		return terrain.fallback_color if terrain != null else Color.WHITE
 	return _height_color(tile)
 

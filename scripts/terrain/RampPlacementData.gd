@@ -21,6 +21,16 @@ const INVALID_CONNECTION_LAYER: int = 0
 @export_range(1, 4, 1) var run_length: int = MIN_RUN_LENGTH
 @export_range(1, 3, 1) var base_layer: int = MIN_BASE_LAYER
 
+@export_group("Terrain")
+## Null preserves the default contract: the whole ramp follows the terrain of
+## its low-end/base Grid cell. A value overrides only the ramp presentation;
+## it never rewrites the terrain stored by the underlying Grid cells.
+@export var terrain_override: TerrainDefinition
+
+
+func get_effective_terrain(base_terrain: TerrainDefinition) -> TerrainDefinition:
+	return terrain_override if terrain_override != null else base_terrain
+
 
 func get_footprint_cells(shape: IGridShape) -> Array[Vector3i]:
 	var cells: Array[Vector3i] = []
@@ -72,4 +82,7 @@ func validate_configuration() -> Array[String]:
 		errors.append("斜坡基础层必须位于 1 到 3 之间")
 	if facing_index < 0:
 		errors.append("斜坡方向不能为负数")
+	if terrain_override != null:
+		for terrain_error in terrain_override.validate_configuration():
+			errors.append("斜坡覆盖地形：%s" % terrain_error)
 	return errors

@@ -70,6 +70,12 @@ func _test_ramp_footprints() -> void:
 	square_ramp.anchor_cell = Vector3i(1, 1, 0)
 	square_ramp.facing_index = 0
 	square_ramp.run_length = 4
+	var grass: TerrainDefinitionScript = load("res://resources/terrains/Grass.tres")
+	var mud: TerrainDefinitionScript = load("res://resources/terrains/Mud.tres")
+	_expect(square_ramp.terrain_override == null, "new ramps default to following their base Grid terrain")
+	_expect(square_ramp.get_effective_terrain(grass) == grass, "null ramp terrain override resolves the supplied base terrain")
+	square_ramp.terrain_override = mud
+	_expect(square_ramp.get_effective_terrain(grass) == mud, "one explicit terrain overrides the complete ramp presentation")
 	var square_cells := square_ramp.get_footprint_cells(square)
 	_expect(square_cells == [
 		Vector3i(1, 1, 0), Vector3i(2, 1, 0), Vector3i(3, 1, 0), Vector3i(4, 1, 0)

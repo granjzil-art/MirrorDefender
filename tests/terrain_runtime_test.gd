@@ -65,16 +65,25 @@ func _test_terrain_model_instancing() -> void:
 	terrain_definition.terrain_id = &"runtime_asset_terrain"
 	terrain_definition.display_name = "运行时模型地形"
 	terrain_definition.flat_model_asset = _make_model_asset(Vector3(1.2, 1.1, 1.0))
-	terrain_definition.ramp_1_to_2_model_asset = _make_model_asset(
+	var ramp_terrain := TerrainDefinition.new()
+	ramp_terrain.terrain_id = &"runtime_ramp_override"
+	ramp_terrain.display_name = "运行时斜坡覆盖地形"
+	ramp_terrain.fallback_color = Color(0.34, 0.20, 0.12, 1.0)
+	ramp_terrain.ramp_1_to_2_model_asset = _make_model_asset(
 		Vector3(1.0, 1.0, 1.0),
 		Vector3(1.0, 1.0, 2.0)
 	)
 	level.default_terrain = terrain_definition
 	for grid_cell in level.grid_cells:
 		grid_cell.terrain = terrain_definition
+	level.ramp_placements[0].terrain_override = ramp_terrain
 	var loader: LevelLoader = fixture["loader"]
+	var terrain: TerrainManagerScript = fixture["terrain"]
 	var renderer: TerrainRendererScript = fixture["renderer"]
 	_expect(loader.load_level(level, "memory://terrain-models"), "terrain model fixture loads")
+	_expect(terrain.get_terrain(Vector3i(1, 1, 0)) == ramp_terrain, "runtime resolves an explicit terrain for every ramp footprint cell")
+	_expect(terrain.get_terrain(Vector3i(0, 0, 0)) == terrain_definition, "ramp terrain override does not leak into neighboring flat Grid")
+	_expect(terrain.get_ramp_for_cell(Vector3i(1, 1, 0)).terrain_override == ramp_terrain, "runtime ramp snapshot preserves the authored terrain override")
 	var model_root := renderer.get_node_or_null("TerrainModels")
 	var flat_count := 0
 	var ramp_count := 0

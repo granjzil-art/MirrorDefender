@@ -494,7 +494,8 @@ static func place_ramp(
 	anchor_cell: Vector3i,
 	facing_index: int,
 	run_length: int,
-	base_layer: int
+	base_layer: int,
+	terrain_override: TerrainDefinitionScript = null
 ) -> Dictionary:
 	if level == null or shape == null:
 		return {"success": false, "message": "关卡或网格无效", "ramp": null}
@@ -506,6 +507,7 @@ static func place_ramp(
 	ramp.facing_index = facing_index
 	ramp.run_length = clampi(run_length, 1, 4)
 	ramp.base_layer = clampi(base_layer, 1, 3)
+	ramp.terrain_override = terrain_override
 	var footprint := ramp.get_footprint_cells(shape)
 	var low_cell := ramp.get_low_neighbor(shape)
 	var high_cell := ramp.get_high_neighbor(shape)
@@ -534,6 +536,30 @@ static func place_ramp(
 	level.set("ramp_placements", next_ramps)
 	level.emit_changed()
 	return {"success": true, "message": "已放置 1:%d 斜坡" % ramp.run_length, "ramp": ramp}
+
+
+## Changes only the ramp's atomic presentation override. Null restores the
+## default follow-base behavior and the underlying Grid terrain is untouched.
+static func set_ramp_terrain_override(
+	level: Resource,
+	ramp_id: StringName,
+	terrain_override: TerrainDefinitionScript
+) -> bool:
+	if level == null or ramp_id.is_empty():
+		return false
+	for raw_ramp in _as_array(level.get("ramp_placements")):
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		var ramp: RampPlacementDataScript = raw_ramp
+		if ramp.ramp_id != ramp_id:
+			continue
+		if ramp.terrain_override == terrain_override:
+			return false
+		ramp.terrain_override = terrain_override
+		ramp.emit_changed()
+		level.emit_changed()
+		return true
+	return false
 
 
 static func remove_ramp(level: Resource, ramp_id: StringName) -> bool:

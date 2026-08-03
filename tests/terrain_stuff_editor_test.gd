@@ -113,10 +113,24 @@ func _test_s1_ramp_authoring() -> void:
 	var level := _make_canonical_level(Vector2i(6, 3))
 	var shape := _make_square_shape(level)
 	Authoring.prepare_level(level, shape)
+	var sand: TerrainDefinition = load("res://resources/terrains/Sand.tres")
+	var mud: TerrainDefinition = load("res://resources/terrains/Mud.tres")
+	Authoring.paint_terrain(level, Vector3i(1, 1, 0), sand)
 	var result := Authoring.place_ramp(level, shape, Vector3i(1, 1, 0), 0, 2, 1)
 	_expect(bool(result["success"]), "S1 click places a valid 1:2 ramp")
 	var ramp: RampPlacementData = result["ramp"]
 	_expect(ramp.anchor_cell == Vector3i(1, 1, 0) and ramp.facing_index == 0, "ramp anchor is the lowest cell and direction points uphill")
+	_expect(ramp.terrain_override == null, "S1 ramp authoring defaults to following the base terrain")
+	_expect(ramp.get_effective_terrain(sand) == sand, "default ramp terrain resolves from its normalized low-end Grid")
+	_expect(Authoring.set_ramp_terrain_override(level, ramp.ramp_id, mud), "selected ramp accepts one independent terrain override")
+	_expect(ramp.get_effective_terrain(sand) == mud, "ramp override becomes the whole slope's effective terrain")
+	_expect(
+		Authoring.get_grid_cell(level, Vector3i(1, 1, 0)).get_effective_terrain(level.default_terrain) == sand
+		and Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).get_effective_terrain(level.default_terrain) == sand,
+		"changing ramp terrain never rewrites its underlying Grid terrain"
+	)
+	_expect(Authoring.set_ramp_terrain_override(level, ramp.ramp_id, null), "selected ramp can restore follow-base behavior")
+	_expect(ramp.terrain_override == null and ramp.get_effective_terrain(sand) == sand, "restored ramp follows its base terrain again")
 	_expect(Authoring.get_grid_cell(level, Vector3i(0, 1, 0)).layer_count == 1, "S1 aligns low connector to base layer")
 	_expect(Authoring.get_grid_cell(level, Vector3i(1, 1, 0)).layer_count == 1, "S1 aligns first footprint cell")
 	_expect(Authoring.get_grid_cell(level, Vector3i(2, 1, 0)).layer_count == 1, "S1 aligns full multi-cell footprint")
@@ -146,6 +160,20 @@ func _test_s1_ramp_authoring() -> void:
 	_expect(Authoring.remove_ramp(level, ramp.ramp_id), "selected ramp can be removed")
 	_expect(level.ramp_placements.is_empty(), "ramp removal deletes only ramp placement")
 	_expect(Authoring.get_grid_cell(level, Vector3i(3, 1, 0)).layer_count == 2, "ramp removal preserves author-visible layer edits")
+	var override_result := Authoring.place_ramp(
+		level,
+		shape,
+		Vector3i(1, 1, 0),
+		0,
+		2,
+		1,
+		mud
+	)
+	_expect(
+		bool(override_result["success"])
+		and (override_result["ramp"] as RampPlacementData).terrain_override == mud,
+		"S1 placement persists an explicitly selected whole-ramp terrain"
+	)
 
 
 func _test_continuous_ramp_authoring() -> void:
@@ -208,6 +236,18 @@ func _test_editor_page_contract() -> void:
 	var result := page.set_level(level)
 	_expect(not bool(result["migrated"]), "canonical editor page accepts canonical level without migration")
 	_expect(page.find_child("SelectedCellHelp", true, false) != null, "editor page exposes independent cell inspector")
+	var ramp_brush_terrain := page.find_child("RampTerrainBrush", true, false) as OptionButton
+	var selected_ramp_terrain := page.find_child("SelectedRampTerrain", true, false) as OptionButton
+	_expect(
+		ramp_brush_terrain != null
+		and ramp_brush_terrain.selected == 0
+		and ramp_brush_terrain.get_item_text(0) == "跟随坡底基底",
+		"slope placement tool defaults to the explicit follow-base option"
+	)
+	_expect(
+		selected_ramp_terrain != null and selected_ramp_terrain.get_item_count() == ramp_brush_terrain.get_item_count(),
+		"selected slope inspector exposes the same editable terrain choices"
+	)
 	var layer_height_control := page.get("_layer_height") as SpinBox
 	_expect(layer_height_control != null and not layer_height_control.editable, "model-proportional layer height is read-only in the editor")
 	_expect(page.get_child_count() == 3, "editor page outer split keeps exactly two layout children plus its dialog")

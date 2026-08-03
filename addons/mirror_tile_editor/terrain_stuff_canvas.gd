@@ -64,6 +64,7 @@ var _stuff_facing: int = 0
 var _ramp_facing: int = 0
 var _ramp_run_length: int = 1
 var _ramp_base_layer: int = 1
+var _ramp_terrain_override: TerrainDefinitionScript
 var _is_painting: bool = false
 var _last_paint_position := Vector2.ZERO
 var _painted_cells: Dictionary = {}
@@ -160,10 +161,16 @@ func set_stuff_brush(definition: StuffDefinitionScript, facing_index: int = 0) -
 	queue_redraw()
 
 
-func set_ramp_brush(facing_index: int, run_length: int, base_layer: int) -> void:
+func set_ramp_brush(
+	facing_index: int,
+	run_length: int,
+	base_layer: int,
+	terrain_override: TerrainDefinitionScript = null
+) -> void:
 	_ramp_facing = maxi(0, facing_index)
 	_ramp_run_length = clampi(run_length, 1, 4)
 	_ramp_base_layer = clampi(base_layer, 1, 3)
+	_ramp_terrain_override = terrain_override
 	_tool_mode = ToolMode.RAMP
 	queue_redraw()
 
@@ -393,6 +400,7 @@ func _draw_ramp_preview() -> void:
 	preview.facing_index = _ramp_facing
 	preview.run_length = _ramp_run_length
 	preview.base_layer = _ramp_base_layer
+	preview.terrain_override = _ramp_terrain_override
 	var cells := preview.get_footprint_cells(_shape)
 	var valid := true
 	for cell in cells + [preview.get_low_neighbor(_shape), preview.get_high_neighbor(_shape)]:
@@ -516,7 +524,8 @@ func _apply_tool_at(position: Vector2) -> void:
 				cell,
 				_ramp_facing,
 				_ramp_run_length,
-				_ramp_base_layer
+				_ramp_base_layer,
+				_ramp_terrain_override
 			)
 			changed = bool(ramp_result["success"])
 			success = changed
@@ -589,6 +598,10 @@ func _terrain_color(cell: Vector3i) -> Color:
 		if grid_cell != null
 		else level.default_terrain
 	)
+	var binding: Dictionary = _ramp_bindings.get(cell, {})
+	var ramp: RampPlacementDataScript = binding.get("ramp") as RampPlacementDataScript
+	if ramp != null:
+		terrain = ramp.get_effective_terrain(terrain)
 	return terrain.fallback_color if terrain != null else Color.WHITE
 
 

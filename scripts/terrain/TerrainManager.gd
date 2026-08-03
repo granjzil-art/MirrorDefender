@@ -164,7 +164,13 @@ func allows_edge_building(cell: Vector3i) -> bool:
 
 func get_terrain(cell: Vector3i) -> TerrainDefinitionScript:
 	var grid_cell := get_grid_cell(cell)
-	return grid_cell.get_effective_terrain(_default_terrain) if grid_cell != null else _default_terrain
+	var base_terrain: TerrainDefinitionScript = (
+		grid_cell.get_effective_terrain(_default_terrain)
+		if grid_cell != null
+		else _default_terrain
+	)
+	var ramp := get_ramp_for_cell(cell)
+	return ramp.get_effective_terrain(base_terrain) if ramp != null else base_terrain
 
 
 func get_terrain_color(cell: Vector3i) -> Color:
@@ -284,6 +290,7 @@ func _clone_ramp(source: RampPlacementDataScript) -> RampPlacementDataScript:
 	runtime_ramp.facing_index = source.facing_index
 	runtime_ramp.run_length = source.run_length
 	runtime_ramp.base_layer = source.base_layer
+	runtime_ramp.terrain_override = source.terrain_override
 	return runtime_ramp
 
 
