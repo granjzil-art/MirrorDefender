@@ -11,7 +11,7 @@
 - **统一字段**：每份资产包含 `scene: PackedScene` 和 `runtime_scale: Vector3`。
 - **附加缩放**：实例化时创建 `ModelAssetRoot` 包装节点，把 `runtime_scale` 写在包装节点；美术场景根节点原有位置、旋转和 Scale 保持不变。最终世界变换为运行时包装变换乘美术场景原始变换。
 - **独立配置**：多个 `ModelAssetDefinition` 可引用同一个 `PackedScene`，但保存不同 `runtime_scale`。建筑三个等级因此可以共用模型而采用不同尺寸。
-- **根节点约束**：模型场景根节点必须继承 `Node3D`；资源校验会实际实例化一次确认根类型。
+- **节点树约束**：模型场景根节点必须继承 `Node3D`，任一父节点下不得存在同名兄弟节点；资源校验会实际实例化并递归检查节点树。GLTF 建议由轻量 `.tscn` Prefab 直接继承，不要在继承场景中再次内嵌同名 Mesh。
 - **灰盒回退**：资产为空、无法实例化或根类型错误时，运行时返回 null，由地块、建筑、敌人或投射物模块生成原灰盒。
 - **旧资源兼容**：建筑等级、敌人和地块元素保留隐藏的旧 `visual_scene` 存储字段；新资源必须使用 `model_asset` / `element_model_asset`。
 
@@ -89,7 +89,7 @@ BuildingLevelStats.projectile_model_asset
 |---|---|---|
 | `ModelAssetDefinition.is_configured` | `() -> bool` | 返回是否配置了 PackedScene。 |
 | `ModelAssetDefinition.instantiate_model` | `(instance_name: StringName = &"ModelAssetRoot") -> Node3D` | 创建附加 Scale 包装节点并实例化 Node3D 美术场景；失败返回 null。 |
-| `ModelAssetDefinition.validate_configuration` | `() -> Array[String]` | 校验 Scale 为有限正数、场景可实例化且根节点继承 Node3D。 |
+| `ModelAssetDefinition.validate_configuration` | `() -> Array[String]` | 校验 Scale 为有限正数、场景可实例化、根节点继承 Node3D 且不存在同名兄弟节点。 |
 | `BuildingLevelStats.get_model_asset` | `() -> ModelAssetDefinition` | 返回新契约资产，或把旧 `visual_scene` 临时包装为兼容资产。 |
 | `EnemyDefinition.get_model_asset` | `() -> ModelAssetDefinition` | 返回敌人有效模型资产并兼容旧字段。 |
 | `TileDefinition.get_element_model_asset` | `() -> ModelAssetDefinition` | 返回内容层有效模型资产并兼容旧字段。 |
@@ -101,6 +101,7 @@ BuildingLevelStats.projectile_model_asset
 ## 约定事实源
 
 - `PackedScene` 内保存的 Transform 属于美术资产；`runtime_scale` 属于玩法项目配置，两者禁止互相覆盖。
+- GLTF 的 `.tscn` 封装只保存根 Transform 与必要覆盖；禁止同时保留导入子节点和再次内嵌同名 Mesh，否则编辑器资源重扫会触发“引入节点名称冲突”。
 - `runtime_scale` 三轴必须都是有限正数；镜像翻转由 Mirror 的反射矩阵负责，不能用负 Scale 冒充。
 - 地块基底和地块内容是两个独立槽。复制镜只请求内容快照，不复制基底资产。
 - 新规范进一步固定为Terrain与Stuff两个资源域：Terrain平地/斜坡永不进入镜像内容，Stuff模型可被按格复制。

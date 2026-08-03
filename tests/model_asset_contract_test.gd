@@ -31,6 +31,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[ModelAssetContract] running")
 	_test_contract_preserves_authored_transform()
+	_test_production_terrain_prefab()
 	_test_production_building_assets()
 	await _test_tile_and_element_models()
 	await _test_building_and_projectile_models()
@@ -42,6 +43,19 @@ func _run() -> void:
 	else:
 		push_error("[ModelAssetContract] FAIL: %d/%d checks failed" % [_failures, _checks])
 		quit(1)
+
+
+func _test_production_terrain_prefab() -> void:
+	var packed := ResourceLoader.load(
+		"res://assets/blocks/tscn/bricks_b_2.tscn",
+		"PackedScene",
+		ResourceLoader.CACHE_MODE_REPLACE_DEEP
+	) as PackedScene
+	_expect(packed != null, "production bricks terrain prefab loads")
+	var asset := ModelAssetDefinition.new()
+	asset.scene = packed
+	var errors := asset.validate_configuration() if packed != null else ["resource failed to load"]
+	_expect(errors.is_empty(), "production bricks terrain prefab has an unambiguous node tree: %s" % str(errors))
 
 
 func _test_contract_preserves_authored_transform() -> void:

@@ -24,6 +24,9 @@ func instantiate_model(instance_name: StringName = &"ModelAssetRoot") -> Node3D:
 	if not raw_instance is Node3D:
 		raw_instance.free()
 		return null
+	if not _find_duplicate_sibling_name(raw_instance).is_empty():
+		raw_instance.free()
+		return null
 	var runtime_root := Node3D.new()
 	runtime_root.name = instance_name
 	runtime_root.scale = runtime_scale
@@ -53,5 +56,21 @@ func validate_configuration() -> Array[String]:
 		return errors
 	if not raw_instance is Node3D:
 		errors.append("模型场景根节点必须继承 Node3D")
+	var duplicate_path := _find_duplicate_sibling_name(raw_instance)
+	if not duplicate_path.is_empty():
+		errors.append("模型场景存在同名兄弟节点：%s" % duplicate_path)
 	raw_instance.free()
 	return errors
+
+
+func _find_duplicate_sibling_name(parent: Node) -> String:
+	var child_names: Dictionary = {}
+	for child in parent.get_children():
+		var child_name := String(child.name)
+		if child_names.has(child_name):
+			return "%s/%s" % [String(parent.get_path()), child_name]
+		child_names[child_name] = true
+		var nested_duplicate := _find_duplicate_sibling_name(child)
+		if not nested_duplicate.is_empty():
+			return nested_duplicate
+	return ""

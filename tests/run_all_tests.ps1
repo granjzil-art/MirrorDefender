@@ -25,6 +25,7 @@ $Tests = @(
 	"level_select_test.gd",
 	"manual_wave_and_level_flow_test.gd",
 	"manual_wave_release_test.gd",
+	"model_asset_contract_test.gd",
 	"path_spawn_pairing_test.gd",
 	"path_terrain_color_test.gd",
 	"robustness_baseline_test.gd",

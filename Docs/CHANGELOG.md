@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Presentation / Level Editor · 修复地形模型节点重名 — 2026-08-03
+**模块**：Model Asset / Terrain / Level Editor / Tests / Docs。
+
+- 修复 `bricks_b_2.tscn` 同时保留 GLTF 导入子节点与同名内嵌 Mesh，导致刷写泥地后资源重扫报 `bricks_B` 节点名称冲突的问题；Prefab 改为只继承一次源 GLTF 并保留原根位移。
+- `ModelAssetDefinition` 新增同名兄弟节点递归校验；不合法模型在运行时安全回退灰盒，生产地形 Prefab 纳入全量自动回归。
+
+**影响面**：不改变泥地属性、路径数据、地形 Scale、关卡玩法或用户当前关卡编辑内容，仅修正模型封装和资产健壮性检查。
+
 ## Path / Wave · 统一波间流线与波末收尾 — 2026-08-03
 **模块**：Path / Wave / Main / Tests / Docs。
 
