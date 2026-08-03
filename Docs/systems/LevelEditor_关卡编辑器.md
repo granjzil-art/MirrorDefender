@@ -17,7 +17,7 @@
 Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 
 1. **Terrain 地形刷**：选草地/沙地/水/泥土后按住左键连续涂刷。只改 Terrain，不改层数、权限和 Stuff。
-2. **层数刷**：选 1～4 层后连续涂刷。顶面高度为 `(层数 - 1) * 体素单层高度`。
+2. **层数刷**：选 1～4 层后连续涂刷。顶面高度为 `(层数 - 1) * 体素单层高度`；“体素单层高度”只读并自动等于 `Grid Cell Size`，无需手调适配模型。
 3. **Grid 权限刷**：勾选“允许块建筑/允许边建筑”后启用。这是底层 Grid 权限，Stuff 只在运行时叠加否决。
 4. **Stuff 刷**：选元素和朝向后点击放置。每次点击新建稳定 `placement_id`；只有同格双方都关闭互斥时才能共存。
 5. **斜坡 S1**：选上坡方向、1:N坡度与基础层，再点击“最低坡格”。青色轮廓预览占格；工具自动统一坡体 Terrain/基础层，低端对齐基础层，高端设为基础层+1。
@@ -44,7 +44,7 @@ Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `TerrainStuffAuthoring.prepare_level` | `(level: Resource, shape: IGridShape) -> Dictionary` | 返回 `{changed, migrated, added_cells}`；导入旧Tile、建立单一事实源并补齐Grid。 |
+| `TerrainStuffAuthoring.prepare_level` | `(level: Resource, shape: IGridShape) -> Dictionary` | 返回 `{changed, migrated, added_cells}`；导入旧Tile、建立单一事实源、补齐Grid，并把层高规约为模型1:1比例。 |
 | `TerrainStuffAuthoring.rebuild_grid` | `(level: Resource, shape: IGridShape, shape_id: int, grid_size: Vector2i) -> void` | 重建 Terrain/Ramp/Stuff，不修改路径/波次/镜头。 |
 | `paint_terrain / paint_layer / paint_permissions` | `(level, cell, 工具值) -> bool` | 三种互不污染的 Grid 编辑入口。 |
 | `TerrainStuffAuthoring.add_stuff` | `(level: Resource, cell: Vector3i, definition: Resource, facing_index: int) -> Dictionary` | 校验双向互斥并返回 `{success, message, placement}`。 |

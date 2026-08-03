@@ -125,7 +125,7 @@ func _test_legacy_level_uses_transient_stuff() -> void:
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(3, 3)
 	level.height_levels = 4
-	level.height_step = 0.4
+	level.height_step = 1.0
 	var effect := RockTileEffect.new()
 	effect.max_durability = 77.0
 	var definition := TileDefinition.new()
@@ -203,7 +203,7 @@ func _make_canonical_level(include_rock: bool) -> LevelResource:
 	level.grid_size = Vector2i(7, 5)
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
-	level.layer_height = 0.45
+	level.layer_height = 1.0
 	level.initial_resource = 5000
 	level.building_cap = 30
 	level.mirror_cap = 6

@@ -1,5 +1,15 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Presentation · 层高适配模型原始比例 — 2026-08-03
+**模块**：Terrain / Model Asset / Level / Level Editor / Tests / Docs。
+
+- 新增统一地形模型比例事实源，固定所有关卡 `Layer Height = Grid Cell Size`；现有1.0格尺寸关卡统一使用1.0层高，旧关卡加载和编辑器导入自动规约。
+- Terrain 平地和1:1～1:4斜坡改为按XZ脚印等比缩放，Y轴保持模型原比例；平地顶部、斜坡底部分别与逻辑地表对齐，不再压缩或拉伸模型高度。
+- 投射物仍保持原有逐轴精确AABB拟合；建筑、Stuff、敌人接地逻辑不变。层高编辑项改为只读派生值，校验会拒绝与模型比例不一致的作者数据。
+- 新增等比拟合、顶部对齐、层高派生、旧数据规约和编辑器只读回归。
+
+**影响面**：只统一Terrain层高与模型表现比例；不修改层数、坡面采样、寻路、建造权限、Stuff、战斗或数值玩法。
+
 ## Presentation · 模型逻辑锚点与尺寸归一 — 2026-08-03
 **模块**：Model Asset / Terrain / Stuff / Building / Unit / Combat / Mirror / Tests / Docs。
 

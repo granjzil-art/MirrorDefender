@@ -122,6 +122,8 @@ spawn_groups = Array[ExtResource("4_group")]([SubResource("Resource_rn6pj"), Sub
 
 [resource]
 script = ExtResource("1_level")
+height_step = 1.0
+layer_height = 1.0
 tiles = [SubResource("Resource_liyv7"), SubResource("Resource_jg0p8"), SubResource("Resource_82nxy"), SubResource("Resource_ed7b5")]
 initial_resource = 2000
 base_resource_per_second = 1.0

@@ -74,7 +74,7 @@ func _make_level() -> LevelResource:
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(6, 5)
 	level.height_levels = 3
-	level.height_step = 0.4
+	level.height_step = 1.0
 	level.path_terrain_color = PATH_COLOR
 	level.base_cell = Vector3i(3, 1, 0)
 	var path_1 := _make_path(&"path_1", [

@@ -186,7 +186,12 @@ func _add_flat_models(cell: Vector3i, layer_count: int, asset: ModelAssetDefinit
 	var target_bounds := _get_flat_voxel_bounds(cell)
 	for layer_index in range(layer_count):
 		var instance_name := StringName("Terrain_%d_%d_%d_L%d" % [cell.x, cell.y, cell.z, layer_index + 1])
-		var visual := asset.instantiate_fitted_model(instance_name, target_bounds)
+		var visual := asset.instantiate_fitted_model(
+			instance_name,
+			target_bounds,
+			true,
+			ModelAssetDefinition.FIT_VERTICAL_MAXIMUM
+		)
 		if visual == null:
 			continue
 		var layer_y := float(layer_index) * _terrain_manager.get_layer_height() + TOP_LIFT
@@ -202,7 +207,9 @@ func _add_custom_ramp(ramp: RampPlacementData, asset: ModelAssetDefinition) -> v
 	var target_bounds := _get_ramp_bounds(ramp, axis)
 	var visual := asset.instantiate_fitted_model(
 		StringName("Ramp_%s" % String(ramp.ramp_id)),
-		target_bounds
+		target_bounds,
+		true,
+		ModelAssetDefinition.FIT_VERTICAL_MINIMUM
 	)
 	if visual == null:
 		return

@@ -101,6 +101,32 @@ func _test_programmatic_alignment() -> void:
 	_expect(fitted_bounds.position.is_equal_approx(target.position), "fit absorbs authored offsets and legacy runtime scale")
 	_expect(fitted_bounds.size.is_equal_approx(target.size), "fit maps every visual axis to the logical target bounds")
 	fitted.free()
+	var proportional_target := AABB(Vector3(-0.5, -0.25, -0.75), Vector3(1.0, 0.25, 1.5))
+	var proportional := asset.instantiate_fitted_model(
+		&"ProportionalModel",
+		proportional_target,
+		true,
+		ModelAssetDefinition.FIT_VERTICAL_MAXIMUM
+	)
+	_expect(proportional != null, "proportional fit instantiates an offset authored model")
+	var alignment := proportional.get_node_or_null("ModelAlignment") as Node3D
+	_expect(
+		alignment != null
+		and is_equal_approx(alignment.scale.x, alignment.scale.y)
+		and is_equal_approx(alignment.scale.y, alignment.scale.z),
+		"proportional fit uses one uniform scale on every axis"
+	)
+	var proportional_result := _get_visual_bounds(proportional)
+	var proportional_bounds: AABB = proportional_result.get("bounds", AABB())
+	_expect(
+		is_equal_approx(proportional_bounds.end.y, proportional_target.end.y),
+		"maximum alignment keeps the authored model top on the logical surface"
+	)
+	_expect(
+		not is_equal_approx(proportional_bounds.size.y, proportional_target.size.y),
+		"proportional fit never compresses authored height to the target layer"
+	)
+	proportional.free()
 
 
 func _test_production_building_assets() -> void:
@@ -320,7 +346,7 @@ func _make_level() -> LevelResource:
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(2, 2)
 	level.height_levels = 3
-	level.height_step = 0.4
+	level.height_step = 1.0
 	level.base_cell = Vector3i(1, 0, 0)
 	return level
 

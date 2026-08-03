@@ -1,5 +1,15 @@
 # 技术与玩法决策记录
 
+## 2026-08-03 · Terrain 层高服从模型1:1比例
+
+**事实源决策**：Terrain体素宽高比固定为1:1，`TerrainModelMetrics.get_layer_height(grid_cell_size)` 是唯一层高入口；当前返回 `grid_cell_size`。`LevelResource.height_step/layer_height` 仅保留序列化兼容，运行时快照、旧关卡迁移、新建关卡和编辑器准备都会规约到该派生值，编辑器不再允许独立修改层高。
+
+**表现决策**：Terrain模型只根据目标XZ脚印计算统一XYZ Scale。平地模型顶部对齐逻辑表面，斜坡模型底部对齐逻辑坡底；禁止单独缩放Y来适配层高。投射物仍使用逐轴精确拟合，接地类模型仍保留原有接地契约。
+
+**替代关系**：本决策替代同日“模型逻辑锚点与尺寸归一”中Terrain严格拟合一层高的部分；其余模型锚点、投射物拟合及玩法边界继续有效。
+
+**理由**：层高与模型美术比例应该稳定一致。按逻辑层高非统一拉伸模型会破坏材质、砖块和坡度外观；固定体素比例并等比缩放后，同一Terrain资产可以跨关卡使用且不需要手工调整 `.tscn` Transform。
+
 ## 2026-08-03 · 模型资产使用上下文对齐，不再手调根 Transform
 
 **契约决策**：`ModelAssetDefinition` 统一生成 `ModelAssetRoot(runtime_scale) -> ModelAlignment -> authored scene`。建筑、Stuff、敌人使用“底部中心接地”；Terrain 和三类投射物使用“完整可视包围盒拟合玩法 AABB”。镜像继续复制已完成对齐的最终视觉树，不建立第二套资产解释。

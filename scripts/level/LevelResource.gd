@@ -13,6 +13,7 @@ const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const LevelContentMigrationAdapterScript := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
 const LevelContentValidatorScript := preload("res://scripts/level/LevelContentValidator.gd")
 
@@ -32,7 +33,7 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 
 @export_group("Tiles")
 @export_range(1, 16, 1) var height_levels: int = 3
-@export_range(0.05, 5.0, 0.05, "or_greater") var height_step: float = 0.45
+@export_range(0.05, 5.0, 0.05, "or_greater") var height_step: float = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
 ## Default runtime model for every tile base. Individual TileDefinition
 ## resources may override it with terrain_model_asset.
 @export var tile_model_asset: ModelAssetDefinition
@@ -43,7 +44,7 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 ## between terrain Grid, ramps, and Stuff.
 @export_storage var terrain_content_version: int = 0
 @export var default_terrain: TerrainDefinitionScript
-@export_range(0.05, 5.0, 0.05, "or_greater") var layer_height: float = 0.45
+@export_range(0.05, 5.0, 0.05, "or_greater") var layer_height: float = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
 @export var grid_cells: Array[GridCellDataScript] = []
 @export var ramp_placements: Array[RampPlacementDataScript] = []
 
@@ -372,6 +373,9 @@ func _validate_grid_and_tiles(errors: Array[String]) -> void:
 		errors.append("高度档数必须至少为 1")
 	if not is_finite(height_step) or height_step <= 0.0:
 		errors.append("每档高度必须为有限正数")
+	var model_layer_height := TerrainModelMetricsScript.get_layer_height(grid_cell_size)
+	if not is_equal_approx(height_step, model_layer_height):
+		errors.append("每档高度必须匹配地形模型比例：%.2f" % model_layer_height)
 	if grid_shape != 0 and grid_shape != 1:
 		return
 	var shape: IGridShape = _make_validation_shape()

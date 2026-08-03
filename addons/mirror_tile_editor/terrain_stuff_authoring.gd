@@ -11,6 +11,7 @@ const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
 
 ## Returns `{changed: bool, migrated: bool, added_cells: int,
@@ -40,9 +41,8 @@ static func prepare_level(level: Resource, shape: IGridShape) -> Dictionary:
 		default_terrain = load(DEFAULT_TERRAIN_PATH) as TerrainDefinitionScript
 		level.set("default_terrain", default_terrain)
 		changed = true
-	var layer_height := float(level.get("layer_height"))
-	if not is_finite(layer_height) or layer_height <= 0.0:
-		layer_height = maxf(0.05, float(level.get("height_step")))
+	var layer_height := TerrainModelMetricsScript.get_layer_height(float(level.get("grid_cell_size")))
+	if not is_equal_approx(float(level.get("layer_height")), layer_height):
 		level.set("layer_height", layer_height)
 		changed = true
 	# Legacy fields stay as compatibility metadata but no longer contain a

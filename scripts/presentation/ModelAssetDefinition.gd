@@ -7,6 +7,11 @@ class_name ModelAssetDefinition
 extends Resource
 
 const BOUNDS_EPSILON: float = 0.00001
+const ModelFitTransformScript := preload("res://scripts/presentation/ModelFitTransform.gd")
+
+const FIT_VERTICAL_MINIMUM: int = ModelFitTransformScript.VerticalAlignment.MINIMUM
+const FIT_VERTICAL_CENTER: int = ModelFitTransformScript.VerticalAlignment.CENTER
+const FIT_VERTICAL_MAXIMUM: int = ModelFitTransformScript.VerticalAlignment.MAXIMUM
 
 @export_group("Model")
 @export var scene: PackedScene
@@ -58,7 +63,9 @@ func instantiate_grounded_model(instance_name: StringName = &"ModelAssetRoot") -
 ## dimensions.
 func instantiate_fitted_model(
 	instance_name: StringName,
-	target_bounds: AABB
+	target_bounds: AABB,
+	preserve_proportions: bool = false,
+	vertical_alignment: int = FIT_VERTICAL_CENTER
 ) -> Node3D:
 	if not _is_valid_fit_bounds(target_bounds):
 		return null
@@ -76,13 +83,14 @@ func instantiate_fitted_model(
 	var runtime_root := _wrap_raw_model(raw_instance, instance_name)
 	runtime_root.scale = Vector3.ONE
 	var alignment_root := runtime_root.get_node("ModelAlignment") as Node3D
-	var fit_scale := Vector3(
-		target_bounds.size.x / source_bounds.size.x,
-		target_bounds.size.y / source_bounds.size.y,
-		target_bounds.size.z / source_bounds.size.z
-	)
-	alignment_root.scale = fit_scale
-	alignment_root.position = target_bounds.position - source_bounds.position * fit_scale
+	if preserve_proportions:
+		alignment_root.transform = ModelFitTransformScript.proportional(
+			source_bounds,
+			target_bounds,
+			vertical_alignment
+		)
+	else:
+		alignment_root.transform = ModelFitTransformScript.exact(source_bounds, target_bounds)
 	return runtime_root
 
 

@@ -356,7 +356,7 @@ func _make_level() -> LevelResource:
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(2, 2)
 	level.height_levels = 3
-	level.height_step = 0.45
+	level.height_step = 1.0
 	level.base_cell = Vector3i.ZERO
 	var tile := TileCellData.new()
 	tile.configure(Vector3i.ZERO, TileCellData.TileType.BUILDABLE, 1)

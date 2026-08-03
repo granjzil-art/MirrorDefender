@@ -8,6 +8,7 @@ extends Node3D
 const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -18,7 +19,7 @@ signal terrain_cleared
 var _grid: GridManager
 var _level: LevelResource
 var _default_terrain: TerrainDefinitionScript
-var _layer_height: float = 0.45
+var _layer_height: float = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
 var _grid_cells: Dictionary = {}
 var _ramps: Array[RampPlacementDataScript] = []
 var _ramp_bindings: Dictionary = {}

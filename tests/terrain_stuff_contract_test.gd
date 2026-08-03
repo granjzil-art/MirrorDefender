@@ -29,6 +29,12 @@ func _init() -> void:
 
 
 func _test_separate_contracts() -> void:
+	var default_level := LevelResourceScript.new()
+	_expect(
+		is_equal_approx(default_level.height_step, default_level.grid_cell_size)
+		and is_equal_approx(default_level.layer_height, default_level.grid_cell_size),
+		"new levels default to the terrain model's 1:1 voxel proportion"
+	)
 	var grass: TerrainDefinitionScript = load("res://resources/terrains/Grass.tres")
 	var sand: TerrainDefinitionScript = load("res://resources/terrains/Sand.tres")
 	var water: TerrainDefinitionScript = load("res://resources/terrains/Water.tres")
@@ -118,7 +124,7 @@ func _test_legacy_snapshot() -> void:
 	var level := LevelResourceScript.new()
 	level.grid_shape = 1
 	level.grid_size = Vector2i(4, 2)
-	level.height_step = 0.5
+	level.height_step = 1.0
 	var rock := TileCellDataScript.new()
 	rock.configure(Vector3i(0, 0, 0), TileCellDataScript.TileType.BLOCKED, 2, load("res://resources/tile_definitions/Rock.tres"))
 	var spike := TileCellDataScript.new()
@@ -147,7 +153,7 @@ func _test_canonical_validation() -> void:
 	level.grid_size = Vector2i(6, 3)
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
-	level.layer_height = 0.5
+	level.layer_height = 1.0
 	for x in range(6):
 		var cell := GridCellDataScript.new()
 		var layer_count := 2 if x >= 3 else 1
@@ -161,6 +167,9 @@ func _test_canonical_validation() -> void:
 	ramp.base_layer = 1
 	level.ramp_placements.append(ramp)
 	_expect(level.validate_runtime().is_empty(), "valid canonical 1:2 ramp connects layer 1 to layer 2")
+	level.layer_height = 0.45
+	_expect(_contains_text(level.validate_runtime(), "模型比例"), "canonical validation rejects vertically squashed layer spacing")
+	level.layer_height = 1.0
 	var first_definition := StuffDefinitionScript.new()
 	first_definition.stuff_id = &"a"
 	first_definition.display_name = "A"
@@ -200,8 +209,8 @@ func _make_canonical_level(grid_shape: int, grid_size: Vector2i) -> LevelResourc
 	level.grid_size = grid_size
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
-	level.layer_height = 0.5
-	level.height_step = 0.5
+	level.layer_height = 1.0
+	level.height_step = 1.0
 	return level
 
 

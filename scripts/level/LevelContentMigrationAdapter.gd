@@ -11,6 +11,7 @@ const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementDat
 const StuffDefinitionScript := preload("res://scripts/stuff/StuffDefinition.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 const TileDefinitionScript := preload("res://scripts/tile/TileDefinition.gd")
 
@@ -47,6 +48,7 @@ static func migrate_in_place(level: Resource) -> bool:
 	var snapshot := _build_legacy_snapshot(level)
 	level.set("terrain_content_version", CANONICAL_CONTENT_VERSION)
 	level.set("default_terrain", snapshot["default_terrain"])
+	level.set("height_step", snapshot["layer_height"])
 	level.set("layer_height", snapshot["layer_height"])
 	level.set("grid_cells", snapshot["grid_cells"])
 	level.set("ramp_placements", snapshot["ramp_placements"])
@@ -73,7 +75,7 @@ static func _build_canonical_snapshot(level: Resource) -> Dictionary:
 		"content_version": CANONICAL_CONTENT_VERSION,
 		"migrated": false,
 		"default_terrain": default_terrain,
-		"layer_height": float(level.get("layer_height")),
+		"layer_height": TerrainModelMetricsScript.get_layer_height(float(level.get("grid_cell_size"))),
 		"grid_cells": grid_cells,
 		"ramp_placements": ramp_placements,
 		"stuff_placements": stuff_placements,
@@ -120,7 +122,7 @@ static func _build_legacy_snapshot(level: Resource) -> Dictionary:
 		"content_version": CANONICAL_CONTENT_VERSION,
 		"migrated": true,
 		"default_terrain": default_terrain,
-		"layer_height": float(level.get("height_step")),
+		"layer_height": TerrainModelMetricsScript.get_layer_height(float(level.get("grid_cell_size"))),
 		"grid_cells": grid_cells,
 		"ramp_placements": ramp_placements,
 		"stuff_placements": stuff_placements,

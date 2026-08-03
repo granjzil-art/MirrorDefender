@@ -14,6 +14,7 @@ const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefiniti
 const WaveDefinitionScript := preload("res://scripts/wave/WaveDefinition.gd")
 const SpawnGroupDefinitionScript := preload("res://scripts/wave/SpawnGroupDefinition.gd")
 const CameraPresetEditorScript := preload("res://addons/mirror_tile_editor/camera_preset_editor.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
 var _level: LevelResource
 var _tabs: TabContainer
@@ -195,6 +196,8 @@ func _add_level_controls(sidebar: VBoxContainer) -> void:
 	_height_levels.value_changed.connect(_on_height_levels_changed)
 	sidebar.add_child(_with_label("高度档数", _height_levels))
 	_height_step = _make_spin_box(0.05, 5.0, 0.05)
+	_height_step.editable = false
+	_height_step.tooltip_text = "由 Grid Cell Size 与地形模型 1:1 体素比例自动确定"
 	_height_step.value_changed.connect(_on_height_step_changed)
 	sidebar.add_child(_with_label("每档世界高度", _height_step))
 	_add_terrain_color_controls(sidebar)
@@ -582,8 +585,8 @@ func _create_new_level() -> void:
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
 	level.height_levels = 4
-	level.height_step = 0.45
-	level.layer_height = 0.45
+	level.height_step = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
+	level.layer_height = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
 	if _save_path != null:
 		_save_path.text = DEFAULT_SAVE_PATH
 	_set_level(level)
@@ -699,10 +702,10 @@ func _on_height_levels_changed(value: float) -> void:
 	_canvas.call("set_height_brush", -1)
 	_canvas.call("refresh")
 
-func _on_height_step_changed(value: float) -> void:
+func _on_height_step_changed(_value: float) -> void:
 	if _level == null:
 		return
-	_level.height_step = value
+	_level.height_step = TerrainModelMetricsScript.get_layer_height(_level.grid_cell_size)
 	_mark_level_changed()
 	_canvas.call("refresh")
 

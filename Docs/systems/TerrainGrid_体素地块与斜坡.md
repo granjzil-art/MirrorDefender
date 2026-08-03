@@ -20,7 +20,7 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `RampPlacementData` | `anchor_cell` / `facing_index` | 最低坡格与上坡方向。 |
 | `RampPlacementData` | `run_length` | 1～4，对应1:1、1:2、1:3、1:4。 |
 | `RampPlacementData` | `base_layer` | 坡底层数1～3；坡顶固定为 `base_layer + 1`。 |
-| `LevelResource` | `default_terrain` / `layer_height` | 未逐格覆盖时的地形与每个体素层的世界高度。 |
+| `LevelResource` | `default_terrain` / `layer_height` | 未逐格覆盖时的地形与单层高度；高度固定由 `grid_cell_size × 1.0` 派生。 |
 | `LevelResource` | `grid_cells` / `ramp_placements` | 规范地块覆盖和斜坡数组。 |
 | `TerrainManager` | `feature_enabled` | 规范Terrain运行时总开关；Main默认开启。 |
 | `TerrainRenderer` | `feature_enabled` | Terrain模型/灰盒渲染总开关。 |
@@ -35,6 +35,7 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/terrain/TerrainDefinition.gd` | `TerrainDefinition` / `Resource` | 地形身份、平地/四档斜坡模型与配置校验。 |
+| `scripts/terrain/TerrainModelMetrics.gd` | `TerrainModelMetrics` / `RefCounted` | 地形模型比例事实源；当前固定单层高度等于单格尺寸。 |
 | `scripts/terrain/GridCellData.gd` | `GridCellData` / `Resource` | 一个地形柱的层数与基础建造权限。 |
 | `scripts/terrain/RampPlacementData.gd` | `RampPlacementData` / `Resource` | 1:N多格连续斜坡的锚点、方向与占格计算。 |
 | `scripts/terrain/TerrainManager.gd` | `TerrainManager` / `Node3D` | 规范Grid/Ramp运行时副本、路径格派生、坡面高度/法线/射线查询。 |
@@ -90,6 +91,7 @@ TerrainManager
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `TerrainDefinition.get_ramp_model_asset` | `(run_length: int) -> ModelAssetDefinition` | 按1～4格坡长返回对应模型槽。 |
+| `TerrainModelMetrics.get_layer_height` | `(grid_cell_size: float) -> float` | 按固定1:1体素比例返回单层世界高度。 |
 | `TerrainDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、颜色和五个模型资产。 |
 | `GridCellData.configure` | `(cell: Vector3i, terrain: TerrainDefinition, layer_count: int, allows_tile_building: bool, allows_edge_building: bool) -> void` | 一次设置规范地块配置并将层数限制到1～4。 |
 | `GridCellData.get_effective_terrain` | `(fallback: TerrainDefinition = null) -> TerrainDefinition` | 返回逐格地形或关卡默认地形。 |
@@ -133,9 +135,10 @@ TerrainManager
 - 连续斜坡仅允许高/低端完整共享边且表面层相同；高接低、低接高、高接高（山脊）或低接低（谷底）均按共享边层判断。接到另一斜坡侧边、共享边层数不一致、坡体重叠或越界仍为非法。
 - 创建、载入编辑器和保存前共用上述规约；斜坡坡体和仍为平地的连接格在斜坡存在期间不可手工修改层数。
 - 正方形坡向使用4条边，六边形使用6条边。Stuff朝向仍按关卡建筑朝向约定使用正方形8向、六边形6向。
-- 平地模型槽表示“一个体素块”，运行时把可视包围盒精确拟合到单格平面范围和 `[-layer_height, 0]`，再按 `layer_count` 逐层堆叠。因此草地、泥地等源模型高度不同也会共用同一逻辑顶面。
-- 1:N斜坡模型槽表示横跨N格、从坡底升高一层的完整模型；本地 `+Z` 视为上坡方向，完整包围盒拟合到“一格宽 × 一层高 × N格长”后再按 `facing_index` 旋转。
-- Terrain 的逻辑尺寸由 Grid Cell Size 和 Layer Height 唯一决定；旧 `runtime_scale` 会被拟合吸收，可归一为 `Vector3.ONE`，不再用 `.tscn` 根 Transform 对齐高度。
+- 平地模型槽表示“一个体素块”。运行时按单格 XZ 脚印求一个统一倍率，XYZ 同比缩放并把模型顶部对齐逻辑地表；不再将模型 Y 压缩或拉伸到目标层高。
+- 1:N斜坡模型槽表示横跨N格、从坡底升高一层的完整模型；本地 `+Z` 视为上坡方向。运行时按“一格宽 × N格长”的 XZ 脚印等比缩放，底部对齐逻辑坡底后按 `facing_index` 旋转。
+- `TerrainModelMetrics` 是层高唯一事实源，当前固定 `Layer Height = Grid Cell Size`，即一个体素的逻辑宽高比为1:1。所有关卡加载、迁移、新建和编辑都按该比例规约；编辑器层高控件只读。
+- Terrain 旧 `runtime_scale` 被拟合吸收，可归一为 `Vector3.ONE`；不得再用 `.tscn` 根 Transform 或非统一 Scale 补偿高度。
 - 未配置模型时，TerrainRenderer生成顶面、坡面和逐层深浅崖壁灰盒；StuffRenderer生成独立关卡元素灰盒。正式 Main 不再使用 TileRenderer 的旧混合内容。
 - 路径格颜色是由 `LevelResource.paths` 推导的表现覆盖，不改变Terrain种类、层数或建造权限。
 - 边建筑与复制镜在坡面上使用物理边中点采样；平地断崖仍取两侧较高表面，保持原有不嵌入地形的表现。

@@ -6,6 +6,7 @@ class_name TileRenderer
 extends Node3D
 
 const TOP_LIFT := 0.01
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -227,7 +228,9 @@ func _add_custom_tile_model(
 	if fit_as_terrain:
 		custom_visual = model_asset.instantiate_fitted_model(
 			instance_name,
-			_get_legacy_voxel_bounds(tile.cell)
+			_get_legacy_voxel_bounds(tile.cell),
+			true,
+			ModelAssetDefinition.FIT_VERTICAL_MAXIMUM
 		)
 	else:
 		custom_visual = model_asset.instantiate_grounded_model(instance_name)
@@ -244,7 +247,8 @@ func _add_custom_tile_model(
 func _get_legacy_voxel_bounds(cell: Vector3i) -> AABB:
 	var center := _grid.cell_to_world(cell)
 	var level := _tile_manager.get_level_resource() if _tile_manager != null else null
-	var height := level.layer_height if level != null and level.uses_canonical_content() else (level.height_step if level != null else 0.45)
+	var cell_size := level.grid_cell_size if level != null else 1.0
+	var height := TerrainModelMetricsScript.get_layer_height(cell_size)
 	var minimum := Vector3(INF, -height, INF)
 	var maximum := Vector3(-INF, 0.0, -INF)
 	for corner in _grid.get_corners(cell):

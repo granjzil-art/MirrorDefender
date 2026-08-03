@@ -7,6 +7,7 @@ const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const MigrationAdapter := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
 
 
@@ -17,6 +18,9 @@ static func validate(level: Resource, shape: IGridShape) -> Array[String]:
 	var layer_height := float(level.get("layer_height"))
 	if not is_finite(layer_height) or layer_height <= 0.0:
 		errors.append("体素单层高度必须为有限正数")
+	var model_layer_height := TerrainModelMetricsScript.get_layer_height(float(level.get("grid_cell_size")))
+	if not is_equal_approx(layer_height, model_layer_height):
+		errors.append("体素单层高度必须匹配地形模型比例：%.2f" % model_layer_height)
 	var default_terrain: TerrainDefinitionScript = level.get("default_terrain") as TerrainDefinitionScript
 	if default_terrain == null:
 		errors.append("规范地块数据必须配置默认地形")

@@ -13,6 +13,7 @@ const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementDat
 const StuffDefinitionScript := preload("res://scripts/stuff/StuffDefinition.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
+const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
 signal level_changed
 
@@ -169,6 +170,8 @@ func _build_interface() -> void:
 	_size_y.value_changed.connect(_request_grid_rebuild_from_value)
 	sidebar.add_child(_with_label("行数（六边形忽略）", _size_y))
 	_layer_height = _make_spin_box(0.05, 5.0, 0.05)
+	_layer_height.editable = false
+	_layer_height.tooltip_text = "由 Grid Cell Size 与地形模型 1:1 体素比例自动确定"
 	_layer_height.value_changed.connect(_on_layer_height_changed)
 	sidebar.add_child(_with_label("体素单层高度", _layer_height))
 
@@ -377,11 +380,12 @@ func _confirm_grid_rebuild() -> void:
 	level_changed.emit()
 
 
-func _on_layer_height_changed(value: float) -> void:
+func _on_layer_height_changed(_value: float) -> void:
 	if _controls_blocked or _level == null:
 		return
-	_level.layer_height = value
-	_level.height_step = value
+	var model_layer_height := TerrainModelMetricsScript.get_layer_height(_level.grid_cell_size)
+	_level.layer_height = model_layer_height
+	_level.height_step = model_layer_height
 	_level.emit_changed()
 	_canvas.refresh()
 	level_changed.emit()

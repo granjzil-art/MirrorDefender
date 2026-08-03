@@ -35,6 +35,8 @@ func _test_legacy_import_and_single_source() -> void:
 	var level := LevelResourceScript.new()
 	level.grid_shape = 1
 	level.grid_size = Vector2i(3, 2)
+	level.height_step = 0.45
+	level.layer_height = 0.45
 	var rock := TileCellDataScript.new()
 	rock.configure(Vector3i(1, 0, 0), TileCellDataScript.TileType.BLOCKED, 2, load("res://resources/tile_definitions/Rock.tres"))
 	level.tiles = [rock]
@@ -43,6 +45,10 @@ func _test_legacy_import_and_single_source() -> void:
 	_expect(bool(result["migrated"]), "legacy editor load reports one-way import")
 	_expect(level.terrain_content_version == 2, "editor import switches canonical content version")
 	_expect(level.tiles.is_empty(), "legacy Tile array is removed from canonical authoring document")
+	_expect(
+		is_equal_approx(level.height_step, 1.0) and is_equal_approx(level.layer_height, 1.0),
+		"editor import normalizes legacy layer spacing to the terrain model proportion"
+	)
 	_expect(level.grid_cells.size() == 6, "editor materializes every Grid cell for direct authoring")
 	_expect(level.stuff_placements.size() == 1, "legacy rock imports as independent Stuff")
 	var rock_grid := Authoring.get_grid_cell(level, Vector3i(1, 0, 0))
@@ -50,6 +56,14 @@ func _test_legacy_import_and_single_source() -> void:
 	_expect(rock_grid.allows_tile_building and rock_grid.allows_edge_building, "legacy rock underlying Grid remains buildable")
 	var second := Authoring.prepare_level(level, shape)
 	_expect(not bool(second["changed"]), "canonical preparation is idempotent")
+	level.grid_cell_size = 1.5
+	var resized := Authoring.prepare_level(level, shape)
+	_expect(
+		bool(resized["changed"])
+		and is_equal_approx(level.height_step, 1.5)
+		and is_equal_approx(level.layer_height, 1.5),
+		"layer spacing follows Grid Cell Size while preserving the 1:1 model proportion"
+	)
 
 
 func _test_independent_grid_tools() -> void:
@@ -194,6 +208,8 @@ func _test_editor_page_contract() -> void:
 	var result := page.set_level(level)
 	_expect(not bool(result["migrated"]), "canonical editor page accepts canonical level without migration")
 	_expect(page.find_child("SelectedCellHelp", true, false) != null, "editor page exposes independent cell inspector")
+	var layer_height_control := page.get("_layer_height") as SpinBox
+	_expect(layer_height_control != null and not layer_height_control.editable, "model-proportional layer height is read-only in the editor")
 	_expect(page.get_child_count() == 3, "editor page outer split keeps exactly two layout children plus its dialog")
 	var content_split := page.get_child(1) as HSplitContainer
 	_expect(content_split != null and content_split.get_child_count() == 2, "canonical canvas and inspector use a legal nested two-child split")
@@ -218,9 +234,9 @@ func _make_canonical_level(size: Vector2i) -> LevelResource:
 	level.grid_size = size
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
-	level.layer_height = 0.45
+	level.layer_height = 1.0
 	level.height_levels = 4
-	level.height_step = 0.45
+	level.height_step = 1.0
 	return level
 
 
