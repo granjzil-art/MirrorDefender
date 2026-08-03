@@ -435,6 +435,7 @@ func _select_stuff_brush(definition: StuffDefinitionScript) -> void:
 
 
 func _select_ramp_brush() -> void:
+	_ensure_ramp_terrain_controls()
 	var terrain_override := _ramp_terrain_from_selection(_ramp_terrain)
 	_canvas.set_ramp_brush(
 		_ramp_direction.get_selected_id(),
@@ -464,6 +465,7 @@ func _on_operation_reported(message: String, success: bool) -> void:
 
 
 func _refresh_selected_inspector() -> void:
+	_ensure_ramp_terrain_controls()
 	if _level == null or _canvas == null or not _canvas.has_selected_cell:
 		_set_inspector_enabled(false)
 		return
@@ -514,15 +516,17 @@ func _refresh_selected_inspector() -> void:
 			related_ramp.facing_index,
 			ramp_terrain_label,
 		]
-	_selected_ramp_terrain.select(
-		_ramp_terrain_selection_index(ramp.terrain_override if ramp != null else null)
-	)
+	if _selected_ramp_terrain != null:
+		_selected_ramp_terrain.select(
+			_ramp_terrain_selection_index(ramp.terrain_override if ramp != null else null)
+		)
 	_controls_blocked = false
 	_set_inspector_enabled(true)
 	_terrain_select.disabled = ramp != null
 	_layer_select.editable = layer_constraint.is_empty()
 	_remove_ramp_button.disabled = related_ramp == null or bool(layer_constraint.get("conflict", false))
-	_selected_ramp_terrain.disabled = ramp == null
+	if _selected_ramp_terrain != null:
+		_selected_ramp_terrain.disabled = ramp == null
 	_remove_stuff_button.disabled = _stuff_list.item_count == 0
 	_stuff_facing.editable = _stuff_list.item_count > 0
 
@@ -548,7 +552,7 @@ func _on_selected_layer_changed(value: float) -> void:
 
 
 func _on_selected_ramp_terrain_changed(_index: int) -> void:
-	if _controls_blocked or not _has_selection():
+	if _controls_blocked or not _has_selection() or _selected_ramp_terrain == null:
 		return
 	var ramp := Authoring.get_ramp_at(_level, _shape, _canvas.selected_cell)
 	if ramp == null:
@@ -640,6 +644,7 @@ func _selected_stuff() -> StuffPlacementDataScript:
 
 
 func _set_inspector_enabled(enabled: bool) -> void:
+	_ensure_ramp_terrain_controls()
 	if _terrain_select == null:
 		return
 	_terrain_select.disabled = not enabled
@@ -650,7 +655,44 @@ func _set_inspector_enabled(enabled: bool) -> void:
 	_stuff_facing.editable = enabled
 	_remove_stuff_button.disabled = not enabled
 	_remove_ramp_button.disabled = not enabled
-	_selected_ramp_terrain.disabled = not enabled
+	if _selected_ramp_terrain != null:
+		_selected_ramp_terrain.disabled = not enabled
+
+
+## Godot keeps an existing main-screen plugin instance alive when a @tool
+## script is hot-reloaded. Newly added member references are then null even
+## though the older UI tree remains valid. Rebind named controls when present,
+## or insert only the missing controls into that live tree so the whole
+## Inspector cannot be disabled by one optional extension control.
+func _ensure_ramp_terrain_controls() -> void:
+	if _ramp_terrain == null or not is_instance_valid(_ramp_terrain):
+		_ramp_terrain = find_child("RampTerrainBrush", true, false) as OptionButton
+	if _ramp_terrain == null and _ramp_base_layer != null and is_instance_valid(_ramp_base_layer):
+		var base_group := _ramp_base_layer.get_parent() as Control
+		var sidebar := base_group.get_parent() as Container if base_group != null else null
+		if sidebar != null:
+			_ramp_terrain = OptionButton.new()
+			_ramp_terrain.name = "RampTerrainBrush"
+			_fill_ramp_terrain_options(_ramp_terrain)
+			var terrain_group := _with_label("斜坡地形", _ramp_terrain)
+			sidebar.add_child(terrain_group)
+			sidebar.move_child(terrain_group, base_group.get_index() + 1)
+
+	if _selected_ramp_terrain == null or not is_instance_valid(_selected_ramp_terrain):
+		_selected_ramp_terrain = find_child("SelectedRampTerrain", true, false) as OptionButton
+	if _selected_ramp_terrain == null and _ramp_label != null and is_instance_valid(_ramp_label):
+		var inspector := _ramp_label.get_parent() as Container
+		if inspector != null:
+			_selected_ramp_terrain = OptionButton.new()
+			_selected_ramp_terrain.name = "SelectedRampTerrain"
+			_fill_ramp_terrain_options(_selected_ramp_terrain)
+			var terrain_group := _with_label("斜坡地形", _selected_ramp_terrain)
+			inspector.add_child(terrain_group)
+			inspector.move_child(terrain_group, _ramp_label.get_index() + 1)
+	if _selected_ramp_terrain != null:
+		var callback := Callable(self, "_on_selected_ramp_terrain_changed")
+		if not _selected_ramp_terrain.item_selected.is_connected(callback):
+			_selected_ramp_terrain.item_selected.connect(callback)
 
 
 func _has_selection() -> bool:

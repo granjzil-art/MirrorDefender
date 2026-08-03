@@ -1,5 +1,14 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Level Editor · 修复热重载后 Inspector 全部锁死 — 2026-08-03
+**模块**：Level Editor / Tests / Docs。
+
+- 修复 Godot 保留旧主界面插件实例时，新加入的斜坡地形控件成员为空，选择任意格在 Inspector 刷新中报错的问题。
+- 地块页现在会按稳定节点名重新绑定控件，旧UI缺少节点时原位补建；空值保护保证一个扩展控件不能阻断原有地形、层数、权限、Stuff和斜坡操作。
+- 新增热重载旧实例、异常锁定恢复、普通格参数解锁以及坡体删除/地形编辑恢复回归。
+
+**影响面**：只修复编辑器插件生命周期与 Inspector 可用性；不修改关卡数据、Terrain/Ramp语义、路径、波次、镜头或运行时玩法。
+
 ## Terrain / Level Editor · 斜坡地形覆盖 — 2026-08-03
 **模块**：Terrain Grid / Runtime / Level Editor / Validation / Tests / Docs。
 

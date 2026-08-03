@@ -248,6 +248,51 @@ func _test_editor_page_contract() -> void:
 		selected_ramp_terrain != null and selected_ramp_terrain.get_item_count() == ramp_brush_terrain.get_item_count(),
 		"selected slope inspector exposes the same editable terrain choices"
 	)
+	# Simulate a live @tool instance created before the two ramp-terrain controls
+	# existed. Godot hot reload preserves the old tree and existing fields, while
+	# newly declared member references start as null.
+	var ramp_brush_group := ramp_brush_terrain.get_parent()
+	var selected_ramp_group := selected_ramp_terrain.get_parent()
+	ramp_brush_group.get_parent().remove_child(ramp_brush_group)
+	selected_ramp_group.get_parent().remove_child(selected_ramp_group)
+	ramp_brush_group.free()
+	selected_ramp_group.free()
+	page.set("_ramp_terrain", null)
+	page.set("_selected_ramp_terrain", null)
+	page.set("_controls_blocked", true)
+	var editor_canvas := page.get_editor_canvas()
+	editor_canvas.selected_cell = Vector3i.ZERO
+	editor_canvas.has_selected_cell = true
+	page.call("_refresh_selected_inspector")
+	var recovered_ramp_brush := page.find_child("RampTerrainBrush", true, false) as OptionButton
+	var recovered_selected_ramp := page.find_child("SelectedRampTerrain", true, false) as OptionButton
+	_expect(
+		recovered_ramp_brush != null and recovered_selected_ramp != null,
+		"live editor hot reload recreates missing ramp-terrain controls without a plugin restart"
+	)
+	_expect(
+		not bool(page.get("_controls_blocked"))
+		and not (page.get("_terrain_select") as OptionButton).disabled
+		and not (page.get("_allows_tile") as CheckButton).disabled
+		and not (page.get("_allows_edge") as CheckButton).disabled,
+		"one missing extension control can no longer leave the existing cell Inspector locked"
+	)
+	var hot_reload_ramp := Authoring.place_ramp(
+		level,
+		_make_square_shape(level),
+		Vector3i(1, 1, 0),
+		0,
+		1,
+		1
+	)
+	_expect(bool(hot_reload_ramp["success"]), "hot-reload fixture creates one selectable ramp")
+	editor_canvas.selected_cell = Vector3i(1, 1, 0)
+	page.call("_refresh_selected_inspector")
+	_expect(
+		not (page.get("_remove_ramp_button") as Button).disabled
+		and not (page.get("_selected_ramp_terrain") as OptionButton).disabled,
+		"recovered Inspector enables ramp removal and ramp terrain editing on a slope cell"
+	)
 	var layer_height_control := page.get("_layer_height") as SpinBox
 	_expect(layer_height_control != null and not layer_height_control.editable, "model-proportional layer height is read-only in the editor")
 	_expect(page.get_child_count() == 3, "editor page outer split keeps exactly two layout children plus its dialog")

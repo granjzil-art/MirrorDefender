@@ -79,3 +79,4 @@ Author click/drag -> Canvas intent -> Authoring canonical mutation
 - 主界面插件在 Godot 启动时先构建、后隐藏，因此画布可能长时间保持 `0×0` 尺寸。
 - 零尺寸时禁止递归 `call_deferred()` 等待布局；只保存待处理标记，由 `resized` 或可见性变化触发一次重置。
 - `SplitContainer` 的每一层只放两个布局子控件；地块页用嵌套分割容器组成“工具栏 / 画布 / 检查器”。
+- `@tool` 脚本热重载可能保留旧插件实例，但新增成员引用为空；`TerrainStuffEditor` 在刷新 Inspector 或启用斜坡工具前按稳定节点名重新绑定，缺少节点时只补建扩展控件。任何可选扩展控件为空都不得中断既有地形、层数、权限、Stuff 或斜坡 Inspector。
