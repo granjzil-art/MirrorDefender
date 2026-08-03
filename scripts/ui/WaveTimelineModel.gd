@@ -19,6 +19,8 @@ func _build_wave_entry(level: LevelResource, wave: WaveDefinition, wave_index: i
 	var groups: Array[Dictionary] = []
 	var paths: Array[PathDefinition] = []
 	var path_keys: Dictionary = {}
+	var path_requests: Array[Dictionary] = []
+	var path_request_keys: Dictionary = {}
 	var enemy_totals_by_key: Dictionary = {}
 	var enemy_order: Array[String] = []
 	var scheduled_time: float = INF
@@ -61,6 +63,11 @@ func _build_wave_entry(level: LevelResource, wave: WaveDefinition, wave_index: i
 			if not path_keys.has(unique_key):
 				path_keys[unique_key] = true
 				paths.append(group.path)
+			var airborne := group.enemy != null and group.enemy.is_airborne
+			var request_key := "%s|%s" % [unique_key, "airborne" if airborne else "ground"]
+			if not path_request_keys.has(request_key):
+				path_request_keys[request_key] = true
+				path_requests.append({"path": group.path, "airborne": airborne})
 		var spawn := level.resolve_group_spawn_point(group)
 		var target_base := level.resolve_path_target_base(group.path)
 		groups.append({
@@ -96,6 +103,7 @@ func _build_wave_entry(level: LevelResource, wave: WaveDefinition, wave_index: i
 		"groups": groups,
 		"enemy_totals": enemy_totals,
 		"paths": paths,
+		"path_requests": path_requests,
 		"primary_icon": primary_icon,
 		"summary": _build_summary(display_name, enemy_totals, groups),
 	}

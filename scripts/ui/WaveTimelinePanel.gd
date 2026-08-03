@@ -228,7 +228,7 @@ func _on_wave_mouse_entered(wave_index: int) -> void:
 	info_details.text = String(entry["summary"])
 	_rebuild_enemy_icons(entry["enemy_totals"])
 	info_panel.visible = true
-	var paths: Array = entry["paths"]
+	var paths: Array = entry.get("path_requests", entry["paths"])
 	paths_preview_requested.emit(paths)
 
 

@@ -15,6 +15,7 @@ func _run() -> void:
 	await _test_shortest_manual_detour(GridManager.Shape.HEX)
 	await _test_target_locked_automatic_routing(GridManager.Shape.SQUARE)
 	await _test_target_locked_automatic_routing(GridManager.Shape.HEX)
+	await _test_shared_route_snapshot_and_runtime_visual()
 	await _test_exact_intersection_and_no_route()
 	await _test_spike_and_void_effects()
 	await _test_void_capacity_timing_priority_and_visual()
@@ -179,6 +180,43 @@ func _test_target_locked_automatic_routing(shape: GridManager.Shape) -> void:
 	_expect(bool(unavailable["triggered"]) and not bool(unavailable["found"]), "%s rejects a reachable path when it leads to a different base" % _shape_name(shape))
 	_expect(unavailable["blocker"] is TileObstacleRuntime, "%s no-route branch returns the rock for fallback attack" % _shape_name(shape))
 	(fixture["host"] as Node).queue_free()
+	await process_frame
+
+
+func _test_shared_route_snapshot_and_runtime_visual() -> void:
+	var level := _make_detour_level(GridManager.Shape.SQUARE)
+	var fixture := _make_fixture(level)
+	var host: Node3D = fixture["host"]
+	var grid: GridManager = fixture["grid"]
+	var tile_manager: TileManager = fixture["tile"]
+	var planner: PathRoutePlanner = fixture["planner"]
+	var original: PathDefinition = level.paths[0]
+	var blocked_cell: Vector3i = original.cells[2]
+	var effective := planner.get_effective_route_cells(original)
+	_expect(not effective.has(blocked_cell), "shared route snapshot bends the whole displayed path around a blocking rock")
+	_expect(effective.front() == original.cells.front() and effective.back() == original.cells.back(), "bent snapshot preserves the authored spawn and target endpoints")
+	var path_manager := PathManager.new()
+	host.add_child(path_manager)
+	path_manager.configure(grid, tile_manager)
+	path_manager.load_level(level)
+	path_manager.set_debug_paths_visible(false)
+	path_manager.set_runtime_route_snapshot(planner.get_route_snapshot())
+	path_manager.set_runtime_path_display(true, [original])
+	_expect(path_manager.get_world_points(original).size() == original.cells.size(), "authored world points remain immutable for enemy spawn timing")
+	_expect(path_manager.get_effective_world_points(original).size() == effective.size(), "runtime path visuals consume the shared bent snapshot")
+	var snapshot_changes: Array[int] = [0]
+	planner.route_snapshot_changed.connect(func(_snapshot: Dictionary) -> void:
+		snapshot_changes[0] += 1
+		path_manager.set_runtime_route_snapshot(_snapshot)
+	)
+	planner.advance_route_refresh(planner.route_refresh_interval)
+	_expect(snapshot_changes[0] == 0, "an unchanged periodic route refresh does not rebuild visual consumers")
+	_expect(tile_manager.destroy_obstacle_at(blocked_cell), "snapshot fixture removes the blocking rock at runtime")
+	planner.advance_route_refresh(planner.route_refresh_interval)
+	_expect(snapshot_changes[0] == 1, "the periodic whole-path cache publishes a changed route exactly once")
+	_expect(planner.get_effective_route_cells(original) == original.cells, "destroying the rock restores the authored path in the next shared snapshot")
+	_expect(path_manager.get_effective_world_points(original).size() == original.cells.size(), "runtime path rendering follows the restored live route")
+	host.queue_free()
 	await process_frame
 
 func _test_exact_intersection_and_no_route() -> void:

@@ -85,6 +85,8 @@ func _test_tile_effect_filtering_and_navigation() -> void:
 	var flying_detour := planner.find_detour(original, Vector3i(1, 0, 0), Vector3i(2, 0, 0), flying)
 	_expect(bool(ground_detour["triggered"]), "ground enemy requests a detour around an applicable rock")
 	_expect(not bool(flying_detour["triggered"]), "flying enemy keeps its authored path through an inapplicable rock")
+	_expect(not planner.get_effective_route_cells(original).has(Vector3i(2, 0, 0)), "ground route snapshot bends around a ground-only rock")
+	_expect(planner.get_effective_route_cells(original, true) == original.cells, "airborne route snapshot preserves the real straight flight path")
 
 	spike.affects_airborne = true
 	effects.apply_stay(flying, Vector3i.ZERO, 1.0)

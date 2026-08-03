@@ -23,6 +23,7 @@ var _path_manager: PathManager
 var _line_mesh: MeshInstance3D
 var _marker_root: Node3D
 var _preview_records: Array[Dictionary] = []
+var _requested_paths: Array[Dictionary] = []
 var _flow_elapsed: float = 0.0
 var _last_ticks_usec: int = 0
 
@@ -51,18 +52,38 @@ func configure(path_manager: PathManager) -> void:
 	_path_manager = path_manager
 	if _path_manager != null:
 		_path_manager.paths_loaded.connect(_on_paths_loaded)
+		_path_manager.runtime_routes_changed.connect(_on_runtime_routes_changed)
 	clear_preview()
 
 
 func preview_paths(paths: Array) -> void:
-	clear_preview()
+	_requested_paths.clear()
+	for value in paths:
+		var path: PathDefinition
+		var airborne := false
+		if value is Dictionary:
+			path = value.get("path") as PathDefinition
+			airborne = bool(value.get("airborne", false))
+		else:
+			path = value as PathDefinition
+		if path == null or _has_requested_route(path, airborne):
+			continue
+		_requested_paths.append({"path": path, "airborne": airborne})
+	_rebuild_preview(false)
+
+
+func _rebuild_preview(preserve_elapsed: bool) -> void:
+	_clear_geometry()
+	if not preserve_elapsed:
+		_flow_elapsed = 0.0
 	if not feature_enabled or _path_manager == null:
 		return
-	for value in paths:
-		var path := value as PathDefinition
+	for request in _requested_paths:
+		var path := request.get("path") as PathDefinition
 		if path == null:
 			continue
-		var points := _make_lifted_points(_path_manager.get_world_points(path))
+		var airborne := bool(request.get("airborne", false))
+		var points := _make_lifted_points(_path_manager.get_effective_world_points(path, airborne))
 		if points.size() < 2:
 			continue
 		var cumulative := _build_cumulative_lengths(points)
@@ -80,9 +101,21 @@ func preview_paths(paths: Array) -> void:
 	advance_visual_time(0.0)
 
 
+func _has_requested_route(path: PathDefinition, airborne: bool) -> bool:
+	for request in _requested_paths:
+		if request.get("path") == path and bool(request.get("airborne", false)) == airborne:
+			return true
+	return false
+
+
 func clear_preview() -> void:
-	_preview_records.clear()
+	_requested_paths.clear()
+	_clear_geometry()
 	_flow_elapsed = 0.0
+
+
+func _clear_geometry() -> void:
+	_preview_records.clear()
 	if _line_mesh != null:
 		_line_mesh.mesh = null
 	if _marker_root != null:
@@ -204,6 +237,13 @@ func _on_paths_loaded(_level: LevelResource) -> void:
 	clear_preview()
 
 
+func _on_runtime_routes_changed() -> void:
+	if not _requested_paths.is_empty():
+		_rebuild_preview(true)
+
+
 func _disconnect_path_manager() -> void:
 	if _path_manager != null and _path_manager.paths_loaded.is_connected(_on_paths_loaded):
 		_path_manager.paths_loaded.disconnect(_on_paths_loaded)
+	if _path_manager != null and _path_manager.runtime_routes_changed.is_connected(_on_runtime_routes_changed):
+		_path_manager.runtime_routes_changed.disconnect(_on_runtime_routes_changed)

@@ -25,6 +25,13 @@ func _test_manual_release_flow() -> void:
 	var fixture := _make_runtime_fixture(level)
 	var host: Node3D = fixture["host"]
 	var manager: WaveManager = fixture["wave"]
+	var path_manager: PathManager = fixture["path"]
+	path_manager.set_debug_paths_visible(false)
+	var path_display := RuntimePathDisplayController.new()
+	path_display.pulse_period = 1.0
+	path_display.pulse_visible_duration = 0.25
+	host.add_child(path_display)
+	path_display.configure(manager, path_manager)
 	var spawned_names: Array[String] = []
 	var released_numbers: Array[int] = []
 	var started_numbers: Array[int] = []
@@ -48,10 +55,23 @@ func _test_manual_release_flow() -> void:
 
 	manager._process(30.0)
 	_expect(manager.get_active_enemy_count() == 0, "no enemy spawns before the first manual release")
+	_expect(manager.should_show_continuous_paths(), "paths remain continuous before the first manual release")
+	_expect(path_manager.is_runtime_path_display_visible(), "the runtime path layer is visible before wave one")
+	_expect(path_manager._path_mesh.mesh != null, "continuous phase builds visible route geometry")
 	_expect(manager.get_released_wave_count() == 0, "no wave is released implicitly")
 	_expect(manager.get_next_wave_number() == 1 and manager.get_next_wave() == level.waves[0], "next-wave queries expose the first pending wave")
 
 	_expect(manager.start_battle(), "start_battle compatibility entry releases the first wave")
+	_expect(manager.is_wave_action_active(), "a released wave with living or pending enemies is action-active")
+	_expect(path_display.get_display_phase() == RuntimePathDisplayController.DisplayPhase.PULSED, "active combat changes path display to pulsed mode")
+	_expect(path_manager.is_runtime_path_display_visible(), "an active-wave pulse starts visible")
+	path_display.advance_display_time(0.30)
+	_expect(not path_manager.is_runtime_path_display_visible(), "active paths hide after the configurable pulse duration")
+	_expect(path_manager._path_mesh.mesh == null, "hidden pulse phase clears only route geometry")
+	path_display.advance_display_time(0.70)
+	_expect(path_manager.is_runtime_path_display_visible(), "active paths reappear on the next configurable pulse")
+	_expect(path_manager._path_mesh.mesh != null, "the next pulse rebuilds active route geometry")
+	_expect(path_manager.get_runtime_path_ids() == [&"manual_wave_path"], "active-wave pulses are filtered to active authored paths")
 	_expect(manager.get_released_wave_count() == 1 and released_numbers == [1], "one click releases exactly one wave")
 	_expect(manager.get_current_wave_number() == 1 and manager.get_next_wave_number() == 2, "current and next wave numbers follow the release cursor")
 	_expect(spawned_names == ["W1 Early"], "the earliest group starts immediately even with a non-zero authored delay")
@@ -69,6 +89,8 @@ func _test_manual_release_flow() -> void:
 
 	await _clear_active_enemies(manager)
 	_expect(manager.get_state() == WaveManager.State.ACTIVE, "clearing released waves cannot win while a wave remains unreleased")
+	_expect(manager.should_show_continuous_paths(), "a cleared interval with another unreleased wave is a continuous-path interval")
+	_expect(path_manager.is_runtime_path_display_visible(), "all routes remain visible throughout the wave interval")
 	_expect(manager.get_next_wave_number() == 3 and manager.can_start_next_wave(), "the final unreleased wave remains explicitly available")
 
 	_expect(manager.start_next_wave(), "the final wave can be released manually")
@@ -140,6 +162,7 @@ func _make_runtime_fixture(level: LevelResource) -> Dictionary:
 		"wave": wave_manager,
 		"combat": combat_manager,
 		"base": base_core,
+		"path": path_manager,
 	}
 
 

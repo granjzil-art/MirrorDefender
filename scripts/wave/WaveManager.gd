@@ -192,6 +192,79 @@ func can_start_next_wave() -> bool:
 func are_all_waves_released() -> bool:
 	return _level != null and not _level.waves.is_empty() and _released_wave_count >= _level.waves.size()
 
+
+## True while any released wave still has pending spawns or living enemies.
+## This is intentionally independent from State.ACTIVE because manual release
+## keeps ACTIVE during the quiet interval before the next wave is released.
+func is_wave_action_active() -> bool:
+	if _state != State.ACTIVE:
+		return false
+	_cleanup_units()
+	return not _all_groups_spawned() or not _active_units.is_empty()
+
+
+## Runtime path visuals stay continuous before wave one and during a genuine
+## manual-release interval, but not after a terminal state or the final release.
+func should_show_continuous_paths() -> bool:
+	if _state == State.READY:
+		return true
+	return (
+		_state == State.ACTIVE
+		and not are_all_waves_released()
+		and not is_wave_action_active()
+	)
+
+
+## Unique authored paths belonging to released waves that are not yet complete.
+## Overlapping waves contribute their union in authored wave/group order.
+func get_active_paths() -> Array[PathDefinition]:
+	var paths: Array[PathDefinition] = []
+	for request in get_active_path_requests():
+		var path := request.get("path") as PathDefinition
+		if path != null and not paths.has(path):
+			paths.append(path)
+	return paths
+
+
+## Profile-aware route requests for currently active, possibly overlapping
+## waves. A path used by both ground and airborne groups yields two requests.
+func get_active_path_requests() -> Array[Dictionary]:
+	var requests: Array[Dictionary] = []
+	if _level == null or _state != State.ACTIVE:
+		return requests
+	_cleanup_units()
+	for wave_index in range(mini(_released_wave_count, _level.waves.size())):
+		if _completed_wave_indices.has(wave_index):
+			continue
+		if _all_wave_groups_spawned(wave_index) and not _has_active_unit_for_wave(wave_index):
+			continue
+		var wave: WaveDefinition = _level.waves[wave_index]
+		for group in wave.spawn_groups:
+			_append_path_request(requests, group)
+	return requests
+
+
+func get_all_path_requests() -> Array[Dictionary]:
+	var requests: Array[Dictionary] = []
+	if _level == null:
+		return requests
+	for wave in _level.waves:
+		if wave == null:
+			continue
+		for group in wave.spawn_groups:
+			_append_path_request(requests, group)
+	return requests
+
+
+func _append_path_request(requests: Array[Dictionary], group: SpawnGroupDefinition) -> void:
+	if group == null or group.path == null:
+		return
+	var airborne := group.enemy != null and group.enemy.is_airborne
+	for request in requests:
+		if request.get("path") == group.path and bool(request.get("airborne", false)) == airborne:
+			return
+	requests.append({"path": group.path, "airborne": airborne})
+
 func get_active_enemy_count() -> int:
 	_cleanup_units()
 	return _active_units.size()

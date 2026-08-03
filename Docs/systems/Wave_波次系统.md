@@ -25,6 +25,7 @@ next_spawn_time += max(0.01, group.interval)
 - **允许重叠**：新波释放不清理旧波 `_spawn_states` 或活动单位；多波可同时生成、移动和战斗。
 - **释放与开始不同**：`wave_released` 表示该波释放事务成功并推进游标；`wave_started` 表示该波第一只敌人已成功加入 `CombatManager`。立即生成时 `wave_started` 可能在 `wave_released` 之前发出，调用方只能按语义区分，不能依赖二者先后顺序。
 - **逐波完成**：一波至少成功生成过一只敌人、该波全部组生成完且该波活动敌人为空时发送一次 `wave_completed`；完成不自动释放下一波。
+- **路径显示阶段事实**：`ACTIVE` 同时包含“仍在生成/有存活敌人”和“等待玩家释放下一波”的静默区间。`is_wave_action_active()` 用待生成组与活动单位区分二者；`should_show_continuous_paths()` 只在 `READY` 或仍有下一波的真实静默区间返回 true。活动路径请求按未完成的已释放波求并集，并保留地面/空中档案。
 - **胜利条件**：仅当 `are_all_waves_released()`、全部已建生成状态的 `remaining == 0`、且 `_active_units` 为空时进入 `VICTORY`。未释放波仍存在时，即使场上清空也不得胜利。Debug spawn 复用 `_active_units`，因此同样阻塞最终胜利。
 - **失败与配置错误**：共享 `BaseCore` 生命归零进入 `DEFEAT`；预检/生成失败进入 `CONFIG_ERROR`。二者都会停止生成并清理活动敌人和敌方投射物，不得误判胜利。
 - **Debug spawn 边界**：`spawn_debug_enemy()` 不释放作者波次、不推进游标、不增加组生成计数；要求非空 EnemyDefinition、当前关卡路径，且当前状态不是 `VICTORY/DEFEAT/CONFIG_ERROR`。F1 `spawn` 业务绑定会额外把敌人限制为当前关卡波次已引用定义；WaveManager 公共入口本身不扫描或验证敌人资源归属。终态一律拒绝。
@@ -133,6 +134,10 @@ all waves released
 | `WaveManager.get_next_wave` | `() -> WaveDefinition` | 返回释放游标指向的定义；无下一波时为 null。 |
 | `WaveManager.can_start_next_wave` | `() -> bool` | 检查功能开关、关卡、`READY/ACTIVE` 状态和剩余作者波次。 |
 | `WaveManager.are_all_waves_released` | `() -> bool` | 判断非空作者波次数组是否已全部推进游标。 |
+| `WaveManager.is_wave_action_active` | `() -> bool` | `ACTIVE` 中仍有待生成组或活动单位时返回 true。 |
+| `WaveManager.should_show_continuous_paths` | `() -> bool` | 首波前或仍有下一波的真实清场间隙返回 true。 |
+| `WaveManager.get_active_path_requests` | `() -> Array[Dictionary]` | 返回未完成已释放波的唯一 `{path, airborne}` 路线请求。 |
+| `WaveManager.get_all_path_requests` | `() -> Array[Dictionary]` | 返回关卡全部波次使用的唯一导航档案路线请求。 |
 | `WaveManager.get_active_enemy_count` | `() -> int` | 清理失效句柄后返回作者生成与 Debug spawn 的全部活动敌人数。 |
 | `WaveManager.get_battle_elapsed` | `() -> float` | 返回第一波释放后累计的缩放游戏时间；后续释放不归零。 |
 | `WaveManager.get_configuration_error` | `() -> String` | 返回最近配置错误文本。 |
@@ -142,7 +147,7 @@ all waves released
 | `WaveControlPanel.set_preview_suppressed` | `(suppressed: bool) -> void` | 暂停/控制台模态时清理并禁止路径预览。 |
 | `WaveControlPanel.clear_hover_preview` | `() -> void` | 隐藏详情并发送路径清理信号。 |
 | `WaveControlPanel.get_previewed_wave_number` | `() -> int` | 返回当前悬停预览的下一波号；未预览为 0。 |
-| `WaveTimelineModel.build` | `(level: LevelResource) -> Array[Dictionary]` | 返回作者顺序条目；每项键为 `wave_index/wave_number/display_name/scheduled_time/groups/enemy_totals/paths/primary_icon/summary`，仅作只读摘要。 |
+| `WaveTimelineModel.build` | `(level: LevelResource) -> Array[Dictionary]` | 返回作者顺序条目；除唯一 `paths` 外增加 `{path, airborne}` 的 `path_requests`，仅作只读摘要与真实路线预览。 |
 
 ## 信号索引
 

@@ -13,6 +13,7 @@
 - **攻击状态**：目标屏障进入射程即停步；EnemyAttackStrategy 管理攻速冷却。近战即时伤害，远程生成投射物。
 - **恢复移动**：建筑屏障被摧毁或手动删除后，单位沿当前路径继续。
 - **受阻换路**：当逻辑上的下一格阻断导航时触发 PathRoutePlanner；判定依据是当前路径段而非必须站在前一格中心，因此同格普通屏障被攻破、石头虚影在帧末重建后仍会重新换路/攻击。候选连接点必须是当前格本身或相邻格，候选路径后缀只排除导航阻碍，空洞仍可被选中并在踏入时生效。
+- **共享预计算、延迟应用**：PathRoutePlanner 以可调周期按整条路径批量维护地面/空中路线快照，避免每个敌人每帧独立跑寻路。EnemyUnit 仍只在走到障碍前的逻辑路径段时调用解析器并安装缓存结果，因此停步/转向时机不提前；缓存不匹配新出现的阻挡段时才同步计算一次。
 - **无路攻击**：大石头没有合法手工替代路径时，由 PathRoutePlanner 返回具体运行时阻挡目标；敌人复用屏障攻击状态靠近并攻击，石头摧毁后沿原路径继续。
 - **策略差异**：普通屏障是 `DIRECT_ATTACK`；大石头是 `REROUTE_THEN_ATTACK`。两者使用相同结构伤害契约，差异只发生在受阻后的决策顺序。
 - **无自由选敌**：敌人不攻击路外塔、不选择最近建筑、不绕行；只认路径顺序中的第一个屏障。
@@ -25,6 +26,7 @@
 |---|---|---|
 | `scripts/path/PathBlockerPolicy.gd` | `PathBlockerPolicy` / `RefCounted` | 普通直接攻击与大石头先换路后攻击的共享策略枚举。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 从手工路径选择最短可用后缀，并在失败时返回当前石头攻击代理。 |
+| `scripts/path/PathRouteSnapshotCache.gd` | `PathRouteSnapshotCache` / `RefCounted` | 维护一类导航目标的全路径预计算与障碍段结果。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 编排移动、直接屏障攻击、大石头换路与失败攻击状态。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 真实石头逐格耐久与结构攻击契约。 |
 
@@ -56,6 +58,7 @@ Rock destroyed -> TileManager clears runtime obstacle/effect and restores buildi
 | `EnemyUnit._get_reroute_attack_blocker_info` | `() -> Dictionary` | 把换路失败返回的大石头代理包装成复用攻击移动所需的路径段信息。 |
 | `EnemyUnit._is_blocker_alive` | `(blocker: Variant) -> bool` | 在收窄为结构攻击契约前拦截已释放对象，避免多敌人共享阻挡目标时的帧末生命周期竞态。 |
 | `PathRoutePlanner.find_detour` | `(current_path, current_cell, blocked_cell, target = null) -> Dictionary` | 返回 `{triggered, found, path, cells, cost, join_cell, blocker}`；找到最短手工后缀，或在失败时返回具体石头攻击目标。 |
+| `PathRoutePlanner.refresh_route_snapshot` | `() -> void` | 一次刷新全部作者路径的地面/空中预期路线；不修改敌人当前路线。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前目标有效且在射程内时返回 true。 |
 | `EnemyUnit._move_along_path` | `(remaining_distance: float) -> void` | 按距离预算推进并支持跨段。 |
 | `EnemyUnit._reach_base` | `() -> void` | 单次广播据点伤害并释放单位。 |

@@ -24,6 +24,7 @@ const BaseCoreScript := preload("res://scripts/unit/BaseCore.gd")
 const WaveManagerScript := preload("res://scripts/wave/WaveManager.gd")
 const PathHoverPreviewScript := preload("res://scripts/path/PathHoverPreview.gd")
 const PathHoverPreviewScene := preload("res://scenes/path/PathHoverPreview.tscn")
+const RuntimePathDisplayScene := preload("res://scenes/path/RuntimePathDisplayController.tscn")
 const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd")
 const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
 const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
@@ -87,6 +88,7 @@ var edge_occupancy_registry: EdgeOccupancyRegistry
 var mirror_manager: MirrorManager
 var level_reflection_surface: LevelReflectionSurfaceScript
 var path_hover_preview: PathHoverPreviewScript
+var runtime_path_display: RuntimePathDisplayController
 var camera_preset_controller: CameraPresetControllerScript
 var runtime_debug_bindings: RuntimeDebugBindingsScript
 var _has_selected_cell: bool = false
@@ -218,6 +220,7 @@ func _ready() -> void:
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
 	path_route_planner.configure(grid, tile_manager)
+	path_route_planner.route_snapshot_changed.connect(path_manager.set_runtime_route_snapshot)
 	wave_manager = WaveManagerScript.new()
 	add_child(wave_manager)
 	wave_manager.configure(
@@ -232,6 +235,9 @@ func _ready() -> void:
 		Callable(tile_effect_system, "apply_stay"),
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
+	runtime_path_display = RuntimePathDisplayScene.instantiate() as RuntimePathDisplayController
+	add_child(runtime_path_display)
+	runtime_path_display.configure(wave_manager, path_manager)
 	runtime_hud.configure_global_info(resource_manager, wave_manager, base_core)
 	runtime_hud.configure_wave_controls(wave_manager)
 	runtime_debug_bindings = RuntimeDebugBindingsScript.new()

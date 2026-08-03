@@ -1,6 +1,6 @@
 # 路径系统 · Path
 
-> 实现状态：M4 已完成线性格子路径与大石头动态换路；M6 批次 4 已完成独立出生点、多据点目标锁定、同目标手工路径优先和限定路网 A* 回退。
+> 实现状态：M4 已完成线性格子路径与大石头动态换路；M6 已完成独立出生点、多据点目标锁定、同目标路网 A* 回退，以及分波次阶段显示的实时弯折路线。
 
 ## 职责
 
@@ -15,8 +15,10 @@
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
 - **地形换路**：大石头是“先换路、后攻击”的导航阻碍。EnemyUnit 逻辑上进入“前一格→石头格”路径段时，PathRoutePlanner 仅查找与敌人初始路径相同 `target_base` 的候选。先选“当前格相交/相邻 + 后缀可通行”的最短完整手工后缀；无候选时，用可替换 `IAutoRouteStrategy` 在同目标路径格并集上做确定性 A*。两层都失败才返回当前石头实体/投影作为攻击目标。
-- **表现**：全部 `PathDefinition.cells` 的并集使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，运行时与关卡编辑器一致。PathManager 另行绘制可关闭的路线与出生点调试标记；BaseCore 绘制据点标记。没有任何有效线段时直接清空 mesh，不结束零顶点 ImmediateMesh surface。
-- **M6 悬停流向**：`PathHoverPreview` 只在波次块悬停时读取 PathManager 世界点，为该波全部唯一路径绘制发光折线和从入口向据点循环移动的标记；使用真实时间，不改变路径、敌人或波次。悬停离开、暂停和切关会清空。
+- **共享实时路线快照**：`PathRoutePlanner` 每 `route_refresh_interval` 秒按整条作者路径统一检查阻碍；`PathRouteSnapshotCache` 为地面/空中导航档案分别计算“作者前缀 + 同目标最短后缀/A*”的弯折路线。快照只在格序列改变时广播，所有地面敌人抵达记录的阻挡段后复用同一结果；敌人出生仍读取原始 `PathDefinition.cells`，不会因后台预计算而提前转弯。无可用绕路时快照保留原路径，因为实际行为是攻击石头后继续该路径。
+- **分阶段表现**：`RuntimePathDisplayController` 在首波释放前和真正波间（仍有下一波，且已释放波已生成完并清场）持续显示全部相关路线；波次进行中只按 `pulse_period` 周期短暂显示尚未完成的已释放波所用路线，单次时长为 `pulse_visible_duration`；终局隐藏。重叠波次取活动路径并集，同一路径的地面/空中档案可分别显示。
+- **地表与调试层**：全部 `PathDefinition.cells` 的并集仍使用 `LevelResource.path_terrain_color`（默认 `#FFB93B`）绘制地块基底，不随动态换路改变。`PathManager.show_paths` 只额外绘制作者路径调试线；出生点和据点数字保持独立。没有有效线段时直接清空 mesh，不结束零顶点 surface。
+- **M6 悬停流向**：`PathHoverPreview` 读取同一实时路线快照，为下一波全部“路径 + 地面/空中档案”绘制发光折线和入口到据点循环标记；快照改变时保持动画时间并重建几何。悬停离开、暂停和切关会清空。
 - **编辑**：加载关卡或切入路径页时默认关闭“记录路径”，避免查看地图时误改路线；新增路径后自动开启记录，可按住左键连续拖过地块，画布会按鼠标轨迹采样并逐格记录。四边形同行/同列的跳格端点会自动补全中间格；加载旧关卡时也执行同一无歧义修复并标记为未保存。其它非相邻落点仍会被拒绝。
 - **路径页隔离显示**：路径列表选中某条路径后，路径画布只绘制该路径的折线和节点圆点；切换选择立即切换覆盖层。全部路径经过格仍保留 `path_terrain_color` 基底，全部出生点和据点数字仍显示。隔离仅作用于路径页，地块页和镜头页继续表现全部路径格。
 - **校验按钮**：“校验 M4 关卡”只读取当前内存中的 LevelResource 并列出配置错误，不保存、不加载、不启动运行时，也不会自动修复或改写路径。
@@ -35,7 +37,10 @@
 | PathManager | `path_color` / `spawn_color` / `line_lift` | 运行时灰盒颜色和抬升高度。 |
 | PathRoutePlanner | `feature_enabled` | 大石头动态换路开关。 |
 | PathRoutePlanner | `automatic_route_enabled` | 手工后缀失败时，是否启用同目标路网 A* 回退。 |
+| PathRoutePlanner | `route_snapshot_enabled` / `route_refresh_interval = 0.5` | 整条路径共享快照开关与游戏时间刷新周期。 |
 | PathRoutePlanner | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的调试线开关、颜色与抬升。 |
+| RuntimePathDisplayController | `feature_enabled` | 首波前、波间和波中周期路径提示总开关。 |
+| RuntimePathDisplayController | `pulse_period = 5.0` / `pulse_visible_duration = 1.25` | 波中提示周期及每次持续时间；均按缩放后的游戏时间。 |
 | PathHoverPreview | `feature_enabled` | M6 波次悬停世界流向总开关。 |
 | PathHoverPreview | `flow_speed` / `markers_per_path` / `line_lift` / `marker_radius` | 流动速度、每条路径标记数、折线抬升和标记半径。 |
 | PathHoverPreview | `line_color` / `marker_color` / `emission_energy` | 默认发光颜色和强度。 |
@@ -53,8 +58,11 @@
 | `scripts/path/PathManager.gd` | `PathManager` / `Node3D` | 初始路径索引、世界点解析、校验和调试绘制入口。 |
 | `scripts/path/PathBlockerPolicy.gd` | `PathBlockerPolicy` / `RefCounted` | 路径阻挡后的直接攻击/先换路后攻击策略枚举。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 同目标手工后缀优先的换路编排与调试线。 |
+| `scripts/path/PathRouteSnapshotCache.gd` | `PathRouteSnapshotCache` / `RefCounted` | 单导航档案的整条路线快照、变更签名与障碍前共享结果。 |
+| `scripts/path/PathNavigationProfile.gd` | `PathNavigationProfile` / `Node` | 后台预计算空中目标适用性的轻量查询适配器。 |
 | `scripts/path/IAutoRouteStrategy.gd` / `PathNetworkAStarStrategy.gd` | `RefCounted` | 可替换自动寻路接口与限定路网的确定性 A* 实现。 |
 | `scripts/path/PathHoverPreview.gd` / `scenes/path/PathHoverPreview.tscn` | `PathHoverPreview` / `Node3D` | 波次悬停期间的多路径发光折线和真实时间流向标记；场景提供 Inspector 参数入口。 |
+| `scripts/path/RuntimePathDisplayController.gd` / `scenes/path/RuntimePathDisplayController.tscn` | `RuntimePathDisplayController` / `Node` | 把 WaveManager 的活动/波间事实映射为持续或周期路径显示；场景提供 Inspector 参数入口。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | `Control` | 复用地形斜俯视投影绘制 M4 路线/入口/据点。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
 | `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 独立出生点、共用入口、多据点端点、旧关卡兼容和波次派生绑定回归。 |
@@ -68,7 +76,10 @@ LevelResource.paths / spawn_points / base_points
   -> TileRenderer / Level Editor canvas -> path-cell union -> path_terrain_color base
   -> WaveManager SpawnGroupDefinition.path
   -> PathManager.get_world_points + PathDefinition.cells -> EnemyUnit initial movement/blocker order
+  -> PathRoutePlanner periodic refresh -> ground/airborne PathRouteSnapshotCache
+     -> PathManager.set_runtime_route_snapshot -> phase route / hover route visuals
   -> rock at next cell -> PathRoutePlanner.find_detour(target_base locked)
+     ├─ matching shared snapshot -> temporary per-enemy route (only now installed)
      ├─ same-target manual suffix -> temporary per-enemy route
      ├─ target road-cell union -> PathNetworkAStarStrategy
      └─ both missing -> concrete rock blocker -> EnemyUnit attack state
@@ -85,8 +96,12 @@ Level Editor path page
   -> wave path selection -> derive the path's SpawnPointDefinition
   -> validate_m4 -> base/path/spawn/wave consistency report (read-only)
 
-WaveControlPanel hover next-wave paths -> RuntimeHud signal -> Main
-  -> PathHoverPreview.preview_paths -> PathManager.get_world_points
+WaveManager state_changed -> RuntimePathDisplayController
+  ├─ READY / true inter-wave gap -> all relevant route profiles continuously
+  └─ active released waves -> active route profiles pulse periodically
+
+WaveControlPanel hover next-wave route requests -> RuntimeHud signal -> Main
+  -> PathHoverPreview.preview_paths -> PathManager.get_effective_world_points
   -> line + spawn-to-base looping markers
 PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHoverPreview.clear_preview
 ```
@@ -109,17 +124,25 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `PathManager.load_level` | `(level_resource: LevelResource) -> void` | 重建 ID 索引和路径表现。 |
 | `PathManager.get_path_definition` | `(path_id: StringName) -> PathDefinition` | 通过稳定 ID 返回路径定义。 |
 | `PathManager.get_world_points` | `(path: PathDefinition) -> PackedVector3Array` | 把路径格转为带高度世界点。 |
+| `PathManager.get_effective_world_points` | `(path: PathDefinition, airborne: bool = false) -> PackedVector3Array` | 从共享快照返回对应导航档案的实时弯折世界点；无快照时回退作者路径。 |
 | `PathManager.is_path_valid` | `(path: PathDefinition) -> bool` | 校验边界、长度和相邻连续性。 |
 | `PathManager.set_debug_paths_visible` | `(enabled: bool) -> void` | 开关手工路径调试线并重建表现；出生点数字始终保留。 |
+| `PathManager.set_runtime_path_display` | `(enabled: bool, paths: Array = []) -> void` | 原子切换阶段路径层及可选的 `{path, airborne}` 过滤集合。 |
+| `PathManager.set_runtime_route_snapshot` | `(snapshot: Dictionary) -> void` | 接收 `path_id -> {ground, airborne}` 快照并通知显示消费者。 |
 | `PathRoutePlanner.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入网格相邻与地块可通行事实源。 |
 | `PathRoutePlanner.load_level` | `(level_resource: LevelResource) -> void` | 替换候选手工路径集并清理调试线。 |
 | `PathRoutePlanner.find_detour` | `(current_path: PathDefinition, current_cell: Vector3i, blocked_cell: Vector3i, target: Node = null) -> Dictionary` | 返回换路结果、`route_source` 与 `target_base_id`；手工后缀优先，再调用同目标路网 A*，失败时返回当前石头攻击代理。 |
+| `PathRoutePlanner.advance_route_refresh` | `(delta: float) -> void` | 累加共享快照时钟，到达 `route_refresh_interval` 后整批刷新。 |
+| `PathRoutePlanner.refresh_route_snapshot` | `() -> void` | 同批重建全部作者路径的地面/空中档案，仅变化时发 `route_snapshot_changed`。 |
+| `PathRoutePlanner.get_effective_route_cells` | `(path: PathDefinition, airborne: bool = false) -> Array[Vector3i]` | 返回只读实时路线格序列。 |
 | `PathRoutePlanner.set_auto_route_strategy` | `(strategy: IAutoRouteStrategy) -> void` | 注入可替换自动寻路策略。 |
 | `PathRoutePlanner.set_debug_route_visible` | `(enabled: bool) -> void` | 开关换路调试线；关闭时立即清除已绘制路线。 |
 | `PathHoverPreview.configure` | `(path_manager: PathManager) -> void` | 注入只读世界点入口并订阅切关信号。 |
 | `PathHoverPreview.preview_paths` | `(paths: Array) -> void` | 清理旧内容并同时构建全部有效路径的发光线和流动标记。 |
 | `PathHoverPreview.clear_preview` | `() -> void` | 清除全部悬停路径状态、线 Mesh 和标记。 |
 | `PathHoverPreview.advance_visual_time` | `(real_delta: float) -> void` | 以真实时间推进所有标记，暂停时仍可独立运行。 |
+| `RuntimePathDisplayController.configure` | `(wave_manager: WaveManager, path_manager: PathManager) -> void` | 订阅波次状态并注入路径表现入口。 |
+| `RuntimePathDisplayController.advance_display_time` | `(delta: float) -> void` | 以游戏时间推进波中显示周期；持续阶段不计时。 |
 | `LevelResource.validate_m4` | `() -> Array[String]` | 只读检查据点边界，路径长度/边界/逐段相邻/终点，出生点边界，以及波次组数量、间隔和引用；空数组表示通过。 |
 | `TileEditorCanvas._record_path_between` | `(from: Vector2, to: Vector2) -> void` | 按屏幕轨迹采样鼠标拖动，为路径页依次发送经过格。 |
 | `TileEditorCanvas.set_m4_overlay` | `(paths: Array[PathDefinition], spawn_points: Array[SpawnPointDefinition], base_points: Array, selected_path: PathDefinition) -> void` | 替换路径页折线/端点覆盖层；路径地表并集仍从完整 LevelResource 重建。 |
