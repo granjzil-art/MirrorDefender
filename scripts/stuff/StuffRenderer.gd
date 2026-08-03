@@ -97,7 +97,7 @@ func _build_visual(runtime: StuffRuntime) -> Node3D:
 	root.position = _get_slot_offset(runtime)
 	var model_asset := runtime.definition.get_model_asset()
 	if model_asset != null:
-		var model := model_asset.instantiate_model(&"Model")
+		var model := model_asset.instantiate_grounded_model(&"Model")
 		if model != null:
 			root.add_child(model)
 			return root

@@ -183,9 +183,10 @@ func _add_column_side_bands(mesh: ImmediateMesh, top_a: Vector3, top_b: Vector3,
 
 func _add_flat_models(cell: Vector3i, layer_count: int, asset: ModelAssetDefinition) -> void:
 	var center := _grid.cell_to_world(cell)
+	var target_bounds := _get_flat_voxel_bounds(cell)
 	for layer_index in range(layer_count):
 		var instance_name := StringName("Terrain_%d_%d_%d_L%d" % [cell.x, cell.y, cell.z, layer_index + 1])
-		var visual := asset.instantiate_model(instance_name)
+		var visual := asset.instantiate_fitted_model(instance_name, target_bounds)
 		if visual == null:
 			continue
 		var layer_y := float(layer_index) * _terrain_manager.get_layer_height() + TOP_LIFT
@@ -194,20 +195,54 @@ func _add_flat_models(cell: Vector3i, layer_count: int, asset: ModelAssetDefinit
 
 
 func _add_custom_ramp(ramp: RampPlacementData, asset: ModelAssetDefinition) -> void:
-	var visual := asset.instantiate_model(StringName("Ramp_%s" % String(ramp.ramp_id)))
-	if visual == null:
-		return
 	var footprint := ramp.get_footprint_cells(_grid.get_shape())
 	if footprint.is_empty():
-		visual.free()
+		return
+	var axis := _terrain_manager.get_ramp_axis(ramp)
+	var target_bounds := _get_ramp_bounds(ramp, axis)
+	var visual := asset.instantiate_fitted_model(
+		StringName("Ramp_%s" % String(ramp.ramp_id)),
+		target_bounds
+	)
+	if visual == null:
 		return
 	var start := _grid.cell_to_world(footprint[0])
 	var end := _grid.cell_to_world(footprint[footprint.size() - 1])
-	var axis := _terrain_manager.get_ramp_axis(ramp)
 	visual.position = (start + end) * 0.5
 	visual.position.y = float(ramp.base_layer - 1) * _terrain_manager.get_layer_height() + TOP_LIFT
 	visual.rotation.y = atan2(axis.x, axis.z)
 	_custom_models_root.add_child(visual)
+
+
+func _get_flat_voxel_bounds(cell: Vector3i) -> AABB:
+	var center := _grid.cell_to_world(cell)
+	var minimum := Vector3(INF, -_terrain_manager.get_layer_height(), INF)
+	var maximum := Vector3(-INF, 0.0, -INF)
+	for corner in _grid.get_corners(cell):
+		minimum.x = minf(minimum.x, corner.x - center.x)
+		minimum.z = minf(minimum.z, corner.z - center.z)
+		maximum.x = maxf(maximum.x, corner.x - center.x)
+		maximum.z = maxf(maximum.z, corner.z - center.z)
+	return AABB(minimum, maximum - minimum)
+
+
+func _get_ramp_bounds(ramp: RampPlacementData, axis: Vector3) -> AABB:
+	var center := _grid.cell_to_world(ramp.anchor_cell)
+	var perpendicular := Vector3(-axis.z, 0.0, axis.x).normalized()
+	var minimum_cross := INF
+	var maximum_cross := -INF
+	for corner in _grid.get_corners(ramp.anchor_cell):
+		var local := corner - center
+		var cross_distance := local.dot(perpendicular)
+		minimum_cross = minf(minimum_cross, cross_distance)
+		maximum_cross = maxf(maximum_cross, cross_distance)
+	var width := maximum_cross - minimum_cross
+	var run_distance := _terrain_manager.get_ramp_cell_spacing(ramp) * float(ramp.run_length)
+	var height := _terrain_manager.get_layer_height()
+	return AABB(
+		Vector3(-width * 0.5, 0.0, -run_distance * 0.5),
+		Vector3(width, height, run_distance)
+	)
 
 
 func _add_triangle(mesh: ImmediateMesh, color: Color, a: Vector3, b: Vector3, c: Vector3) -> void:

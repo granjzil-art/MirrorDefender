@@ -1,5 +1,15 @@
 # 技术与玩法决策记录
 
+## 2026-08-03 · 模型资产使用上下文对齐，不再手调根 Transform
+
+**契约决策**：`ModelAssetDefinition` 统一生成 `ModelAssetRoot(runtime_scale) -> ModelAlignment -> authored scene`。建筑、Stuff、敌人使用“底部中心接地”；Terrain 和三类投射物使用“完整可视包围盒拟合玩法 AABB”。镜像继续复制已完成对齐的最终视觉树，不建立第二套资产解释。
+
+**尺寸事实源**：平地尺寸唯一来自 Grid 单格脚印与 `layer_height`；斜坡尺寸来自单格宽、一层升高和 `run_length`；投射物尺寸来自 `visual_length/visual_width`。拟合实例把运行时包装 Scale 强制归一为 1，所以旧资源直接迁移且历史 Scale 不再参与。接地模式保留 `runtime_scale`，用于建筑等级或对象美术大小差异，但不能再承担世界高度补偿。
+
+**覆盖边界**：默认递归合并 Mesh/MultiMesh 的编辑时 AABB；不规则装饰、阴影或特效通过 Ground/Fit 锚点或 `exclude_from_model_bounds` 显式排除。配置校验要求有效三轴包围盒、成对 Fit 锚点、Node3D 根和无同名兄弟节点。
+
+**理由**：手调 `.tscn` Transform 把某一关卡的 Layer Height、格尺寸和具体模型导入尺寸耦合在一起，同一模型换地形或换关卡必然再次错位。上下文对齐让逻辑尺寸只有一个事实源，同时保留美术资产原始层级和可控的表现缩放。
+
 ## 2026-08-03 · 波间统一悬停流线，波末短线完整收尾
 
 **表现决策**：首波前和真实波间直接复用 `PathHoverPreview.tscn` 的青色发光折线、材质与循环标记，正式阶段不再打开 PathManager 的黄色调试线。独立鼠标悬停出现时暂时抑制波间实例，避免同材质几何和标记重复叠加；悬停结束后按当前波次阶段恢复。

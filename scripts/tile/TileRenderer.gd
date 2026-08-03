@@ -130,14 +130,14 @@ func _create_tile_visual_snapshot(cell: Vector3i, include_base_terrain: bool) ->
 	snapshot.name = "TileVisualSnapshot" if include_base_terrain else "TileContentVisualSnapshot"
 	if include_base_terrain:
 		var terrain_asset := _get_terrain_model_asset(tile)
-		if _add_custom_tile_model(snapshot, terrain_asset, tile, &"TerrainModel", TOP_LIFT) == null:
+		if _add_custom_tile_model(snapshot, terrain_asset, tile, &"TerrainModel", TOP_LIFT, true) == null:
 			var terrain_mesh := ImmediateMesh.new()
 			terrain_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 			if _add_tile_geometry(terrain_mesh, tile, get_base_terrain_color(tile.cell)):
 				terrain_mesh.surface_end()
 				_add_snapshot_instance(snapshot, terrain_mesh, _terrain_material, "Terrain")
 	var element_asset := tile.get_element_model_asset()
-	if _add_custom_tile_model(snapshot, element_asset, tile, &"ElementModel", TOP_LIFT * 2.0) == null:
+	if _add_custom_tile_model(snapshot, element_asset, tile, &"ElementModel", TOP_LIFT * 2.0, false) == null:
 		if tile.is_destructible():
 			var obstacle_mesh := ImmediateMesh.new()
 			obstacle_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -179,13 +179,13 @@ func _rebuild() -> void:
 		if render_terrain_base:
 			var terrain_asset := _get_terrain_model_asset(tile)
 			var terrain_name := StringName("TileBase_%d_%d_%d" % [cell.x, cell.y, cell.z])
-			if _add_custom_tile_model(_custom_visuals_root, terrain_asset, tile, terrain_name, TOP_LIFT) == null:
+			if _add_custom_tile_model(_custom_visuals_root, terrain_asset, tile, terrain_name, TOP_LIFT, true) == null:
 				var terrain_color := get_base_terrain_color(tile.cell)
 				var did_add_terrain: bool = _add_tile_geometry(terrain_mesh, tile, terrain_color)
 				has_terrain_geometry = has_terrain_geometry or did_add_terrain
 		var element_asset := tile.get_element_model_asset()
 		var element_name := StringName("TileElement_%d_%d_%d" % [cell.x, cell.y, cell.z])
-		if _add_custom_tile_model(_custom_visuals_root, element_asset, tile, element_name, TOP_LIFT * 2.0) != null:
+		if _add_custom_tile_model(_custom_visuals_root, element_asset, tile, element_name, TOP_LIFT * 2.0, false) != null:
 			continue
 		if tile.is_destructible():
 			_add_obstacle_geometry(obstacle_mesh, tile)
@@ -218,11 +218,19 @@ func _add_custom_tile_model(
 	model_asset: ModelAssetDefinition,
 	tile: TileCellData,
 	instance_name: StringName,
-	vertical_offset: float
+	vertical_offset: float,
+	fit_as_terrain: bool
 ) -> Node3D:
 	if parent == null or model_asset == null or tile == null:
 		return null
-	var custom_visual := model_asset.instantiate_model(instance_name)
+	var custom_visual: Node3D
+	if fit_as_terrain:
+		custom_visual = model_asset.instantiate_fitted_model(
+			instance_name,
+			_get_legacy_voxel_bounds(tile.cell)
+		)
+	else:
+		custom_visual = model_asset.instantiate_grounded_model(instance_name)
 	if custom_visual == null:
 		return null
 	custom_visual.position = (
@@ -231,6 +239,20 @@ func _add_custom_tile_model(
 	)
 	parent.add_child(custom_visual)
 	return custom_visual
+
+
+func _get_legacy_voxel_bounds(cell: Vector3i) -> AABB:
+	var center := _grid.cell_to_world(cell)
+	var level := _tile_manager.get_level_resource() if _tile_manager != null else null
+	var height := level.layer_height if level != null and level.uses_canonical_content() else (level.height_step if level != null else 0.45)
+	var minimum := Vector3(INF, -height, INF)
+	var maximum := Vector3(-INF, 0.0, -INF)
+	for corner in _grid.get_corners(cell):
+		minimum.x = minf(minimum.x, corner.x - center.x)
+		minimum.z = minf(minimum.z, corner.z - center.z)
+		maximum.x = maxf(maximum.x, corner.x - center.x)
+		maximum.z = maxf(maximum.z, corner.z - center.z)
+	return AABB(minimum, maximum - minimum)
 
 func _clear_custom_tile_models() -> void:
 	if _custom_visuals_root == null:

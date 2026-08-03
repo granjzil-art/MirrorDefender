@@ -105,7 +105,13 @@ func _build_visual(
 	model_asset: ModelAssetDefinition
 ) -> void:
 	if model_asset != null:
-		var custom_visual := model_asset.instantiate_model(&"EnemyProjectileModel")
+		var custom_visual := model_asset.instantiate_fitted_model(
+			&"EnemyProjectileModel",
+			AABB(
+				Vector3(-width * 0.5, -width * 0.5, -length * 0.5),
+				Vector3(width, width, length)
+			)
+		)
 		if custom_visual != null:
 			add_child(custom_visual)
 			return

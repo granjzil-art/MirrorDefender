@@ -38,9 +38,9 @@
 | Attack | `attack_range` | 攻击射程，单位为格；生成时乘本关 `grid_cell_size`。 |
 | Attack | `projectile_speed` | 0 为即时近战；大于 0 时为敌方投射物速度（格/秒）。 |
 | Attack | `projectile_length` / `projectile_width` | 远程投射物短直线尺寸。 |
-| Attack | `projectile_model_asset` | 敌方远程投射物模型场景与附加运行时 Scale；为空使用短方块。 |
+| Attack | `projectile_model_asset` | 敌方远程投射物模型；运行时精确拟合到攻击参数的长度/宽度，为空使用短方块。 |
 | Presentation | `ui_icon` | 波次时间轴和敌人构成列表使用的可选图标；为空时 UI 使用灰盒。 |
-| Presentation | `model_asset` / `body_color` / `body_height` | 正式敌人模型资产与灰盒身体表现；模型为空或非法时回退胶囊体。 |
+| Presentation | `model_asset` / `body_color` / `body_height` | 正式敌人模型自动以底部中心接地；模型为空或非法时回退胶囊体。 |
 | Presentation | `attack_color` | 敌方投射物颜色。 |
 
 ## 关键架构

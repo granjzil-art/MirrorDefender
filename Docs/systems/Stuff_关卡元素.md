@@ -23,7 +23,7 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `StuffDefinition` | `blocks_tile_building` | 存活时否决块建筑放置。 |
 | `StuffDefinition` | `blocks_edge_building` | 存活时否决该格参与的边建筑放置。 |
 | `StuffDefinition` | `effect` | 尖刺、黑洞、石头等复用的 `TileEffect` 策略。 |
-| `StuffDefinition` | `model_asset` | `ModelAssetDefinition`；其中 `runtime_scale` 叠加在美术场景自身 Transform 之外。 |
+| `StuffDefinition` | `model_asset` | `ModelAssetDefinition`；运行时自动把可视底部中心对齐到 Grid 表面，`runtime_scale` 仅作为接地后的附加缩放。 |
 | `StuffDefinition` | `fallback_visual_kind` / `fallback_color` | 未配置模型时的灰盒类型与颜色。 |
 | `StuffPlacementData` | `placement_id` | 单个实例的关卡内唯一 ID，也是状态型效果和镜像共享的根身份。 |
 | `StuffPlacementData` | `cell` / `facing_index` | 所在 Grid 格与朝向。 |

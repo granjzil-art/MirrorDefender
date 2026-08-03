@@ -193,7 +193,7 @@ Level Editor M4 pages
 | `set_tile_manager` | `(value: TileManager) -> void` | 订阅 TileManager 的布局/单格变化。 |
 | `set_effect_visual_state_resolver` | `(value: Callable) -> void` | 注入单格有状态效果的 0~1 表现比例查询，不持有 TileEffectSystem。 |
 | `refresh_effect_visual` | `(source_cell: Vector3i = Vector3i.ZERO, fill_ratio: float = 0.0) -> void` | 响应效果状态信号重建内容几何。 |
-| `_rebuild` | `() -> void` | 逐格优先实例化基底/内容模型，其余项进入独立灰盒批次；无顶点批次不调用 `surface_end()`。 |
+| `_rebuild` | `() -> void` | 旧兼容基底拟合到单格体素 AABB，内容模型以底部中心接地；其余项进入独立灰盒批次，无顶点批次不调用 `surface_end()`。 |
 | `is_path_terrain_cell` | `(cell: Vector3i) -> bool` | 查询该格是否属于任一手工路径的并集。 |
 | `get_base_terrain_color` | `(cell: Vector3i) -> Color` | 按路径 > 非元素覆盖 > 路面/高度规则返回单格基底色，供主地形和完整地块快照共用。 |
 | `create_tile_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 生成包含地形基底、障碍和元素的完整单格快照，供调试/通用表现使用。 |

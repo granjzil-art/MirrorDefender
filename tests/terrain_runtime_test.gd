@@ -82,10 +82,23 @@ func _test_terrain_model_instancing() -> void:
 			ramp_count += 1
 	_expect(flat_count == 25, "one flat model is instantiated for every non-ramp voxel layer")
 	_expect(ramp_count == 1, "one full-width model is instantiated for the complete 1:2 ramp")
+	var lower_voxel := model_root.get_node_or_null("Terrain_0_0_0_L1") as Node3D
+	var lower_bounds := _get_visual_bounds(lower_voxel)
+	var lower_aabb: AABB = lower_bounds.get("bounds", AABB())
+	_expect(is_equal_approx(lower_aabb.end.y, 0.01), "flat model top is normalized to the logical first-layer surface")
+	_expect(is_equal_approx(lower_aabb.size.y, level.layer_height), "legacy runtime scale cannot change normalized voxel thickness")
+	_expect(is_equal_approx(lower_aabb.size.x, level.grid_cell_size) and is_equal_approx(lower_aabb.size.z, level.grid_cell_size), "flat model footprint fits the square Grid cell")
 	var upper_voxel := model_root.get_node_or_null("Terrain_3_0_0_L2") as Node3D
 	_expect(upper_voxel != null and is_equal_approx(upper_voxel.position.y, 0.51), "stacked flat model roots advance by layer_height")
+	var upper_bounds := _get_visual_bounds(upper_voxel)
+	var upper_aabb: AABB = upper_bounds.get("bounds", AABB())
+	_expect(is_equal_approx(upper_aabb.position.y, 0.01), "adjacent normalized voxel layers share one exact boundary")
 	var ramp_visual := model_root.get_node_or_null("Ramp_square_1_to_2") as Node3D
 	_expect(ramp_visual != null and is_equal_approx(ramp_visual.rotation.y, PI * 0.5), "full ramp model rotates its local +Z uphill")
+	var ramp_bounds := _get_visual_bounds(ramp_visual)
+	var ramp_aabb: AABB = ramp_bounds.get("bounds", AABB())
+	_expect(is_equal_approx(ramp_aabb.size.y, level.layer_height), "ramp model rise is normalized to one logical layer")
+	_expect(is_equal_approx(ramp_aabb.size.x, 2.0) and is_equal_approx(ramp_aabb.size.z, 1.0), "1:2 ramp model fits its complete authored footprint")
 	var greybox := renderer.get_node_or_null("TerrainGreybox") as MeshInstance3D
 	_expect(greybox != null and greybox.mesh == null, "fully configured terrain assets suppress greybox geometry")
 	fixture["host"].queue_free()
@@ -244,8 +257,11 @@ func _make_hex_ramp_level() -> LevelResource:
 
 
 func _make_model_asset(runtime_scale: Vector3) -> ModelAssetDefinition:
-	var source := Node3D.new()
+	var source := MeshInstance3D.new()
 	source.name = "AuthoredTerrainModel"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(2.0, 2.0, 2.0)
+	source.mesh = mesh
 	var scene := PackedScene.new()
 	if scene.pack(source) != OK:
 		source.free()
@@ -255,6 +271,29 @@ func _make_model_asset(runtime_scale: Vector3) -> ModelAssetDefinition:
 	asset.scene = scene
 	asset.runtime_scale = runtime_scale
 	return asset
+
+
+func _get_visual_bounds(root_node: Node) -> Dictionary:
+	var state := {"valid": false, "bounds": AABB()}
+	if root_node != null:
+		_collect_visual_bounds(root_node, Transform3D.IDENTITY, state)
+	return state
+
+
+func _collect_visual_bounds(node: Node, parent_transform: Transform3D, state: Dictionary) -> void:
+	var current_transform := parent_transform
+	if node is Node3D:
+		current_transform = parent_transform * (node as Node3D).transform
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var transformed := current_transform * (node as MeshInstance3D).get_aabb()
+		if bool(state.get("valid", false)):
+			var existing: AABB = state.get("bounds", AABB())
+			state["bounds"] = existing.merge(transformed)
+		else:
+			state["valid"] = true
+			state["bounds"] = transformed
+	for child in node.get_children():
+		_collect_visual_bounds(child, current_transform, state)
 
 
 func _expect(condition: bool, message: String) -> void:

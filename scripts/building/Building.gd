@@ -472,7 +472,7 @@ func _build_visual() -> void:
 	_visual_root = Node3D.new()
 	add_child(_visual_root)
 	var model_asset: ModelAssetDefinition = _stats.get_model_asset()
-	var custom_visual: Node3D = model_asset.instantiate_model(&"BuildingModel") if model_asset != null else null
+	var custom_visual: Node3D = model_asset.instantiate_grounded_model(&"BuildingModel") if model_asset != null else null
 	if custom_visual != null:
 		_visual_root.add_child(custom_visual)
 		if _preview_mode:

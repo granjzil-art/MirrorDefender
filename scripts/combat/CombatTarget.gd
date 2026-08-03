@@ -93,7 +93,7 @@ func get_target_position() -> Vector3:
 
 func _build_debug_visual() -> void:
 	if model_asset != null:
-		_visual_root = model_asset.instantiate_model(&"EnemyModel")
+		_visual_root = model_asset.instantiate_grounded_model(&"EnemyModel")
 		if _visual_root != null:
 			add_child(_visual_root)
 	if _visual_root == null and debug_visual_enabled:

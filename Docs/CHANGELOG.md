@@ -1,5 +1,16 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Presentation · 模型逻辑锚点与尺寸归一 — 2026-08-03
+**模块**：Model Asset / Terrain / Stuff / Building / Unit / Combat / Mirror / Tests / Docs。
+
+- `ModelAssetDefinition` 新增自动可视包围盒、底部中心接地、目标 AABB 拟合以及可选 Ground/Fit 锚点；统一运行时变换链，不再要求修改模型 `.tscn` 根 Transform 对齐世界高度。
+- Terrain 平地严格拟合到“一格 × 一层”的体素尺寸，四档斜坡严格拟合到“一格宽 × 一层高 × N格长”；不同源模型高度不再造成草地、泥地等逻辑顶面错位。
+- 建筑、Stuff、敌人统一以可视底部中心接地；建筑、敌人和复制体三类投射物统一拟合到玩法配置的长度/宽度。
+- 旧模型资源直接进入新对齐链；拟合场景中的历史 `runtime_scale` 被吸收并可归一为 1，接地场景仍保留其作为等级/表现附加缩放的能力。
+- 新增偏移、旋转、非统一 Scale 资产的接地/拟合回归，以及真实体素堆叠、平地脚印和 1:2 斜坡尺寸回归。
+
+**影响面**：只规范三维模型表现变换，不修改 Grid/Stuff/建筑占位、地表采样、碰撞、命中、伤害、寻路或关卡作者数据。
+
 ## Presentation / Level Editor · 修复地形模型节点重名 — 2026-08-03
 **模块**：Model Asset / Terrain / Level Editor / Tests / Docs。
 

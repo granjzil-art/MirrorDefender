@@ -31,6 +31,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[ModelAssetContract] running")
 	_test_contract_preserves_authored_transform()
+	_test_programmatic_alignment()
 	_test_production_terrain_prefab()
 	_test_production_building_assets()
 	await _test_tile_and_element_models()
@@ -64,7 +65,7 @@ func _test_contract_preserves_authored_transform() -> void:
 	var instance := asset.instantiate_model(&"ContractModel")
 	_expect(instance != null, "configured model asset instantiates")
 	_expect(instance.scale.is_equal_approx(Vector3(0.5, 0.75, 1.25)), "runtime scale is applied to the wrapper")
-	var authored := instance.get_node_or_null("AuthoredModel") as Node3D
+	var authored := instance.find_child("AuthoredModel", true, false) as Node3D
 	_expect(authored != null, "authored scene remains a child of the wrapper")
 	_expect(authored != null and authored.scale.is_equal_approx(Vector3(2.0, 3.0, 4.0)), "authored scene scale is not overwritten")
 	instance.free()
@@ -77,6 +78,29 @@ func _test_contract_preserves_authored_transform() -> void:
 	var invalid_asset := _make_model_asset(invalid_scene, Vector3.ONE)
 	_expect(invalid_asset.instantiate_model() == null, "non-Node3D model roots fail safely")
 	_expect(not invalid_asset.validate_configuration().is_empty(), "non-Node3D model roots are rejected by validation")
+
+
+func _test_programmatic_alignment() -> void:
+	var scene := _make_offset_model_scene()
+	var asset := _make_model_asset(scene, Vector3(1.7, 0.8, 0.6))
+	var grounded := asset.instantiate_grounded_model(&"GroundedModel")
+	_expect(grounded != null, "offset authored model instantiates through ground alignment")
+	var grounded_result := _get_visual_bounds(grounded)
+	var grounded_bounds: AABB = grounded_result.get("bounds", AABB())
+	_expect(bool(grounded_result.get("valid", false)), "ground alignment exposes render bounds")
+	_expect(is_zero_approx(grounded_bounds.position.y), "ground alignment maps the visual bottom to logical Y=0")
+	_expect(is_zero_approx(grounded_bounds.get_center().x), "ground alignment centers the visual footprint on X")
+	_expect(is_zero_approx(grounded_bounds.get_center().z), "ground alignment centers the visual footprint on Z")
+	grounded.free()
+	var target := AABB(Vector3(-0.5, -0.45, -0.75), Vector3(1.0, 0.45, 1.5))
+	var fitted := asset.instantiate_fitted_model(&"FittedModel", target)
+	_expect(fitted != null, "offset authored model instantiates through exact bounds fitting")
+	_expect(fitted.scale.is_equal_approx(Vector3.ONE), "fitted contexts normalize legacy runtime scale")
+	var fitted_result := _get_visual_bounds(fitted)
+	var fitted_bounds: AABB = fitted_result.get("bounds", AABB())
+	_expect(fitted_bounds.position.is_equal_approx(target.position), "fit absorbs authored offsets and legacy runtime scale")
+	_expect(fitted_bounds.size.is_equal_approx(target.size), "fit maps every visual axis to the logical target bounds")
+	fitted.free()
 
 
 func _test_production_building_assets() -> void:
@@ -113,7 +137,7 @@ func _test_tile_and_element_models() -> void:
 	_expect(bool(fixture["loaded"]), "tile model fixture loads")
 	var live_base := renderer.find_child("TileBase_0_0_0", true, false) as Node3D
 	var live_element := renderer.find_child("TileElement_1_1_0", true, false) as Node3D
-	_expect(live_base != null and live_base.scale.is_equal_approx(base_asset.runtime_scale), "level tile model is instantiated for runtime cells")
+	_expect(live_base != null and live_base.scale.is_equal_approx(Vector3.ONE), "level tile model normalizes its fitted runtime scale")
 	_expect(live_element != null and live_element.scale.is_equal_approx(element_asset.runtime_scale), "tile element model replaces only the content layer")
 	var full_snapshot := renderer.create_tile_visual_snapshot(element_cell)
 	var content_snapshot := renderer.create_tile_content_visual_snapshot(element_cell)
@@ -164,7 +188,7 @@ func _test_building_and_projectile_models() -> void:
 	combat.register_target(target)
 	var projectile := building.launch_projectile(target, 1.0)
 	var projectile_wrapper := projectile.get_node_or_null("ProjectileModel") as Node3D if projectile != null else null
-	_expect(projectile_wrapper != null and projectile_wrapper.scale.is_equal_approx(projectile_asset.runtime_scale), "building projectile consumes its model asset")
+	_expect(projectile_wrapper != null and projectile_wrapper.scale.is_equal_approx(Vector3.ONE), "building projectile normalizes its fitted model asset")
 	host.queue_free()
 	await process_frame
 
@@ -194,7 +218,7 @@ func _test_enemy_and_enemy_projectile_models() -> void:
 	host.add_child(target)
 	var projectile := enemy.call("_launch_projectile", target) as EnemyProjectile
 	var projectile_wrapper := projectile.get_node_or_null("EnemyProjectileModel") as Node3D if projectile != null else null
-	_expect(projectile_wrapper != null and projectile_wrapper.scale.is_equal_approx(projectile_asset.runtime_scale), "enemy projectile consumes its configured model asset")
+	_expect(projectile_wrapper != null and projectile_wrapper.scale.is_equal_approx(Vector3.ONE), "enemy projectile normalizes its fitted model asset")
 	host.queue_free()
 	await process_frame
 
@@ -221,21 +245,66 @@ func _test_projection_projectile_model() -> void:
 		asset
 	)
 	var wrapper := projectile.get_node_or_null("MirrorProjectileModel") as Node3D
-	_expect(wrapper != null and wrapper.scale.is_equal_approx(asset.runtime_scale), "mirror projectile consumes the source projectile model asset")
+	_expect(wrapper != null and wrapper.scale.is_equal_approx(Vector3.ONE), "mirror projectile normalizes the source fitted model asset")
 	projectile.free()
 	building.free()
 	combat.free()
 
 
 func _make_model_scene(authored_scale: Vector3) -> PackedScene:
-	var authored := Node3D.new()
+	var authored := MeshInstance3D.new()
 	authored.name = "AuthoredModel"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3.ONE
+	authored.mesh = mesh
 	authored.scale = authored_scale
 	var scene := PackedScene.new()
 	var result := scene.pack(authored)
 	authored.free()
 	_expect(result == OK, "test model scene packs")
 	return scene
+
+
+func _make_offset_model_scene() -> PackedScene:
+	var authored := Node3D.new()
+	authored.name = "OffsetAuthoredModel"
+	authored.position = Vector3(1.8, 2.4, -0.7)
+	authored.rotation.y = 0.37
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "OffsetMesh"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(2.0, 3.0, 1.0)
+	mesh_instance.mesh = mesh
+	mesh_instance.position = Vector3(-0.4, 0.6, 1.1)
+	authored.add_child(mesh_instance)
+	mesh_instance.owner = authored
+	var scene := PackedScene.new()
+	var result := scene.pack(authored)
+	authored.free()
+	_expect(result == OK, "offset model scene packs")
+	return scene
+
+
+func _get_visual_bounds(root_node: Node) -> Dictionary:
+	var state := {"valid": false, "bounds": AABB()}
+	_collect_visual_bounds(root_node, Transform3D.IDENTITY, state)
+	return state
+
+
+func _collect_visual_bounds(node: Node, parent_transform: Transform3D, state: Dictionary) -> void:
+	var current_transform := parent_transform
+	if node is Node3D:
+		current_transform = parent_transform * (node as Node3D).transform
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var transformed := current_transform * (node as MeshInstance3D).get_aabb()
+		if bool(state.get("valid", false)):
+			var existing: AABB = state.get("bounds", AABB())
+			state["bounds"] = existing.merge(transformed)
+		else:
+			state["valid"] = true
+			state["bounds"] = transformed
+	for child in node.get_children():
+		_collect_visual_bounds(child, current_transform, state)
 
 
 func _make_model_asset(scene: PackedScene, runtime_scale: Vector3) -> ModelAssetDefinition:

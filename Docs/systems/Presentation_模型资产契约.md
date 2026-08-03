@@ -1,6 +1,6 @@
 # 模型资产契约 · Model Asset
 
-> 实现状态：现运行时已接入Terrain平地/斜坡、旧Stuff内容、建筑等级、敌人和三类投射物；Stuff规范模型的独立运行时切换列入批次3。
+> 实现状态：现运行时已接入 Terrain 平地/斜坡、Stuff、建筑等级、敌人和三类投射物；旧资产直接按本契约解释，不保留手工 Transform 对齐分支。
 
 ## 职责
 
@@ -8,11 +8,14 @@
 
 ## 分类 / 做法
 
-- **统一字段**：每份资产包含 `scene: PackedScene` 和 `runtime_scale: Vector3`。
-- **附加缩放**：实例化时创建 `ModelAssetRoot` 包装节点，把 `runtime_scale` 写在包装节点；美术场景根节点原有位置、旋转和 Scale 保持不变。最终世界变换为运行时包装变换乘美术场景原始变换。
+- **统一字段**：每份资产包含 `scene: PackedScene`、`runtime_scale: Vector3` 和可选对齐锚点。
+- **统一变换链**：运行时节点树固定为 `玩法放置 -> ModelAssetRoot(runtime_scale) -> ModelAlignment -> 美术场景`。美术场景原 Transform 会被包围盒计算吸收，不再担任世界高度对齐参数。
+- **接地模式**：建筑、Stuff 和敌人把模型的“底部中心”对齐到逻辑放置点，保留美术尺寸与 `runtime_scale`。
+- **拟合模式**：Terrain 平地/斜坡和投射物将完整可视包围盒拟合到玩法给定的 AABB。该模式的运行时包装节点强制归一为 `Vector3.ONE`，资源中的旧 `0.5/0.8/1.2` 不参与最终体素或子弹尺寸；资源值也可安全归一为 `Vector3.ONE`。
 - **独立配置**：多个 `ModelAssetDefinition` 可引用同一个 `PackedScene`，但保存不同 `runtime_scale`。建筑三个等级因此可以共用模型而采用不同尺寸。
 - **节点树约束**：模型场景根节点必须继承 `Node3D`，任一父节点下不得存在同名兄弟节点；资源校验会实际实例化并递归检查节点树。GLTF 建议由轻量 `.tscn` Prefab 直接继承，不要在继承场景中再次内嵌同名 Mesh。
-- **灰盒回退**：资产为空、无法实例化或根类型错误时，运行时返回 null，由地块、建筑、敌人或投射物模块生成原灰盒。
+- **自动包围盒**：未配置锚点时，递归合并 `MeshInstance3D` / `MultiMeshInstance3D` 的编辑时 AABB，包含节点自身位移、旋转和 Scale。
+- **灰盒回退**：资产为空、无法实例化、根类型错误或无有效三维可视包围盒时，运行时返回 null，由所属模块生成原灰盒。
 - **旧资源兼容**：建筑等级、敌人和地块元素保留隐藏的旧 `visual_scene` 存储字段；新资源必须使用 `model_asset` / `element_model_asset`。
 
 ## 参数入口
@@ -30,7 +33,17 @@
 | `EnemyDefinition` | `model_asset` | 本敌人模型。 |
 | `EnemyDefinition` | `projectile_model_asset` | 本敌人的远程投射物模型。 |
 
-每个字段中新建或引用一个 `ModelAssetDefinition`，再设置 `Scene` 与 `Runtime Scale`。例如三级箭塔可让三个等级资产都引用同一个 `arrow_tower.tscn`，分别设置 `(1,1,1)`、`(1.1,1.1,1.1)`、`(1.2,1.2,1.2)`。
+每个字段中新建或引用一个 `ModelAssetDefinition`，再设置 `Scene` 与 `Runtime Scale`。例如三级箭塔可让三个等级引用同一场景，用不同 `Runtime Scale` 改变接地模型尺寸。Terrain/投射物不需要用此字段对齐尺寸，保持 `(1,1,1)` 即可。
+
+### Alignment Overrides
+
+| 字段 | 用法 |
+|---|---|
+| `ground_anchor_path` | 可选接地点 `Node3D` 路径。适用于底部包含影子、特效或不应计入接地面的模型。 |
+| `fit_min_anchor_path` / `fit_max_anchor_path` | 可选的拟合最小/最大点，必须成对配置。适用于斜坡模型带外伸装饰、但只希望主体对齐逻辑尺寸的情况。 |
+| 节点 Meta `exclude_from_model_bounds = true` | 自动包围盒忽略该节点自身 Mesh；子节点仍会递归检查。 |
+
+锚点全部留空是默认且推荐的资产迁移方式：旧场景在不改 `.tscn` Transform 的情况下直接进入自动对齐链。
 
 ## 关键架构
 
@@ -55,9 +68,12 @@
 ```text
 *.tres owner
   -> ModelAssetDefinition(scene, runtime_scale)
-  -> instantiate_model()
-       -> runtime wrapper.scale = runtime_scale
-       -> authored Node3D keeps original Transform
+  -> grounded owner: instantiate_grounded_model()
+       -> bottom-center -> gameplay surface origin
+       -> preserves runtime_scale
+  -> fitted owner: instantiate_fitted_model(target_bounds)
+       -> complete authored bounds -> gameplay AABB
+       -> normalizes runtime wrapper to Vector3.ONE
   -> runtime owner adds wrapper
   -> null/invalid -> owner-specific greybox fallback
 
@@ -88,8 +104,11 @@ BuildingLevelStats.projectile_model_asset
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `ModelAssetDefinition.is_configured` | `() -> bool` | 返回是否配置了 PackedScene。 |
-| `ModelAssetDefinition.instantiate_model` | `(instance_name: StringName = &"ModelAssetRoot") -> Node3D` | 创建附加 Scale 包装节点并实例化 Node3D 美术场景；失败返回 null。 |
-| `ModelAssetDefinition.validate_configuration` | `() -> Array[String]` | 校验 Scale 为有限正数、场景可实例化、根节点继承 Node3D 且不存在同名兄弟节点。 |
+| `ModelAssetDefinition.instantiate_model` | `(instance_name: StringName = &"ModelAssetRoot") -> Node3D` | 仅包装原始模型；供没有逻辑对齐语义的通用表现使用。 |
+| `ModelAssetDefinition.instantiate_grounded_model` | `(instance_name: StringName = &"ModelAssetRoot") -> Node3D` | 将指定锚点或自动底部中心对齐到逻辑原点。 |
+| `ModelAssetDefinition.instantiate_fitted_model` | `(instance_name: StringName, target_bounds: AABB) -> Node3D` | 将可视包围盒精确拟合到目标逻辑 AABB。 |
+| `ModelAssetDefinition.get_authored_visual_bounds` | `() -> Dictionary` | 返回 `{valid, bounds}` 资产诊断快照，不包含运行时 Scale 与玩法放置。 |
+| `ModelAssetDefinition.validate_configuration` | `() -> Array[String]` | 校验 Scale、场景、节点树、锚点成对关系和有效三维包围盒。 |
 | `BuildingLevelStats.get_model_asset` | `() -> ModelAssetDefinition` | 返回新契约资产，或把旧 `visual_scene` 临时包装为兼容资产。 |
 | `EnemyDefinition.get_model_asset` | `() -> ModelAssetDefinition` | 返回敌人有效模型资产并兼容旧字段。 |
 | `TileDefinition.get_element_model_asset` | `() -> ModelAssetDefinition` | 返回内容层有效模型资产并兼容旧字段。 |
@@ -100,16 +119,17 @@ BuildingLevelStats.projectile_model_asset
 
 ## 约定事实源
 
-- `PackedScene` 内保存的 Transform 属于美术资产；`runtime_scale` 属于玩法项目配置，两者禁止互相覆盖。
+- `PackedScene` 内保存的 Transform 属于美术资产；世界高度、格尺寸和子弹尺寸必须来自玩法上下文，禁止用根 Transform 补齐。
 - GLTF 的 `.tscn` 封装只保存根 Transform 与必要覆盖；禁止同时保留导入子节点和再次内嵌同名 Mesh，否则编辑器资源重扫会触发“引入节点名称冲突”。
 - `runtime_scale` 三轴必须都是有限正数；镜像翻转由 Mirror 的反射矩阵负责，不能用负 Scale 冒充。
 - 地块基底和地块内容是两个独立槽。复制镜只请求内容快照，不复制基底资产。
 - 新规范进一步固定为Terrain与Stuff两个资源域：Terrain平地/斜坡永不进入镜像内容，Stuff模型可被按格复制。
-- 自定义模型成功实例化后替换对应灰盒；未配置时不改变现有画面、玩法、碰撞、命中点或寻路。
-- 投射物的速度、长度和宽度仍是玩法/灰盒参数；自定义模型尺寸只由场景自身 Transform 与 `runtime_scale` 决定。
+- 自定义模型成功实例化后替换对应灰盒；对齐只改表现节点，不改碰撞、命中点、占位或寻路。
+- 投射物的速度、长度和宽度仍是玩法参数；自定义模型精确拟合为该长度和宽度。
 
 ## 已知限制
 
-- 自定义平地模型是一个完整体素块，运行时逐层堆叠；自定义斜坡模型是横跨N格的完整坡体，资产需自行包含所需侧面。
+- 自动对齐基于轴对齐 AABB，不识别“主体/装饰/特效”语义；不规则资产需用锚点或 `exclude_from_model_bounds` 明确取样范围。
+- 动画骨骼在运行时伸出编辑时包围盒时不会重新拟合；拟合只在实例创建时执行一次。
 - 正式模型不会自动继承路径色、高度色或 `attack_color`；这些颜色只用于灰盒和复制体投射物叠加层。
 - 模型契约只负责三维场景与缩放，不定义动画状态机、骨骼插槽、命中特效或声音接口。
