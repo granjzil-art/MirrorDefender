@@ -87,6 +87,8 @@ TileDefinition.element_model_asset
   -> TileRenderer content model
   -> create_tile_content_visual_snapshot
   -> MirrorProjection exact reflected snapshot
+       -> preserve every source surface material / texture / shader
+       -> apply only CopyMirrorDefinition.projection_alpha as instance transparency
 
 TerrainDefinition.flat_model_asset + ramp_1_to_N_model_asset
   -> TerrainRenderer 体素堆叠/整段斜坡实例化

@@ -161,33 +161,44 @@ func sync_source_visual_pose() -> bool:
 func _apply_projection_materials(node: Node) -> void:
 	if node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
-		var source_material := mesh_instance.material_override
-		if source_material == null and mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 0:
-			source_material = mesh_instance.mesh.surface_get_material(0)
-		mesh_instance.material_override = _make_projection_material(source_material)
-		mesh_instance.material_overlay = _make_rim_material()
+		_prepare_projection_materials(mesh_instance)
+		mesh_instance.transparency = 1.0 - clampf(_definition.projection_alpha, 0.05, 1.0)
+		if preview_mode and not preview_valid:
+			mesh_instance.material_overlay = _make_invalid_preview_material()
 	for child in node.get_children():
 		_apply_projection_materials(child)
 
-func _make_projection_material(source_material: Material) -> StandardMaterial3D:
-	var material := source_material.duplicate() as StandardMaterial3D if source_material is StandardMaterial3D else StandardMaterial3D.new()
-	var source_color := material.albedo_color
-	if source_color == Color(0.0, 0.0, 0.0, 1.0) and payload != null:
-		source_color = payload.primary_color
-	var tint_strength := clampf(_definition.projection_tint_strength, 0.0, 1.0)
-	var color := _accent_color if preview_mode and not preview_valid else source_color.lerp(_accent_color, tint_strength)
-	color.a = _definition.projection_alpha * (0.76 if preview_mode else 1.0)
-	material.albedo_color = color
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+## GeometryInstance3D.transparency fades every source surface without replacing
+## its material. Per-instance duplicates are used only for deterministic render
+## order and mirrored culling, preserving every source color, texture and shader.
+func _prepare_projection_materials(mesh_instance: MeshInstance3D) -> void:
+	if mesh_instance.material_override != null:
+		mesh_instance.material_override = _duplicate_source_material(mesh_instance.material_override)
+		return
+	if mesh_instance.mesh == null:
+		return
+	for surface_index in range(mesh_instance.mesh.get_surface_count()):
+		var source_material := mesh_instance.get_surface_override_material(surface_index)
+		if source_material == null:
+			source_material = mesh_instance.mesh.surface_get_material(surface_index)
+		if source_material != null:
+			mesh_instance.set_surface_override_material(
+				surface_index,
+				_duplicate_source_material(source_material)
+			)
+
+
+func _duplicate_source_material(source_material: Material) -> Material:
+	var material := source_material.duplicate() as Material
 	material.render_priority = _get_render_priority(false)
-	material.emission_enabled = true
-	material.emission = _accent_color if preview_mode and not preview_valid else source_color.lerp(_accent_color, maxf(0.34, tint_strength))
-	material.emission_energy_multiplier = maxf(3.6, _definition.projection_emission_energy) if preview_mode and not preview_valid else _definition.projection_emission_energy
+	if material is BaseMaterial3D:
+		var base_material := material as BaseMaterial3D
+		base_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		base_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	return material
 
-func _make_rim_material() -> ShaderMaterial:
+
+func _make_invalid_preview_material() -> ShaderMaterial:
 	if _shared_rim_shader == null:
 		_shared_rim_shader = Shader.new()
 		_shared_rim_shader.code = """

@@ -53,7 +53,7 @@
 - 关闭开关后，目标格存在实体格建筑或先生成的投影时，该镜子的整组投影不生成；地块元素本身不视为实体占位。
 - 投影不计入建筑上限、镜子上限，不消耗资源，也不能被独立选中、升级、旋转或删除。
 - 源对象或依赖镜链失效时，对应投影立即移除。
-- 放置预览用完整候选镜链判定连通性；封死路线时镜框、生效面标识和当前复制体统一使用 `invalid_preview_color` 高亮红色，预览信息返回 `valid=false` 与 `failure`。
+- 放置预览用完整候选镜链判定连通性；封死路线时镜框和当前复制体统一使用 `invalid_preview_color` 高亮红色，预览信息返回 `valid=false` 与 `failure`。
 
 ### 2.4 递归复制
 
@@ -100,12 +100,12 @@
 
 ### 2.9 视觉规范
 
-- 复制镜的玩法生效侧仍是唯一事实源，决定最近源格、投影方向和顶部蓝色标识。默认仅在表现层启用双观察侧镜面：同一个反射 Quad 根据主相机所在侧贴到朝向观察者的实体表面，因此拉远视角跨过镜面无限平面时不会退回镜体底色，也不会增加第二个反射视口。可用 `reflection_two_sided_visual` 恢复仅生效侧可见。
-- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体蓝色自遮挡。
+- 复制镜的玩法生效侧仍是唯一事实源，决定最近源格和投影方向，不再额外生成顶部朝向标记。默认仅在表现层启用双观察侧镜面：同一个反射 Quad 根据主相机所在侧贴到朝向观察者的实体表面，因此拉远视角跨过镜面无限平面时不会退回镜体底色，也不会增加第二个反射视口。可用 `reflection_two_sided_visual` 恢复仅生效侧可见。
+- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体自遮挡。
 - 实际镜面刷新由 `MirrorManager` 轮询调度；镜面中心或任一矩形角点处于主相机视锥时均可刷新，并限制刷新间隔与每帧上限。放置预览使用独立低分辨率。
 - 建筑投影创建 `Building._visual_root` 的无行为快照，之后每帧同步源的视觉根变换、子 `Node3D` 姿态、可见性和 `Skeleton3D` 骨骼姿态，不重建投影节点。地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
 - 所有视觉快照按 payload 的完整镜链做严格仿射反射。不得用圆盘、圆柱、方块等独立几何替代地块/建筑，也不得用位移、缩放或垂直错层拆开重叠虚像。
-- 投影保留源内容主色，叠加强度可调的半透明、发光与边缘高光；同格多项投影只通过不同强调色、同心标识环和悬停标签区分，标识不参与玩法也不替代源几何。
+- 正常投影逐表面保留源模型的材质类型、RGB、纹理与 Shader，只通过 `GeometryInstance3D.transparency` 应用统一可调透明度；禁止用白模材质、统一染色或发光覆盖源资产。封路无效预览可临时叠加红色提示层。同格多项投影继续通过不同强调色的同心标识环和悬停标签区分，标识不参与玩法也不替代源几何。
 - 同格透明投影按稳定的叠放序号分配 `render_priority`，且不写入深度缓冲；重建时先隐藏旧投影再延迟释放，避免新旧几何在同一帧闪烁。
 - 悬停投影格时 HUD 与世界标签显示同格虚像数量、类型、序号和复制链深度。
 - 投影不播放独立待机或攻击动画；攻击表现由原件事件同步驱动。
@@ -134,7 +134,7 @@ M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入�
 | `mirror_refund` | 60 | CopyMirrorDefinition | 删除返还 |
 | `card_icon` | 空 | CopyMirrorDefinition | M6 独立复制镜卡片图；为空时使用“镜”字灰盒。 |
 | `inspection_display` | 独立配置 | CopyMirrorDefinition | 复制镜在右侧详情中的对象开关、显示名称、功能说明与字段开关。 |
-| `mirror_height_ratio` | 2.00 格 | CopyMirrorDefinition | 镜框、实时镜面、标识和操作锚点共用高度 |
+| `mirror_height_ratio` | 2.00 格 | CopyMirrorDefinition | 镜框、实时镜面和操作锚点共用高度 |
 | `projection_ignores_occupancy` | true | CopyMirrorDefinition | 投影是否忽略实体/投影占位并允许叠加 |
 | `copy_chain_max` | 6 | CopyMirrorDefinition | 最大镜链深度 |
 | `reflection_enabled` | true | CopyMirrorDefinition | 是否启用复制镜生效面的实时世界反射 |
@@ -147,12 +147,11 @@ M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入�
 | `mirror_reflectivity` | 1.00 | CopyMirrorDefinition | 反射画面相对镜面底色的混合比例 |
 | `mirror_surface_tint` | 淡蓝白 | CopyMirrorDefinition | 生效面反射画面的色调 |
 | `mirror_back_face_color` | 中性灰 | CopyMirrorDefinition | 镜体背面底色；生效方向只由镜面本身与放置预览表达，不再生成顶部蓝色标记 |
-| `projection_alpha` | 0.76 | CopyMirrorDefinition | 正式投影透明度；预览在此基础上衰减 |
-| `projection_tint` | 青蓝 | CopyMirrorDefinition | 投影颜色叠加 |
+| `projection_alpha` | 0.76 | CopyMirrorDefinition | 源模型材质与纹理不变时的最终虚像不透明度；1 为不透明，越低越透明 |
+| `projection_tint` | 青蓝 | CopyMirrorDefinition | 仅用于重叠标识环、标签和投影攻击线的强调色，不染色模型 |
 | `invalid_preview_color` | 红色 | CopyMirrorDefinition | 复制障碍会堵死目标路线时的镜体/投影预览颜色 |
-| `projection_tint_strength` | 0.24 | CopyMirrorDefinition | 保留源主色时的强调色混合强度 |
-| `projection_emission_energy` | 2.8 | CopyMirrorDefinition | 虚像与标识的发光强度 |
-| `projection_rim_alpha` | 0.42 | CopyMirrorDefinition | 轮廓边缘高光强度 |
+| `projection_emission_energy` | 2.8 | CopyMirrorDefinition | 标识环、标签和投影攻击线的发光强度，不修改源模型材质 |
+| `projection_rim_alpha` | 0.42 | CopyMirrorDefinition | 仅用于封路无效预览的红色边缘提示强度 |
 | `projection_ring_spacing_ratio` | 0.045 格 | CopyMirrorDefinition | 同格虚像标识环的半径间隔，不移动源几何 |
 | `projection_ring_thickness_ratio` | 0.022 格 | CopyMirrorDefinition | 标识环粗细 |
 | `mirror_side_default` | from | CopyMirrorDefinition | 新镜子默认生效侧 |

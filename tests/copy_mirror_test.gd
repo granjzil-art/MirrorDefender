@@ -59,6 +59,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var combat_manager: CombatManager = fixture.combat
 	var building_manager: BuildingManager = fixture.building
 	var mirror_manager: MirrorManager = fixture.mirror
+	building_manager.arrow_tower.get_level_stats(1).model_asset = _make_textured_model_asset()
 	var source_cell := Vector3i(2, 2, 0)
 	var from_cell := Vector3i(3, 2, 0)
 	var to_cell := Vector3i(4, 2, 0)
@@ -80,6 +81,15 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var tile_projection := _find_projection_kind(projections, &"spike")
 	_expect(tower_projection.get_visual_snapshot() != null, "tower projection reuses a snapshot of the source Building visual")
 	_expect(tile_projection.get_visual_snapshot() != null, "tile-effect projection reuses a snapshot of the source tile content")
+	var source_snapshot := arrow.create_copy_visual_snapshot()
+	var source_model_mesh := _find_first_mesh_instance(source_snapshot)
+	var projected_model_mesh := _find_first_mesh_instance(tower_projection.get_visual_snapshot())
+	var source_model_material := _get_effective_standard_material(source_model_mesh)
+	var projected_model_material := _get_effective_standard_material(projected_model_mesh)
+	_expect(projected_model_material.albedo_color == source_model_material.albedo_color, "projection preserves the source model material color without tinting")
+	_expect(projected_model_material.albedo_texture == source_model_material.albedo_texture, "projection preserves the source model texture resource")
+	_expect(is_equal_approx(projected_model_mesh.transparency, 1.0 - mirror_manager.copy_mirror_definition.projection_alpha), "projection_alpha is the only model-opacity adjustment")
+	source_snapshot.free()
 	var source_center := grid.cell_to_world(source_cell)
 	var mirrored_source_center := tile_projection.payload.transform_point(source_center)
 	var rendered_source_center := tile_projection.get_visual_snapshot().global_transform * source_center
@@ -567,6 +577,42 @@ func _snapshot_uses_immediate_mesh(snapshot: Node3D) -> bool:
 			return true
 	return false
 
+
+func _make_textured_model_asset() -> ModelAssetDefinition:
+	var root_node := Node3D.new()
+	root_node.name = "TexturedTower"
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "TexturedBody"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.42, 0.72, 0.42)
+	mesh_instance.mesh = mesh
+	var image := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.95, 0.20, 0.12, 1.0))
+	image.set_pixel(1, 0, Color(0.10, 0.35, 0.95, 1.0))
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.34, 0.71, 0.26, 1.0)
+	material.albedo_texture = ImageTexture.create_from_image(image)
+	mesh.material = material
+	root_node.add_child(mesh_instance)
+	mesh_instance.owner = root_node
+	var packed_scene := PackedScene.new()
+	packed_scene.pack(root_node)
+	root_node.free()
+	var asset := ModelAssetDefinition.new()
+	asset.scene = packed_scene
+	return asset
+
+
+func _get_effective_standard_material(mesh_instance: MeshInstance3D) -> StandardMaterial3D:
+	if mesh_instance.material_override is StandardMaterial3D:
+		return mesh_instance.material_override as StandardMaterial3D
+	if mesh_instance.mesh == null or mesh_instance.mesh.get_surface_count() == 0:
+		return null
+	var surface_override := mesh_instance.get_surface_override_material(0)
+	if surface_override is StandardMaterial3D:
+		return surface_override as StandardMaterial3D
+	return mesh_instance.mesh.surface_get_material(0) as StandardMaterial3D
+
 func _snapshot_has_named_mesh(snapshot: Node3D, mesh_name: String) -> bool:
 	if snapshot == null:
 		return false
@@ -590,9 +636,11 @@ func _projection_materials_have_stable_order(projections: Array[MirrorProjection
 	var priorities: Dictionary = {}
 	for projection in projections:
 		var mesh := _find_first_mesh_instance(projection.get_visual_snapshot())
-		if mesh == null or not mesh.material_override is StandardMaterial3D:
+		if mesh == null:
 			return false
-		var material := mesh.material_override as StandardMaterial3D
+		var material := _get_effective_standard_material(mesh)
+		if material == null:
+			return false
 		if material.depth_draw_mode != BaseMaterial3D.DEPTH_DRAW_DISABLED or priorities.has(material.render_priority):
 			return false
 		priorities[material.render_priority] = true
