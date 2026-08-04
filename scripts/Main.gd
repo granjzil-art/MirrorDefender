@@ -479,15 +479,7 @@ func _update_hint() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		return
-	if event.is_action_pressed("toggle_grid_shape"):
-		if grid.grid_shape == GridManager.Shape.HEX:
-			grid.grid_shape = GridManager.Shape.SQUARE
-		else:
-			grid.grid_shape = GridManager.Shape.HEX
-		var current_level := level_loader.get_current_level()
-		if current_level != null:
-			tile_manager.load_level(current_level)
-	elif event.is_action_pressed("place_select"):
+	if event.is_action_pressed("place_select"):
 		_handle_primary_action()
 	elif event.is_action_pressed("rotate_facing"):
 		if runtime_interaction.is_copy_mirror_mode():

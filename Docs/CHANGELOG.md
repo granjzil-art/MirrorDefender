@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Grid / Input · 关闭 T 键运行时格子形状切换 — 2026-08-04
+**模块**：Grid / Input / Main / Tests / Docs。
+- 删除 `toggle_grid_shape` InputMap 动作及 `Main._unhandled_input()` 中的 HEX/SQUARE 运行时切换分支，按下 T 不再改变关卡网格。
+- 四边形/六边形仍由 `LevelResource.grid_shape` 唯一决定，并可继续通过关卡资源或关卡编辑器显式配置。
+- 新增输入回归，锁定 T 切换动作不会重新进入项目配置。
+**影响面**：仅关闭运行时调试快捷键，不修改关卡数据、编辑器形状设置、网格实现、路径或建筑方向规则。
+
 ## Path / Wave · 波次间只展示下一波路径 — 2026-08-03
 **模块**：Path / Wave / Tests / Docs。
 - 首波开始前与真正波次间隙的持续路径提示改为只读取下一未释放波次，不再展示整关后续所有波次的路径。

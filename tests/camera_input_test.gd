@@ -20,6 +20,7 @@ func _run() -> void:
 	rig.cancel_requested.connect(_on_cancel_requested)
 	_expect(InputMap.has_action("cam_pitch_lower") and InputMap.has_action("cam_pitch_raise"), "X/C use dedicated pitch InputMap actions")
 	_expect(not InputMap.has_action("cam_zoom_in") and not InputMap.has_action("cam_zoom_out"), "keyboard zoom actions are removed")
+	_expect(not InputMap.has_action("toggle_grid_shape"), "the runtime T grid-shape toggle action is removed")
 	_expect(is_equal_approx(rig.zoom_min, 2.0) and is_equal_approx(rig.zoom_max, 30.0), "runtime camera supports the larger 2-to-30 zoom distance range")
 	_expect(rig.mouse_navigation_enabled and rig.pan_sensitivity > 0.0 and rig.orbit_sensitivity > 0.0, "runtime mouse navigation is parameterized and enabled by default")
 

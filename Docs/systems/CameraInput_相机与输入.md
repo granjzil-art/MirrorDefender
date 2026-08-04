@@ -183,7 +183,7 @@ InputMap camera_preset_1 ... camera_preset_6
 |---|---|---|
 | `_input` | `(event: InputEvent) -> void` | 仅处理暂停/控制台模态关闭；非模态右键交给 CameraController 延迟分类。 |
 | `_on_camera_cancel_requested` | `() -> void` | 接收右键短点击，清除卡片、预览和实体选择。 |
-| `_unhandled_input` | `(event: InputEvent) -> void` | 路由 T/左键/R/F 到当前模块入口；GUI 已消费的左键不会到达这里。 |
+| `_unhandled_input` | `(event: InputEvent) -> void` | 路由左键/R/Delete/F 到当前模块入口；GUI 已消费的左键不会到达这里。 |
 | `_handle_primary_action` | `() -> void` | 拾取格/边并交给 RuntimeInteractionController 选择或单次放置。 |
 | `_lock_current_pick` | `() -> void` | 保存当前格/边选择供 HUD 与建筑选择使用。 |
 | `_on_runtime_modal_state_changed` | `(open: bool) -> void` | 同步相机输入锁，开启模态层时清除预览和世界高亮。 |
@@ -195,7 +195,6 @@ InputMap camera_preset_1 ... camera_preset_6
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_pitch_lower/raise` | X/C | 降低/提高相机俯仰角 | CameraController |
 | `camera_preset_1` ... `camera_preset_6` | 1～6 | 切换当前关卡的六个可选镜头预设 | CameraPresetController |
-| `toggle_grid_shape` | T | 切 HEX↔SQUARE | Main.gd |
 | `rotate_facing` | R | 镜子预览/实体翻面，或建筑预览/实体顺时针旋转 | Main -> MirrorManager / BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择或一次正式卡片放置 | Main.gd -> RuntimeInteractionController |
 | `cancel_action` | 鼠标右键 | 模态层按下关闭；非模态由 CameraController 在短点击释放后请求取消 | CameraController -> Main -> RuntimeInteractionController |
