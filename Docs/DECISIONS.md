@@ -1,5 +1,15 @@
 # 技术与玩法决策记录
 
+## 2026-08-04 · Grass.tres 是草地唯一资源事实源
+
+**决策**：`res://resources/terrains/Grass.tres` 是所有 `terrain_id=grass` 地形的唯一正式资源。`LevelResource.default_terrain` 初始值直接引用它；规范 Grid 的逐格草地和斜坡显式草地覆盖也必须引用它，不允许用内嵌 `TerrainDefinition` 携带另一套草地模型或颜色。
+
+**运行时与作者边界**：运行时兼容层只在临时快照中把草地别名解析为正式资源，不回写已加载作者文档；关卡编辑器加载/保存边界执行显式归一化。这样旧资源可以安全运行，作者下次保存后也会收敛为单一引用。
+
+**旧版兼容**：没有显式全局地块模型的旧关卡按草地迁移；显式配置 `tile_model_asset` 的旧关卡保留为 `legacy_level_terrain` 自定义地形，不得因历史默认字段而被误判成草地。沙地、泥土、水和未来自定义 Terrain 完全按其自身资源保留。
+
+**理由**：仅凭 `terrain_id=grass` 却允许内嵌资源覆盖模型，会出现 Inspector 显示“草地”、实际渲染砖块的双重事实源。把草地身份与 `Grass.tres` 路径绑定后，修改正式草地模型可以稳定影响所有草地，同时不吞掉旧关卡明确配置的非草地美术。
+
 ## 2026-08-04 · 虚像材质采用源材质加实例透明度
 
 **决策**：正常镜像虚像必须保留源 `MeshInstance3D` 的每个材质覆盖、表面材质、RGB、纹理和 Shader。透明表现唯一由 `CopyMirrorDefinition.projection_alpha` 通过 `GeometryInstance3D.transparency` 施加，不再用统一 `StandardMaterial3D` 覆盖源模型，也不再对模型应用强调色、发光或边缘高光。

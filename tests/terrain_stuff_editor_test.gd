@@ -17,6 +17,7 @@ var _checks: int = 0
 
 func _init() -> void:
 	_test_legacy_import_and_single_source()
+	_test_grass_reference_normalization()
 	_test_independent_grid_tools()
 	_test_multi_stuff_authoring()
 	_test_s1_ramp_authoring()
@@ -50,6 +51,16 @@ func _test_legacy_import_and_single_source() -> void:
 		"editor import normalizes legacy layer spacing to the terrain model proportion"
 	)
 	_expect(level.grid_cells.size() == 6, "editor materializes every Grid cell for direct authoring")
+	_expect(
+		level.default_terrain.resource_path == "res://resources/terrains/Grass.tres",
+		"editor import uses formal Grass.tres as its default terrain"
+	)
+	for grid_cell in level.grid_cells:
+		_expect(
+			grid_cell.get_effective_terrain(level.default_terrain).resource_path
+			== "res://resources/terrains/Grass.tres",
+			"every imported grass Grid cell uses formal Grass.tres"
+		)
 	_expect(level.stuff_placements.size() == 1, "legacy rock imports as independent Stuff")
 	var rock_grid := Authoring.get_grid_cell(level, Vector3i(1, 0, 0))
 	_expect(rock_grid != null and rock_grid.layer_count == 3, "legacy 0-based height becomes 1-based layer count")
@@ -64,6 +75,29 @@ func _test_legacy_import_and_single_source() -> void:
 		and is_equal_approx(level.layer_height, 1.5),
 		"layer spacing follows Grid Cell Size while preserving the 1:1 model proportion"
 	)
+
+
+func _test_grass_reference_normalization() -> void:
+	var level := _make_canonical_level(Vector2i(2, 2))
+	var embedded_grass := TerrainDefinition.new()
+	embedded_grass.terrain_id = &"grass"
+	embedded_grass.display_name = "Embedded grass alias"
+	level.default_terrain = embedded_grass
+	var shape := _make_square_shape(level)
+	var first := Authoring.prepare_level(level, shape)
+	_expect(
+		int(first["normalized_grass_references"]) == 1
+		and level.default_terrain.resource_path == "res://resources/terrains/Grass.tres",
+		"editor preparation replaces an embedded grass default with formal Grass.tres"
+	)
+	for grid_cell in level.grid_cells:
+		_expect(
+			grid_cell.get_effective_terrain(level.default_terrain).resource_path
+			== "res://resources/terrains/Grass.tres",
+			"newly materialized editor cells inherit formal Grass.tres"
+		)
+	var second := Authoring.prepare_level(level, shape)
+	_expect(not bool(second["changed"]), "editor grass normalization is idempotent")
 
 
 func _test_independent_grid_tools() -> void:

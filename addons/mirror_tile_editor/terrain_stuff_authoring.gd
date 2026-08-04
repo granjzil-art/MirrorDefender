@@ -15,7 +15,8 @@ const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMe
 
 
 ## Returns `{changed: bool, migrated: bool, added_cells: int,
-## normalized_ramps: int, skipped_ramps: int}`. Legacy content is imported once
+## normalized_grass_references: int, normalized_ramps: int,
+## skipped_ramps: int}`. Legacy content is imported once
 ## and then removed from the authoring document so only the canonical arrays
 ## can be edited or saved. Every structurally valid ramp is also normalized to
 ## its declared voxel-layer constraints.
@@ -25,6 +26,7 @@ static func prepare_level(level: Resource, shape: IGridShape) -> Dictionary:
 			"changed": false,
 			"migrated": false,
 			"added_cells": 0,
+			"normalized_grass_references": 0,
 			"normalized_ramps": 0,
 			"skipped_ramps": 0,
 		}
@@ -36,6 +38,10 @@ static func prepare_level(level: Resource, shape: IGridShape) -> Dictionary:
 	if int(level.get("terrain_content_version")) != CANONICAL_CONTENT_VERSION:
 		level.set("terrain_content_version", CANONICAL_CONTENT_VERSION)
 		changed = true
+	var normalized_grass_references := 0
+	if level.has_method("normalize_grass_references_in_place"):
+		normalized_grass_references = int(level.call("normalize_grass_references_in_place"))
+		changed = changed or normalized_grass_references > 0
 	var default_terrain: TerrainDefinitionScript = level.get("default_terrain") as TerrainDefinitionScript
 	if default_terrain == null:
 		default_terrain = load(DEFAULT_TERRAIN_PATH) as TerrainDefinitionScript
@@ -67,6 +73,7 @@ static func prepare_level(level: Resource, shape: IGridShape) -> Dictionary:
 		"changed": changed,
 		"migrated": migrated,
 		"added_cells": added_cells,
+		"normalized_grass_references": normalized_grass_references,
 		"normalized_ramps": int(ramp_normalization["normalized_ramps"]),
 		"skipped_ramps": int(ramp_normalization["skipped_ramps"]),
 	}

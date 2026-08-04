@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Terrain / Level · 统一草地资源事实源 — 2026-08-04
+**模块**：Terrain Grid / Level / Level Editor / Tests / Docs。
+- `resources/terrains/Grass.tres` 成为 `terrain_id=grass` 的唯一正式资源；新建 `LevelResource`、旧关卡无模型迁移、运行时规范快照和编辑器保存均统一引用该资源。
+- 运行时以只读快照替换内嵌草地副本，不污染作者资源；关卡编辑器加载时执行可保存归一化。旧关卡显式配置的全局模型保留为“旧版关卡地形”，不再错误冒充草地。
+- 新增全关卡运行时审计脚本、可重复执行的作者资源迁移工具，以及默认值/旧版/斜坡覆盖回归。
+**影响面**：只统一草地资源身份和模型来源；泥土、沙地、水、自定义地形、逐格权限、层数、Stuff、路径与玩法数值不变。
+
 ## Mirror · 虚像保留源材质与纹理 — 2026-08-04
 **模块**：Mirror / Presentation / Tests / Docs。
 - 正常虚像不再生成统一染色白模材质；逐表面复制源材质，保留 RGB、纹理与自定义 Shader。

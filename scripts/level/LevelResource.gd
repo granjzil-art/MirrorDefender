@@ -16,6 +16,7 @@ const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinitio
 const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const LevelContentMigrationAdapterScript := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
 const LevelContentValidatorScript := preload("res://scripts/level/LevelContentValidator.gd")
+const DefaultGrassTerrainResource := preload("res://resources/terrains/Grass.tres")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
 const GEOMETRY_TAG_SQUARE: StringName = &"square"
@@ -43,7 +44,8 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 ## Version 0/1 means legacy TileCellData. Version 2 is the canonical split
 ## between terrain Grid, ramps, and Stuff.
 @export_storage var terrain_content_version: int = 0
-@export var default_terrain: TerrainDefinitionScript
+## Grass is the canonical initial terrain for every newly created level.
+@export var default_terrain: TerrainDefinitionScript = DefaultGrassTerrainResource
 @export_range(0.05, 5.0, 0.05, "or_greater") var layer_height: float = TerrainModelMetricsScript.DEFAULT_LAYER_HEIGHT
 @export var grid_cells: Array[GridCellDataScript] = []
 @export var ramp_placements: Array[RampPlacementDataScript] = []
@@ -176,6 +178,12 @@ func uses_canonical_content() -> bool:
 ## 1 so the current runtime continues to load exactly as before.
 func migrate_legacy_content_in_place() -> bool:
 	return LevelContentMigrationAdapterScript.migrate_in_place(self)
+
+
+## Replaces embedded/duplicated terrain resources identified as `grass` with
+## the project-wide Grass.tres resource. Used by editor load/save migrations.
+func normalize_grass_references_in_place() -> int:
+	return LevelContentMigrationAdapterScript.normalize_grass_references_in_place(self)
 
 func clamp_tile_heights() -> void:
 	for raw_tile in tiles:

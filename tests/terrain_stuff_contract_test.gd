@@ -19,6 +19,7 @@ func _init() -> void:
 	_test_ramp_footprints()
 	_test_continuous_ramp_connections()
 	_test_legacy_snapshot()
+	_test_grass_reference_normalization()
 	_test_canonical_validation()
 	if _failures == 0:
 		print("terrain_stuff_contract_test: %d checks passed" % _checks)
@@ -40,6 +41,11 @@ func _test_separate_contracts() -> void:
 	var water: TerrainDefinitionScript = load("res://resources/terrains/Water.tres")
 	var mud: TerrainDefinitionScript = load("res://resources/terrains/Mud.tres")
 	_expect(grass != null and sand != null and water != null and mud != null, "four canonical terrain resources load")
+	_expect(
+		default_level.default_terrain != null
+		and default_level.default_terrain.resource_path == grass.resource_path,
+		"new LevelResource instances default to the formal Grass.tres resource"
+	)
 	_expect(not _has_property(grass, &"allows_tile_building"), "terrain identity does not own build permission")
 	_expect(not _has_property(grass, &"effect"), "terrain identity does not own Stuff effects")
 	var cell := GridCellDataScript.new()
@@ -142,6 +148,11 @@ func _test_legacy_snapshot() -> void:
 	var migrated_cells: Array = snapshot["grid_cells"]
 	var migrated_stuff: Array = snapshot["stuff_placements"]
 	_expect(bool(snapshot["migrated"]), "legacy read produces a transient migration snapshot")
+	_expect(
+		(snapshot["default_terrain"] as TerrainDefinition).resource_path
+		== "res://resources/terrains/Grass.tres",
+		"legacy levels without an explicit terrain model migrate to formal Grass.tres"
+	)
 	_expect(migrated_cells.size() == 3 and migrated_stuff.size() == 2, "legacy elements split from three underlying Grid cells")
 	_expect(migrated_cells[0].layer_count == 3 and migrated_cells[1].layer_count == 1, "legacy 0-based heights map to 1-based voxel layers")
 	_expect(migrated_cells[0].allows_tile_building and migrated_cells[0].allows_edge_building, "legacy rock receives buildable underlying Grid")
@@ -150,7 +161,48 @@ func _test_legacy_snapshot() -> void:
 	_expect(level.terrain_content_version == 0 and level.grid_cells.is_empty(), "read-only snapshot does not mutate legacy level")
 	_expect(level.migrate_legacy_content_in_place(), "explicit migration materializes canonical content")
 	_expect(level.terrain_content_version == 2 and level.tiles.size() == 3, "batch 1 migration keeps legacy tiles for current runtime")
+	_expect(
+		level.default_terrain.resource_path == "res://resources/terrains/Grass.tres",
+		"in-place legacy migration stores formal Grass.tres"
+	)
 	_expect(not level.migrate_legacy_content_in_place(), "canonical migration is idempotent")
+
+
+func _test_grass_reference_normalization() -> void:
+	var formal_grass: TerrainDefinitionScript = load("res://resources/terrains/Grass.tres")
+	var embedded_grass := TerrainDefinitionScript.new()
+	embedded_grass.terrain_id = &"grass"
+	embedded_grass.display_name = "Embedded grass alias"
+	var level := LevelResourceScript.new()
+	level.terrain_content_version = 2
+	level.default_terrain = embedded_grass
+	var cell := GridCellDataScript.new()
+	cell.configure(Vector3i.ZERO, embedded_grass, 1)
+	level.grid_cells = [cell]
+	var ramp := RampPlacementDataScript.new()
+	ramp.terrain_override = embedded_grass
+	level.ramp_placements = [ramp]
+	var snapshot := level.get_effective_content_snapshot()
+	_expect(
+		(snapshot["default_terrain"] as TerrainDefinition).resource_path == formal_grass.resource_path
+		and (snapshot["grid_cells"][0] as GridCellData).terrain.resource_path == formal_grass.resource_path
+		and (snapshot["ramp_placements"][0] as RampPlacementData).terrain_override.resource_path == formal_grass.resource_path,
+		"runtime snapshots resolve every grass alias through formal Grass.tres"
+	)
+	_expect(
+		level.default_terrain == embedded_grass
+		and cell.terrain == embedded_grass
+		and ramp.terrain_override == embedded_grass,
+		"runtime grass normalization keeps the authored resource read-only"
+	)
+	_expect(level.normalize_grass_references_in_place() == 3, "save migration replaces default, Grid, and ramp grass aliases")
+	_expect(
+		level.default_terrain.resource_path == formal_grass.resource_path
+		and cell.terrain.resource_path == formal_grass.resource_path
+		and ramp.terrain_override.resource_path == formal_grass.resource_path,
+		"save migration persists only formal Grass.tres references"
+	)
+	_expect(level.normalize_grass_references_in_place() == 0, "grass reference normalization is idempotent")
 
 
 func _test_canonical_validation() -> void:

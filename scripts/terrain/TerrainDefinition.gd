@@ -7,9 +7,10 @@ extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
+const GRASS_TERRAIN_ID: StringName = &"grass"
 
 @export_group("Identity")
-@export var terrain_id: StringName = &"grass"
+@export var terrain_id: StringName = GRASS_TERRAIN_ID
 @export var display_name: String = "草地"
 
 @export_group("Runtime Inspector")
@@ -25,6 +26,10 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 @export var ramp_1_to_2_model_asset: ModelAssetDefinition
 @export var ramp_1_to_3_model_asset: ModelAssetDefinition
 @export var ramp_1_to_4_model_asset: ModelAssetDefinition
+
+
+func is_grass() -> bool:
+	return terrain_id == GRASS_TERRAIN_ID
 
 
 func get_ramp_model_asset(run_length: int) -> ModelAssetDefinition:

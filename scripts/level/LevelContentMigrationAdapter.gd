@@ -5,6 +5,7 @@ class_name LevelContentMigrationAdapter
 extends RefCounted
 
 const CANONICAL_CONTENT_VERSION: int = 2
+const FORMAL_GRASS_TERRAIN_PATH := "res://resources/terrains/Grass.tres"
 
 const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
@@ -14,6 +15,7 @@ const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinitio
 const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 const TileDefinitionScript := preload("res://scripts/tile/TileDefinition.gd")
+const FormalGrassTerrainResource := preload("res://resources/terrains/Grass.tres")
 
 
 ## Returns `{content_version, migrated, default_terrain, layer_height,
@@ -30,8 +32,6 @@ static func uses_canonical_content(level: Resource) -> bool:
 	if level == null:
 		return false
 	if int(level.get("terrain_content_version")) >= CANONICAL_CONTENT_VERSION:
-		return true
-	if level.get("default_terrain") is TerrainDefinitionScript:
 		return true
 	return (
 		_not_empty_array(level.get("grid_cells"))
@@ -63,14 +63,16 @@ static func _build_canonical_snapshot(level: Resource) -> Dictionary:
 	var stuff_placements: Array[StuffPlacementDataScript] = []
 	for raw_cell in _as_array(level.get("grid_cells")):
 		if raw_cell is GridCellDataScript:
-			grid_cells.append(raw_cell)
+			grid_cells.append(_normalize_grid_cell_snapshot(raw_cell))
 	for raw_ramp in _as_array(level.get("ramp_placements")):
 		if raw_ramp is RampPlacementDataScript:
-			ramp_placements.append(raw_ramp)
+			ramp_placements.append(_normalize_ramp_snapshot(raw_ramp))
 	for raw_stuff in _as_array(level.get("stuff_placements")):
 		if raw_stuff is StuffPlacementDataScript:
 			stuff_placements.append(raw_stuff)
-	var default_terrain: TerrainDefinitionScript = level.get("default_terrain") as TerrainDefinitionScript
+	var default_terrain := _normalize_default_terrain(
+		level.get("default_terrain") as TerrainDefinitionScript
+	)
 	return {
 		"content_version": CANONICAL_CONTENT_VERSION,
 		"migrated": false,
@@ -130,16 +132,108 @@ static func _build_legacy_snapshot(level: Resource) -> Dictionary:
 
 
 static func _make_legacy_default_terrain(level: Resource) -> TerrainDefinitionScript:
-	var terrain := TerrainDefinitionScript.new()
-	terrain.terrain_id = &"grass"
-	terrain.display_name = "草地"
+	var legacy_model: Variant = level.get("tile_model_asset")
+	if not legacy_model is ModelAssetDefinition:
+		return FormalGrassTerrainResource
+	var legacy_terrain := TerrainDefinitionScript.new()
+	legacy_terrain.terrain_id = &"legacy_level_terrain"
+	legacy_terrain.display_name = "旧版关卡地形"
 	var low_color: Variant = level.get("height_color_low")
 	if low_color is Color:
-		terrain.fallback_color = low_color
-	var legacy_model: Variant = level.get("tile_model_asset")
-	if legacy_model is ModelAssetDefinition:
-		terrain.flat_model_asset = legacy_model
+		legacy_terrain.fallback_color = low_color
+	legacy_terrain.flat_model_asset = legacy_model
+	return legacy_terrain
+
+
+## Canonical save migration. A terrain whose identity is `grass` is never
+## allowed to keep an embedded model override; Grass.tres is its sole source.
+static func normalize_grass_references_in_place(level: Resource) -> int:
+	if level == null:
+		return 0
+	var changed_count := 0
+	var default_terrain: TerrainDefinitionScript = level.get("default_terrain") as TerrainDefinitionScript
+	var normalized_default := _normalize_default_terrain(default_terrain)
+	if default_terrain != normalized_default:
+		level.set("default_terrain", normalized_default)
+		changed_count += 1
+	for raw_cell in _as_array(level.get("grid_cells")):
+		if not raw_cell is GridCellDataScript:
+			continue
+		var normalized_cell_terrain := _normalize_grass_terrain(raw_cell.terrain)
+		if raw_cell.terrain == normalized_cell_terrain:
+			continue
+		raw_cell.terrain = normalized_cell_terrain
+		raw_cell.emit_changed()
+		changed_count += 1
+	for raw_ramp in _as_array(level.get("ramp_placements")):
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		var normalized_ramp_terrain := _normalize_grass_terrain(raw_ramp.terrain_override)
+		if raw_ramp.terrain_override == normalized_ramp_terrain:
+			continue
+		raw_ramp.terrain_override = normalized_ramp_terrain
+		raw_ramp.emit_changed()
+		changed_count += 1
+	if changed_count > 0:
+		level.emit_changed()
+	return changed_count
+
+
+static func is_formal_grass_reference(terrain: Resource) -> bool:
+	return terrain != null and terrain.resource_path == FORMAL_GRASS_TERRAIN_PATH
+
+
+static func _normalize_default_terrain(
+	terrain: TerrainDefinitionScript
+) -> TerrainDefinitionScript:
+	if terrain == null or _is_grass_terrain(terrain):
+		return FormalGrassTerrainResource
 	return terrain
+
+
+static func _normalize_grass_terrain(
+	terrain: TerrainDefinitionScript
+) -> TerrainDefinitionScript:
+	if terrain != null and _is_grass_terrain(terrain):
+		return FormalGrassTerrainResource
+	return terrain
+
+
+static func _is_grass_terrain(terrain: TerrainDefinitionScript) -> bool:
+	return terrain != null and terrain.is_grass()
+
+
+static func _normalize_grid_cell_snapshot(
+	source: GridCellDataScript
+) -> GridCellDataScript:
+	var normalized_terrain := _normalize_grass_terrain(source.terrain)
+	if source.terrain == normalized_terrain:
+		return source
+	var result := GridCellDataScript.new()
+	result.configure(
+		source.cell,
+		normalized_terrain,
+		source.layer_count,
+		source.allows_tile_building,
+		source.allows_edge_building
+	)
+	return result
+
+
+static func _normalize_ramp_snapshot(
+	source: RampPlacementDataScript
+) -> RampPlacementDataScript:
+	var normalized_terrain := _normalize_grass_terrain(source.terrain_override)
+	if source.terrain_override == normalized_terrain:
+		return source
+	var result := RampPlacementDataScript.new()
+	result.ramp_id = source.ramp_id
+	result.anchor_cell = source.anchor_cell
+	result.facing_index = source.facing_index
+	result.run_length = source.run_length
+	result.base_layer = source.base_layer
+	result.terrain_override = normalized_terrain
+	return result
 
 
 static func _resolve_legacy_terrain(

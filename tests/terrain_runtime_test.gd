@@ -30,6 +30,14 @@ func _run() -> void:
 func _test_square_runtime_surface_and_renderer() -> void:
 	var fixture := _make_fixture(false)
 	var level := _make_square_ramp_level()
+	# This case verifies the greybox fallback, so use a deliberately model-less
+	# fixture terrain instead of the production Grass.tres asset.
+	var model_less_terrain := TerrainDefinition.new()
+	model_less_terrain.terrain_id = &"test_model_less"
+	model_less_terrain.display_name = "Model-less test terrain"
+	level.default_terrain = model_less_terrain
+	for grid_cell in level.grid_cells:
+		grid_cell.terrain = model_less_terrain
 	var loader: LevelLoader = fixture["loader"]
 	var terrain: TerrainManagerScript = fixture["terrain"]
 	var tile: TileManager = fixture["tile"]

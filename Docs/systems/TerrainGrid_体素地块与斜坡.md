@@ -21,13 +21,13 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `RampPlacementData` | `run_length` | 1～4，对应1:1、1:2、1:3、1:4。 |
 | `RampPlacementData` | `base_layer` | 坡底层数1～3；坡顶固定为 `base_layer + 1`。 |
 | `RampPlacementData` | `terrain_override` | 可空。空值表示整条斜坡跟随坡底基底地形；非空时只覆盖整条斜坡的模型/颜色，不修改底层Grid。 |
-| `LevelResource` | `default_terrain` / `layer_height` | 未逐格覆盖时的地形与单层高度；高度固定由 `grid_cell_size × 1.0` 派生。 |
+| `LevelResource` | `default_terrain` / `layer_height` | 未逐格覆盖时的地形与单层高度；新关卡默认直接引用正式 `Grass.tres`，高度固定由 `grid_cell_size × 1.0` 派生。 |
 | `LevelResource` | `grid_cells` / `ramp_placements` | 规范地块覆盖和斜坡数组。 |
 | `TerrainManager` | `feature_enabled` | 规范Terrain运行时总开关；Main默认开启。 |
 | `TerrainRenderer` | `feature_enabled` | Terrain模型/灰盒渲染总开关。 |
 | `TerrainRenderer` | `cliff_darkening` / `layer_band_darkening` | 灰盒崖壁与体素分层色差。 |
 
-预置地形位于 `resources/terrains/Grass.tres`、`Sand.tres`、`Water.tres`、`Mud.tres`。四种预置只配置身份与灰盒颜色，模型槽为空时由后续运行时灰盒回退。
+预置地形位于 `resources/terrains/Grass.tres`、`Sand.tres`、`Water.tres`、`Mud.tres`。每种资源可独立配置平地与四档斜坡模型，槽为空时由运行时灰盒回退。`Grass.tres` 是 `terrain_id=grass` 的唯一事实源：任何内嵌草地副本在运行时快照和编辑器保存时都会被归一到该资源。
 
 ## 关键架构
 
@@ -57,6 +57,8 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `tests/terrain_stuff_contract_test.gd` | 无 / `SceneTree` | 数据分离、四层高度、双网格斜坡、迁移与互斥回归。 |
 | `tests/terrain_runtime_test.gd` | 无 / `SceneTree` | 双网格坡面采样、Grid权限桥、平地/整坡模型实例化、灰盒回退、兼容高度与加载回滚回归。 |
 | `tests/terrain_stuff_editor_test.gd` | 无 / `SceneTree` | 地块页导入、独立工具、S1斜坡与分页边界回归。 |
+| `tests/grass_terrain_reference_test.gd` | 无 / `SceneTree` | 扫描全部关卡运行时快照，禁止任何草地绕过正式资源。 |
+| `tools/normalize_grass_level_resources.gd` | 无 / `SceneTree` | 批量把规范关卡中的内嵌草地别名保存为正式 `Grass.tres` 引用。 |
 
 ### 数据流
 
@@ -92,6 +94,7 @@ TerrainManager
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `TerrainDefinition.get_ramp_model_asset` | `(run_length: int) -> ModelAssetDefinition` | 按1～4格坡长返回对应模型槽。 |
+| `TerrainDefinition.is_grass` | `() -> bool` | 按稳定 `terrain_id` 判断该资源是否声明为草地。 |
 | `TerrainModelMetrics.get_layer_height` | `(grid_cell_size: float) -> float` | 按固定1:1体素比例返回单层世界高度。 |
 | `TerrainDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、颜色和五个模型资产。 |
 | `GridCellData.configure` | `(cell: Vector3i, terrain: TerrainDefinition, layer_count: int, allows_tile_building: bool, allows_edge_building: bool) -> void` | 一次设置规范地块配置并将层数限制到1～4。 |
@@ -121,6 +124,8 @@ TerrainManager
 | `LevelLoader.configure` | `(grid_manager: GridManager, tile_manager: TileManager, terrain_manager: TerrainManager = null) -> void` | 注入装配事务依赖；第三参数可选以保持独立旧测试兼容。 |
 | `LevelResource.get_effective_content_snapshot` | `() -> Dictionary` | 返回 `{content_version, migrated, default_terrain, layer_height, grid_cells, ramp_placements, stuff_placements}`。 |
 | `LevelResource.migrate_legacy_content_in_place` | `() -> bool` | 显式物化规范数组；批次1保留旧`tiles`以维持现运行时。 |
+| `LevelResource.normalize_grass_references_in_place` | `() -> int` | 将默认、逐格和斜坡覆盖中的草地别名替换为正式 `Grass.tres`，返回替换数。 |
+| `LevelContentMigrationAdapter.is_formal_grass_reference` | `(terrain: Resource) -> bool` | 按资源路径判断是否为正式草地引用。 |
 | `LevelContentValidator.validate` | `(level: Resource, shape: IGridShape) -> Array[String]` | 对规范内容执行只读完整校验。 |
 | `TerrainStuffAuthoring.place_ramp` | `(level: Resource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int, terrain_override: TerrainDefinition = null) -> Dictionary` | S1放置；校验占格、连续坡共享边，自动对齐坡体与平地连接端，并可设置整坡地形覆盖。 |
 | `TerrainStuffAuthoring.set_ramp_terrain_override` | `(level: Resource, ramp_id: StringName, terrain_override: TerrainDefinition) -> bool` | 设置整坡地形覆盖；传空恢复跟随基底，不改底层Grid。 |
@@ -130,6 +135,7 @@ TerrainManager
 ## 约定事实源
 
 - `TerrainDefinition` 不得添加建造权限、路径、效果或Stuff字段。
+- `terrain_id=grass` 与 `Grass.tres` 是绑定契约；不得创建第二份内嵌草地资源来覆盖模型、颜色或显示配置。
 - `GridCellData.layer_count` 是1起始层数；世界顶面为 `(层数 - 1) × 单层高度`。
 - 斜坡是Grid形状，不是Stuff，也不属于复制镜可复制内容。
 - `anchor_cell` 是最低坡格，`facing_index` 永远指向上坡；反向坡通过反转方向并改锚点表达。
@@ -152,5 +158,5 @@ TerrainManager
 
 - 关卡编辑器已提供 Terrain、1～4层、两类权限、可跟随/覆盖地形的S1斜坡和 Stuff 独立工具；用法见 `LevelEditor_关卡编辑器.md`。
 - Stuff效果、互斥、摧毁、综合建造权限与镜像快照已由独立 `StuffManager / StuffRuntime / StuffRenderer` 承担。
-- 旧资源只读迁移无法推断元素下方曾经被混合格式抹去的特殊地形；默认迁移为关卡草地/默认地形，模型覆盖仍原样引用。
+- 旧资源只读迁移无法推断元素下方曾经被混合格式抹去的特殊地形；无显式全局模型时迁移为正式草地。显式旧 `tile_model_asset` 保留为 `legacy_level_terrain` 自定义地形，不冒充草地。
 - 运行时仍可只读加载旧 `tiles`；一旦用批次4编辑器导入，作者文档会清空旧数组，只保留规范事实源。
