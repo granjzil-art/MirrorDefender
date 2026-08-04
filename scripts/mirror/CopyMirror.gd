@@ -20,7 +20,6 @@ var _grid: GridManager
 var _tile_manager: TileManager
 var _source_camera: Camera3D
 var _frame_material: StandardMaterial3D
-var _side_marker: MeshInstance3D
 var _reflection_view: Node3D
 var _selected: bool = false
 var _preview_valid: bool = true
@@ -137,7 +136,6 @@ func _build_visual() -> void:
 	for child in get_children():
 		child.queue_free()
 	_reflection_view = null
-	_side_marker = null
 	if _grid == null or definition == null or get_axis_endpoints().size() != 2:
 		return
 	var body := MeshInstance3D.new()
@@ -155,7 +153,7 @@ func _build_visual() -> void:
 	_frame_material.metallic = 0.82
 	_frame_material.roughness = 0.22
 	_frame_material.emission_enabled = true
-	_frame_material.emission = invalid_color if preview_mode and not _preview_valid else definition.mirror_color.darkened(0.48)
+	_frame_material.emission = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color.darkened(0.38)
 	_frame_material.emission_energy_multiplier = 3.2 if preview_mode and not _preview_valid else 1.5
 	if preview_mode:
 		var preview_color := _frame_material.albedo_color
@@ -164,12 +162,6 @@ func _build_visual() -> void:
 		_frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	body.material_override = _frame_material
 	add_child(body)
-	_side_marker = MeshInstance3D.new()
-	var marker_mesh := BoxMesh.new()
-	marker_mesh.size = Vector3(_grid.cell_size * 0.22, _grid.cell_size * 0.08, _grid.cell_size * 0.10)
-	_side_marker.mesh = marker_mesh
-	_side_marker.material_override = _make_marker_material()
-	add_child(_side_marker)
 	_reflection_view = MirrorReflectionViewScript.new()
 	add_child(_reflection_view)
 	_reflection_view.configure(self, definition, _source_camera, preview_mode)
@@ -177,19 +169,5 @@ func _build_visual() -> void:
 	set_selected(_selected)
 
 func _update_active_side_visual() -> void:
-	var normal := get_active_normal()
-	if _side_marker != null:
-		_side_marker.position = Vector3.UP * (get_mirror_height() + _grid.cell_size * 0.07) + normal * _grid.cell_size * 0.13
-		_side_marker.look_at(_side_marker.global_position + normal, Vector3.UP, true)
 	if _reflection_view != null:
 		_reflection_view.update_active_side()
-
-func _make_marker_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var color := definition.invalid_preview_color if preview_mode and not _preview_valid else definition.mirror_color
-	material.albedo_color = color
-	material.emission_enabled = true
-	material.emission = color
-	material.emission_energy_multiplier = 3.0
-	return material

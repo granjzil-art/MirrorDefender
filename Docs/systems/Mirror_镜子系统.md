@@ -146,7 +146,7 @@ M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入�
 | `reflection_max_updates_per_frame` | 2 | CopyMirrorDefinition | 每次调度最多刷新的可见镜面数 |
 | `mirror_reflectivity` | 1.00 | CopyMirrorDefinition | 反射画面相对镜面底色的混合比例 |
 | `mirror_surface_tint` | 淡蓝白 | CopyMirrorDefinition | 生效面反射画面的色调 |
-| `mirror_back_face_color` | 深蓝黑 | CopyMirrorDefinition | 非生效镜背颜色 |
+| `mirror_back_face_color` | 中性灰 | CopyMirrorDefinition | 镜体背面底色；生效方向只由镜面本身与放置预览表达，不再生成顶部蓝色标记 |
 | `projection_alpha` | 0.76 | CopyMirrorDefinition | 正式投影透明度；预览在此基础上衰减 |
 | `projection_tint` | 青蓝 | CopyMirrorDefinition | 投影颜色叠加 |
 | `invalid_preview_color` | 红色 | CopyMirrorDefinition | 复制障碍会堵死目标路线时的镜体/投影预览颜色 |

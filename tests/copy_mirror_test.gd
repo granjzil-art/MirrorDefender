@@ -155,7 +155,11 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		"mirror shader counter-corrects the reflected camera's horizontal handedness"
 	)
 	var mirror_body := mirror.get_node("MirrorBody") as MeshInstance3D
-	_expect(not mirror_body.get_layer_mask_value(1) and mirror_body.get_layer_mask_value(20), "mirror body is excluded from reflection cameras to prevent blue self-occlusion")
+	var mirror_body_material := mirror_body.material_override as StandardMaterial3D
+	var back_color := mirror_body_material.albedo_color
+	_expect(absf(back_color.r - back_color.g) < 0.04 and absf(back_color.g - back_color.b) < 0.04, "copy mirror body uses a neutral grey back-face base")
+	_expect(mirror.get_children().filter(func(child: Node) -> bool: return child is MeshInstance3D).size() == 1, "copy mirror has no separate top-facing marker mesh")
+	_expect(not mirror_body.get_layer_mask_value(1) and mirror_body.get_layer_mask_value(20), "mirror body is excluded from reflection cameras to prevent self-occlusion")
 	var active_camera_position := reflection_camera.global_position
 	var gameplay_active_normal := mirror.get_active_normal()
 	reflection_camera.global_position = mirror_center - gameplay_active_normal * 24.0 + Vector3.UP * 9.0

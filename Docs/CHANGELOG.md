@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Mirror · 灰色背面与朝向标记简化 — 2026-08-04
+**模块**：Mirror / Tests / Docs。
+- 复制镜背面默认底色由深蓝调整为中性灰，背面发光也改为基于背面灰色计算。
+- 移除镜子顶部的蓝色朝向标记；镜面生效方向与翻面逻辑保持不变。
+- `copy_mirror_test.gd` 增加灰色背面与无独立顶部标记回归。
+**影响面**：仅改变复制镜表现，不修改复制来源、镜面反射、放置规则或战斗逻辑。
+
 ## Path / Building / Mirror · 防止玩家障碍封死全部路线 — 2026-08-04
 **模块**：Path / Building / Mirror / Tile / Tests / Docs。
 - 新增独立 `PathPlacementConnectivityGuard`，按波次地面/空中档案、原目标据点和四/六边形相邻规则，在假设放置中检查出生点是否仍可达。

@@ -38,7 +38,7 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 @export_range(1, 6, 1) var reflection_max_updates_per_frame: int = 2
 @export_range(0.0, 1.0, 0.01) var mirror_reflectivity: float = 0.92
 @export var mirror_surface_tint: Color = Color(0.80, 0.94, 1.0, 1.0)
-@export var mirror_back_face_color: Color = Color(0.07, 0.10, 0.16, 1.0)
+@export var mirror_back_face_color: Color = Color(0.24, 0.25, 0.27, 1.0)
 
 @export_group("Projection Visual")
 @export var projection_tint: Color = Color(0.12, 0.85, 1.0, 1.0)
