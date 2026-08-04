@@ -12,6 +12,7 @@ const PREVIEW_PRIORITY_OFFSET := 64
 
 var payload: MirrorCopyPayload
 var preview_mode: bool = false
+var preview_valid: bool = true
 
 var _grid: GridManager
 var _tile_manager: TileManager
@@ -34,7 +35,8 @@ func configure(
 	mirror_definition: CopyMirrorDefinition,
 	stack_index: int = 0,
 	p_preview_mode: bool = false,
-	tile_visual_snapshot_resolver: Callable = Callable()
+	tile_visual_snapshot_resolver: Callable = Callable(),
+	p_preview_valid: bool = true
 ) -> void:
 	payload = copy_payload
 	_grid = grid_manager
@@ -42,6 +44,7 @@ func configure(
 	_definition = mirror_definition
 	_stack_index = stack_index
 	preview_mode = p_preview_mode
+	preview_valid = p_preview_valid
 	_tile_visual_snapshot_resolver = tile_visual_snapshot_resolver
 	var base_height := _tile_manager.get_world_height(payload.projected_cell) if _tile_manager != null else 0.0
 	position = _grid.cell_to_world(payload.projected_cell) + Vector3(0.0, base_height, 0.0)
@@ -172,7 +175,7 @@ func _make_projection_material(source_material: Material) -> StandardMaterial3D:
 	if source_color == Color(0.0, 0.0, 0.0, 1.0) and payload != null:
 		source_color = payload.primary_color
 	var tint_strength := clampf(_definition.projection_tint_strength, 0.0, 1.0)
-	var color := source_color.lerp(_accent_color, tint_strength)
+	var color := _accent_color if preview_mode and not preview_valid else source_color.lerp(_accent_color, tint_strength)
 	color.a = _definition.projection_alpha * (0.76 if preview_mode else 1.0)
 	material.albedo_color = color
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -180,8 +183,8 @@ func _make_projection_material(source_material: Material) -> StandardMaterial3D:
 	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	material.render_priority = _get_render_priority(false)
 	material.emission_enabled = true
-	material.emission = source_color.lerp(_accent_color, maxf(0.34, tint_strength))
-	material.emission_energy_multiplier = _definition.projection_emission_energy
+	material.emission = _accent_color if preview_mode and not preview_valid else source_color.lerp(_accent_color, maxf(0.34, tint_strength))
+	material.emission_energy_multiplier = maxf(3.6, _definition.projection_emission_energy) if preview_mode and not preview_valid else _definition.projection_emission_energy
 	return material
 
 func _make_rim_material() -> ShaderMaterial:
@@ -250,6 +253,8 @@ func _get_render_priority(overlay_pass: bool) -> int:
 	return clampi(priority, Material.RENDER_PRIORITY_MIN, Material.RENDER_PRIORITY_MAX)
 
 func _resolve_accent_color() -> Color:
+	if preview_mode and not preview_valid:
+		return _definition.invalid_preview_color
 	var stable_hash := absi(payload.stable_key.hash()) if payload != null else 0
 	var hue_shift := fmod(float(stable_hash % 997) / 997.0 + float(_stack_index) * 0.173, 1.0)
 	var palette_color := Color.from_hsv(hue_shift, 0.58, 1.0, 1.0)

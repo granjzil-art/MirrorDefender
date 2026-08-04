@@ -23,6 +23,7 @@ var _frame_material: StandardMaterial3D
 var _side_marker: MeshInstance3D
 var _reflection_view: Node3D
 var _selected: bool = false
+var _preview_valid: bool = true
 
 func configure(
 	mirror_definition: CopyMirrorDefinition,
@@ -57,6 +58,17 @@ func request_reflection_refresh() -> bool:
 
 func refresh_visual() -> void:
 	_build_visual()
+
+
+func set_preview_valid(valid: bool) -> void:
+	if not preview_mode or _preview_valid == valid:
+		return
+	_preview_valid = valid
+	_build_visual()
+
+
+func is_preview_valid() -> bool:
+	return _preview_valid
 
 func flip_side() -> void:
 	active_from_side = not active_from_side
@@ -104,7 +116,9 @@ func get_action_anchor() -> Vector3:
 func set_selected(selected: bool) -> void:
 	_selected = selected
 	if _frame_material != null:
-		_frame_material.emission_energy_multiplier = 3.6 if selected else 1.5
+		_frame_material.emission_energy_multiplier = (
+			3.6 if selected or (preview_mode and not _preview_valid) else 1.5
+		)
 
 func _update_transform() -> void:
 	if _grid == null or _tile_manager == null:
@@ -136,12 +150,13 @@ func _build_visual() -> void:
 	body.position.y = get_mirror_height() * 0.5
 	body.rotation.y = -atan2(get_edge_direction().z, get_edge_direction().x)
 	_frame_material = StandardMaterial3D.new()
-	_frame_material.albedo_color = definition.mirror_back_face_color
+	var invalid_color := definition.invalid_preview_color
+	_frame_material.albedo_color = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color
 	_frame_material.metallic = 0.82
 	_frame_material.roughness = 0.22
 	_frame_material.emission_enabled = true
-	_frame_material.emission = definition.mirror_color.darkened(0.48)
-	_frame_material.emission_energy_multiplier = 1.5
+	_frame_material.emission = invalid_color if preview_mode and not _preview_valid else definition.mirror_color.darkened(0.48)
+	_frame_material.emission_energy_multiplier = 3.2 if preview_mode and not _preview_valid else 1.5
 	if preview_mode:
 		var preview_color := _frame_material.albedo_color
 		preview_color.a = 0.72
@@ -172,8 +187,9 @@ func _update_active_side_visual() -> void:
 func _make_marker_material() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = definition.mirror_color
+	var color := definition.invalid_preview_color if preview_mode and not _preview_valid else definition.mirror_color
+	material.albedo_color = color
 	material.emission_enabled = true
-	material.emission = definition.mirror_color
+	material.emission = color
 	material.emission_energy_multiplier = 3.0
 	return material

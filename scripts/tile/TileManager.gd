@@ -210,12 +210,19 @@ func _get_legacy_runtime_obstacle(cell: Vector3i) -> Node:
 	return obstacle
 
 func can_use_for_reroute(cell: Vector3i, target: Node = null) -> bool:
+	return can_use_for_reroute_without_navigation_overlay(cell, target) and not blocks_enemy_navigation(cell, target)
+
+
+## Static Grid/Stuff traversal without mirror overlays. Hypothetical placement
+## validation supplies the prospective projection set separately, so it cannot
+## accidentally mix current and candidate mirror graphs.
+func can_use_for_reroute_without_navigation_overlay(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
 	if tile == null:
 		return false
 	if not legacy_content_runtime_enabled and _stuff_runtime_provider != null:
-		return bool(_stuff_runtime_provider.call("can_use_for_reroute", cell, target)) and not blocks_enemy_navigation(cell, target)
-	return tile.can_use_for_reroute(target) and not blocks_enemy_navigation(cell, target)
+		return bool(_stuff_runtime_provider.call("can_use_for_reroute", cell, target))
+	return tile.can_use_for_reroute(target)
 
 func place_occupant(cell: Vector3i, occupant: Node) -> bool:
 	var tile := get_tile(cell)

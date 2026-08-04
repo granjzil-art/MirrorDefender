@@ -42,6 +42,7 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 
 @export_group("Projection Visual")
 @export var projection_tint: Color = Color(0.12, 0.85, 1.0, 1.0)
+@export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 @export_range(0.05, 1.0, 0.01) var projection_alpha: float = 0.76
 @export_range(0.0, 1.0, 0.01) var projection_tint_strength: float = 0.24
 @export_range(0.0, 8.0, 0.1) var projection_emission_energy: float = 2.8
@@ -67,6 +68,7 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_color(errors, "镜面染色", mirror_surface_tint)
 	ConfigValidator.require_color(errors, "镜面背面颜色", mirror_back_face_color)
 	ConfigValidator.require_color(errors, "虚像染色", projection_tint)
+	ConfigValidator.require_color(errors, "无效放置预览颜色", invalid_preview_color)
 	ConfigValidator.require_number(errors, "虚像透明度", projection_alpha, 0.05, 1.0)
 	ConfigValidator.require_number(errors, "虚像染色强度", projection_tint_strength, 0.0, 1.0)
 	ConfigValidator.require_number(errors, "虚像发光强度", projection_emission_energy, 0.0, 8.0)

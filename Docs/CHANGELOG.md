@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Path / Building / Mirror · 防止玩家障碍封死全部路线 — 2026-08-04
+**模块**：Path / Building / Mirror / Tile / Tests / Docs。
+- 新增独立 `PathPlacementConnectivityGuard`，按波次地面/空中档案、原目标据点和四/六边形相邻规则，在假设放置中检查出生点是否仍可达。
+- 屏障与边障在占位/扣费前复核；保留至少一条同据点路线时允许，堵死最后路线时显示红色建筑虚影并拒绝交易。
+- 复制镜放置校验加入候选镜后的完整稳定递归复制图；复制屏障/大石头封路时，镜体和当前投影统一红色预览，点击不创建镜子也不扣费。
+- 新增 29 项回归，覆盖单路/备用路线、边障、HEX/SQUARE、地面/空中适用性和递归镜像石头封路。
+**影响面**：只约束玩家新放置的阻路建筑/复制镜；不修改既有障碍、敌人到障碍前的换路/攻击决策、玩法数值或关卡资源。
+
 ## Grid / Input · 关闭 T 键运行时格子形状切换 — 2026-08-04
 **模块**：Grid / Input / Main / Tests / Docs。
 - 删除 `toggle_grid_shape` InputMap 动作及 `Main._unhandled_input()` 中的 HEX/SQUARE 运行时切换分支，按下 T 不再改变关卡网格。

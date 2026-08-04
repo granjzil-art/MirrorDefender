@@ -19,6 +19,7 @@
 - **脱战回血**：屏障每次受伤重置计时；连续 `regeneration_delay` 秒未受伤后，按 `regeneration_per_second` 回耐久。大 delta 只结算越过延迟后的时间。
 - **反伤与摧毁**：`damage_reflection_ratio` 按屏障实际承受伤害反射给攻击者；归零后由 BuildingManager 无退款移除、释放路径占位和建筑上限。玩家主动删除仍使用本级 `refund_amount`。
 - **放置预览**：建造模式悬停可建造空格时创建不占格、不攻击的 1 级半透明建筑；预览保留塔种和朝向，R 旋转虚影，左键放置时继承该朝向。
+- **封路预防**：屏障/边障的虚影会通过注入的 `PathPlacementConnectivityGuard` 假设加入当前同目标路网；会堵死最后可达路线时虚影保留但改为高亮红色。点击后在占格/扣费前二次校验并拒绝。
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
 - **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；实例会先把可视底部中心自动接地，再保留当前等级 Scale。`projectile_model_asset` 则精确拟合到该级的子弹长度/宽度。未指定时继续使用 `tower_color/attack_color` 灰盒。
 - **卡片美术替换**：`BuildingDefinition.card_icon` 是 M6 正式卡槽的可选 `Texture2D` 接口；未配置时 BuildCardBar 使用建筑名首字灰盒，不影响资源校验或放置。
@@ -102,7 +103,10 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 ```text
 M3DebugPanel 建造模式 + Main 鼠标悬停
   -> BuildingManager.update_preview(cell, definition)
-  -> valid: preview Building(level=1, preview=true), no Tile occupant
+  -> valid geometry: preview Building(level=1, preview=true), no Tile occupant
+  -> path blocker: PathPlacementConnectivityGuard.validate_change
+	 -> safe: normal translucent preview
+	 -> closes last target route: red invalid preview, final placement rejected
   -> invalid: clear ghost; Main HUD reads Tile/occupant information
 
 Main 左键
@@ -199,6 +203,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `upgrade_selected` | `() -> bool` | 升级当前选择。 |
 | `upgrade_building` | `(building: Building) -> bool` | 扣下一等级费用、切换完整参数；失败回滚费用。 |
 | `update_preview` | `(cell: Vector3i, definition: BuildingDefinition) -> bool` | 在可建造空格创建/更新不占格虚影。 |
+| `set_path_connectivity_validator` | `(value: Callable) -> void` | 注入障碍假设放置校验，不反向持有 Path 模块。 |
 | `clear_preview` | `(clear_definition: bool = true) -> void` | 清理虚影；可保留塔种/朝向供跨无效格移动。 |
 | `rotate_preview` | `(step: int = 1) -> bool` | 旋转当前虚影。 |
 | `remove_building` | `(cell: Vector3i, refund: float = 0.0) -> bool` | 通过幂等释放事务清理占格、计数、回调与建筑产出后销毁建筑。 |
@@ -207,6 +212,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `select_at` / `rotate_selected` | `(cell: Vector3i) -> Building` / `(step: int = 1) -> bool` | 选择或旋转实际建筑。 |
 | `get_path_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 返回该路径格对指定目标有效且仍存活的屏障。 |
 | `resolve_path_blocker` | `(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node` | 依次查询对指定目标有效的边屏障和终点地块屏障。 |
+| `resolve_physical_path_blocker` | `(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node` | 只查实体边/格屏障；供放置校验与假设镜像图分层合并。 |
 | `is_path_cell` | `(cell: Vector3i) -> bool` | 查询关卡路径格缓存。 |
 | `_cache_path_cells` | `(level_resource: LevelResource) -> void` | 切关时缓存所有路径格以及出生点/据点保护格。 |
 | `_sync_building_income` | `() -> void` | 汇总所有当前级 `resource_per_second`。 |
@@ -223,6 +229,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 - `BuildingDefinition.Kind` 当前固定为 `ARROW_TOWER=0`、`LASER_TOWER=1`、`BARRIER=2`、`EDGE_BARRIER=3`。
 - `BuildingDefinition.AimMode` 是转向能力的事实源：`FIXED_FACING=0`、`TRACK_TARGET=1`。不得以 `Kind` 分支写死自动转向。
 - 路径格缓存来自当前 LevelResource；普通塔不得占路。屏障可覆盖 BUILDABLE 或 BLOCKED 路面，但不得覆盖未清障的 DESTRUCTIBLE 格。
+- 屏障连通性校验不以建筑类型重写寻路；BuildingManager 只提供实体阻挡查询和未登记候选对象，目标据点/路网事实属于 Path 模块。
 - 屏障摧毁属于战斗损失，不返还资源；主动删除属于玩家操作，按本级 `refund_amount` 返还。
 - BuildingManager 的 cell 字典、Tile occupant、ResourceManager 建筑计数和生命周期回调必须作为同一事务更新；外部释放只做无退款清理。
 - HEX 档 0 为世界 -30 度，随后每档 +60 度；SQUARE 档 0 为 +X，随后每档 +45 度。

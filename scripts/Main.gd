@@ -4,7 +4,6 @@
 ##
 ## 操作：
 ##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放
-##   T    切换 六边形 <-> 正方形
 ##   鼠标悬停：高亮格；靠近边时高亮边（并显示 canonical_edge_id）
 ##   左键：执行正式卡槽当前模式（选择 / 单次放置）
 ##   右键：回到选择模式
@@ -27,6 +26,7 @@ const PathHoverPreviewScene := preload("res://scenes/path/PathHoverPreview.tscn"
 const RuntimePathDisplayScene := preload("res://scenes/path/RuntimePathDisplayController.tscn")
 const TileEffectSystemScript := preload("res://scripts/tile/TileEffectSystem.gd")
 const PathRoutePlannerScript := preload("res://scripts/path/PathRoutePlanner.gd")
+const PathPlacementConnectivityGuardScript := preload("res://scripts/path/PathPlacementConnectivityGuard.gd")
 const EdgeOccupancyRegistryScript := preload("res://scripts/shared/EdgeOccupancyRegistry.gd")
 const MirrorManagerScript := preload("res://scripts/mirror/MirrorManager.gd")
 const LevelReflectionSurfaceScript := preload("res://scripts/fx/LevelReflectionSurface.gd")
@@ -84,6 +84,7 @@ var base_core: BaseCore
 var wave_manager: WaveManager
 var tile_effect_system: TileEffectSystem
 var path_route_planner: PathRoutePlanner
+var path_placement_connectivity_guard: PathPlacementConnectivityGuard
 var edge_occupancy_registry: EdgeOccupancyRegistry
 var mirror_manager: MirrorManager
 var level_reflection_surface: LevelReflectionSurfaceScript
@@ -169,6 +170,20 @@ func _ready() -> void:
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
 	tile_manager.set_navigation_overlay_resolver(Callable(mirror_manager, "blocks_enemy_navigation"))
 	tile_manager.set_navigation_overlay_blocker_resolver(Callable(mirror_manager, "resolve_projected_navigation_blocker"))
+	path_placement_connectivity_guard = PathPlacementConnectivityGuardScript.new()
+	add_child(path_placement_connectivity_guard)
+	path_placement_connectivity_guard.configure(
+		grid,
+		tile_manager,
+		Callable(building_manager, "resolve_physical_path_blocker"),
+		Callable(mirror_manager, "get_prospective_blocked_cells")
+	)
+	building_manager.set_path_connectivity_validator(
+		Callable(path_placement_connectivity_guard, "validate_change")
+	)
+	mirror_manager.set_path_connectivity_validator(
+		Callable(path_placement_connectivity_guard, "validate_change")
+	)
 	runtime_interaction.configure(building_manager, mirror_manager)
 	runtime_interaction.world_selection_changed.connect(_on_world_selection_changed)
 	game_time_controller.configure(runtime_interaction, building_manager, mirror_manager)
@@ -541,6 +556,7 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	combat_manager.clear_targets()
 	path_manager.load_level(level_resource)
 	path_route_planner.load_level(level_resource)
+	path_placement_connectivity_guard.load_level(level_resource)
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
 	camera_preset_controller.load_level(level_resource)

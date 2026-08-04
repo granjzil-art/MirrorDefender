@@ -17,6 +17,7 @@
 - **稀疏布局一致性**：`.tres` 可只保存被修改的格，甚至 `tiles = []`。编辑器会把未序列化格显示为“高度 0 的可建造默认格”，与运行时 TileManager 补默认格的规则一致；首次修改该格时才创建 TileCellData 并写入资源。
 - **配置/运行时隔离**：TileManager 不直接复用 LevelResource 中的 TileCellData，而是在完整校验且 Grid 配置一致后为每格创建运行时副本，再一次替换当前字典。局内占用、清障和高度修改不会污染资源缓存或另一个运行实例。
 - **耐久地块隔离**：声明 `creates_runtime_obstacle()` 的地块效果由 TileManager 为每格创建 `TileObstacleRuntime`；当前耐久属于运行时节点，不写入共享 TileEffect 或 LevelResource。大石头摧毁后只清除内容层/阻挡，并开放块建筑和边建筑，重新加载恢复配置状态。
+- **导航分层查询**：`can_use_for_reroute_without_navigation_overlay()` 只读 Grid/Stuff 静态通行性；`can_use_for_reroute()` 再合并当前镜像覆盖。候选放置校验使用前者并显式叠加“当前或放置后”投影集，避免混用两份镜像状态。
 - **高度配色与观察**：画布以 LevelResource 持久化的下/中/上三色为高度渐变，使用斜俯视投影和台阶崖壁凸显高差；选中画布后用 WASD 平移、QE 旋转、XC 调俯仰，仅用滚轮缩放观察。
 - **编辑器资源执行**：TileCellData、TilePreset 与 LevelResource 都标注 `@tool`；编辑器加载 `.tres` 后可执行地块查询、状态判断与画笔构建，不能退化为 placeholder 实例。
 
@@ -167,6 +168,8 @@ Level Editor M4 pages
 | `get_occupant` | `(cell: Vector3i) -> Node` | 返回运行时占用物或 null。 |
 | `get_runtime_obstacle` | `(cell: Vector3i) -> Node` | 返回存活的真实地块障碍耐久节点；不同格永不共享当前耐久。 |
 | `resolve_navigation_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 优先返回真实地块障碍，否则调用注入覆盖解析器返回镜像障碍。 |
+| `can_use_for_reroute` | `(cell: Vector3i, target: Node = null) -> bool` | 合并静态 Grid/Stuff 与当前导航覆盖后返回运行时换路可用性。 |
+| `can_use_for_reroute_without_navigation_overlay` | `(cell: Vector3i, target: Node = null) -> bool` | 不合并镜像覆盖的静态可用性，专供假设镜像图校验。 |
 | `set_navigation_overlay_blocker_resolver` | `(value: Callable) -> void` | 注入非占位导航障碍的具体攻击目标解析，不持有 MirrorManager。 |
 | `is_blocked` | `(cell: Vector3i) -> bool` | M4 路径 / M6 光路的地形阻挡查询入口。 |
 | `apply_preset` | `(cell: Vector3i, preset: TilePreset) -> bool` | 运行时用预制覆盖一格并发 tile_changed。 |

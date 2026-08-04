@@ -29,6 +29,7 @@ var _combat_manager: CombatManager
 var _building_manager: BuildingManager
 var _edge_occupancy_registry: EdgeOccupancyRegistry
 var _tile_visual_snapshot_resolver: Callable
+var _path_connectivity_validator: Callable
 var _reflection_camera: Camera3D
 var _reflection_cursor: int = 0
 
@@ -103,6 +104,10 @@ func set_reflection_camera(camera: Camera3D) -> void:
 	if _preview_mirror != null and is_instance_valid(_preview_mirror):
 		_preview_mirror.set_reflection_camera(camera)
 
+
+func set_path_connectivity_validator(value: Callable) -> void:
+	_path_connectivity_validator = value
+
 func place_copy_mirror(
 	from_cell: Vector3i,
 	edge_index: int,
@@ -126,7 +131,13 @@ func place_copy_mirror(
 		_tile_manager,
 		resolved_side
 	)
+	mirror.placement_order = _next_placement_order
 	mirror.set_reflection_camera(_reflection_camera)
+	var connectivity_failure := _validate_path_connectivity({"candidate_mirror": mirror})
+	if not connectivity_failure.is_empty():
+		mirror.queue_free()
+		placement_failed.emit(from_cell, connectivity_failure)
+		return null
 	if not _resource_manager.try_register_mirror(definition.cost):
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "资源不足或达到镜子上限")
@@ -136,7 +147,6 @@ func place_copy_mirror(
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
-	mirror.placement_order = _next_placement_order
 	_next_placement_order += 1
 	mirror.side_changed.connect(_on_mirror_side_changed)
 	var exit_callback := _on_mirror_tree_exited.bind(mirror)
@@ -271,6 +281,28 @@ func get_projections(cell: Variant = null) -> Array[MirrorProjection]:
 		return by_cell
 	return _projections.duplicate()
 
+
+## Returns the complete recursive blocker set for current mirrors plus an
+## optional unregistered source/mirror. This is the sole prospective mirror
+## graph query used by placement connectivity validation.
+func get_prospective_blocked_cells(
+	extra_source: Variant = null,
+	candidate_mirror: Variant = null,
+	target: Node = null
+) -> Dictionary:
+	var mirrors := get_mirrors()
+	if candidate_mirror is CopyMirror and is_instance_valid(candidate_mirror):
+		mirrors.append(candidate_mirror)
+		mirrors.sort_custom(func(a: CopyMirror, b: CopyMirror) -> bool: return a.placement_order < b.placement_order)
+	var blocked: Dictionary = {}
+	for payload in _calculate_projection_payloads(mirrors, extra_source):
+		if payload.copy_kind not in [&"barrier", &"rock"] or not payload.is_source_valid():
+			continue
+		if not _payload_affects_target(payload, target):
+			continue
+		blocked[payload.projected_cell] = true
+	return blocked
+
 func set_inspected_cell(cell: Variant = null) -> void:
 	for projection in _projections:
 		if is_instance_valid(projection):
@@ -376,6 +408,18 @@ func clear_preview() -> void:
 func get_preview_info() -> Dictionary:
 	return _preview_info.duplicate(true)
 
+
+func get_preview_mirror() -> CopyMirror:
+	return _preview_mirror if _preview_mirror != null and is_instance_valid(_preview_mirror) else null
+
+
+func get_preview_projections() -> Array[MirrorProjection]:
+	var result: Array[MirrorProjection] = []
+	for projection in _preview_projections:
+		if projection != null and is_instance_valid(projection):
+			result.append(projection)
+	return result
+
 func queue_rebuild() -> void:
 	if _rebuild_queued:
 		return
@@ -414,8 +458,11 @@ func rebuild_now() -> void:
 	if _preview_mirror != null:
 		_refresh_preview_projection()
 
-func _calculate_projection_payloads(mirrors: Array[CopyMirror]) -> Array[MirrorCopyPayload]:
-	var base_content := _build_base_content_map()
+func _calculate_projection_payloads(
+	mirrors: Array[CopyMirror],
+	extra_source: Variant = null
+) -> Array[MirrorCopyPayload]:
+	var base_content := _build_base_content_map(extra_source)
 	var current: Array[MirrorCopyPayload] = []
 	var maximum_passes := maxi(2, copy_mirror_definition.copy_chain_max * maxi(1, mirrors.size()) + 2)
 	for _pass_index in range(maximum_passes):
@@ -469,23 +516,13 @@ func _build_projection_group(
 		return result
 	return result
 
-func _build_base_content_map() -> Dictionary:
+func _build_base_content_map(extra_source: Variant = null) -> Dictionary:
 	var content: Dictionary = {}
 	if _building_manager != null:
 		for building in _building_manager.get_buildings():
-			var kind := building.get_copy_kind()
-			if kind.is_empty():
-				continue
-			var payload := MirrorCopyPayload.new()
-			payload.stable_key = "building:%d" % building.get_instance_id()
-			payload.copy_kind = kind
-			payload.display_name = building.get_copy_display_name()
-			payload.source_cell = building.cell
-			payload.root_source_cell = building.cell
-			payload.projected_cell = building.cell
-			payload.root_source = building
-			payload.primary_color = building.get_copy_color()
-			_append_content(content, building.cell, payload)
+			_append_building_content(content, building)
+	if extra_source is Building and is_instance_valid(extra_source):
+		_append_building_content(content, extra_source as Building, "candidate")
 	if _stuff_manager != null:
 		for runtime in _stuff_manager.call("get_all_stuff"):
 			if runtime == null or not is_instance_valid(runtime):
@@ -526,6 +563,24 @@ func _build_base_content_map() -> Dictionary:
 			_append_content(content, tile.cell, payload)
 	return content
 
+
+func _append_building_content(content: Dictionary, building: Building, key_prefix: String = "building") -> void:
+	if building == null or not is_instance_valid(building):
+		return
+	var kind := building.get_copy_kind()
+	if kind.is_empty():
+		return
+	var payload := MirrorCopyPayload.new()
+	payload.stable_key = "%s:%d" % [key_prefix, building.get_instance_id()]
+	payload.copy_kind = kind
+	payload.display_name = building.get_copy_display_name()
+	payload.source_cell = building.cell
+	payload.root_source_cell = building.cell
+	payload.projected_cell = building.cell
+	payload.root_source = building
+	payload.primary_color = building.get_copy_color()
+	_append_content(content, building.cell, payload)
+
 func _refresh_preview_projection() -> void:
 	_clear_preview_projections()
 	if _preview_mirror == null or not is_instance_valid(_preview_mirror):
@@ -535,6 +590,9 @@ func _refresh_preview_projection() -> void:
 		if projection.payload != null and projection.payload.is_source_valid():
 			_append_content(content, projection.payload.projected_cell, projection.payload)
 	var group := _build_projection_group(_preview_mirror, content, {})
+	var connectivity_failure := _validate_path_connectivity({"candidate_mirror": _preview_mirror})
+	var preview_valid := connectivity_failure.is_empty()
+	_preview_mirror.set_preview_valid(preview_valid)
 	_preview_info = {
 		"edge_id": _preview_mirror.edge_id,
 		"active_cell": _preview_mirror.get_active_cell(),
@@ -542,7 +600,9 @@ func _refresh_preview_projection() -> void:
 		"source_cell": group[0].source_cell if not group.is_empty() else Vector3i.ZERO,
 		"target_cell": group[0].projected_cell if not group.is_empty() else Vector3i.ZERO,
 		"types": [],
-		"warning": "未找到可复制的非空地块，仍可放置" if group.is_empty() else "",
+		"valid": preview_valid,
+		"failure": connectivity_failure,
+		"warning": connectivity_failure if not preview_valid else ("未找到可复制的非空地块，仍可放置" if group.is_empty() else ""),
 	}
 	var stack_index := 0
 	for payload in group:
@@ -556,11 +616,26 @@ func _refresh_preview_projection() -> void:
 			copy_mirror_definition,
 			stack_index,
 			true,
-			_tile_visual_snapshot_resolver
+			_tile_visual_snapshot_resolver,
+			preview_valid
 		)
 		_preview_projections.append(projection)
 		stack_index += 1
 	preview_updated.emit(_preview_info)
+
+
+func _validate_path_connectivity(change: Dictionary) -> String:
+	if not _path_connectivity_validator.is_valid():
+		return ""
+	return String(_path_connectivity_validator.call(change))
+
+
+func _payload_affects_target(payload: MirrorCopyPayload, target: Node) -> bool:
+	if payload.root_source != null and payload.root_source.has_method("affects_target"):
+		return bool(payload.root_source.call("affects_target", target))
+	if payload.tile_effect != null:
+		return payload.tile_effect.affects_target(target)
+	return true
 
 func _clear_projection_nodes() -> void:
 	for projection in _projections:

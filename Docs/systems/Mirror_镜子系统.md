@@ -16,6 +16,7 @@
 6. 镜面所在边的直线是所有镜像计算的对称轴；点、方向和攻击线均使用同一套线反射公式。
 7. 镜子可被选中、翻面和删除；复制镜不参与升级、耐久、攻击或路径阻挡。
 8. 镜子本身永远不可复制，任何其他边建筑也不属于 M5 的整格复制内容。
+9. 放置复制镜前必须将候选镜加入当前稳定迭代，检查它导致的全部直接/递归障碍投影；任一受影响出生点失去到原目标据点的最后可达路线时拒绝放置。
 
 ---
 
@@ -52,6 +53,7 @@
 - 关闭开关后，目标格存在实体格建筑或先生成的投影时，该镜子的整组投影不生成；地块元素本身不视为实体占位。
 - 投影不计入建筑上限、镜子上限，不消耗资源，也不能被独立选中、升级、旋转或删除。
 - 源对象或依赖镜链失效时，对应投影立即移除。
+- 放置预览用完整候选镜链判定连通性；封死路线时镜框、生效面标识和当前复制体统一使用 `invalid_preview_color` 高亮红色，预览信息返回 `valid=false` 与 `failure`。
 
 ### 2.4 递归复制
 
@@ -147,6 +149,7 @@ M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入�
 | `mirror_back_face_color` | 深蓝黑 | CopyMirrorDefinition | 非生效镜背颜色 |
 | `projection_alpha` | 0.76 | CopyMirrorDefinition | 正式投影透明度；预览在此基础上衰减 |
 | `projection_tint` | 青蓝 | CopyMirrorDefinition | 投影颜色叠加 |
+| `invalid_preview_color` | 红色 | CopyMirrorDefinition | 复制障碍会堵死目标路线时的镜体/投影预览颜色 |
 | `projection_tint_strength` | 0.24 | CopyMirrorDefinition | 保留源主色时的强调色混合强度 |
 | `projection_emission_energy` | 2.8 | CopyMirrorDefinition | 虚像与标识的发光强度 |
 | `projection_rim_alpha` | 0.42 | CopyMirrorDefinition | 轮廓边缘高光强度 |
@@ -170,6 +173,11 @@ MirrorManager
   ├─ 沿法线扫描最近源格
   ├─ 固定点迭代生成有限镜链
   └─ 向战斗、阻挡、导航、地块效果暴露只读投影查询
+
+Placement connectivity
+  -> MirrorManager.get_prospective_blocked_cells(extra_source, candidate_mirror, target)
+  -> 当前镜 + 候选镜 + 可选未登记建筑源的完整递归图
+  -> PathPlacementConnectivityGuard 只消费障碍格集，MirrorManager 不持有路网
 
 CopyMirror
   ├─ edge_id / from_cell / to_cell / active_side
@@ -226,6 +234,9 @@ MirrorProjection
 | `MirrorManager.resolve_projected_blocker` | `(cell, target = null) -> Node` | 向 BuildingManager 提供投影屏障代理。 |
 | `MirrorManager.resolve_projected_navigation_blocker` | `(cell, target = null) -> Node` | 向 TileManager 提供可攻击的投影石头代理，保持石头“先换路”与屏障“直接攻击”的入口分离。 |
 | `MirrorManager.update_preview` / `flip_preview` | `(from_cell, edge_index) -> bool` / `() -> bool` | 构建镜面、源格/目标格信息和投影虚影，翻面后重算。 |
+| `MirrorManager.get_prospective_blocked_cells` | `(extra_source: Variant = null, candidate_mirror: Variant = null, target: Node = null) -> Dictionary` | 返回完整稳定递归图中对指定导航档案有效的屏障/石头投影格集。 |
+| `MirrorManager.set_path_connectivity_validator` | `(value: Callable) -> void` | 注入 Path 模块的候选放置校验；实体登记和扣费前复核。 |
+| `MirrorManager.get_preview_mirror` / `get_preview_projections` | `() -> CopyMirror` / `() -> Array[MirrorProjection]` | 返回当前可见预览对象，供表现验收与自动化回归读取。 |
 | `MirrorManager.set_reflection_camera` | `(camera: Camera3D) -> void` | 注入主相机并为已有/预览镜面建立共享世界反射。 |
 | `MirrorManager.set_tile_visual_snapshot_resolver` | `(resolver: Callable) -> void` | 注入不含地形基底的地块内容快照工厂，保持 Mirror/Tile 模块边界。 |
 | `MirrorManager.set_inspected_cell` | `(cell: Variant = null) -> void` | 切换同格虚像悬停标签，不移动任何虚像几何。 |

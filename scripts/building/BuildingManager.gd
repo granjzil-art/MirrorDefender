@@ -39,6 +39,7 @@ var _placement_rules: RefCounted = BuildingPlacementRulesScript.new()
 var _building_exit_callbacks: Dictionary = {}
 var _edge_occupancy_registry: EdgeOccupancyRegistry
 var _projection_blocker_resolver: Callable
+var _path_connectivity_validator: Callable
 
 func configure(
 	grid_manager: GridManager,
@@ -66,6 +67,10 @@ func set_edge_occupancy_registry(value: EdgeOccupancyRegistry) -> void:
 func set_projection_blocker_resolver(value: Callable) -> void:
 	_projection_blocker_resolver = value
 
+
+func set_path_connectivity_validator(value: Callable) -> void:
+	_path_connectivity_validator = value
+
 func place_building(
 	cell: Vector3i,
 	definition: BuildingDefinition,
@@ -79,6 +84,15 @@ func place_building(
 	var building := Building.new()
 	add_child(building)
 	building.configure(definition, cell, _grid, _tile_manager, _combat_manager)
+	var connectivity_failure := (
+		_validate_path_connectivity({"extra_tile_blocker": building})
+		if building.is_tile_path_blocker()
+		else ""
+	)
+	if not connectivity_failure.is_empty():
+		building.queue_free()
+		placement_failed.emit(cell, connectivity_failure)
+		return null
 	_register_building_lifecycle(building)
 	if placement_facing >= 0:
 		building.set_facing_index(placement_facing)
@@ -125,6 +139,15 @@ func place_edge_building(
 		_tile_manager,
 		_combat_manager
 	)
+	var connectivity_failure := (
+		_validate_path_connectivity({"extra_edge_blocker": building})
+		if building.is_edge_path_blocker()
+		else ""
+	)
+	if not connectivity_failure.is_empty():
+		building.queue_free()
+		placement_failed.emit(from_cell, connectivity_failure)
+		return null
 	_register_building_lifecycle(building)
 	if not _resource_manager.try_register_building(level_one_stats.cost):
 		_disconnect_building_lifecycle(building)
@@ -194,6 +217,7 @@ func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 		clear_preview(false)
 		return false
 	if _preview_building != null and _preview_definition == definition and _preview_cell == cell:
+		_refresh_preview_connectivity()
 		return true
 	if _preview_definition != definition:
 		_preview_facing_index = 0
@@ -204,6 +228,7 @@ func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 	add_child(_preview_building)
 	_preview_building.configure(definition, cell, _grid, _tile_manager, _combat_manager, 1, true)
 	_preview_building.set_facing_index(_preview_facing_index)
+	_refresh_preview_connectivity()
 	preview_updated.emit(_preview_building)
 	return true
 
@@ -219,6 +244,7 @@ func update_edge_preview(
 		return false
 	var canonical_id: String = validation["edge_id"]
 	if _preview_building != null and _preview_definition == definition and _preview_edge_id == canonical_id and _preview_cell == from_cell:
+		_refresh_preview_connectivity()
 		return true
 	clear_preview(false)
 	_preview_definition = definition
@@ -240,6 +266,7 @@ func update_edge_preview(
 		1,
 		true
 	)
+	_refresh_preview_connectivity()
 	preview_updated.emit(_preview_building)
 	return true
 
@@ -331,6 +358,19 @@ func get_path_blocker(cell: Vector3i, target: Node = null) -> Node:
 ## Unified enemy-facing blocker contract. Directed edge blockers are checked
 ## before the tile blocker at the destination cell of the same route segment.
 func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node:
+	var physical := resolve_physical_path_blocker(from_cell, to_cell, target)
+	if physical != null:
+		return physical
+	if _projection_blocker_resolver.is_valid():
+		var projected: Variant = _projection_blocker_resolver.call(to_cell, target)
+		if projected is Node:
+			return projected
+	return null
+
+
+## Physical-only resolver used by hypothetical placement checks. Mirror
+## projections are supplied as an explicit current/prospective graph snapshot.
+func resolve_physical_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node = null) -> Node:
 	if _grid == null:
 		return null
 	var edge_index := _grid.find_edge_index(from_cell, to_cell)
@@ -341,10 +381,6 @@ func resolve_path_blocker(from_cell: Vector3i, to_cell: Vector3i, target: Node =
 	var tile_blocker := get_path_blocker(to_cell, target)
 	if tile_blocker != null:
 		return tile_blocker
-	if _projection_blocker_resolver.is_valid():
-		var projected: Variant = _projection_blocker_resolver.call(to_cell, target)
-		if projected is Node:
-			return projected
 	return null
 
 func is_path_cell(cell: Vector3i) -> bool:
@@ -373,6 +409,24 @@ func _validate_edge_placement(
 
 func _can_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 	return feature_enabled and _placement_rules.validate_tile(cell, definition, false).is_empty()
+
+
+func _validate_path_connectivity(change: Dictionary) -> String:
+	if not _path_connectivity_validator.is_valid():
+		return ""
+	var result: Variant = _path_connectivity_validator.call(change)
+	return String(result)
+
+
+func _refresh_preview_connectivity() -> void:
+	if _preview_building == null or not is_instance_valid(_preview_building):
+		return
+	if not _preview_building.is_path_blocker():
+		_preview_building.set_preview_valid(true)
+		return
+	var key := "extra_edge_blocker" if _preview_building.is_edge_path_blocker() else "extra_tile_blocker"
+	var failure := _validate_path_connectivity({key: _preview_building})
+	_preview_building.set_preview_valid(failure.is_empty())
 
 func _sync_building_income() -> void:
 	if _resource_manager == null:

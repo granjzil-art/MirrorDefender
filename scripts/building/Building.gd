@@ -15,6 +15,7 @@ const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 @export_range(0.05, 1.0, 0.05, "or_greater") var base_radius_ratio: float = 0.24
 @export_range(0.01, 1.0, 0.01, "or_greater") var direction_marker_ratio: float = 0.32
 @export_range(0.05, 1.0, 0.05) var preview_alpha: float = 0.38
+@export var invalid_preview_color: Color = Color(1.0, 0.08, 0.08, 0.82)
 
 signal facing_changed(building: Building, facing_index: int, facing_slots: int)
 signal level_changed(building: Building, level: int, stats: BuildingLevelStats)
@@ -45,6 +46,7 @@ var _targeting_strategy: PriorityTargetingStrategy
 var _attack_strategy: IAttackStrategy
 var _locked_target: CombatTarget
 var _preview_mode: bool = false
+var _preview_valid: bool = true
 var _visual_root: Node3D
 var _attack_line_instance: MeshInstance3D
 var _attack_line_material: StandardMaterial3D
@@ -81,6 +83,18 @@ func configure(
 		initial_level,
 		preview_mode
 	)
+
+
+func set_preview_valid(valid: bool) -> void:
+	if not _preview_mode or _preview_valid == valid:
+		return
+	_preview_valid = valid
+	_build_visual()
+	set_facing_index(facing_index)
+
+
+func is_preview_valid() -> bool:
+	return _preview_valid
 
 func configure_edge(
 	building_definition: BuildingDefinition,
@@ -604,16 +618,17 @@ func _on_durability_depleted(attacker: Node) -> void:
 
 func _make_material(color: Color, emissive: bool) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
-	var resolved_color := color
+	var base_color := invalid_preview_color if _preview_mode and not _preview_valid else color
+	var resolved_color := base_color
 	if _preview_mode:
-		resolved_color.a = preview_alpha
+		resolved_color.a = maxf(preview_alpha, invalid_preview_color.a) if not _preview_valid else preview_alpha
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = resolved_color
 	material.roughness = 0.65
-	if emissive:
+	if emissive or (_preview_mode and not _preview_valid):
 		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 2.0
+		material.emission = base_color
+		material.emission_energy_multiplier = 2.8 if _preview_mode and not _preview_valid else 2.0
 	return material
 
 func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> void:

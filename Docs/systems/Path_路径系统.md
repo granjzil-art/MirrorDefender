@@ -1,6 +1,6 @@
 # 路径系统 · Path
 
-> 实现状态：M4 已完成线性格子路径与大石头动态换路；M6 已完成独立出生点、多据点目标锁定、同目标路网 A* 回退，以及分波次阶段显示的实时弯折路线。
+> 实现状态：M4 已完成线性格子路径与大石头动态换路；M6 已完成独立出生点、多据点目标锁定、同目标路网 A* 回退、分波次路径表现与玩家障碍放置连通性守卫。
 
 ## 职责
 
@@ -14,6 +14,7 @@
 - **多据点**：BasePointDefinition 独立配置 ID、名称、数字标记和格坐标；PathDefinition.`target_base` 锁定路径目标。多个位置共用 LevelResource.`base_max_hp`。旧关卡 `base_cell` 以只读虚拟“据点 1”兼容，只有用户编辑据点时才显式物化。
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
+- **放置连通性守卫**：玩家放置格屏障/边屏障或放置会复制障碍的镜子前，`PathPlacementConnectivityGuard` 在不写入占位和资源的假设状态下，按每个波次实际地面/空中档案检查“出生点→原目标据点”。只有本次操作把原本可达路网变为不可达才拒绝；旧关卡已断路时不误伤无关放置。不得借道其他据点。
 - **地形换路**：大石头是“先换路、后攻击”的导航阻碍。EnemyUnit 逻辑上进入“前一格→石头格”路径段时，PathRoutePlanner 仅查找与敌人初始路径相同 `target_base` 的候选。先选“当前格相交/相邻 + 后缀可通行”的最短完整手工后缀；无候选时，用可替换 `IAutoRouteStrategy` 在同目标路径格并集上做确定性 A*。两层都失败才返回当前石头实体/投影作为攻击目标。
 - **共享实时路线快照**：`PathRoutePlanner` 每 `route_refresh_interval` 秒按整条作者路径统一检查阻碍；`PathRouteSnapshotCache` 为地面/空中导航档案分别计算“作者前缀 + 同目标最短后缀/A*”的弯折路线。快照只在格序列改变时广播，所有地面敌人抵达记录的阻挡段后复用同一结果；敌人出生仍读取原始 `PathDefinition.cells`，不会因后台预计算而提前转弯。无可用绕路时快照保留原路径，因为实际行为是攻击石头后继续该路径。
 - **分阶段表现**：`RuntimePathDisplayController` 在首波释放前和真正波间复用 `PathHoverPreview.tscn`，只持续显示“下一波”全部组实际引用的去重后路径/导航档案，表现与鼠标悬停完全一致，使用青色发光折线和循环流向标记，不启用 PathManager 的黄色运行时线；没有下一波时不显示。波次进行中由 `PathMovingSegmentRenderer` 为每条尚未完成的活动路线绘制一条从出生点流向目标据点的短发光线段；线段跑出终点后等待 `restart_delay` 再循环。波次结束时停止创建下一轮，但已经生成的线段会冻结结束瞬间的路线并完整流出终点，之后才进入波间或终局。重叠波次取活动路径并集，同一路径的地面/空中档案可分别显示。
@@ -39,6 +40,7 @@
 | PathRoutePlanner | `automatic_route_enabled` | 手工后缀失败时，是否启用同目标路网 A* 回退。 |
 | PathRoutePlanner | `route_snapshot_enabled` / `route_refresh_interval = 0.5` | 整条路径共享快照开关与游戏时间刷新周期。 |
 | PathRoutePlanner | `show_selected_detour` / `detour_color` / `line_lift` | 最近选中换路的调试线开关、颜色与抬升。 |
+| PathPlacementConnectivityGuard | `feature_enabled` | 玩家障碍/复制镜放置前连通性保护总开关；关闭只跳过预防校验。 |
 | RuntimePathDisplayController | `feature_enabled` | 首波前、波间和波中周期路径提示总开关。 |
 | PathMovingSegmentRenderer | `flow_speed = 3.5` / `segment_length = 1.25` / `restart_delay = 0.75` | 波中短线的世界速度、世界长度和抵达后的循环间隔；均按缩放后的游戏时间。 |
 | PathMovingSegmentRenderer | `line_lift = 0.14` / `line_width = 0.055` | 短线相对实时路径的抬升量和世界宽度。 |
@@ -62,6 +64,7 @@
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 同目标手工后缀优先的换路编排与调试线。 |
 | `scripts/path/PathRouteSnapshotCache.gd` | `PathRouteSnapshotCache` / `RefCounted` | 单导航档案的整条路线快照、变更签名与障碍前共享结果。 |
 | `scripts/path/PathNavigationProfile.gd` | `PathNavigationProfile` / `Node` | 后台预计算空中目标适用性的轻量查询适配器。 |
+| `scripts/path/PathPlacementConnectivityGuard.gd` | `PathPlacementConnectivityGuard` / `Node` | 在假设障碍/镜像图上按目标据点和导航档案验证最后可达路线。 |
 | `scripts/path/IAutoRouteStrategy.gd` / `PathNetworkAStarStrategy.gd` | `RefCounted` | 可替换自动寻路接口与限定路网的确定性 A* 实现。 |
 | `scripts/path/PathHoverPreview.gd` / `scenes/path/PathHoverPreview.tscn` | `PathHoverPreview` / `Node3D` | 波次悬停期间的多路径发光折线和真实时间流向标记；场景提供 Inspector 参数入口。 |
 | `scripts/path/RuntimePathDisplayController.gd` / `scenes/path/RuntimePathDisplayController.tscn` | `RuntimePathDisplayController` / `Node` | 把 WaveManager 的活动/波间事实映射为悬停式持续流线、波中短线或隐藏；波末等待当前短线收尾后再提交阶段切换。 |
@@ -70,6 +73,7 @@
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
 | `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 独立出生点、共用入口、多据点端点、旧关卡兼容和波次派生绑定回归。 |
 | `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 路径格并集、默认色和运行时/编辑器一致性回归。 |
+| `tests/path_placement_connectivity_test.gd` | 无 / `SceneTree` | 方/六边形、备用路线、边障、空中档案与复制镜封路回归。 |
 
 ### 数据流
 
@@ -89,6 +93,10 @@ LevelResource.paths / spawn_points / base_points
 
 LevelResource.paths -> BuildingManager path-cell cache
   -> ordinary towers rejected / barrier allowed outside spawn and base
+  -> preview/final placement candidate -> PathPlacementConnectivityGuard
+     -> same-target authored path-cell union + Grid neighbors
+     -> current physical blockers + current/prospective recursive mirror blockers
+     -> reachable-to-unreachable: red invalid preview + reject before occupancy/economy
 
 Level Editor path page
   -> path list selection -> TileEditorPanel._get_visible_path_overlays()
@@ -148,6 +156,9 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `PathRoutePlanner.get_effective_route_cells` | `(path: PathDefinition, airborne: bool = false) -> Array[Vector3i]` | 返回只读实时路线格序列。 |
 | `PathRoutePlanner.set_auto_route_strategy` | `(strategy: IAutoRouteStrategy) -> void` | 注入可替换自动寻路策略。 |
 | `PathRoutePlanner.set_debug_route_visible` | `(enabled: bool) -> void` | 开关换路调试线；关闭时立即清除已绘制路线。 |
+| `PathPlacementConnectivityGuard.configure` | `(grid_manager: GridManager, tile_manager: TileManager, physical_blocker_resolver: Callable, projected_blocked_cells_resolver: Callable) -> void` | 注入网格、静态通行与当前/假设阻挡事实源。 |
+| `PathPlacementConnectivityGuard.load_level` | `(level_resource: LevelResource) -> void` | 切换当前出生点、目标据点、路径和波次配置。 |
+| `PathPlacementConnectivityGuard.validate_change` | `(change: Dictionary = {}) -> String` | 校验可选 `{extra_tile_blocker, extra_edge_blocker, candidate_mirror}`；空字符串表示允许，非空为玩家可见拒绝原因。 |
 | `WaveManager.get_next_wave_path_requests` | `() -> Array[Dictionary]` | 返回仅属于下一未释放波次的去重 `{path, airborne}` 请求；无下一波时为空。 |
 | `PathHoverPreview.configure` | `(path_manager: PathManager) -> void` | 注入只读世界点入口并订阅切关信号。 |
 | `PathHoverPreview.preview_paths` | `(paths: Array) -> void` | 清理旧内容并同时构建全部有效路径的发光线和流动标记。 |
