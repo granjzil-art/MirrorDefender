@@ -11,6 +11,7 @@ const TileCellDataScript := preload("res://scripts/tile/TileCellData.gd")
 const PathDefinitionScript := preload("res://scripts/path/PathDefinition.gd")
 const SpawnPointDefinitionScript := preload("res://scripts/path/SpawnPointDefinition.gd")
 const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
+const ModelAssetDefinitionScript := preload("res://scripts/presentation/ModelAssetDefinition.gd")
 const WaveDefinitionScript := preload("res://scripts/wave/WaveDefinition.gd")
 const SpawnGroupDefinitionScript := preload("res://scripts/wave/SpawnGroupDefinition.gd")
 const CameraPresetEditorScript := preload("res://addons/mirror_tile_editor/camera_preset_editor.gd")
@@ -57,12 +58,14 @@ var _spawn_select: OptionButton
 var _spawn_id: LineEdit
 var _spawn_name: LineEdit
 var _spawn_number: SpinBox
+var _spawn_model_asset: EditorResourcePicker
 var _spawn_set_cell: Button
 var _spawn_remove: Button
 var _base_select: OptionButton
 var _base_id: LineEdit
 var _base_name: LineEdit
 var _base_number: SpinBox
+var _base_model_asset: EditorResourcePicker
 var _base_set_cell: Button
 var _base_remove: Button
 var _shared_base_hp: SpinBox
@@ -326,6 +329,12 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	_spawn_number = _make_spin_box(1.0, 999.0, 1.0)
 	_spawn_number.value_changed.connect(_on_spawn_number_changed)
 	sidebar.add_child(_with_label("显示编号", _spawn_number))
+	if Engine.is_editor_hint():
+		_spawn_model_asset = EditorResourcePicker.new()
+		_spawn_model_asset.base_type = "ModelAssetDefinition"
+		_spawn_model_asset.resource_changed.connect(_on_spawn_model_asset_changed)
+		_spawn_model_asset.tooltip_text = "与敌人、建筑和 Stuff 共用的模型资产；运行时自动底部中心接地。"
+		sidebar.add_child(_with_label("模型资产", _spawn_model_asset))
 	_spawn_set_cell = Button.new()
 	_spawn_set_cell.text = "将画布选中格设为出生点"
 	_spawn_set_cell.pressed.connect(_set_selected_spawn_cell)
@@ -357,6 +366,12 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	_base_number = _make_spin_box(1.0, 999.0, 1.0)
 	_base_number.value_changed.connect(_on_base_number_changed)
 	sidebar.add_child(_with_label("显示编号", _base_number))
+	if Engine.is_editor_hint():
+		_base_model_asset = EditorResourcePicker.new()
+		_base_model_asset.base_type = "ModelAssetDefinition"
+		_base_model_asset.resource_changed.connect(_on_base_model_asset_changed)
+		_base_model_asset.tooltip_text = "与敌人、建筑和 Stuff 共用的模型资产；运行时自动底部中心接地。"
+		sidebar.add_child(_with_label("模型资产", _base_model_asset))
 	_base_set_cell = Button.new()
 	_base_set_cell.text = "将画布选中格设为据点"
 	_base_set_cell.pressed.connect(_set_selected_base_cell)
@@ -1014,16 +1029,24 @@ func _refresh_spawn_controls() -> void:
 	_spawn_id.set_block_signals(true)
 	_spawn_name.set_block_signals(true)
 	_spawn_number.set_block_signals(true)
+	if _spawn_model_asset != null:
+		_spawn_model_asset.set_block_signals(true)
 	_spawn_id.text = str(spawn.spawn_id) if spawn != null else ""
 	_spawn_name.text = spawn.display_name if spawn != null else ""
 	_spawn_number.value = _level.get_spawn_display_number(spawn) if _level != null and spawn != null else 1
+	if _spawn_model_asset != null:
+		_spawn_model_asset.edited_resource = spawn.get_model_asset() if spawn != null else null
 	_spawn_id.set_block_signals(false)
 	_spawn_name.set_block_signals(false)
 	_spawn_number.set_block_signals(false)
+	if _spawn_model_asset != null:
+		_spawn_model_asset.set_block_signals(false)
 	var enabled := spawn != null
 	_spawn_id.editable = enabled
 	_spawn_name.editable = enabled
 	_spawn_number.editable = enabled
+	if _spawn_model_asset != null:
+		_spawn_model_asset.editable = enabled
 	_spawn_set_cell.disabled = not enabled or _path_canvas == null or not _path_canvas.has_selected_cell
 	_spawn_remove.disabled = not enabled
 
@@ -1047,19 +1070,27 @@ func _refresh_base_controls() -> void:
 	_base_id.set_block_signals(true)
 	_base_name.set_block_signals(true)
 	_base_number.set_block_signals(true)
+	if _base_model_asset != null:
+		_base_model_asset.set_block_signals(true)
 	_shared_base_hp.set_block_signals(true)
 	_base_id.text = str(base_point.base_id) if base_point != null else ""
 	_base_name.text = base_point.display_name if base_point != null else ""
 	_base_number.value = _level.get_base_display_number(base_point) if _level != null and base_point != null else 1
+	if _base_model_asset != null:
+		_base_model_asset.edited_resource = base_point.get_model_asset() if base_point != null else null
 	_shared_base_hp.value = _level.base_max_hp if _level != null else 100.0
 	_base_id.set_block_signals(false)
 	_base_name.set_block_signals(false)
 	_base_number.set_block_signals(false)
+	if _base_model_asset != null:
+		_base_model_asset.set_block_signals(false)
 	_shared_base_hp.set_block_signals(false)
 	var enabled := base_point != null
 	_base_id.editable = enabled
 	_base_name.editable = enabled
 	_base_number.editable = enabled
+	if _base_model_asset != null:
+		_base_model_asset.editable = enabled
 	_shared_base_hp.editable = _level != null
 	_base_set_cell.disabled = not enabled or _path_canvas == null or not _path_canvas.has_selected_cell
 	_base_remove.disabled = not enabled or (_level != null and _level.get_effective_base_points().size() <= 1)
@@ -1156,6 +1187,15 @@ func _on_spawn_number_changed(value: float) -> void:
 	_refresh_path_controls()
 
 
+func _on_spawn_model_asset_changed(resource: Resource) -> void:
+	var spawn := _get_selected_spawn_point()
+	if spawn == null:
+		return
+	spawn.model_asset = resource as ModelAssetDefinitionScript
+	spawn.emit_changed()
+	_mark_level_changed()
+
+
 func _set_selected_spawn_cell() -> void:
 	var spawn := _get_selected_spawn_point()
 	if spawn == null or _path_canvas == null or not _path_canvas.has_selected_cell:
@@ -1232,6 +1272,16 @@ func _on_base_number_changed(value: float) -> void:
 	if base_point == null:
 		return
 	base_point.display_number = int(value)
+	_mark_level_changed()
+	_refresh_path_controls()
+
+
+func _on_base_model_asset_changed(resource: Resource) -> void:
+	var base_point := _materialize_selected_base()
+	if base_point == null:
+		return
+	base_point.model_asset = resource as ModelAssetDefinitionScript
+	base_point.emit_changed()
 	_mark_level_changed()
 	_refresh_path_controls()
 

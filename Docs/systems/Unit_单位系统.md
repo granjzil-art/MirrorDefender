@@ -102,6 +102,7 @@ EnemyUnit final point -> reached_base -> WaveManager -> BaseCore.take_damage
 | `EnemyUnit._get_path_distance_until_attack_range` | `(blocker_info: Dictionary) -> float` | 沿折线路径计算首次进入攻击圆前可移动的真实路径距离。 |
 | `BaseCore.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入位置和占用接口。 |
 | `BaseCore.load_level` | `(level_resource: LevelResource) -> void` | 放置全部据点位置、占用对应格并重置共享生命。 |
+| `BaseCore.refresh_world_transforms` | `() -> void` | Terrain变化后只重采样全部据点标记高度，不重置共享生命或占用。 |
 | `BaseCore.take_damage` | `(amount: float) -> float` | 扣据点生命，归零时广播 `defeated`。 |
 
 **信号**：EnemyUnit.`attack_started` / `attack_stopped` / `attack_performed` / `projectile_spawned` / `reached_base`；BaseCore.`health_changed` / `defeated`；继承 CombatTarget.`health_changed` / `died`。

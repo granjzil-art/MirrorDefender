@@ -11,7 +11,9 @@ const CanvasScript := preload("res://addons/mirror_tile_editor/terrain_stuff_can
 const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const StuffDefinitionScript := preload("res://scripts/stuff/StuffDefinition.gd")
+const StuffCatalogScript := preload("res://scripts/stuff/StuffCatalog.gd")
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
+const StuffCatalogManagerScript := preload("res://addons/mirror_tile_editor/stuff_catalog_manager.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
 const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 
@@ -45,6 +47,9 @@ var _ramp_terrain: OptionButton
 var _selected_ramp_terrain: OptionButton
 var _terrain_options: Array[TerrainDefinitionScript] = []
 var _stuff_options: Array[StuffDefinitionScript] = []
+var _stuff_palette_container: VBoxContainer
+var _stuff_button_group: ButtonGroup
+var _stuff_catalog_manager: Window
 var _controls_blocked: bool = false
 var _pending_shape_id: int = HEX_SHAPE
 var _pending_grid_size := Vector2i(6, 6)
@@ -219,18 +224,17 @@ func _build_interface() -> void:
 	sidebar.add_child(permission_brush)
 
 	_add_heading(sidebar, "Stuff 关卡元素刷")
+	var manage_stuff := Button.new()
+	manage_stuff.text = "管理关卡元素库"
+	manage_stuff.tooltip_text = "新增、复制、排序、禁用或安全移除可创作的关卡元素类型"
+	manage_stuff.pressed.connect(_open_stuff_catalog_manager)
+	sidebar.add_child(manage_stuff)
 	_stuff_brush_facing = _make_spin_box(0.0, 7.0, 1.0)
 	sidebar.add_child(_with_label("放置朝向索引", _stuff_brush_facing))
-	_stuff_options = _load_stuff_resources()
-	var stuff_group := ButtonGroup.new()
-	for definition in _stuff_options:
-		var button := Button.new()
-		button.text = definition.display_name
-		button.toggle_mode = true
-		button.button_group = stuff_group
-		button.tooltip_text = "%s\n互斥=%s，阻止块=%s，阻止边=%s" % [str(definition.resource_path), str(definition.exclusive_with_other_stuff), str(definition.blocks_tile_building), str(definition.blocks_edge_building)]
-		button.pressed.connect(_select_stuff_brush.bind(definition))
-		sidebar.add_child(button)
+	_stuff_palette_container = VBoxContainer.new()
+	_stuff_palette_container.name = "StuffCatalogPalette"
+	sidebar.add_child(_stuff_palette_container)
+	_rebuild_stuff_palette()
 
 	_add_heading(sidebar, "斜坡工具（S1）")
 	_ramp_direction = OptionButton.new()
@@ -434,6 +438,40 @@ func _select_stuff_brush(definition: StuffDefinitionScript) -> void:
 	_set_status("Stuff 刷：%s。每次点击尝试新增一个实例，互斥规则由定义决定。" % definition.display_name, true)
 
 
+func _open_stuff_catalog_manager() -> void:
+	if _stuff_catalog_manager == null or not is_instance_valid(_stuff_catalog_manager):
+		_stuff_catalog_manager = StuffCatalogManagerScript.new()
+		_stuff_catalog_manager.catalog_changed.connect(_on_stuff_catalog_changed)
+		add_child(_stuff_catalog_manager)
+	_stuff_catalog_manager.call("open_manager")
+
+
+func _on_stuff_catalog_changed() -> void:
+	_rebuild_stuff_palette()
+	_set_status("关卡元素目录已刷新；顺序与启用状态已同步到工具栏。", true)
+
+
+func _rebuild_stuff_palette() -> void:
+	_stuff_options = _load_stuff_resources()
+	if _stuff_palette_container == null:
+		return
+	for child in _stuff_palette_container.get_children():
+		child.queue_free()
+	_stuff_button_group = ButtonGroup.new()
+	for definition in _stuff_options:
+		var button := Button.new()
+		button.text = definition.display_name
+		button.toggle_mode = true
+		button.button_group = _stuff_button_group
+		button.tooltip_text = "%s\n互斥=%s，阻止块=%s，阻止边=%s，堵路=%s" % [
+			str(definition.resource_path),
+			str(definition.exclusive_with_other_stuff),
+			str(definition.blocks_tile_building),
+			str(definition.blocks_edge_building),
+			str(definition.blocks_enemy_navigation()),
+		]
+		button.pressed.connect(_select_stuff_brush.bind(definition))
+		_stuff_palette_container.add_child(button)
 func _select_ramp_brush() -> void:
 	_ensure_ramp_terrain_controls()
 	var terrain_override := _ramp_terrain_from_selection(_ramp_terrain)
@@ -729,14 +767,8 @@ func _load_terrain_resources() -> Array[TerrainDefinitionScript]:
 
 
 func _load_stuff_resources() -> Array[StuffDefinitionScript]:
-	var result: Array[StuffDefinitionScript] = []
-	for resource in _load_resources("res://resources/stuffs"):
-		if resource is StuffDefinitionScript:
-			result.append(resource)
-	result.sort_custom(func(a: StuffDefinitionScript, b: StuffDefinitionScript) -> bool:
-		return a.display_name < b.display_name
-	)
-	return result
+	var catalog := ResourceLoader.load("res://resources/stuffs/StuffCatalog.tres") as StuffCatalogScript
+	return catalog.get_enabled_definitions() if catalog != null else []
 
 
 func _load_resources(directory_path: String) -> Array[Resource]:

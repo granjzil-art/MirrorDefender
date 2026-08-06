@@ -4,6 +4,11 @@ extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 
+enum ProjectileFireMode {
+	TARGET_ONLY,
+	TARGET_OR_FACING,
+}
+
 @export_group("Economy")
 ## Level 1 uses this as construction cost; later levels use it as upgrade cost.
 @export_range(0.0, 100000.0, 1.0, "or_greater") var cost: float = 75.0
@@ -29,6 +34,9 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_range(0.0, 1.0, 0.01) var damage_reflection_ratio: float = 0.0
 
 @export_group("Projectile")
+## TARGET_OR_FACING keeps the normal target-tracking shot while a target exists,
+## then fires a straight ballistic projectile along the logical building facing.
+@export var projectile_fire_mode: ProjectileFireMode = ProjectileFireMode.TARGET_ONLY
 @export_range(0.1, 100.0, 0.1, "or_greater") var projectile_speed: float = 7.0
 @export_range(0.1, 5.0, 0.05, "or_greater") var projectile_length: float = 0.32
 @export_range(0.02, 2.0, 0.01, "or_greater") var projectile_width: float = 0.07
@@ -56,6 +64,13 @@ func get_model_asset() -> ModelAssetDefinition:
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
+	ConfigValidator.require_integer_range(
+		errors,
+		"投射物开火模式",
+		projectile_fire_mode,
+		ProjectileFireMode.TARGET_ONLY,
+		ProjectileFireMode.TARGET_OR_FACING
+	)
 	ConfigValidator.require_number(errors, "造价", cost, 0.0)
 	ConfigValidator.require_number(errors, "退款", refund_amount, 0.0)
 	ConfigValidator.require_number(errors, "每秒资源产出", resource_per_second, 0.0)

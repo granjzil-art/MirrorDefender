@@ -7,7 +7,7 @@ const REFLECTION_VISIBILITY_LAYER := 20
 const DEFAULT_VIEWPORT_ASPECT := Vector2(16.0, 9.0)
 
 var _mirror: Node3D
-var _definition: CopyMirrorDefinition
+var _definition: MirrorDefinition
 var _source_camera: Camera3D
 var _preview_mode: bool = false
 var _surface: MeshInstance3D
@@ -17,7 +17,7 @@ var _reflection_camera: Camera3D
 
 func configure(
 	copy_mirror: Node3D,
-	definition: CopyMirrorDefinition,
+	definition: MirrorDefinition,
 	source_camera: Camera3D,
 	preview_mode: bool
 ) -> void:
@@ -149,7 +149,9 @@ func _update_reflection_camera() -> void:
 	_reflection_camera.look_at(virtual_eye + reflected_forward, reflected_up)
 	_copy_source_projection()
 	_reflection_camera.environment = _source_camera.environment
-	_reflection_camera.attributes = _source_camera.attributes
+	# Camera DOF is a final-view presentation effect; reflection captures stay
+	# sharp so the main viewport applies the blur exactly once.
+	_reflection_camera.attributes = null
 
 func _sync_render_target_size() -> void:
 	if _viewport == null or _source_camera == null or _definition == null:

@@ -37,20 +37,48 @@ const TerrainManagerScript := preload("res://scripts/terrain/TerrainManager.gd")
 const TerrainRendererScript := preload("res://scripts/terrain/TerrainRenderer.gd")
 const StuffManagerScript := preload("res://scripts/stuff/StuffManager.gd")
 const StuffRendererScript := preload("res://scripts/stuff/StuffRenderer.gd")
+const StuffPlacementValidatorScript := preload("res://scripts/stuff/StuffPlacementValidator.gd")
+const RuntimeStuffEditSessionScript := preload("res://scripts/stuff/RuntimeStuffEditSession.gd")
+const RuntimeStuffEditorControllerScript := preload("res://scripts/stuff/RuntimeStuffEditorController.gd")
 const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
+const MiniatureDofControllerScript := preload("res://scripts/camera/MiniatureDofController.gd")
 const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
+const LightingControllerScript := preload("res://scripts/lighting/LightingController.gd")
+const LightingTestPanelScript := preload("res://scripts/ui/LightingTestPanel.gd")
+const BuildingSelectionVisualizerScript := preload("res://scripts/building/BuildingSelectionVisualizer.gd")
+const HoldRepeatGateScript := preload("res://scripts/shared/HoldRepeatGate.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
+const ReflectMirrorDefinitionResource := preload("res://resources/mirrors/ReflectMirror.tres")
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
+const AcrylicDisplayCaseDefinitionResource := preload("res://resources/lighting/AcrylicDisplayCase.tres")
+const WhiteSoftLightingProfile := preload("res://resources/lighting/WhiteSoft.tres")
+const WarmYellowLightingProfile := preload("res://resources/lighting/WarmYellow.tres")
+const CyanRedLightingProfile := preload("res://resources/lighting/CyanRedContrast.tres")
+const MiniatureDofDefinitionResource := preload("res://resources/camera/MiniatureDofDefault.tres")
 
 @export_group("M6 Camera Presets")
 @export var camera_presets_enabled: bool = true
 @export_range(0.0, 5.0, 0.01, "or_greater") var camera_preset_transition_duration: float = 0.35
 @export var camera_preset_transition_curve: Curve
 
+@export_group("Miniature Depth Of Field")
+@export var miniature_dof_enabled: bool = true
+@export var miniature_dof_test_shortcut_enabled: bool = true
+
 @export_group("M6 Debug Console")
 @export var debug_console_enabled: bool = true
+
+@export_group("Lighting Presentation")
+@export var lighting_enabled: bool = true
+@export var lighting_test_panel_enabled: bool = true
+@export var lighting_test_shortcuts_enabled: bool = true
+
+@export_group("Building Rotation Repeat")
+@export_range(0.0, 2.0, 0.01, "or_greater") var selected_rotation_hold_delay: float = 0.3
+@export_range(0.02, 1.0, 0.01, "or_greater") var selected_rotation_repeat_interval: float = 0.08
+@export_range(1, 12, 1, "or_greater") var selected_rotation_max_repeats_per_frame: int = 4
 
 signal return_to_level_select_requested
 signal startup_level_load_resolved(success: bool, reason: String)
@@ -66,6 +94,7 @@ signal startup_level_load_resolved(success: bool, reason: String)
 @onready var resource_manager: ResourceManager = $ResourceManager
 @onready var combat_manager: CombatManager = $CombatManager
 @onready var building_manager: BuildingManager = $BuildingManager
+@onready var building_selection_visualizer: BuildingSelectionVisualizerScript = $BuildingSelectionVisualizer
 @onready var level_loader: LevelLoaderScript = $LevelLoader
 @onready var cam_rig: CameraController = $CameraRig
 @onready var hud_label: Label = $HUD/Panel/Info
@@ -91,7 +120,13 @@ var level_reflection_surface: LevelReflectionSurfaceScript
 var path_hover_preview: PathHoverPreviewScript
 var runtime_path_display: RuntimePathDisplayController
 var camera_preset_controller: CameraPresetControllerScript
+var miniature_dof_controller: MiniatureDofControllerScript
 var runtime_debug_bindings: RuntimeDebugBindingsScript
+var lighting_controller: LightingControllerScript
+var lighting_test_panel: LightingTestPanelScript
+var stuff_placement_validator: StuffPlacementValidatorScript
+var runtime_stuff_edit_session: RuntimeStuffEditSessionScript
+var runtime_stuff_editor: RuntimeStuffEditorControllerScript
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -100,6 +135,7 @@ var _selected_edge_id: String = ""
 var _debug_cell_pick: Dictionary = {}
 var _debug_edge_pick: Dictionary = {}
 var _startup_level: LevelResource
+var _selected_rotation_repeat: HoldRepeatGate = HoldRepeatGateScript.new()
 
 
 func configure_startup_level(level: LevelResource) -> bool:
@@ -110,6 +146,11 @@ func configure_startup_level(level: LevelResource) -> bool:
 
 
 func _ready() -> void:
+	_selected_rotation_repeat.configure(
+		selected_rotation_hold_delay,
+		selected_rotation_repeat_interval,
+		selected_rotation_max_repeats_per_frame
+	)
 	_camera = cam_rig.get_camera()
 	cam_rig.cancel_requested.connect(_on_camera_cancel_requested)
 	hud_label.get_parent().visible = false
@@ -124,6 +165,12 @@ func _ready() -> void:
 	camera_preset_controller.transition_duration = camera_preset_transition_duration
 	camera_preset_controller.transition_curve = camera_preset_transition_curve
 	camera_preset_controller.configure(cam_rig)
+	miniature_dof_controller = MiniatureDofControllerScript.new()
+	miniature_dof_controller.name = "MiniatureDofController"
+	miniature_dof_controller.feature_enabled = miniature_dof_enabled
+	miniature_dof_controller.test_shortcut_enabled = miniature_dof_test_shortcut_enabled
+	add_child(miniature_dof_controller)
+	miniature_dof_controller.configure(_camera, cam_rig, grid, MiniatureDofDefinitionResource)
 	renderer.set_grid(grid)
 	terrain_manager.set_grid(grid)
 	terrain_renderer.set_grid(grid)
@@ -143,6 +190,31 @@ func _ready() -> void:
 	grid.set_surface_raycast_resolver(Callable(terrain_manager, "raycast_surface"))
 	tile_renderer.set_grid(grid)
 	tile_renderer.set_tile_manager(tile_manager)
+	lighting_controller = LightingControllerScript.new()
+	lighting_controller.name = "LightingController"
+	lighting_controller.feature_enabled = lighting_enabled
+	lighting_controller.test_shortcuts_enabled = lighting_test_shortcuts_enabled
+	add_child(lighting_controller)
+	var lighting_profiles: Array[LightingProfile] = [
+		WhiteSoftLightingProfile,
+		WarmYellowLightingProfile,
+		CyanRedLightingProfile,
+	]
+	var lighting_visual_roots: Array[Node3D] = [terrain_renderer, stuff_renderer]
+	lighting_controller.configure(
+		$WorldEnvironment,
+		$Sun,
+		grid,
+		terrain_manager,
+		AcrylicDisplayCaseDefinitionResource,
+		lighting_profiles,
+		lighting_visual_roots
+	)
+	if lighting_test_panel_enabled:
+		lighting_test_panel = LightingTestPanelScript.new()
+		lighting_test_panel.name = "LightingTestPanel"
+		$HUD.add_child(lighting_test_panel)
+		lighting_test_panel.configure(lighting_controller)
 	level_reflection_surface = LevelReflectionSurfaceScript.new()
 	add_child(level_reflection_surface)
 	level_reflection_surface.configure(grid, tile_manager, _camera, LevelReflectionDefinitionResource)
@@ -151,9 +223,11 @@ func _ready() -> void:
 	edge_occupancy_registry = EdgeOccupancyRegistryScript.new()
 	building_manager.set_edge_occupancy_registry(edge_occupancy_registry)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
+	building_selection_visualizer.configure(grid, building_manager)
 	mirror_manager = MirrorManagerScript.new()
 	add_child(mirror_manager)
 	mirror_manager.copy_mirror_definition = CopyMirrorDefinitionResource
+	mirror_manager.reflect_mirror_definition = ReflectMirrorDefinitionResource
 	mirror_manager.configure(
 		grid,
 		tile_manager,
@@ -184,6 +258,38 @@ func _ready() -> void:
 	mirror_manager.set_path_connectivity_validator(
 		Callable(path_placement_connectivity_guard, "validate_change")
 	)
+	stuff_placement_validator = StuffPlacementValidatorScript.new()
+	stuff_placement_validator.configure(
+		grid,
+		tile_manager,
+		terrain_manager,
+		stuff_manager,
+		edge_occupancy_registry,
+		Callable(path_placement_connectivity_guard, "validate_change")
+	)
+	runtime_stuff_edit_session = RuntimeStuffEditSessionScript.new()
+	add_child(runtime_stuff_edit_session)
+	runtime_stuff_edit_session.configure(
+		stuff_manager,
+		stuff_placement_validator,
+		Callable(self, "_refresh_runtime_stuff_routes"),
+		Callable(building_manager, "export_initial_placements"),
+		Callable(mirror_manager, "export_initial_placements"),
+		terrain_manager,
+		Callable(self, "_refresh_runtime_level_authoring")
+	)
+	runtime_stuff_editor = RuntimeStuffEditorControllerScript.new()
+	runtime_stuff_editor.name = "RuntimeStuffEditorController"
+	add_child(runtime_stuff_editor)
+	runtime_stuff_editor.configure(
+		grid,
+		terrain_manager,
+		stuff_manager,
+		stuff_renderer,
+		level_loader,
+		runtime_stuff_edit_session,
+		game_time_controller
+	)
 	runtime_interaction.configure(building_manager, mirror_manager)
 	runtime_interaction.world_selection_changed.connect(_on_world_selection_changed)
 	game_time_controller.configure(runtime_interaction, building_manager, mirror_manager)
@@ -192,7 +298,9 @@ func _ready() -> void:
 		game_time_controller,
 		resource_manager,
 		building_manager,
-		mirror_manager
+		mirror_manager,
+		6,
+		runtime_stuff_editor
 	)
 	runtime_hud.restart_level_requested.connect(_on_restart_level_requested)
 	runtime_hud.exit_level_requested.connect(_on_exit_level_requested)
@@ -265,7 +373,8 @@ func _ready() -> void:
 		path_route_planner,
 		grid,
 		combat_manager,
-		mirror_manager
+		mirror_manager,
+		runtime_stuff_editor
 	)
 	runtime_debug_bindings.set_pick_provider(Callable(self, "_get_debug_pick_summary"))
 	runtime_hud.configure_debug_console(
@@ -286,9 +395,48 @@ func _ready() -> void:
 	)
 
 func _process(_delta: float) -> void:
+	_update_selected_rotation_repeat(_get_unscaled_input_delta(_delta))
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		return
 	_update_pick()
+
+
+func _get_unscaled_input_delta(delta: float) -> float:
+	if Engine.time_scale > 0.000001:
+		return delta / Engine.time_scale
+	return 0.0
+
+
+func _update_selected_rotation_repeat(unscaled_delta: float) -> void:
+	if not _selected_rotation_repeat.is_active():
+		return
+	if not Input.is_action_pressed("rotate_facing"):
+		_selected_rotation_repeat.release()
+		return
+	if (
+		runtime_hud == null
+		or runtime_hud.is_modal_open()
+		or runtime_stuff_editor == null
+		or runtime_stuff_editor.is_active()
+		or runtime_interaction == null
+		or runtime_interaction.is_mirror_mode()
+		or runtime_interaction.get_selected_definition() != null
+		or mirror_manager == null
+		or mirror_manager.get_selected_mirror() != null
+		or building_manager == null
+	):
+		_selected_rotation_repeat.release()
+		return
+	var selected_building := building_manager.get_selected_building()
+	if selected_building == null or not selected_building.can_rotate_in_place():
+		_selected_rotation_repeat.release()
+		return
+	var repeat_count := _selected_rotation_repeat.advance(unscaled_delta)
+	for _repeat_index in range(repeat_count):
+		if not building_manager.rotate_selected():
+			_selected_rotation_repeat.release()
+			return
+	return
 
 
 ## Modal cancellation remains press-based. Non-modal world cancellation is
@@ -465,7 +613,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 			])
 		else:
 			lines.append("伤害 %.1f | 索敌 %.1f | 射程 %.1f | 产出 %.1f/s" % [
-				selected_building.get_instant_damage() if selected_building.definition.kind == BuildingDefinition.Kind.ARROW_TOWER else selected_building.get_laser_damage_per_second(),
+				selected_building.get_laser_damage_per_second() if selected_building.definition.kind == BuildingDefinition.Kind.LASER_TOWER else selected_building.get_instant_damage(),
 				selected_stats.targeting_range,
 				selected_stats.attack_range,
 				selected_stats.resource_per_second,
@@ -492,19 +640,43 @@ func _update_hint() -> void:
 	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_released("rotate_facing"):
+		_selected_rotation_repeat.release()
 	if runtime_hud != null and runtime_hud.is_modal_open():
+		return
+	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
+		if event is InputEventKey and event.pressed and not event.echo and event.ctrl_pressed:
+			if event.keycode == KEY_Z:
+				runtime_stuff_editor.undo()
+				get_viewport().set_input_as_handled()
+				return
+			if event.keycode == KEY_Y:
+				runtime_stuff_editor.redo()
+				get_viewport().set_input_as_handled()
+				return
+		if event.is_action_pressed("place_select"):
+			_handle_primary_action()
+		elif event.is_action_pressed("rotate_facing"):
+			_selected_rotation_repeat.release()
+			runtime_stuff_editor.rotate_current()
+		elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_DELETE:
+			runtime_stuff_editor.remove_selected()
 		return
 	if event.is_action_pressed("place_select"):
 		_handle_primary_action()
 	elif event.is_action_pressed("rotate_facing"):
-		if runtime_interaction.is_copy_mirror_mode():
+		if event is InputEventKey and (event as InputEventKey).echo:
+			return
+		_selected_rotation_repeat.release()
+		if runtime_interaction.is_mirror_mode():
 			mirror_manager.flip_preview()
 		elif mirror_manager.get_selected_mirror() != null:
 			mirror_manager.flip_selected()
 		elif runtime_interaction.get_selected_definition() != null:
 			building_manager.rotate_preview()
 		else:
-			building_manager.rotate_selected()
+			if building_manager.rotate_selected():
+				_selected_rotation_repeat.press()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_DELETE:
 		mirror_manager.remove_selected_mirror()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F:
@@ -514,15 +686,31 @@ func _handle_primary_action() -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
 	var edge_pick: Dictionary = grid.pick_edge(_camera, mouse_position)
+	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
+		runtime_stuff_editor.handle_primary(cell_pick)
+		return
 	runtime_interaction.handle_primary(cell_pick, edge_pick)
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
-	if runtime_interaction.is_copy_mirror_mode():
+	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
+		building_manager.clear_preview()
+		mirror_manager.clear_preview()
+		runtime_stuff_editor.update_preview(
+			cell_pick,
+			get_viewport().gui_get_hovered_control() != null
+		)
+		return
+	if runtime_stuff_editor != null:
+		runtime_stuff_editor.clear_preview()
+	if runtime_interaction.is_mirror_mode():
 		building_manager.clear_preview()
 		if get_viewport().gui_get_hovered_control() != null or not edge_pick.hit:
 			mirror_manager.clear_preview()
 			return
-		mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index)
+		if runtime_interaction.is_reflect_mirror_mode():
+			mirror_manager.update_reflect_preview(edge_pick.cell, edge_pick.edge_index)
+		else:
+			mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index)
 		return
 	mirror_manager.clear_preview()
 	var definition := runtime_interaction.get_selected_definition()
@@ -549,6 +737,8 @@ func _destroy_selected_obstacle() -> void:
 	tile_manager.destroy_obstacle_at(_selected_cell)
 
 func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
+	if runtime_stuff_editor != null:
+		runtime_stuff_editor.abort_for_level_transition()
 	if path_hover_preview != null:
 		path_hover_preview.clear_preview()
 	renderer.refresh_surface()
@@ -557,9 +747,24 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	path_manager.load_level(level_resource)
 	path_route_planner.load_level(level_resource)
 	path_placement_connectivity_guard.load_level(level_resource)
+	var initial_layout_errors := building_manager.load_initial_placements(
+		level_resource.initial_building_placements
+	)
+	if initial_layout_errors.is_empty():
+		initial_layout_errors.append_array(mirror_manager.load_initial_placements(
+			level_resource.initial_mirror_placements
+		))
+	if not initial_layout_errors.is_empty():
+		building_manager.clear_buildings(true)
+		mirror_manager.clear_mirrors(true)
+		push_error("初始建筑陈列装配失败：\n%s" % "\n".join(initial_layout_errors))
 	base_core.load_level(level_resource)
 	wave_manager.load_level(level_resource)
 	camera_preset_controller.load_level(level_resource)
+	if miniature_dof_controller != null:
+		miniature_dof_controller.refresh_now(true)
+	if lighting_controller != null:
+		lighting_controller.apply_level(level_resource)
 	runtime_hud.apply_level_configuration(level_resource, source_path)
 	_has_selected_cell = false
 	_has_selected_edge = false
@@ -617,9 +822,34 @@ func _on_exit_level_requested() -> void:
 func _on_camera_cancel_requested() -> void:
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		return
+	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
+		runtime_stuff_editor.cancel_current_tool()
+		get_viewport().set_input_as_handled()
+		return
 	runtime_interaction.cancel_to_select(true)
 	get_viewport().set_input_as_handled()
 	return
+
+
+func _refresh_runtime_stuff_routes() -> void:
+	if path_route_planner != null:
+		path_route_planner.refresh_route_snapshot()
+
+
+func _refresh_runtime_level_authoring() -> void:
+	renderer.refresh_surface()
+	stuff_manager.refresh_world_transforms()
+	building_manager.refresh_world_transforms()
+	if building_selection_visualizer != null:
+		building_selection_visualizer.refresh()
+	if mirror_manager != null:
+		mirror_manager.refresh_world_transforms()
+	if path_route_planner != null:
+		path_route_planner.refresh_route_snapshot()
+	if path_manager != null:
+		path_manager.refresh_surface_positions()
+	if base_core != null:
+		base_core.refresh_world_transforms()
 
 
 func _on_runtime_modal_state_changed(open: bool) -> void:

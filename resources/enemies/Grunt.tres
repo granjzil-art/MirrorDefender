@@ -1,6 +1,13 @@
 [gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://qkjjtgfwg8kv"]
 
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="1_eggtx"]
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="PackedScene" uid="uid://dtb30j6cr4hky" path="res://assets/enemies/Grunt/grunt.tscn" id="1_lpx48"]
+
+[sub_resource type="Resource" id="Resource_sdnyh"]
+script = ExtResource("1_eggtx")
+scene = ExtResource("1_lpx48")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
@@ -10,5 +17,6 @@ reward = 15.0
 hit_radius = 0.26
 attack_damage = 12.0
 attacks_per_second = 0.8
+model_asset = SubResource("Resource_sdnyh")
 body_color = Color(0.86, 0.26, 0.25, 1)
 body_height = 0.72

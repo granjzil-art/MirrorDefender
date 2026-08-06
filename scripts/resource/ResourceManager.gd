@@ -83,6 +83,15 @@ func try_register_building(cost: float) -> bool:
 	_emit_limits_changed()
 	return true
 
+
+## Registers an authored initial building without consuming initial_resource.
+func try_register_initial_building() -> bool:
+	if not can_add_building():
+		return false
+	_building_count += 1
+	_emit_limits_changed()
+	return true
+
 func unregister_building(refund: float = 0.0) -> void:
 	_building_count = maxi(0, _building_count - 1)
 	if refund > 0.0:
@@ -94,6 +103,15 @@ func can_add_mirror() -> bool:
 
 func try_register_mirror(cost: float) -> bool:
 	if not can_add_mirror() or not spend(cost, "mirror_cost"):
+		return false
+	_mirror_count += 1
+	_emit_limits_changed()
+	return true
+
+
+## Registers an authored initial mirror without consuming initial_resource.
+func try_register_initial_mirror() -> bool:
+	if not can_add_mirror():
 		return false
 	_mirror_count += 1
 	_emit_limits_changed()

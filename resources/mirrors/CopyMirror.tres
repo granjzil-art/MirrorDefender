@@ -11,9 +11,10 @@ function_description = "复制镜面法线方向最近非空地块上的全部�
 
 [resource]
 script = ExtResource("1_definition")
+copy_chain_max = 6
+display_name = "复制镜"
 inspection_display = SubResource("Inspection_copy_mirror")
 cost = 70.0
-copy_chain_max = 6
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false
 reflection_resolution = 512

@@ -141,6 +141,7 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `LevelResource.get_path_for_spawn_point` | `(spawn_point: SpawnPointDefinition) -> PathDefinition` | 以相同兼容规则反查对应路径。 |
 | `PathManager.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入网格和地形高度接口。 |
 | `PathManager.load_level` | `(level_resource: LevelResource) -> void` | 重建 ID 索引和路径表现。 |
+| `PathManager.refresh_surface_positions` | `() -> void` | Terrain预览/提交后重建高度相关路线和出生点标记，不替换路径数据。 |
 | `PathManager.get_path_definition` | `(path_id: StringName) -> PathDefinition` | 通过稳定 ID 返回路径定义。 |
 | `PathManager.get_world_points` | `(path: PathDefinition) -> PackedVector3Array` | 把路径格转为带高度世界点。 |
 | `PathManager.get_effective_world_points` | `(path: PathDefinition, airborne: bool = false) -> PackedVector3Array` | 从共享快照返回对应导航档案的实时弯折世界点；无快照时回退作者路径。 |

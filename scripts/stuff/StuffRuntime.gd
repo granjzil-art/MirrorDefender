@@ -37,7 +37,7 @@ func configure(
 	_grid = grid_manager
 	_surface_height_resolver = surface_height_resolver
 	var effect := get_effect()
-	max_durability = maxf(1.0, effect.get_max_durability()) if effect != null and effect.creates_runtime_obstacle() else 0.0
+	max_durability = definition.get_max_durability()
 	current_durability = max_durability
 	_depleted = false
 	refresh_world_transform()
@@ -93,7 +93,7 @@ func get_copy_color() -> Color:
 func get_facing_direction() -> Vector3:
 	if _grid == null:
 		return Vector3.FORWARD
-	var count := _grid.get_tile_building_facing_count()
+	var count := _grid.get_tile_content_facing_count()
 	if count == 8:
 		var square_angle := deg_to_rad(45.0 * float(posmod(facing_index, count)))
 		return Vector3(cos(square_angle), 0.0, sin(square_angle)).normalized()
@@ -110,16 +110,24 @@ func is_destructible() -> bool:
 
 
 func blocks_enemy_navigation(target: Node = null) -> bool:
-	var effect := get_effect()
-	return is_structure_alive() and effect != null and effect.blocks_enemy_navigation(target)
+	return (
+		is_structure_alive()
+		and definition != null
+		and definition.blocks_enemy_navigation(target)
+	)
 
 
 func can_use_for_reroute(target: Node = null) -> bool:
-	var effect := get_effect()
-	return not is_structure_alive() or effect == null or effect.can_use_for_reroute(target)
+	return (
+		not is_structure_alive()
+		or definition == null
+		or definition.can_use_for_reroute(target)
+	)
 
 
 func affects_target(target: Node) -> bool:
+	if definition != null and definition.enemy_navigation != StuffDefinition.EnemyNavigation.PASSABLE:
+		return definition.navigation_affects_target(target)
 	var effect := get_effect()
 	return effect == null or effect.affects_target(target)
 

@@ -7,7 +7,7 @@ const MirrorReflectionViewScript := preload("res://scripts/mirror/MirrorReflecti
 
 signal side_changed(mirror: CopyMirror)
 
-var definition: CopyMirrorDefinition
+var definition: MirrorDefinition
 var from_cell: Vector3i
 var to_cell: Vector3i
 var edge_index: int = -1
@@ -25,7 +25,7 @@ var _selected: bool = false
 var _preview_valid: bool = true
 
 func configure(
-	mirror_definition: CopyMirrorDefinition,
+	mirror_definition: MirrorDefinition,
 	p_from_cell: Vector3i,
 	p_to_cell: Vector3i,
 	p_edge_index: int,
@@ -76,6 +76,14 @@ func flip_side() -> void:
 
 func get_active_cell() -> Vector3i:
 	return from_cell if active_from_side else to_cell
+
+
+func is_copy_mirror() -> bool:
+	return true
+
+
+func is_projectile_reflector() -> bool:
+	return false
 
 func get_axis_endpoints() -> Array[Vector3]:
 	return _grid.get_edge_endpoints(from_cell, edge_index) if _grid != null else []
@@ -131,6 +139,11 @@ func _update_transform() -> void:
 		_grid.sample_cell_surface_height(to_cell, midpoint)
 	)
 	position = midpoint + Vector3(0.0, height, 0.0)
+
+
+## Re-samples both edge cells after a runtime terrain edit.
+func refresh_world_transform() -> void:
+	_update_transform()
 
 func _build_visual() -> void:
 	for child in get_children():

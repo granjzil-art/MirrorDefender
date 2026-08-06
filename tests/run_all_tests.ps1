@@ -18,26 +18,38 @@ if ([string]::IsNullOrWhiteSpace($GodotBinary) -or -not (Test-Path -LiteralPath 
 
 $Tests = @(
 	"airborne_effects_test.gd",
+	"building_rotation_repeat_test.gd",
 	"camera_input_test.gd",
 	"copy_mirror_test.gd",
+	"crossbow_tower_test.gd",
 	"directional_edge_barrier_test.gd",
 	"grass_terrain_reference_test.gd",
+	"initial_layout_persistence_test.gd",
 	"level_reflection_test.gd",
 	"level_select_test.gd",
+	"lighting_display_case_test.gd",
 	"manual_wave_and_level_flow_test.gd",
 	"manual_wave_release_test.gd",
+	"miniature_dof_test.gd",
 	"model_asset_contract_test.gd",
 	"path_spawn_pairing_test.gd",
 	"path_placement_connectivity_test.gd",
 	"path_terrain_color_test.gd",
+	"reflect_mirror_test.gd",
 	"robustness_baseline_test.gd",
 	"runtime_inspection_configuration_test.gd",
+	"runtime_stuff_edit_session_test.gd",
+	"runtime_stuff_editor_test.gd",
+	"runtime_terrain_editor_test.gd",
 	"runtime_ui_batch1_test.gd",
 	"runtime_ui_batch2_test.gd",
 	"runtime_ui_batch3_test.gd",
 	"runtime_ui_batch4_test.gd",
 	"runtime_ui_batch5_test.gd",
 	"runtime_ui_batch6_test.gd",
+	"stuff_catalog_test.gd",
+	"stuff_catalog_authoring_test.gd",
+	"stuff_catalog_manager_editor_test.gd",
 	"stuff_runtime_test.gd",
 	"terrain_stuff_contract_test.gd",
 	"terrain_stuff_editor_test.gd",
@@ -48,8 +60,13 @@ $Tests = @(
 $FailedTests = [System.Collections.Generic.List[string]]::new()
 foreach ($Test in $Tests) {
 	Write-Host "`n=== $Test ==="
+	# Windows PowerShell converts native stderr into non-terminating ErrorRecord
+	# objects. Temporarily continue so warnings are captured and evaluated by the
+	# explicit exit-code/engine-error policy below instead of aborting the suite.
+	$ErrorActionPreference = "Continue"
 	$TestOutput = @(& $GodotBinary --headless --path $ProjectRoot --script "res://tests/$Test" 2>&1)
 	$TestExitCode = $LASTEXITCODE
+	$ErrorActionPreference = "Stop"
 	$TestOutput | ForEach-Object { Write-Host $_ }
 	$EngineErrors = @($TestOutput | Where-Object {
 		$_ -match "^(SCRIPT ERROR|ERROR:|WARNING: .*leaked)"

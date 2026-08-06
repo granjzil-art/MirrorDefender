@@ -46,6 +46,10 @@ func _test_shape(shape: GridManager.Shape, grid_size: Vector2i) -> void:
 	camera.global_position = Vector3(1.5, 8.0, 5.0)
 	camera.look_at(Vector3.ZERO)
 	camera.current = true
+	var source_attributes := CameraAttributesPractical.new()
+	source_attributes.dof_blur_near_enabled = true
+	source_attributes.dof_blur_far_enabled = true
+	camera.attributes = source_attributes
 	var definition := LevelReflectionDefinitionScript.new()
 	definition.vertical_offset = 0.25
 	definition.edge_margin_cells = 2.0
@@ -64,6 +68,7 @@ func _test_shape(shape: GridManager.Shape, grid_size: Vector2i) -> void:
 	_expect(not surface.get_layer_mask_value(1) and surface.get_layer_mask_value(20), "%s reflection plane uses only the isolated reflection layer" % grid.get_geometry_tag())
 	_expect(viewport != null and viewport.world_3d == host.get_world_3d(), "%s reflection viewport shares the live level World3D" % grid.get_geometry_tag())
 	_expect(reflected_camera != null and not reflected_camera.get_cull_mask_value(20), "%s reflected camera excludes every reflection surface to stop recursion" % grid.get_geometry_tag())
+	_expect(reflected_camera.attributes == null, "%s reflected camera excludes final-view depth of field" % grid.get_geometry_tag())
 	_expect(reflection.get_surface_y() < 0.0, "%s reflection plane stays below the terrain baseline" % grid.get_geometry_tag())
 	_expect(reflection.get_surface_size().x > 1.0 and reflection.get_surface_size().y > 1.0, "%s reflection plane covers the grid plus configured margin" % grid.get_geometry_tag())
 	_expect(viewport.size.x <= definition.reflection_resolution and viewport.size.y <= definition.reflection_resolution, "%s render target keeps its configured longest-edge budget" % grid.get_geometry_tag())

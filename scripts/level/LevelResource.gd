@@ -8,6 +8,7 @@ extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 const BasePointDefinitionScript := preload("res://scripts/path/BasePointDefinition.gd")
+const BuildingPlacementDataScript := preload("res://scripts/building/BuildingPlacementData.gd")
 const CameraPresetDefinitionScript := preload("res://scripts/camera/CameraPresetDefinition.gd")
 const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
@@ -16,6 +17,9 @@ const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinitio
 const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
 const LevelContentMigrationAdapterScript := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
 const LevelContentValidatorScript := preload("res://scripts/level/LevelContentValidator.gd")
+const LightingProfileScript := preload("res://scripts/lighting/LightingProfile.gd")
+const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
+const InitialLayoutValidatorScript := preload("res://scripts/level/InitialLayoutValidator.gd")
 const DefaultGrassTerrainResource := preload("res://resources/terrains/Grass.tres")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
@@ -52,6 +56,17 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 
 @export_group("Level Stuff")
 @export var stuff_placements: Array[StuffPlacementDataScript] = []
+
+@export_group("Initial Runtime Layout")
+## Real buildings spawned without spending initial_resource; they still count toward building_cap.
+@export var initial_building_placements: Array[BuildingPlacementDataScript] = []
+## Real physical mirrors spawned without spending initial_resource; kind is
+## stored per placement and array order preserves copy-chain order.
+@export var initial_mirror_placements: Array[MirrorPlacementDataScript] = []
+
+@export_group("Presentation")
+## Optional per-level lighting. Runtime falls back to the project's first test profile.
+@export var lighting_profile: LightingProfileScript
 
 @export_group("Editor Terrain Colors")
 @export var height_color_low: Color = Color(0.18, 0.60, 0.31, 1.0)
@@ -94,7 +109,7 @@ func get_geometry_tag() -> StringName:
 	return GEOMETRY_TAG_HEX if grid_shape == 0 else GEOMETRY_TAG_SQUARE
 
 func get_tile_building_facing_count() -> int:
-	return 6 if grid_shape == 0 else 8
+	return 36
 
 func get_edge_building_facing_count() -> int:
 	return 6 if grid_shape == 0 else 4
@@ -359,6 +374,7 @@ func validate_runtime() -> Array[String]:
 		var content_shape: IGridShape = _make_validation_shape()
 		content_shape.setup(grid_cell_size)
 		errors.append_array(LevelContentValidatorScript.validate(self, content_shape))
+		errors.append_array(InitialLayoutValidatorScript.validate(self, content_shape))
 	_validate_level_parameters(errors)
 	_validate_m4_content(errors)
 	return errors
@@ -431,6 +447,8 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		errors.append("据点生命值必须为有限正数")
 	if tile_model_asset != null:
 		ConfigValidator.append_prefixed(errors, "关卡地块模型", tile_model_asset.validate_configuration())
+	if lighting_profile != null:
+		ConfigValidator.append_prefixed(errors, "关卡灯光", lighting_profile.validate_configuration())
 
 func _validate_m4_content(errors: Array[String]) -> void:
 	if grid_shape != 0 and grid_shape != 1 or not is_finite(grid_cell_size) or grid_cell_size <= 0.0:
@@ -457,6 +475,11 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		base_cells[base_point.cell] = true
 		if not _is_valid_cell_coordinate(base_point.cell) or not shape.is_in_bounds(base_point.cell, grid_size):
 			errors.append("据点 %s 位于地图外" % base_point.display_name)
+		ConfigValidator.append_prefixed(
+			errors,
+			"据点 %s" % base_point.display_name,
+			base_point.validate_configuration()
+		)
 	var path_ids: Dictionary = {}
 	for path in paths:
 		if path == null:
@@ -522,6 +545,11 @@ func _validate_m4_content(errors: Array[String]) -> void:
 			errors.append("出生点与据点不能位于同一格：%s" % str(spawn_point.cell))
 		if not _is_valid_cell_coordinate(spawn_point.cell) or not shape.is_in_bounds(spawn_point.cell, grid_size):
 			errors.append("出生点 %s 位于地图外" % spawn_point.display_name)
+		ConfigValidator.append_prefixed(
+			errors,
+			"出生点 %s" % spawn_point.display_name,
+			spawn_point.validate_configuration()
+		)
 	var validated_enemies: Dictionary = {}
 	for wave in waves:
 		if wave == null:

@@ -13,6 +13,7 @@
 - **敌人死亡掉落**：WaveManager 只订阅 EnemyUnit 的死亡信号，以 EnemyDefinition.`reward` 调用 `grant_enemy_drop(amount)`；M3 靶标死亡不接资源，到达据点的敌人也不掉落。
 - **小数累计**：基础和建筑产出使用两个独立缓冲，累计到整数才调用 `gain()`，避免帧率差异和小数丢失。
 - **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和余额并扣费；调用方不拆成非原子步骤。
+- **初始陈列注册**：`try_register_initial_building/mirror()` 只检查 cap 并增加计数，不扣 `initial_resource`；仅供关卡静态初始陈列装配，玩家建造不得调用。
 - **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
 - **删除退款**：BuildingManager 删除选中建筑时读取当前 `BuildingLevelStats.refund_amount`，传给 `unregister_building(refund)`，使释放占格、减少计数、返还资源保持同一事务。
 - **屏障摧毁**：敌人将屏障耐久打到 0 时调用 `unregister_building(0)`，只释放建筑上限和产出，不获得主动删除退款。
@@ -96,6 +97,7 @@ F1 resource add/set -> RuntimeDebugBindings
 | `gain` | `(amount: float, reason: String = "gain") -> void` | 增加有限正数资源并广播；NaN/Infinity 不改变余额。 |
 | `set_main_resource` | `(value: float, reason: String = "set") -> bool` | 设置有限非负余额，以新旧差值广播；非法值返回 false 且不修改状态。 |
 | `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 检查 cap、扣费并增加相应计数。 |
+| `try_register_initial_building` / `try_register_initial_mirror` | `() -> bool` | 免付费登记关卡初始实体并增加相应计数，仍严格遵守 cap。 |
 | `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选退款。 |
 | `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的有限逐秒产出总和；非有限值被拒绝。 |
 | `grant_enemy_drop` | `(amount: float) -> void` | 以 `enemy_drop` 原因入账；M4 敌人死亡调用。 |

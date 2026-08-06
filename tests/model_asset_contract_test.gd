@@ -37,6 +37,7 @@ func _run() -> void:
 	await _test_tile_and_element_models()
 	await _test_building_and_projectile_models()
 	await _test_enemy_and_enemy_projectile_models()
+	await _test_base_and_spawn_point_models()
 	_test_projection_projectile_model()
 	if _failures == 0:
 		print("[ModelAssetContract] PASS: %d checks" % _checks)
@@ -245,6 +246,80 @@ func _test_enemy_and_enemy_projectile_models() -> void:
 	var projectile := enemy.call("_launch_projectile", target) as EnemyProjectile
 	var projectile_wrapper := projectile.get_node_or_null("EnemyProjectileModel") as Node3D if projectile != null else null
 	_expect(projectile_wrapper != null and projectile_wrapper.scale.is_equal_approx(Vector3.ONE), "enemy projectile normalizes its fitted model asset")
+	host.queue_free()
+	await process_frame
+
+
+func _test_base_and_spawn_point_models() -> void:
+	var scene := _make_model_scene(Vector3(0.8, 1.2, 0.8))
+	var base_asset := _make_model_asset(scene, Vector3(1.5, 1.5, 1.5))
+	var spawn_asset := _make_model_asset(scene, Vector3(0.7, 0.7, 0.7))
+	var level := _make_level()
+	var modeled_base := BasePointDefinition.new()
+	modeled_base.base_id = &"base_modeled"
+	modeled_base.display_name = "模型据点"
+	modeled_base.display_number = 1
+	modeled_base.cell = Vector3i(1, 0, 0)
+	modeled_base.model_asset = base_asset
+	var fallback_base := BasePointDefinition.new()
+	fallback_base.base_id = &"base_fallback"
+	fallback_base.display_name = "回退据点"
+	fallback_base.display_number = 2
+	fallback_base.cell = Vector3i(1, 1, 0)
+	var modeled_spawn := SpawnPointDefinition.new()
+	modeled_spawn.spawn_id = &"spawn_modeled"
+	modeled_spawn.display_name = "模型出生点"
+	modeled_spawn.display_number = 1
+	modeled_spawn.cell = Vector3i(0, 0, 0)
+	modeled_spawn.model_asset = spawn_asset
+	var fallback_spawn := SpawnPointDefinition.new()
+	fallback_spawn.spawn_id = &"spawn_fallback"
+	fallback_spawn.display_name = "回退出生点"
+	fallback_spawn.display_number = 2
+	fallback_spawn.cell = Vector3i(0, 1, 0)
+	level.base_points.assign([modeled_base, fallback_base])
+	level.spawn_points.assign([modeled_spawn, fallback_spawn])
+	var fixture := _make_tile_fixture(level)
+	var host: Node3D = fixture["host"]
+	var grid: GridManager = fixture["grid"]
+	var tile_manager: TileManager = fixture["tile"]
+	_expect(bool(fixture["loaded"]), "base and spawn point model fixture loads")
+	var path_manager := PathManager.new()
+	host.add_child(path_manager)
+	path_manager.configure(grid, tile_manager)
+	path_manager.load_level(level)
+	var base_core := BaseCore.new()
+	host.add_child(base_core)
+	base_core.configure(grid, tile_manager)
+	base_core.load_level(level)
+	var live_spawn_model := path_manager.find_child("SpawnPointModel", true, false) as Node3D
+	var live_base_model := base_core.find_child("BasePointModel", true, false) as Node3D
+	_expect(
+		live_spawn_model != null and live_spawn_model.scale.is_equal_approx(spawn_asset.runtime_scale),
+		"spawn point consumes the shared grounded model asset contract"
+	)
+	_expect(
+		live_base_model != null and live_base_model.scale.is_equal_approx(base_asset.runtime_scale),
+		"base point consumes the shared grounded model asset contract"
+	)
+	_expect(
+		path_manager.find_child("SpawnPointFallback", true, false) != null,
+		"spawn point without a configured model retains its greybox fallback"
+	)
+	_expect(
+		base_core.find_child("BasePointFallback", true, false) != null,
+		"base point without a configured model retains its greybox fallback"
+	)
+	base_asset.runtime_scale = Vector3.ZERO
+	_expect(
+		not modeled_base.validate_configuration().is_empty(),
+		"base point validates its nested model asset"
+	)
+	spawn_asset.runtime_scale = Vector3.ZERO
+	_expect(
+		not modeled_spawn.validate_configuration().is_empty(),
+		"spawn point validates its nested model asset"
+	)
 	host.queue_free()
 	await process_frame
 

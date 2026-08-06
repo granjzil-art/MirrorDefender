@@ -139,6 +139,11 @@ func get_geometry_tag() -> StringName:
 	return &"hex" if grid_shape == Shape.HEX else &"square"
 
 func get_tile_building_facing_count() -> int:
+	return 36
+
+## Grid-bound content keeps topology-aligned authored directions. Free-standing
+## tile buildings use the independent 36-slot orientation contract above.
+func get_tile_content_facing_count() -> int:
 	return 6 if grid_shape == Shape.HEX else 8
 
 func get_edge_building_facing_count() -> int:

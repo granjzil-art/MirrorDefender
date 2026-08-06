@@ -7,13 +7,19 @@ extends Node3D
 
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const StuffRuntimeScript := preload("res://scripts/stuff/StuffRuntime.gd")
+const StuffCatalogScript := preload("res://scripts/stuff/StuffCatalog.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Catalog")
+@export var stuff_catalog: StuffCatalogScript
+
 signal stuff_loaded(level_resource: LevelResource)
 signal stuff_cleared
+signal stuff_placed(stuff: StuffRuntime)
 signal stuff_changed(cell: Vector3i)
+signal stuff_rotated(stuff: StuffRuntime, previous_facing: int, new_facing: int)
 signal stuff_removed(stuff: StuffRuntime)
 signal obstacle_destroyed(cell: Vector3i)
 signal obstacle_durability_changed(cell: Vector3i, current: float, maximum: float)
@@ -56,10 +62,18 @@ func load_level(level_resource: LevelResource) -> bool:
 		cells[clone.cell] = existing
 		ids[clone.placement_id] = true
 		placements.append(clone)
+	var next_runtimes: Array[StuffRuntime] = []
+	for placement in placements:
+		var candidate := _instantiate_runtime(placement)
+		if candidate == null:
+			for prepared_runtime in next_runtimes:
+				prepared_runtime.free()
+			return false
+		next_runtimes.append(candidate)
 	clear_level()
 	_level = level_resource
-	for placement in placements:
-		_create_runtime(placement)
+	for runtime in next_runtimes:
+		_register_runtime(runtime)
 	stuff_loaded.emit(level_resource)
 	return true
 
@@ -79,6 +93,10 @@ func get_level_resource() -> LevelResource:
 	return _level
 
 
+func get_stuff_catalog() -> StuffCatalogScript:
+	return stuff_catalog
+
+
 func get_stuff(placement_id: StringName) -> StuffRuntime:
 	var runtime: StuffRuntime = _by_id.get(placement_id)
 	return runtime if runtime != null and is_instance_valid(runtime) and not runtime.is_queued_for_deletion() else null
@@ -92,6 +110,94 @@ func get_all_stuff() -> Array[StuffRuntime]:
 			out.append(runtime)
 	out.sort_custom(func(a: StuffRuntime, b: StuffRuntime) -> bool: return String(a.placement_id) < String(b.placement_id))
 	return out
+
+
+func export_placements() -> Array[StuffPlacementData]:
+	var result: Array[StuffPlacementData] = []
+	for runtime in get_all_stuff():
+		var placement := StuffPlacementDataScript.new()
+		placement.configure(
+			runtime.placement_id,
+			runtime.cell,
+			runtime.definition,
+			runtime.facing_index
+		)
+		result.append(placement)
+	return result
+
+
+## Preserves durability/effect state while re-sampling edited terrain heights.
+func refresh_world_transforms() -> void:
+	for runtime in get_all_stuff():
+		runtime.refresh_world_transform()
+
+
+## Adds one instance atomically without mutating the authored LevelResource.
+## RuntimeStuffEditSession decides when the exported placement snapshot is saved.
+func add_stuff(
+	cell: Vector3i,
+	definition: StuffDefinition,
+	facing_index: int = 0,
+	placement_id: StringName = &""
+) -> StuffRuntime:
+	if not feature_enabled or _grid == null or _level == null or definition == null:
+		return null
+	if not _grid.is_in_bounds(cell):
+		return null
+	var facing_count := maxi(1, _grid.get_tile_content_facing_count())
+	if facing_index < 0 or facing_index >= facing_count:
+		return null
+	for existing in get_stuff_at(cell):
+		if not definition.can_coexist_with(existing.definition):
+			return null
+	var resolved_id := placement_id if not placement_id.is_empty() else _next_placement_id(definition.stuff_id)
+	if resolved_id.is_empty() or get_stuff(resolved_id) != null:
+		return null
+	var placement := StuffPlacementDataScript.new()
+	placement.configure(resolved_id, cell, definition, facing_index)
+	var runtime := _create_runtime(placement)
+	if runtime == null:
+		return null
+	stuff_placed.emit(runtime)
+	stuff_changed.emit(cell)
+	return runtime
+
+
+func rotate_stuff(placement_id: StringName, step: int = 1) -> bool:
+	var runtime := get_stuff(placement_id)
+	if runtime == null or _grid == null:
+		return false
+	var facing_count := maxi(1, _grid.get_tile_content_facing_count())
+	var previous := runtime.facing_index
+	var next := posmod(previous + step, facing_count)
+	if previous == next:
+		return false
+	runtime.facing_index = next
+	runtime.refresh_world_transform()
+	stuff_rotated.emit(runtime, previous, next)
+	stuff_changed.emit(runtime.cell)
+	return true
+
+
+## Replaces only mutable Stuff runtime state. Terrain, buildings, waves and the
+## current LevelResource identity are preserved.
+func replace_runtime_placements(placements: Array) -> bool:
+	var prepared := _prepare_placements(placements)
+	if not bool(prepared.get("success", false)):
+		return false
+	var next_runtimes: Array[StuffRuntime] = []
+	for placement in prepared.get("placements", []):
+		var candidate := _instantiate_runtime(placement)
+		if candidate == null:
+			for prepared_runtime in next_runtimes:
+				prepared_runtime.free()
+			return false
+		next_runtimes.append(candidate)
+	_clear_runtime_nodes()
+	for runtime in next_runtimes:
+		_register_runtime(runtime)
+	stuff_loaded.emit(_level)
+	return true
 
 
 func get_stuff_at(cell: Vector3i) -> Array[StuffRuntime]:
@@ -205,13 +311,24 @@ func set_visual_snapshot_resolver(value: Callable) -> void:
 		runtime.set_visual_snapshot_resolver(value)
 
 
-func _create_runtime(placement: StuffPlacementData) -> void:
+func _create_runtime(placement: StuffPlacementData) -> StuffRuntime:
+	var runtime := _instantiate_runtime(placement)
+	if runtime != null:
+		_register_runtime(runtime)
+	return runtime
+
+
+func _instantiate_runtime(placement: StuffPlacementData) -> StuffRuntime:
 	var runtime: StuffRuntime = StuffRuntimeScript.new()
 	runtime.name = "Stuff_%s" % String(placement.placement_id)
-	add_child(runtime)
 	if not runtime.configure(placement, _grid, Callable(_terrain_manager, "get_world_height")):
 		runtime.free()
-		return
+		return null
+	return runtime
+
+
+func _register_runtime(runtime: StuffRuntime) -> void:
+	add_child(runtime)
 	runtime.durability_changed.connect(_on_durability_changed)
 	runtime.depleted.connect(_on_depleted)
 	runtime.set_visual_snapshot_resolver(_visual_snapshot_resolver)
@@ -225,6 +342,53 @@ func _clone_placement(source: StuffPlacementData) -> StuffPlacementData:
 	var clone := StuffPlacementDataScript.new()
 	clone.configure(source.placement_id, source.cell, source.definition, source.facing_index)
 	return clone
+
+
+func _prepare_placements(raw_placements: Array) -> Dictionary:
+	var placements: Array[StuffPlacementData] = []
+	var ids: Dictionary = {}
+	var cells: Dictionary = {}
+	for raw_placement in raw_placements:
+		if not raw_placement is StuffPlacementDataScript:
+			return {"success": false, "placements": []}
+		var source: StuffPlacementData = raw_placement
+		if _grid == null or not _grid.is_in_bounds(source.cell) or source.definition == null:
+			return {"success": false, "placements": []}
+		if source.placement_id.is_empty() or ids.has(source.placement_id):
+			return {"success": false, "placements": []}
+		var facing_count := maxi(1, _grid.get_tile_content_facing_count())
+		if source.facing_index < 0 or source.facing_index >= facing_count:
+			return {"success": false, "placements": []}
+		var clone := _clone_placement(source)
+		var existing: Array = cells.get(clone.cell, [])
+		for other in existing:
+			if not clone.definition.can_coexist_with(other.definition):
+				return {"success": false, "placements": []}
+		existing.append(clone)
+		cells[clone.cell] = existing
+		ids[clone.placement_id] = true
+		placements.append(clone)
+	return {"success": true, "placements": placements}
+
+
+func _clear_runtime_nodes() -> void:
+	for raw_runtime in _by_id.values():
+		var runtime: StuffRuntime = raw_runtime
+		if runtime != null and is_instance_valid(runtime):
+			runtime.free()
+	_by_id.clear()
+	_by_cell.clear()
+	stuff_cleared.emit()
+
+
+func _next_placement_id(stuff_id: StringName) -> StringName:
+	var prefix := String(stuff_id).strip_edges().to_snake_case()
+	if prefix.is_empty():
+		prefix = "stuff"
+	var index := 1
+	while _by_id.has(StringName("%s_%d" % [prefix, index])):
+		index += 1
+	return StringName("%s_%d" % [prefix, index])
 
 
 func _on_durability_changed(runtime: StuffRuntime, current: float, maximum: float) -> void:

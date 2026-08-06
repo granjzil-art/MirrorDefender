@@ -139,6 +139,11 @@ func _test_editor_creation_and_wave_binding() -> void:
 	var second_base: BasePointDefinition = level.base_points[1]
 	_expect(first_spawn.display_number == 1 and second_spawn.display_number == 2, "spawn markers receive stable authored numbers")
 	_expect(first_base.display_number == 1 and second_base.display_number == 2, "base markers receive stable authored numbers")
+	var endpoint_model_asset := ModelAssetDefinition.new()
+	panel.call("_on_spawn_model_asset_changed", endpoint_model_asset)
+	panel.call("_on_base_model_asset_changed", endpoint_model_asset)
+	_expect(second_spawn.model_asset == endpoint_model_asset, "editor assigns the shared model asset contract to a spawn point")
+	_expect(second_base.model_asset == endpoint_model_asset, "editor assigns the shared model asset contract to a base point")
 
 	panel.call("_add_path")
 	var first_path: PathDefinition = level.paths[0]

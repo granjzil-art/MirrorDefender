@@ -2,23 +2,12 @@
 
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
 [ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="1_yg2iu"]
-[ext_resource type="PackedScene" uid="uid://b3simo8n0x3ec" path="res://assets/buildings/ArrowTower/arrow_tower.tscn" id="3_bobeh"]
+[ext_resource type="PackedScene" uid="uid://b5g1nycy1wp17" path="res://assets/buildings/ArrowTower/tscn/arrowtower_1_2.tscn" id="3_483c5"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
-[ext_resource type="Script" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_model_asset"]
-
-[sub_resource type="Resource" id="ModelAsset_arrow_level_1"]
-script = ExtResource("4_model_asset")
-scene = ExtResource("3_bobeh")
-
-[sub_resource type="Resource" id="ModelAsset_arrow_level_2"]
-script = ExtResource("4_model_asset")
-scene = ExtResource("3_bobeh")
-runtime_scale = Vector3(1.1, 1.1, 1.1)
-
-[sub_resource type="Resource" id="ModelAsset_arrow_level_3"]
-script = ExtResource("4_model_asset")
-scene = ExtResource("3_bobeh")
-runtime_scale = Vector3(1.2, 1.2, 1.2)
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_model_asset"]
+[ext_resource type="PackedScene" uid="uid://lf1jh11pajhy" path="res://assets/projections/Arrow/arrow.tscn" id="5_sdnyh"]
+[ext_resource type="PackedScene" uid="uid://np6n5xmegbwx" path="res://assets/buildings/ArrowTower/tscn/arrowtower_2_1.tscn" id="6_y1u0u"]
+[ext_resource type="PackedScene" uid="uid://bura62s1xpja6" path="res://assets/buildings/ArrowTower/tscn/arrowtower_3_1.tscn" id="7_q1p0p"]
 
 [sub_resource type="Resource" id="Inspection_arrow"]
 script = ExtResource("3_inspection")
@@ -34,6 +23,15 @@ show_timing = false
 show_projection_source = false
 show_producing_mirror = false
 
+[sub_resource type="Resource" id="ModelAsset_arrow_level_1"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("3_483c5")
+
+[sub_resource type="Resource" id="Resource_bobeh"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("5_sdnyh")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
 [sub_resource type="Resource" id="Resource_bekr3"]
 script = ExtResource("1_yg2iu")
 cost = 100.0
@@ -41,8 +39,20 @@ refund_amount = 60.0
 targeting_range = 3.0
 attack_range = 60.0
 attacks_per_second = 2.0
+projectile_model_asset = SubResource("Resource_bobeh")
 model_asset = SubResource("ModelAsset_arrow_level_1")
 metadata/_custom_type_script = "uid://b05t732bvub0h"
+
+[sub_resource type="Resource" id="ModelAsset_arrow_level_2"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("6_y1u0u")
+runtime_scale = Vector3(1.1, 1.1, 1.1)
+
+[sub_resource type="Resource" id="Resource_qmrpm"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("5_sdnyh")
+runtime_scale = Vector3(1.1, 1.1, 1.1)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Resource_e42pe"]
 script = ExtResource("1_yg2iu")
@@ -54,8 +64,20 @@ attacks_per_second = 3.0
 projectile_speed = 14.0
 projectile_length = 1.0
 projectile_width = 0.1
+projectile_model_asset = SubResource("Resource_qmrpm")
 model_asset = SubResource("ModelAsset_arrow_level_2")
 metadata/_custom_type_script = "uid://b05t732bvub0h"
+
+[sub_resource type="Resource" id="ModelAsset_arrow_level_3"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("7_q1p0p")
+runtime_scale = Vector3(1.2, 1.2, 1.2)
+
+[sub_resource type="Resource" id="Resource_483c5"]
+script = ExtResource("4_model_asset")
+scene = ExtResource("5_sdnyh")
+runtime_scale = Vector3(1.2, 1.2, 1.2)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Resource_wvhbo"]
 script = ExtResource("1_yg2iu")
@@ -63,8 +85,10 @@ refund_amount = 160.0
 base_damage = 40.0
 attack_range = 60.0
 attacks_per_second = 4.0
+projectile_fire_mode = 1
 projectile_length = 0.4
 projectile_width = 0.1
+projectile_model_asset = SubResource("Resource_483c5")
 model_asset = SubResource("ModelAsset_arrow_level_3")
 metadata/_custom_type_script = "uid://b05t732bvub0h"
 

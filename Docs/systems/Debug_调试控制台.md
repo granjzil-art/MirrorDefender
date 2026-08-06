@@ -111,6 +111,8 @@ CheckBox or debug set
 | `DebugOverlayPanel.gd` | `get_display_text() -> String` | 返回当前显示文本，供只读检查和回归测试。 |
 | `RuntimeHud.gd` | `configure_debug_console(command_registry: DebugCommandRegistry, category_registry: DebugCategoryRegistry) -> void` | 将同一分类事实源同时注入控制台和左上常驻层。 |
 | `RuntimeHud.gd` | `is_modal_open() -> bool` / `close_top_modal() -> void` | 统一暂停和控制台输入边界，优先关闭控制台。 |
+
+新增命令：`stuff edit on` 开启运行时关卡元素编辑，`stuff edit off` 在会话无未保存修改时关闭；有脏修改时必须先在工作区保存或放弃。
 | `ResourceManager.gd` | `set_main_resource(value: float, reason: String = "set") -> bool` | 设置有限非负资源并广播真实差值。 |
 | `WaveManager.gd` | `spawn_debug_enemy(enemy: EnemyDefinition, path: PathDefinition) -> Dictionary` | 不修改波次时间轴，复用单位配置、Combat 注册和清理生命周期。 |
 | `PathManager.gd` | `set_debug_paths_visible(enabled: bool) -> void` | 重建手工路径调试线；端点数字始终保留。 |

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="StuffDefinition" format=3 uid="uid://dqjoiy4darp0l"]
+
+[ext_resource type="PackedScene" uid="uid://cbjo6bkqqmshs" path="res://assets/stuffs/Tree/tscn/santree.tscn" id="1_2ry8c"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_lghi1"]
+[ext_resource type="Script" uid="uid://blu6reftyrrnp" path="res://scripts/stuff/StuffDefinition.gd" id="3_8ivrf"]
+
+[sub_resource type="Resource" id="Resource_rasay"]
+script = ExtResource("2_lghi1")
+scene = ExtResource("1_2ry8c")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[resource]
+script = ExtResource("3_8ivrf")
+display_name = "杉树"
+enemy_navigation = 2
+navigation_affects_airborne = true
+durability_mode = 2
+model_asset = SubResource("Resource_rasay")
+metadata/_custom_type_script = "uid://blu6reftyrrnp"

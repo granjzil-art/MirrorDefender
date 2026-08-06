@@ -1,15 +1,17 @@
-## M5 copy-mirror entry point: edge lifecycle, deterministic copy graph,
-## projection overlays, preview, and synchronized attack forwarding.
+## Physical mirror entry point: shared edge lifecycle and visuals, copy graph,
+## projectile reflection, preview, and synchronized attack forwarding.
 class_name MirrorManager
 extends Node3D
 
 const MirrorProjectionProjectileScript := preload("res://scripts/mirror/MirrorProjectionProjectile.gd")
+const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
 @export_group("Definition")
 @export var copy_mirror_definition: CopyMirrorDefinition
+@export var reflect_mirror_definition: ReflectMirrorDefinition
 
 signal mirror_placed(mirror: CopyMirror)
 signal mirror_removed(mirror: CopyMirror)
@@ -46,6 +48,7 @@ var _preview_mirror: CopyMirror
 var _preview_projections: Array[MirrorProjection] = []
 var _preview_info: Dictionary = {}
 var _preview_active_from_side: bool = true
+var _preview_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
 
 func _process(_delta: float) -> void:
 	_update_reflection_views()
@@ -70,6 +73,10 @@ func configure(
 	_edge_occupancy_registry = edge_occupancy_registry
 	if copy_mirror_definition != null and not copy_mirror_definition.changed.is_connected(_on_definition_changed):
 		copy_mirror_definition.changed.connect(_on_definition_changed)
+	if reflect_mirror_definition != null and not reflect_mirror_definition.changed.is_connected(_on_definition_changed):
+		reflect_mirror_definition.changed.connect(_on_definition_changed)
+	if _combat_manager != null:
+		_combat_manager.set_projectile_reflection_resolver(Callable(self, "trace_projectile_reflection"))
 	if _building_manager != null:
 		_building_manager.building_placed.connect(_on_building_placed)
 		_building_manager.building_removed.connect(_on_building_removed)
@@ -113,13 +120,107 @@ func place_copy_mirror(
 	edge_index: int,
 	active_from_side: Variant = null
 ) -> CopyMirror:
-	var validation := validate_placement(from_cell, edge_index, true)
+	return _place_mirror(
+		from_cell,
+		edge_index,
+		active_from_side,
+		MirrorPlacementData.MirrorKind.COPY,
+		true,
+		true,
+		true,
+		true
+	)
+
+
+func place_reflect_mirror(
+	from_cell: Vector3i,
+	edge_index: int,
+	active_from_side: Variant = null
+) -> ReflectMirror:
+	return _place_mirror(
+		from_cell,
+		edge_index,
+		active_from_side,
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT,
+		true,
+		false,
+		true,
+		true
+	) as ReflectMirror
+
+
+## Captures real mirrors in copy-graph placement order; projections are excluded.
+func export_initial_placements() -> Array[MirrorPlacementData]:
+	var placements: Array[MirrorPlacementData] = []
+	for mirror in get_mirrors():
+		var placement := MirrorPlacementDataScript.new()
+		placement.configure(
+			mirror.from_cell,
+			mirror.edge_index,
+			mirror.active_from_side,
+			_get_mirror_kind(mirror)
+		)
+		placements.append(placement)
+	return placements
+
+
+## Keeps mirror placement order/state while re-sampling edited terrain.
+func refresh_world_transforms() -> void:
+	for mirror in get_mirrors():
+		mirror.refresh_world_transform()
+	if _preview_mirror != null and is_instance_valid(_preview_mirror):
+		_preview_mirror.refresh_world_transform()
+	rebuild_now()
+
+
+## Rebuilds authored initial mirrors without charging initial_resource.
+## Array order is the authoritative recursive-copy order.
+func load_initial_placements(placements: Array) -> Array[String]:
+	clear_mirrors(false)
+	var errors: Array[String] = []
+	for index in range(placements.size()):
+		var raw_placement: Variant = placements[index]
+		if not raw_placement is MirrorPlacementDataScript:
+			errors.append("初始镜子 %d 数据类型无效" % (index + 1))
+			continue
+		var placement: MirrorPlacementData = raw_placement
+		var mirror := _place_mirror(
+			placement.from_cell,
+			placement.edge_index,
+			placement.active_from_side,
+			placement.mirror_kind,
+			false,
+			false,
+			false,
+			false
+		)
+		if mirror == null:
+			errors.append("初始镜子 %d 装配失败" % (index + 1))
+	if not errors.is_empty():
+		clear_mirrors(true)
+	else:
+		select_mirror(null)
+	rebuild_now()
+	return errors
+
+
+func _place_mirror(
+	from_cell: Vector3i,
+	edge_index: int,
+	active_from_side: Variant,
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	charge_cost: bool,
+	check_connectivity: bool,
+	select_after_placement: bool,
+	rebuild_after_placement: bool
+) -> CopyMirror:
+	var validation := validate_placement(from_cell, edge_index, charge_cost, mirror_kind)
 	if not validation.failure.is_empty():
 		placement_failed.emit(from_cell, validation.failure)
 		return null
-	var definition := copy_mirror_definition
+	var definition := _get_definition(mirror_kind)
 	var resolved_side := definition.active_from_side_by_default if active_from_side == null else bool(active_from_side)
-	var mirror := CopyMirror.new()
+	var mirror: CopyMirror = ReflectMirror.new() if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT else CopyMirror.new()
 	add_child(mirror)
 	mirror.configure(
 		definition,
@@ -133,17 +234,26 @@ func place_copy_mirror(
 	)
 	mirror.placement_order = _next_placement_order
 	mirror.set_reflection_camera(_reflection_camera)
-	var connectivity_failure := _validate_path_connectivity({"candidate_mirror": mirror})
+	var connectivity_failure := (
+		_validate_path_connectivity({"candidate_mirror": mirror})
+		if check_connectivity and mirror.is_copy_mirror()
+		else ""
+	)
 	if not connectivity_failure.is_empty():
 		mirror.queue_free()
 		placement_failed.emit(from_cell, connectivity_failure)
 		return null
-	if not _resource_manager.try_register_mirror(definition.cost):
+	var registered := (
+		_resource_manager.try_register_mirror(definition.cost)
+		if charge_cost
+		else _resource_manager.try_register_initial_mirror()
+	)
+	if not registered:
 		mirror.queue_free()
-		placement_failed.emit(from_cell, "资源不足或达到镜子上限")
+		placement_failed.emit(from_cell, "资源不足或达到镜子上限" if charge_cost else "初始镜子超过镜子上限")
 		return null
 	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(validation.edge_id, mirror):
-		_resource_manager.unregister_mirror(definition.cost)
+		_resource_manager.unregister_mirror(definition.cost if charge_cost else 0.0)
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
@@ -153,22 +263,30 @@ func place_copy_mirror(
 	mirror.tree_exited.connect(exit_callback)
 	_mirror_exit_callbacks[mirror] = exit_callback
 	_mirrors[validation.edge_id] = mirror
-	select_mirror(mirror)
-	rebuild_now()
+	if select_after_placement:
+		select_mirror(mirror)
+	if rebuild_after_placement:
+		rebuild_now()
 	mirror_placed.emit(mirror)
 	return mirror
 
-func validate_placement(from_cell: Vector3i, edge_index: int, check_economy: bool = true) -> Dictionary:
+func validate_placement(
+	from_cell: Vector3i,
+	edge_index: int,
+	check_economy: bool = true,
+	mirror_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
+) -> Dictionary:
 	var result := {"failure": "", "to_cell": Vector3i.ZERO, "edge_id": ""}
-	if not feature_enabled or copy_mirror_definition == null:
-		result.failure = "复制镜系统或配置未启用"
+	var definition := _get_definition(mirror_kind)
+	if not feature_enabled or definition == null:
+		result.failure = "镜子系统或对应配置未启用"
 		return result
-	var config_errors := copy_mirror_definition.validate_configuration()
+	var config_errors := definition.validate_configuration()
 	if not config_errors.is_empty():
 		result.failure = config_errors[0]
 		return result
 	if _grid == null or _tile_manager == null or _resource_manager == null or _combat_manager == null:
-		result.failure = "复制镜系统依赖尚未注入"
+		result.failure = "镜子系统依赖尚未注入"
 		return result
 	if not _grid.is_in_bounds(from_cell) or edge_index < 0 or edge_index >= _grid.edge_count():
 		result.failure = "目标边位于地图外"
@@ -192,7 +310,7 @@ func validate_placement(from_cell: Vector3i, edge_index: int, check_economy: boo
 	if check_economy:
 		if not _resource_manager.can_add_mirror():
 			result.failure = "已达到镜子上限"
-		elif not _resource_manager.can_afford(copy_mirror_definition.cost):
+		elif not _resource_manager.can_afford(definition.cost):
 			result.failure = "主资源不足"
 	return result
 
@@ -202,7 +320,9 @@ func remove_selected_mirror() -> bool:
 func remove_mirror(mirror: CopyMirror, refund: float = -1.0) -> bool:
 	if mirror == null or not is_instance_valid(mirror) or not _mirrors.has(mirror.edge_id):
 		return false
-	var resolved_refund := copy_mirror_definition.refund if refund < 0.0 else refund
+	var resolved_refund := refund
+	if resolved_refund < 0.0:
+		resolved_refund = mirror.definition.refund if mirror.definition != null else 0.0
 	_mirrors.erase(mirror.edge_id)
 	if _edge_occupancy_registry != null:
 		_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
@@ -270,6 +390,102 @@ func get_mirrors() -> Array[CopyMirror]:
 		if raw_mirror is CopyMirror and is_instance_valid(raw_mirror):
 			result.append(raw_mirror)
 	result.sort_custom(func(a: CopyMirror, b: CopyMirror) -> bool: return a.placement_order < b.placement_order)
+	return result
+
+
+func _get_definition(mirror_kind: MirrorPlacementData.MirrorKind) -> MirrorDefinition:
+	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
+		return reflect_mirror_definition
+	return copy_mirror_definition
+
+
+func _get_mirror_kind(mirror: CopyMirror) -> MirrorPlacementData.MirrorKind:
+	return (
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+		if mirror != null and mirror.is_projectile_reflector()
+		else MirrorPlacementData.MirrorKind.COPY
+	)
+
+
+func _get_reflection_scheduling_definition() -> MirrorDefinition:
+	if copy_mirror_definition != null and copy_mirror_definition.reflection_enabled:
+		return copy_mirror_definition
+	if reflect_mirror_definition != null and reflect_mirror_definition.reflection_enabled:
+		return reflect_mirror_definition
+	return null
+
+
+func get_copy_mirrors() -> Array[CopyMirror]:
+	var result: Array[CopyMirror] = []
+	for mirror in get_mirrors():
+		if mirror.is_copy_mirror():
+			result.append(mirror)
+	return result
+
+
+func get_reflect_mirrors() -> Array[ReflectMirror]:
+	var result: Array[ReflectMirror] = []
+	for mirror in get_mirrors():
+		if mirror is ReflectMirror and mirror.is_projectile_reflector():
+			result.append(mirror as ReflectMirror)
+	return result
+
+
+## Returns the first active-face intersection on the finite mirror rectangle.
+## Result keys: hit, position, normal, distance, mirror, epsilon,
+## max_reflections_per_frame.
+func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
+	var result := {
+		"hit": false,
+		"position": end,
+		"normal": Vector3.ZERO,
+		"distance": start.distance_to(end),
+		"mirror": null,
+		"epsilon": 0.0001,
+		"max_reflections_per_frame": 1,
+	}
+	var segment := end - start
+	var segment_length := segment.length()
+	if segment_length <= 0.000001:
+		return result
+	var best_fraction := INF
+	for mirror in get_reflect_mirrors():
+		var definition := mirror.definition as ReflectMirrorDefinition
+		if definition == null:
+			continue
+		var normal := mirror.get_active_normal()
+		var denominator := segment.dot(normal)
+		# The active side faces along +normal. Back-face travel passes through.
+		if denominator >= -0.000001:
+			continue
+		var signed_start := (start - mirror.global_position).dot(normal)
+		if signed_start < -0.000001:
+			continue
+		var fraction := -signed_start / denominator
+		if fraction <= 0.000001 or fraction > 1.0 or fraction >= best_fraction:
+			continue
+		var hit_position := start + segment * fraction
+		var endpoints := mirror.get_axis_endpoints()
+		if endpoints.size() != 2:
+			continue
+		var edge := endpoints[1] - endpoints[0]
+		var edge_length_squared := edge.length_squared()
+		if edge_length_squared <= 0.000001:
+			continue
+		var along_edge := (hit_position - endpoints[0]).dot(edge) / edge_length_squared
+		if along_edge < -0.0001 or along_edge > 1.0001:
+			continue
+		var base_height := mirror.global_position.y
+		if hit_position.y < base_height - 0.0001 or hit_position.y > base_height + mirror.get_mirror_height() + 0.0001:
+			continue
+		best_fraction = fraction
+		result.hit = true
+		result.position = hit_position
+		result.normal = normal
+		result.distance = segment_length * fraction
+		result.mirror = mirror
+		result.epsilon = maxf(0.0001, _grid.cell_size * definition.collision_epsilon_ratio)
+		result.max_reflections_per_frame = definition.max_reflections_per_frame
 	return result
 
 func get_projections(cell: Variant = null) -> Array[MirrorProjection]:
@@ -363,17 +579,43 @@ func resolve_projected_navigation_blocker(cell: Vector3i, target: Node = null) -
 	return null
 
 func update_preview(from_cell: Vector3i, edge_index: int) -> bool:
-	var validation := validate_placement(from_cell, edge_index, false)
+	return _update_mirror_preview(from_cell, edge_index, MirrorPlacementData.MirrorKind.COPY)
+
+
+func update_reflect_preview(from_cell: Vector3i, edge_index: int) -> bool:
+	return _update_mirror_preview(
+		from_cell,
+		edge_index,
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+	)
+
+
+func _update_mirror_preview(
+	from_cell: Vector3i,
+	edge_index: int,
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> bool:
+	var validation := validate_placement(from_cell, edge_index, false, mirror_kind)
 	if not validation.failure.is_empty():
 		clear_preview()
 		return false
 	var edge_id: String = validation.edge_id
-	if _preview_mirror == null or _preview_mirror.edge_id != edge_id or _preview_mirror.from_cell != from_cell:
+	if (
+		_preview_mirror == null
+		or _preview_mirror.edge_id != edge_id
+		or _preview_mirror.from_cell != from_cell
+		or _preview_kind != mirror_kind
+	):
 		clear_preview()
-		_preview_mirror = CopyMirror.new()
+		_preview_kind = mirror_kind
+		_preview_mirror = (
+			ReflectMirror.new()
+			if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+			else CopyMirror.new()
+		)
 		add_child(_preview_mirror)
 		_preview_mirror.configure(
-			copy_mirror_definition,
+			_get_definition(mirror_kind),
 			from_cell,
 			validation.to_cell,
 			edge_index,
@@ -432,7 +674,7 @@ func rebuild_now() -> void:
 	if not feature_enabled or copy_mirror_definition == null or _grid == null or _tile_manager == null:
 		projections_rebuilt.emit(0)
 		return
-	var payloads := _calculate_projection_payloads(get_mirrors())
+	var payloads := _calculate_projection_payloads(get_copy_mirrors())
 	var stack_counts: Dictionary = {}
 	for payload in payloads:
 		if not payload.is_source_valid():
@@ -472,6 +714,8 @@ func _calculate_projection_payloads(
 		var next: Array[MirrorCopyPayload] = []
 		var claimed_targets: Dictionary = {}
 		for mirror in mirrors:
+			if not mirror.is_copy_mirror():
+				continue
 			var group := _build_projection_group(mirror, content, claimed_targets)
 			if not group.is_empty():
 				claimed_targets[group[0].projected_cell] = true
@@ -585,6 +829,22 @@ func _refresh_preview_projection() -> void:
 	_clear_preview_projections()
 	if _preview_mirror == null or not is_instance_valid(_preview_mirror):
 		return
+	if not _preview_mirror.is_copy_mirror():
+		_preview_mirror.set_preview_valid(true)
+		_preview_info = {
+			"edge_id": _preview_mirror.edge_id,
+			"active_cell": _preview_mirror.get_active_cell(),
+			"has_source": false,
+			"source_cell": Vector3i.ZERO,
+			"target_cell": Vector3i.ZERO,
+			"types": [],
+			"valid": true,
+			"failure": "",
+			"warning": "生效面将按入射角反射我方投射物",
+			"mirror_kind": MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT,
+		}
+		preview_updated.emit(_preview_info)
+		return
 	var content := _build_base_content_map()
 	for projection in _projections:
 		if projection.payload != null and projection.payload.is_source_valid():
@@ -603,6 +863,7 @@ func _refresh_preview_projection() -> void:
 		"valid": preview_valid,
 		"failure": connectivity_failure,
 		"warning": connectivity_failure if not preview_valid else ("未找到可复制的非空地块，仍可放置" if group.is_empty() else ""),
+		"mirror_kind": MirrorPlacementData.MirrorKind.COPY,
 	}
 	var stack_index := 0
 	for payload in group:
@@ -653,11 +914,14 @@ func _clear_preview_projections() -> void:
 	_preview_projections.clear()
 
 func _update_reflection_views() -> void:
-	if not feature_enabled or copy_mirror_definition == null or not copy_mirror_definition.reflection_enabled:
+	if not feature_enabled:
 		return
 	if _reflection_camera == null or not is_instance_valid(_reflection_camera):
 		return
-	var interval := maxi(1, copy_mirror_definition.reflection_update_interval_frames)
+	var scheduling_definition := _get_reflection_scheduling_definition()
+	if scheduling_definition == null or not scheduling_definition.reflection_enabled:
+		return
+	var interval := maxi(1, scheduling_definition.reflection_update_interval_frames)
 	if Engine.get_process_frames() % interval != 0:
 		return
 	var candidates: Array[CopyMirror] = get_mirrors()
@@ -669,7 +933,7 @@ func _update_reflection_views() -> void:
 	_reflection_cursor %= candidates.size()
 	var updated := 0
 	var checked := 0
-	var maximum_updates := maxi(1, copy_mirror_definition.reflection_max_updates_per_frame)
+	var maximum_updates := maxi(1, scheduling_definition.reflection_max_updates_per_frame)
 	while checked < candidates.size() and updated < maximum_updates:
 		var index := (_reflection_cursor + checked) % candidates.size()
 		if candidates[index].request_reflection_refresh():
@@ -744,7 +1008,10 @@ func _on_copy_attack_triggered(
 			continue
 		var start := projection.payload.transform_point(world_start)
 		var end := projection.payload.transform_point(world_end)
-		if attack_kind == &"projectile" and projection.payload.copy_kind == &"arrow_tower":
+		if (
+			attack_kind == &"projectile"
+			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower"]
+		):
 			var projectile := MirrorProjectionProjectileScript.new()
 			_combat_manager.add_child(projectile)
 			projectile.configure(
@@ -757,7 +1024,31 @@ func _on_copy_attack_triggered(
 				building.get_projectile_length_world(),
 				building.get_projectile_width_world(),
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
-				building.get_projectile_model_asset()
+				building.get_projectile_model_asset(),
+				building.get_attack_range_world(),
+				Callable(self, "trace_projectile_reflection")
+			)
+			attack_mirrored.emit(projection, attack_kind)
+		elif (
+			attack_kind == &"directional_projectile"
+			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower"]
+		):
+			var directional_projectile := MirrorProjectionProjectileScript.new()
+			_combat_manager.add_child(directional_projectile)
+			directional_projectile.configure(
+				_combat_manager,
+				building,
+				start,
+				end,
+				building.get_projectile_speed_world(),
+				damage,
+				building.get_projectile_length_world(),
+				building.get_projectile_width_world(),
+				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
+				building.get_projectile_model_asset(),
+				building.get_attack_range_world(),
+				Callable(self, "trace_projectile_reflection"),
+				true
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"laser" and projection.payload.copy_kind == &"laser_tower":
@@ -836,6 +1127,10 @@ func _disconnect_dependencies() -> void:
 	_disconnect_stuff_manager()
 	if copy_mirror_definition != null and copy_mirror_definition.changed.is_connected(_on_definition_changed):
 		copy_mirror_definition.changed.disconnect(_on_definition_changed)
+	if reflect_mirror_definition != null and reflect_mirror_definition.changed.is_connected(_on_definition_changed):
+		reflect_mirror_definition.changed.disconnect(_on_definition_changed)
+	if _combat_manager != null:
+		_combat_manager.clear_projectile_reflection_resolver(self)
 	if _building_manager != null:
 		if _building_manager.building_placed.is_connected(_on_building_placed):
 			_building_manager.building_placed.disconnect(_on_building_placed)

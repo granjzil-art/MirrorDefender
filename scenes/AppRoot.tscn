@@ -1,14 +1,14 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://krqlpsf4b8bq"]
 
-[ext_resource type="Script" path="res://scripts/AppFlowController.gd" id="1_flow"]
-[ext_resource type="Resource" path="res://resources/level_select/LevelSelectCatalog.tres" id="2_catalog"]
+[ext_resource type="Script" uid="uid://xfgudtctenvs" path="res://scripts/AppFlowController.gd" id="1_flow"]
+[ext_resource type="Resource" uid="uid://b3kbx3o8wr22k" path="res://resources/level_select/LevelSelectCatalog.tres" id="2_catalog"]
 [ext_resource type="PackedScene" path="res://scenes/ui/LevelSelectView.tscn" id="3_level_select"]
-[ext_resource type="PackedScene" path="res://scenes/Main.tscn" id="4_main"]
+[ext_resource type="PackedScene" uid="uid://chkiy3o3pw5ut" path="res://scenes/Main.tscn" id="4_main"]
 
-[node name="AppRoot" type="Node"]
+[node name="AppRoot" type="Node" unique_id=206321213]
 script = ExtResource("1_flow")
 level_select_catalog = ExtResource("2_catalog")
 level_select_scene = ExtResource("3_level_select")
 main_scene = ExtResource("4_main")
 
-[node name="Content" type="Node" parent="."]
+[node name="Content" type="Node" parent="." unique_id=295768698]

@@ -15,12 +15,14 @@ signal time_scale_changed(scale: float)
 signal tactical_slow_enabled_changed(enabled: bool)
 signal fast_enabled_changed(enabled: bool)
 signal paused_changed(paused: bool)
+signal authoring_pause_changed(paused: bool)
 
 var _interaction: RuntimeInteractionControllerScript
 var _building_manager: BuildingManager
 var _mirror_manager: MirrorManager
 var _fast_enabled: bool = false
 var _paused: bool = false
+var _authoring_paused: bool = false
 var _applied_scale: float = 1.0
 
 
@@ -88,6 +90,18 @@ func is_paused() -> bool:
 	return _paused
 
 
+func set_authoring_paused(paused: bool) -> void:
+	if _authoring_paused == paused:
+		return
+	_authoring_paused = paused
+	authoring_pause_changed.emit(paused)
+	_refresh_scale()
+
+
+func is_authoring_paused() -> bool:
+	return _authoring_paused
+
+
 func get_effective_scale() -> float:
 	return _applied_scale
 
@@ -95,14 +109,18 @@ func get_effective_scale() -> float:
 func reset_runtime_state() -> void:
 	var fast_changed := _fast_enabled
 	var pause_changed := _paused
+	var authoring_pause_changed_value := _authoring_paused
 	_fast_enabled = false
 	_paused = false
+	_authoring_paused = false
 	_applied_scale = 1.0
 	Engine.time_scale = 1.0
 	if fast_changed:
 		fast_enabled_changed.emit(false)
 	if pause_changed:
 		paused_changed.emit(false)
+	if authoring_pause_changed_value:
+		authoring_pause_changed.emit(false)
 	time_scale_changed.emit(1.0)
 
 
@@ -116,7 +134,7 @@ func has_tactical_context() -> bool:
 
 func _refresh_scale() -> void:
 	var resolved := 1.0
-	if _paused:
+	if _paused or _authoring_paused:
 		resolved = 0.0
 	elif tactical_slow_enabled and has_tactical_context():
 		resolved = clampf(tactical_slow_scale, 0.01, 1.0)

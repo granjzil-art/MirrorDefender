@@ -4,7 +4,7 @@
 
 ## 职责
 
-- 以 `LevelResource` 描述网格、地块、经济、据点、路径、波次、HUD 槽位和镜头预设，使新增正式关卡无需修改运行时代码。
+- 以 `LevelResource` 描述网格、地块、关卡元素、初始建筑/复制镜陈列、经济、据点、路径、波次、HUD 槽位、镜头预设和可选灯光方案，使新增正式关卡无需修改运行时代码。
 - 以 `LevelLoader` 作为**唯一局内装配事务入口**，保证非法/失败加载不留下半装配状态。
 - 以 `LevelSelectCatalog -> LevelSelectPageDefinition -> LevelResource` 显式维护正式上架目录、页面顺序和每页固定六槽顺序。
 - 以持久 `AppFlowController` 管理“启动选关 -> 候选 Main 首载 -> 提交局内 -> 退出返回选关”的程序生命周期。
@@ -12,7 +12,8 @@
 
 ## 分类 / 做法
 
-- **LevelResource**：统一保存关卡静态配置。`validate_runtime()` 只读校验网格、地块、经济、据点、路径、出生点、波次、敌人、HUD 卡槽和镜头预设，不保存、不修复资源。
+- **LevelResource**：统一保存关卡静态配置。`validate_runtime()` 只读校验网格、地块、初始建筑/镜子结构与占用、经济、据点、路径、出生点、波次、敌人、HUD 卡槽、镜头预设和可选 `lighting_profile`，不保存、不修复资源。
+- **初始陈列**：`initial_building_placements` 保存真实建筑 Definition、格/边、逻辑朝向和等级；`initial_mirror_placements` 保存镜子种类（复制/投射物反射）、真实边与生效侧。Main 成功加载关卡后先恢复建筑、再按数组顺序恢复镜子；初始对象不扣资源但计入共享镜子 cap。
 - **运行时原子加载**：`LevelLoader.load_level()` 在改动 Grid/Tile 前完成预检；TileManager 若意外拒绝，恢复旧 Grid，并保留旧 Tile/current level。成功后才广播 `level_loaded`，由 Main 重建其余 Manager。
 - **正式目录**：`LevelSelectCatalog.pages` 是页面作者顺序；每项是 `LevelSelectPageDefinition`。目录校验只报告空页、重复页、跨页重复关卡和页面错误，不改写数组。
 - **固定六槽页面**：`LevelSelectPageDefinition.SLOT_COUNT = 6`。`levels[0..5]` 是槽位作者顺序；null 是合法空槽，必须保留位置，不压缩、不自动填充。超过六项是配置错误。
@@ -39,12 +40,15 @@
 | LevelResource.`tiles` | `[]` | 按每项 `cell` 唯一的序列化地块数组。 |
 | LevelResource.`initial_resource` | 200 | 切入关卡时主资源。 |
 | LevelResource.`building_cap/mirror_cap` | `20 / 6` | 实体建筑与实体镜子上限。 |
+| LevelResource.`initial_building_placements` | `[]` | 开局真实建筑的 Definition、格/边、逻辑朝向和等级。 |
+| LevelResource.`initial_mirror_placements` | `[]` | 开局实体镜子的 `mirror_kind`、边与生效侧；数组顺序同时保持复制镜链装配顺序。 |
 | LevelResource.`base_resource_per_second` | 0.5 | 关卡基础每秒资源。 |
 | LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；复制镜独立。 |
 | LevelResource.`base_points/base_max_hp` | `[] / 100` | 多个据点位置共享一份生命。 |
 | LevelResource.`base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 空时只读映射为据点 1。 |
 | LevelResource.`paths/spawn_points/waves` | `[]` | 本关路径、独立出生点和作者顺序波次。 |
 | LevelResource.`camera_presets` | `[]` | 最多六个可空机位；索引 0～5 对应数字键 1～6。 |
+| LevelResource.`lighting_profile` | `null` | 可选关卡灯光方案；空值使用 Main 注入的默认白色柔光。 |
 | LevelSelectPageDefinition.`SLOT_COUNT` | 6 | 每页固定六槽，非可调分页大小。 |
 | LevelSelectPageDefinition.`display_name` | `""` | 页面标题；空值回退“第 N 页”。 |
 | LevelSelectPageDefinition.`levels` | `[]` | 作者槽位顺序；null 表示可见空槽。 |
@@ -62,6 +66,9 @@
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 全部关卡静态配置与只读运行时校验。 |
+| `scripts/level/InitialLayoutValidator.gd` | `InitialLayoutValidator` / `RefCounted` | 初始建筑/镜子的 Definition、边界、方向、权限、cap、同格和同边冲突只读校验。 |
+| `scripts/building/BuildingPlacementData.gd` | `BuildingPlacementData` / `Resource` | 单个初始真实建筑快照。 |
+| `scripts/mirror/MirrorPlacementData.gd` | `MirrorPlacementData` / `Resource` | 单个初始实体镜子的种类、边与生效侧快照；旧资源默认复制镜。 |
 | `scripts/level/LevelLoader.gd` | `LevelLoader` / `Node` | **唯一局内装配入口**；预检、Grid/Tile 原子安装、重载和结果信号。 |
 | `scripts/level/LevelSelectCatalog.gd` | `LevelSelectCatalog` / `Resource` | 正式页面作者顺序与跨页只读校验。 |
 | `scripts/level/LevelSelectPageDefinition.gd` | `LevelSelectPageDefinition` / `Resource` | 一页固定六槽、页面名和页内只读校验。 |
@@ -84,6 +91,7 @@
 | `tests/level_select_test.gd` | 无 class_name / `SceneTree` | Catalog/Page 校验、页面/槽位顺序、空槽、翻页、信号与只读缩略图回归。 |
 | `tests/manual_wave_and_level_flow_test.gd` | 无 class_name / `SceneTree` | AppFlow 启动、首载提交/失败保留、退关、1x 恢复与直接 Main 兼容回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 选中关卡后的逐波状态与加载依赖回归。 |
+| `tests/initial_layout_persistence_test.gd` | 无 class_name / `SceneTree` | 全量保存、普通保存隔离、建筑/镜子字段往返、免付费重载和 cap 计数回归。 |
 | `tests/run_all_tests.ps1` | 无 class_name / PowerShell 脚本 | 全量入口已登记上述三个新增套件。 |
 
 ### 模块调用关系 / 数据流
@@ -93,10 +101,10 @@ project.godot run/main_scene
   -> AppRoot.tscn / AppFlowController (persistent)
   -> validate LevelSelectCatalog (read-only)
   -> LevelSelectView.configure(catalog)
-     -> Catalog.pages[page_index]
-     -> Page.levels[slot_index 0..5]
-     -> LevelSelectSlot.set_level(level or null)
-     -> LevelThumbnail.set_level(level) read-only draw
+	 -> Catalog.pages[page_index]
+	 -> Page.levels[slot_index 0..5]
+	 -> LevelSelectSlot.set_level(level or null)
+	 -> LevelThumbnail.set_level(level) read-only draw
 
 filled valid slot click
   -> LevelSelectView.level_selected(level)
@@ -106,18 +114,21 @@ filled valid slot click
   -> Main.configure_startup_level(level)
   -> add hidden/process-disabled candidate to Content
   -> Main._ready()
-     -> LevelLoader.configure(GridManager, TileManager)
-     -> LevelLoader.load_level(selected level)
-        -> LevelResource.validate_runtime() read-only
-        -> GridManager.apply_configuration(...)
-        -> TileManager.load_level(level)
-        -> failure: restore previous Grid, preserve current level
-        -> success: LevelLoader.level_loaded(level, source_path)
-           -> Main rebuilds Resource/Combat/Path/Base/Wave/HUD/Camera systems
-     -> Main.startup_level_load_resolved(success, reason)
+	 -> LevelLoader.configure(GridManager, TileManager)
+	 -> LevelLoader.load_level(selected level)
+		-> LevelResource.validate_runtime() read-only
+		-> GridManager.apply_configuration(...)
+		-> TileManager.load_level(level)
+		-> failure: restore previous Grid, preserve current level
+		-> success: LevelLoader.level_loaded(level, source_path)
+		   -> Main rebuilds Resource/Combat/Path systems
+		   -> BuildingManager.load_initial_placements (免付费、计入 cap)
+		   -> MirrorManager.load_initial_placements (按数组顺序、免付费、计入 cap)
+		   -> Main rebuilds Base/Wave/HUD/Camera systems
+	 -> Main.startup_level_load_resolved(success, reason)
   -> AppFlowController deferred commit
-     -> success: free LevelSelectView, enable/show Main
-     -> failure: free candidate Main, keep current LevelSelectView
+	 -> success: free LevelSelectView, enable/show Main
+	 -> failure: free candidate Main, keep current LevelSelectView
 
 right WaveControlPanel restart / PauseMenu restart
   -> RuntimeHud.restart_level_requested
@@ -128,10 +139,10 @@ right WaveControlPanel restart / PauseMenu restart
 right WaveControlPanel exit / PauseMenu exit
   -> RuntimeHud.exit_level_requested
   -> Main.prepare_for_level_transition()
-     -> RuntimeHud.prepare_for_level_transition()
-     -> close console/pause, clear wave/path preview
-     -> GameTimeController.reset_runtime_state()
-     -> Engine.time_scale = 1.0
+	 -> RuntimeHud.prepare_for_level_transition()
+	 -> close console/pause, clear wave/path preview
+	 -> GameTimeController.reset_runtime_state()
+	 -> Engine.time_scale = 1.0
   -> Main.return_to_level_select_requested()
   -> AppFlowController.return_to_level_select()
   -> deferred free Main
@@ -142,6 +153,14 @@ F1 load / LevelDebugPanel
   -> LevelLoader.load_level_path(path)
   -> same validation and installation transaction
   -> does not modify Catalog or unlock state
+
+RuntimeStuffEditorPanel 全量保存
+  -> RuntimeStuffEditSession.save("", true)
+  -> StuffManager.export_placements()
+  -> BuildingManager.export_initial_placements()
+  -> MirrorManager.export_initial_placements()
+  -> LevelResource duplicate + validate_runtime()
+  -> ResourceSaver.save(res:// editor or user:// exported runtime)
 ```
 
 ## 函数索引
@@ -159,6 +178,7 @@ F1 load / LevelDebugPanel
 | `LevelResource.get_path_by_id` | `(path_id: StringName) -> PathDefinition` | 按稳定 ID 返回本关路径。 |
 | `LevelResource.get_spawn_point` | `(spawn_id: StringName) -> SpawnPointDefinition` | 按稳定 ID 返回本关出生点。 |
 | `LevelResource.validate_runtime` | `() -> Array[String]` | 只读返回完整运行时配置错误；空数组表示可装配。 |
+| `InitialLayoutValidator.validate` | `(level: Resource, shape: IGridShape) -> Array[String]` | 校验初始建筑/镜子的配置、边界、方向、权限、cap 以及同格/同边占用。 |
 | `LevelLoader.configure` | `(grid_manager: GridManager, tile_manager: TileManager) -> void` | 注入原子装配依赖。 |
 | `LevelLoader.load_initial_level` | `() -> bool` | 直接 Main 兼容入口，加载 Inspector 初始关卡。 |
 | `LevelLoader.load_level` | `(level_resource: LevelResource, source_path: String = "") -> bool` | 预检并原子安装 Grid/Tile，成功后广播。 |
@@ -229,9 +249,12 @@ F1 load / LevelDebugPanel
 - LevelThumbnail 只读 LevelResource。稀疏格仅在绘制缓存中以默认地形表达，资源数组、兼容据点缓存、路径和端点都不被修改。
 - `tiles` 空间唯一键是 TileCellData.`cell`，数组顺序不代表空间顺序；TileManager 加载时克隆运行时对象，occupant/清障/运行时高度不写回资源。
 - `camera_presets` 索引 0～5 是镜头槽事实源；空数组/空元素均表示未配置，校验不填默认值。
+- `lighting_profile` 仅指定关卡首次加载的表现方案；空值是合法兼容状态，不在关卡资源中复制默认方案。
 - `paths/spawn_points/base_points/waves` 必须属于同一 LevelResource；路径方向恒为出生点到目标据点。
 - 波次在资源中仍按作者数组组织；现役运行时每波手动释放，`start_delay` 只按本波最小值归一，详见 Wave 文档。
 - 当前“持久化”仅包括 `RuntimeSettings` 的用户设置；没有关卡进度持久化。
+- 运行时作者“全量保存”是关卡配置导出，不是玩家进度存档：它写入当前 `grid_cells / ramp_placements / stuff_placements / initial_building_placements / initial_mirror_placements`。波次、路径、镜头、经济、敌人、耐久、冷却和虚像仍不从运行时状态反写。
+- 运行时 Terrain/Ramp 候选在 `LevelResource` 深副本上通过 `validate_runtime()` 后才允许预览/提交；保存旧关卡时会物化规范内容版本并清空旧 `tiles` 双重事实源。
 
 ## 已知限制 / 初版不做的部分
 

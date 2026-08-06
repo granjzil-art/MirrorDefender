@@ -3,6 +3,14 @@
 [ext_resource type="Script" uid="uid://cduluin1f63fj" path="res://scripts/tile/TileDefinition.gd" id="1_definition"]
 [ext_resource type="Resource" uid="uid://5hgy7c78xilg" path="res://resources/tile_effects/Spike.tres" id="2_effect"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+[ext_resource type="PackedScene" uid="uid://b4if1prkiv0id" path="res://assets/stuffs/Tree/tscn/tree_type_3_05.tscn" id="4_vyoso"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="5_qu14v"]
+
+[sub_resource type="Resource" id="Resource_1r64v"]
+script = ExtResource("5_qu14v")
+scene = ExtResource("4_vyoso")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Inspection_spike"]
 script = ExtResource("3_inspection")
@@ -25,3 +33,4 @@ allows_tile_building = false
 effect = ExtResource("2_effect")
 visual_kind = 1
 visual_color = Color(0.95, 0.28, 0.2, 1)
+element_model_asset = SubResource("Resource_1r64v")

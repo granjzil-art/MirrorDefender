@@ -81,13 +81,46 @@ func get_marker_labels() -> Array[String]:
 	return labels
 
 
-func _build_point_visual(base_point: Resource, level_resource: LevelResource) -> void:
+## Repositions existing base visuals without resetting shared HP or occupancy.
+func refresh_world_transforms() -> void:
+	if _grid == null or _tile_manager == null:
+		return
+	for index in range(mini(_marker_roots.size(), _base_cells.size())):
+		var marker_root := _marker_roots[index]
+		if marker_root != null and is_instance_valid(marker_root):
+			var base_cell := _base_cells[index]
+			marker_root.position = _grid.cell_to_world(base_cell) + Vector3(0.0, _tile_manager.get_world_height(base_cell), 0.0)
+
+
+func _build_point_visual(base_point: BasePointDefinition, level_resource: LevelResource) -> void:
 	var marker_root := Node3D.new()
-	marker_root.name = "BasePoint_%s" % str(base_point.get("base_id"))
+	marker_root.name = "BasePoint_%s" % str(base_point.base_id)
 	marker_root.position = _grid.cell_to_world(base_point.cell) + Vector3(0.0, _tile_manager.get_world_height(base_point.cell), 0.0)
 	add_child(marker_root)
 	_marker_roots.append(marker_root)
+	var model_asset := base_point.get_model_asset()
+	var visual_root := (
+		model_asset.instantiate_grounded_model(&"BasePointModel")
+		if model_asset != null
+		else null
+	)
+	if visual_root != null:
+		marker_root.add_child(visual_root)
+	else:
+		_build_point_fallback(marker_root)
+	var label := Label3D.new()
+	label.position.y = core_height + 0.32
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 28
+	label.text = level_resource.get_base_marker_label(base_point)
+	marker_root.add_child(label)
+	_labels.append(label)
+
+
+func _build_point_fallback(marker_root: Node3D) -> void:
 	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "BasePointFallback"
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 0.34
 	mesh.bottom_radius = 0.46
@@ -101,14 +134,6 @@ func _build_point_visual(base_point: Resource, level_resource: LevelResource) ->
 	material.emission_energy_multiplier = 1.3
 	mesh_instance.material_override = material
 	marker_root.add_child(mesh_instance)
-	var label := Label3D.new()
-	label.position.y = core_height + 0.32
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.font_size = 28
-	label.text = level_resource.get_base_marker_label(base_point)
-	marker_root.add_child(label)
-	_labels.append(label)
 
 func _emit_health_changed() -> void:
 	for label in _labels:

@@ -41,6 +41,7 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `scripts/terrain/RampPlacementData.gd` | `RampPlacementData` / `Resource` | 1:N多格连续斜坡的锚点、方向与占格计算。 |
 | `scripts/terrain/TerrainManager.gd` | `TerrainManager` / `Node3D` | 规范Grid/Ramp运行时副本、路径格派生、坡面高度/法线/射线查询。 |
 | `scripts/terrain/TerrainRenderer.gd` | `TerrainRenderer` / `Node3D` | 堆叠平地模型、实例化整段斜坡模型，并为缺失资产生成灰盒。 |
+| `scripts/terrain/RuntimeTerrainEditService.gd` | `RuntimeTerrainEditService` / `RefCounted` | 在隔离的 LevelResource 候选上执行运行时地形刷、高度刷、斜坡放置/旋转/移除与覆盖地形规则。 |
 | `scripts/level/LevelContentMigrationAdapter.gd` | `LevelContentMigrationAdapter` / `RefCounted` | 把旧Tile内容只读拆成Grid与Stuff，或显式写入规范数组。 |
 | `scripts/level/LevelContentValidator.gd` | `LevelContentValidator` / `RefCounted` | 校验层数、斜坡端点/占格/地形一致性和Stuff布局。 |
 | `scripts/level/LevelResource.gd` | `LevelResource` / `Resource` | 保存规范数组并暴露兼容快照入口。 |
@@ -58,6 +59,7 @@ Terrain Grid 只描述关卡的地表事实：格坐标、草地/沙地/水/泥�
 | `tests/terrain_runtime_test.gd` | 无 / `SceneTree` | 双网格坡面采样、Grid权限桥、平地/整坡模型实例化、灰盒回退、兼容高度与加载回滚回归。 |
 | `tests/terrain_stuff_editor_test.gd` | 无 / `SceneTree` | 地块页导入、独立工具、S1斜坡与分页边界回归。 |
 | `tests/grass_terrain_reference_test.gd` | 无 / `SceneTree` | 扫描全部关卡运行时快照，禁止任何草地绕过正式资源。 |
+| `tests/runtime_terrain_editor_test.gd` | 无 / `SceneTree` | 运行时地形/高度/斜坡预览、提交、旋转、历史和全量保存回归。 |
 | `tools/normalize_grass_level_resources.gd` | 无 / `SceneTree` | 批量把规范关卡中的内嵌草地别名保存为正式 `Grass.tres` 引用。 |
 
 ### 数据流
@@ -106,6 +108,14 @@ TerrainManager
 | `RampPlacementData.get_connection_layer_toward` | `(shape: IGridShape, outside_cell: Vector3i) -> int` | 返回朝指定外部相邻格暴露的高/低端表面层；侧边返回0。 |
 | `RampPlacementData.get_effective_terrain` | `(base_terrain: TerrainDefinition) -> TerrainDefinition` | 解析显式斜坡覆盖，空值时返回基底地形。 |
 | `TerrainManager.load_level` | `(level_resource: LevelResource) -> bool` | 构建隔离的规范运行时副本，全部成功后一次提交。 |
+| `TerrainManager.export_grid_cells` | `() -> Array[GridCellData]` | 返回与运行时状态脱离的完整地块快照。 |
+| `TerrainManager.export_ramp_placements` | `() -> Array[RampPlacementData]` | 返回与运行时状态脱离的完整斜坡快照。 |
+| `TerrainManager.replace_runtime_content` | `(grid_cells: Array, ramp_placements: Array) -> bool` | 完整校验后原子替换运行时 Terrain/Ramp，不改变当前关卡资源身份。 |
+| `RuntimeTerrainEditService.paint_terrain` | `(level: LevelResource, shape: IGridShape, cell: Vector3i, terrain: TerrainDefinition) -> Dictionary` | 修改平地地形；命中坡体时原子修改整段坡体的基底地形。 |
+| `RuntimeTerrainEditService.paint_layer` | `(level: LevelResource, shape: IGridShape, cell: Vector3i, layer_count: int) -> Dictionary` | 设置1～4层；命中坡体或破坏连接约束时拒绝候选。 |
+| `RuntimeTerrainEditService.place_ramp` | `(level: LevelResource, shape: IGridShape, anchor_cell: Vector3i, facing_index: int, run_length: int, base_layer: int, terrain_override: TerrainDefinition = null) -> Dictionary` | 按S1规则创建1:N斜坡并自动规约坡体、高低连接格。 |
+| `RuntimeTerrainEditService.rotate_ramp` | `(level: LevelResource, shape: IGridShape, ramp_id: StringName, step: int = 1) -> Dictionary` | 在候选文档中旋转整段斜坡并重新执行占格、连接与关卡校验。 |
+| `RuntimeTerrainEditService.remove_ramp` | `(level: LevelResource, ramp_id: StringName) -> Dictionary` | 只移除指定斜坡形状；不猜测并回滚作者原有平地层数。 |
 | `TerrainManager.get_grid_cell` | `(cell: Vector3i) -> GridCellData` | 返回当前运行时Terrain格。 |
 | `TerrainManager.get_world_height` | `(cell: Vector3i) -> float` | 返回平地或斜坡格中心的表面Y。 |
 | `TerrainManager.sample_surface_height` | `(cell: Vector3i, world_position: Vector3) -> float` | 返回任意XZ点的真实平面坡高。 |
@@ -144,6 +154,8 @@ TerrainManager
 - `RampPlacementData` 是斜坡体素约束的事实源：坡体Grid层恒为自身`base_layer`；连接端是平地时，低端规约为`base_layer`、高端规约为`base_layer + 1`。连接端被另一段斜坡占据时，不改写对方坡体层，而是比较双方共享物理边的表面层。
 - 连续斜坡仅允许高/低端完整共享边且表面层相同；高接低、低接高、高接高（山脊）或低接低（谷底）均按共享边层判断。接到另一斜坡侧边、共享边层数不一致、坡体重叠或越界仍为非法。
 - 创建、载入编辑器和保存前共用上述规约；斜坡坡体和仍为平地的连接格在斜坡存在期间不可手工修改层数。
+- 运行时地形预览不是独立近似模型：候选先在隔离关卡副本中执行规则和完整校验，再临时装配到 `TerrainManager`，因此平地堆叠、材质、斜坡模型和方向与点击提交后的结果完全一致。取消、移出地图或切换工具会恢复最后一次已提交快照。
+- 运行时地形、层数和斜坡与 Stuff 共用一条撤销/重做历史；只有“全量保存”写入 `grid_cells / ramp_placements`。“保存元素”继续保持 Stuff-only 语义，并在存在 Terrain/Ramp 修改时显式拒绝。
 - 正方形坡向使用4条边，六边形使用6条边。Stuff朝向仍按关卡建筑朝向约定使用正方形8向、六边形6向。
 - 平地模型槽表示“一个体素块”。运行时按单格 XZ 脚印求一个统一倍率，XYZ 同比缩放并把模型顶部对齐逻辑地表；不再将模型 Y 压缩或拉伸到目标层高。
 - 1:N斜坡模型槽表示横跨N格、从坡底升高一层的完整模型；本地 `+Z` 视为上坡方向。运行时按“一格宽 × N格长”的 XZ 脚印等比缩放，底部对齐逻辑坡底后按 `facing_index` 旋转。

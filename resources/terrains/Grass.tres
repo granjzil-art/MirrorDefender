@@ -1,9 +1,29 @@
-[gd_resource type="Resource" script_class="TerrainDefinition" format=3]
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://dfellj0a8eoec"]
 
-[ext_resource type="Script" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+[ext_resource type="PackedScene" uid="uid://63tw2dbaqn20" path="res://assets/blocks/tscn/grass_mud.tscn" id="1_685n4"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="1_h26tf"]
+[ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+[ext_resource type="PackedScene" uid="uid://b31tawv61ddk2" path="res://assets/Ramp/ramp/wood_ramp1.tscn" id="3_qwem4"]
+[ext_resource type="PackedScene" uid="uid://b15tgrp456e3e" path="res://assets/Ramp/ramp/wood_ramp2.tscn" id="4_685n4"]
+
+[sub_resource type="Resource" id="Resource_f2lvq"]
+script = ExtResource("1_h26tf")
+scene = ExtResource("1_685n4")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Resource_y0nv7"]
+script = ExtResource("1_h26tf")
+scene = ExtResource("3_qwem4")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Resource_cals5"]
+script = ExtResource("1_h26tf")
+scene = ExtResource("4_685n4")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_terrain")
-terrain_id = &"grass"
-display_name = "草地"
-fallback_color = Color(0.18, 0.6, 0.31, 1)
+flat_model_asset = SubResource("Resource_f2lvq")
+ramp_1_to_1_model_asset = SubResource("Resource_y0nv7")
+ramp_1_to_2_model_asset = SubResource("Resource_cals5")

@@ -1,14 +1,23 @@
-[gd_resource type="Resource" script_class="StuffDefinition" format=3]
+[gd_resource type="Resource" script_class="StuffDefinition" format=3 uid="uid://b24npe6p1xf4q"]
 
-[ext_resource type="Script" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
-[ext_resource type="Resource" path="res://resources/tile_effects/Rock.tres" id="2_effect"]
+[ext_resource type="Script" uid="uid://blu6reftyrrnp" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
+[ext_resource type="Resource" uid="uid://cwmyd2ct7p1i4" path="res://resources/tile_effects/Rock.tres" id="2_effect"]
+[ext_resource type="PackedScene" uid="uid://dtjsy0big8r5" path="res://assets/stuffs/Rock/tscn/rock_type_2_01.tscn" id="2_n6mpy"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_imsu7"]
+
+[sub_resource type="Resource" id="Resource_51e0x"]
+script = ExtResource("3_imsu7")
+scene = ExtResource("2_n6mpy")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_stuff")
 stuff_id = &"rock"
-display_name = "大石头障碍"
-blocks_tile_building = true
-blocks_edge_building = false
+display_name = "石头"
+enemy_navigation = 2
 effect = ExtResource("2_effect")
+durability_mode = 2
+max_durability = 500.0
 fallback_visual_kind = 4
 fallback_color = Color(0.08, 0.085, 0.09, 1)
+model_asset = SubResource("Resource_51e0x")

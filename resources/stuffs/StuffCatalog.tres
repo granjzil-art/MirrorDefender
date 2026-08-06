@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StuffCatalog" format=3 uid="uid://dwt57apte68h8"]
+
+[ext_resource type="Script" uid="uid://blu6reftyrrnp" path="res://scripts/stuff/StuffDefinition.gd" id="1_07apf"]
+[ext_resource type="Script" uid="uid://cxvt6mxva1nh3" path="res://scripts/stuff/StuffCatalog.gd" id="1_catalog"]
+[ext_resource type="Resource" uid="uid://b24npe6p1xf4q" path="res://resources/stuffs/Rock.tres" id="2_rock"]
+[ext_resource type="Resource" uid="uid://dtew6at2l0e6t" path="res://resources/stuffs/Spike.tres" id="3_spike"]
+[ext_resource type="Resource" uid="uid://cdnq2ad22utt3" path="res://resources/stuffs/Tree.tres" id="4_tree"]
+[ext_resource type="Resource" uid="uid://cm764hx48k3qu" path="res://resources/stuffs/Void.tres" id="5_void"]
+[ext_resource type="Resource" uid="uid://dqjoiy4darp0l" path="res://resources/stuffs/stuff.tres" id="6_thb7v"]
+[ext_resource type="Resource" uid="uid://d3u7f5raq44wc" path="res://resources/stuffs/highstone.tres" id="7_0t3u7"]
+[ext_resource type="Resource" uid="uid://c7p00e6mm8rvn" path="res://resources/stuffs/tree1.tres" id="8_0t3u7"]
+
+[resource]
+script = ExtResource("1_catalog")
+definitions = Array[ExtResource("1_07apf")]([ExtResource("2_rock"), ExtResource("3_spike"), ExtResource("4_tree"), ExtResource("5_void"), ExtResource("6_thb7v"), ExtResource("7_0t3u7"), ExtResource("8_0t3u7")])

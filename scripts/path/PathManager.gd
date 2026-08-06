@@ -45,6 +45,11 @@ func load_level(level_resource: LevelResource) -> void:
 	_rebuild_visuals()
 	paths_loaded.emit(_level)
 
+
+## Rebuilds height-dependent paths and spawn markers without replacing data.
+func refresh_surface_positions() -> void:
+	_rebuild_visuals()
+
 func get_path_definition(path_id: StringName) -> PathDefinition:
 	if not _path_index.has(path_id):
 		return null
@@ -253,7 +258,28 @@ func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
 	marker_root.name = "SpawnPoint_%s" % str(spawn_point.spawn_id)
 	marker_root.position = get_cell_world_position(spawn_point.cell)
 	_marker_root.add_child(marker_root)
+	var model_asset := spawn_point.get_model_asset()
+	var visual_root := (
+		model_asset.instantiate_grounded_model(&"SpawnPointModel")
+		if model_asset != null
+		else null
+	)
+	if visual_root != null:
+		marker_root.add_child(visual_root)
+	else:
+		_build_spawn_fallback(marker_root)
+	var label := Label3D.new()
+	label.position = Vector3(0.0, 0.72, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 26
+	label.text = _level.get_spawn_marker_label(spawn_point) if _level != null else spawn_point.display_name
+	marker_root.add_child(label)
+
+
+func _build_spawn_fallback(marker_root: Node3D) -> void:
 	var marker := MeshInstance3D.new()
+	marker.name = "SpawnPointFallback"
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 0.18
 	mesh.bottom_radius = 0.25
@@ -268,10 +294,3 @@ func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
 	material.emission_energy_multiplier = 1.2
 	marker.material_override = material
 	marker_root.add_child(marker)
-	var label := Label3D.new()
-	label.position = Vector3(0.0, 0.72, 0.0)
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.font_size = 26
-	label.text = _level.get_spawn_marker_label(spawn_point) if _level != null else spawn_point.display_name
-	marker_root.add_child(label)

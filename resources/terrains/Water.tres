@@ -1,9 +1,17 @@
-[gd_resource type="Resource" script_class="TerrainDefinition" format=3]
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://cnktdqpik6fsj"]
 
-[ext_resource type="Script" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="1_p5s1k"]
+[ext_resource type="PackedScene" uid="uid://daitlmmo0k8nr" path="res://assets/blocks/tscn/water_2.tscn" id="1_t8vo5"]
+[ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+
+[sub_resource type="Resource" id="Resource_otw57"]
+script = ExtResource("1_p5s1k")
+scene = ExtResource("1_t8vo5")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_terrain")
 terrain_id = &"water"
 display_name = "水"
 fallback_color = Color(0.18, 0.48, 0.76, 1)
+flat_model_asset = SubResource("Resource_otw57")

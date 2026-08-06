@@ -141,6 +141,10 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	reflection_camera.global_position = grid.cell_to_world(Vector3i(2, 2, 0)) + Vector3(0.0, 4.0, 3.0)
 	reflection_camera.look_at(mirror.global_position + Vector3.UP * 0.35)
 	reflection_camera.current = true
+	var source_camera_attributes := CameraAttributesPractical.new()
+	source_camera_attributes.dof_blur_near_enabled = true
+	source_camera_attributes.dof_blur_far_enabled = true
+	reflection_camera.attributes = source_camera_attributes
 	mirror_manager.set_reflection_camera(reflection_camera)
 	_expect(mirror.get_reflection_surface() != null and mirror.get_reflection_surface().mesh is QuadMesh, "copy mirror active face owns a dedicated reflection surface")
 	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99, "reflection surface front normal follows the configured active side")
@@ -149,6 +153,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(surface_depth_offset > mirror.get_mirror_thickness() * 0.5, "reflection surface stays outside the mirror body at distant depth precision")
 	_expect(mirror.request_reflection_refresh(), "visible active mirror face schedules one shared-world reflection refresh")
 	_expect(mirror.get_reflection_camera() != null and mirror.get_reflection_camera().projection == reflection_camera.projection, "reflection camera copies the source projection without an extreme off-axis frustum")
+	_expect(mirror.get_reflection_camera().attributes == null, "reflection capture excludes final-view depth of field")
 	var source_forward: Vector3 = -reflection_camera.global_basis.z.normalized()
 	var expected_reflected_forward: Vector3 = source_forward - 2.0 * source_forward.dot(mirror.get_active_normal()) * mirror.get_active_normal()
 	var actual_reflected_forward: Vector3 = -mirror.get_reflection_camera().global_basis.z.normalized()

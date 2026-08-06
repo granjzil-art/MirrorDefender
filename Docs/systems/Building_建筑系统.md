@@ -1,6 +1,6 @@
 # 建筑系统 · Building
 
-> 实现状态：已完成箭塔、激光塔与屏障、三级完整参数、放置虚影、升级、逐级外观/产出、配置化目标追踪转向，以及屏障耐久、脱战回血和反伤。
+> 实现状态：已完成箭塔、弩箭塔、激光塔与屏障、三级完整参数、36档自由朝向、放置虚影、升级、逐级外观/产出、配置化目标追踪/无目标直射、选中范围与占地提示、初始陈列持久化，以及屏障耐久、脱战回血和反伤。
 
 ## 职责
 
@@ -11,7 +11,8 @@
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
 - **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑右侧详情中的显示名称、功能说明、对象可见性和字段行；不参与建筑玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
-- **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
+- **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
+- **弩箭塔 / 分级开火模式**：`BuildingLevelStats.projectile_fire_mode` 逐级选择 `TARGET_ONLY` 或 `TARGET_OR_FACING`。后者有目标时完全复用箭塔的锁定、射程和追踪投射物；索敌范围内没有目标时仍按攻击频率沿逻辑朝向发射直线弹道，沿途命中第一个适用敌人。弩箭塔三等级默认启用；箭塔三级示范解锁。
 - **激光塔**：不索敌，使用 `FIXED_FACING`，沿玩家手动设置的世界朝向在 `attack_range` 内持续命中线段上的全部目标，按帧结算 DPS。
 - **空中适用性**：每级 `affects_airborne` 统一控制箭塔候选、激光线段伤害、屏障阻挡与反伤是否作用于飞行敌人；升级切换到新等级自己的配置。
 - **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
@@ -24,18 +25,21 @@
 - **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；实例会先把可视底部中心自动接地，再保留当前等级 Scale。`projectile_model_asset` 则精确拟合到该级的子弹长度/宽度。未指定时继续使用 `tower_color/attack_color` 灰盒。
 - **卡片美术替换**：`BuildingDefinition.card_icon` 是 M6 正式卡槽的可选 `Texture2D` 接口；未配置时 BuildCardBar 使用建筑名首字灰盒，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
-- **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。
+- **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。键盘 `R` 按下立即旋转 10°，持续按住则按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
 - **删除退款**：每级 `refund_amount` 是删除该级建筑时的精确返还额。默认数值约为累计建造/升级投入的 50%，但不从费用自动推导。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
+- **关卡初始建筑**：`BuildingPlacementData` 保存 Definition、格/边、逻辑朝向和等级。`BuildingManager.export_initial_placements()` 只导出真实建筑；加载时不扣 `initial_resource`，但注册建筑上限、恢复产出并继续使用正常删除/升级/战斗规则。初始陈列属于作者数据，静态预检通过后不重复执行玩家封路守卫。
 - **正式单次放置**：BuildingManager 仍维持通用“放置后选中”兼容行为；M6 `RuntimeInteractionController` 在卡片放置完成后立即清除该选择，并让成功/失败统一回 `SELECT`。其他调试或测试入口不受此 UI 规则反向耦合。
 - **移除事务**：主动删除、战斗摧毁、切关清理和外部 `queue_free()` 共用幂等释放路径，统一解除信号、清除字典/地块占位、释放建筑上限、选择和产出；同一建筑不会重复退款或重复注销。
-- **逻辑朝向与视觉朝向**：HEX 逻辑朝向为 6 档、SQUARE 为 8 档，不读取相机 yaw。`FIXED_FACING` 的逻辑和模型都跟随 `facing_index`；`TRACK_TARGET` 只在此基础上转动 `_visual_root` 追踪当前目标，失去目标后保持最后视觉朝向。
+- **逻辑朝向与视觉朝向**：所有块建筑的自由逻辑朝向统一为 36 档，每档 10°，不读取相机 yaw；边建筑仍严格沿关卡物理边，保留 HEX 6 边 / SQUARE 4 边。`FIXED_FACING` 的逻辑和模型都跟随 `facing_index`；`TRACK_TARGET` 只在此基础上转动 `_visual_root` 追踪当前目标，失去目标后回到逻辑朝向。Stuff 与斜坡仍使用各自随网格的拓扑方向，不受建筑朝向升级影响。
+- **选中态世界 UI**：`BuildingSelectionVisualizer` 监听 BuildingManager 选择信号；对使用索敌的建筑绘制实际 `targeting_range` 圆形蓝色半透明面，对 `Building.get_occupied_cells()` 返回的每个占格绘制贴合地表的浅黄色半透明多边形。当前单格建筑返回一个格；接口允许后续多格占用直接扩展返回数组。
 
 ## 参数编辑入口
 
 在 Godot 检视面板打开：
 
 - `resources/buildings/ArrowTower.tres`
+- `resources/buildings/CrossbowTower.tres`
 - `resources/buildings/LaserTower.tres`
 - `resources/buildings/Barrier.tres`
 
@@ -68,6 +72,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | Defense | `regeneration_per_second` | 脱战后的每秒耐久恢复量，0 表示不回血。 |
 | Defense | `damage_reflection_ratio` | 按实际承伤反射给攻击者的比例，范围 0~1。 |
 | Projectile | `projectile_speed` | 单发投射物速度，单位为格/秒。 |
+| Projectile | `projectile_fire_mode` | `TARGET_ONLY` 无目标停火；`TARGET_OR_FACING` 无目标时沿逻辑朝向持续直射。该字段逐等级独立配置。 |
 | Projectile | `projectile_length` | 短直线投射物长度，运行时下限 0.1，不会缩成点。 |
 | Projectile | `projectile_width` | 投射物宽度。 |
 | Projectile | `projectile_model_asset` | 建筑和对应复制体投射物共用的模型资产与运行时 Scale；为空使用短方块。 |
@@ -85,16 +90,19 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 |---|---|---|
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 一项建筑等级的完整可编辑参数。 |
 | `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名和最多三项等级数据。 |
+| `scripts/building/BuildingPlacementData.gd` | `BuildingPlacementData` / `Resource` | 一个开局真实建筑的 Definition、格/边、逻辑朝向和等级快照。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | BuildingDefinition/BuildingLevelStats 共用的有限数、范围、颜色和嵌套错误校验。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |
 | `scripts/building/BarrierDurability.gd` | `BarrierDurability` / `RefCounted` | 屏障耐久、升级保伤、脱战回血、反伤和耗尽信号。 |
 | `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | **建筑唯一入口**；放置事务、预览、升级、占用、选择、旋转、移除和产出汇总。 |
+| `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 只读绘制选中建筑的蓝色索敌范围和浅黄色占地格。 |
 | `resources/buildings/ArrowTower.tres` | `BuildingDefinition` | 箭塔三等级参数。 |
+| `resources/buildings/CrossbowTower.tres` | `BuildingDefinition` | 弩箭塔三等级参数及默认无目标直射模式。 |
 | `resources/buildings/LaserTower.tres` | `BuildingDefinition` | 激光塔三等级参数。 |
 | `resources/buildings/Barrier.tres` | `BuildingDefinition` | 屏障三等级耐久、回血、反伤与经济参数。 |
 | `scripts/combat/ArrowAttackStrategy.gd` | `ArrowAttackStrategy` / `IAttackStrategy` | 单目标冷却、射程校验和投射物发射。 |
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定方向线段、穿透查询与持续伤害。 |
-| `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 恒定短直线表现、追踪飞行、最大距离与命中结算。 |
+| `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 恒定短直线表现、首次镜面前追踪、镜面后直线多次反射、累计距离与命中结算。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 建造模式、升级按钮、预览/错误状态和经济摘要。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 将选中建筑上方世界坐标投影为删除、升级、旋转悬浮操作。 |
 
@@ -131,6 +139,7 @@ Select occupied cell
 Arrow Building._process
   -> acquire in targeting_range
 	-> aim_mode=TRACK_TARGET: rotate visual_root toward locked target
+	-> no target + TARGET_OR_FACING: spawn straight projectile along logical facing
   -> Building.affects_target filters airborne targets
   -> verify attack_range
   -> CombatManager.spawn_projectile
@@ -161,6 +170,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 
 ### Building.gd
 
+- `refresh_world_transform() -> void`：运行时 Terrain 预览/提交后只重新采样格心或共享边坡高，不重建等级、攻击、耐久和冷却状态。
+
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `configure` | `(definition: BuildingDefinition, cell: Vector3i, grid: GridManager, tiles: TileManager, combat: CombatManager, initial_level: int = 1, preview_mode: bool = false) -> void` | 注入依赖、定位并应用初始等级；预览模式禁用攻击。 |
@@ -176,8 +187,12 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `acquire_target` | `() -> CombatTarget` | 在当前级索敌范围内按优先级更新锁定目标。 |
 | `is_target_in_attack_range` | `(target: CombatTarget) -> bool` | 用独立攻击范围判断目标是否可发射。 |
 | `get_targeting_range_world` / `get_attack_range_world` | `() -> float` | 把格数范围转换为世界距离。 |
+| `uses_targeting_range` | `() -> bool` | 告诉只读选择表现该建筑是否实际使用圆形索敌候选范围。 |
 | `get_instant_damage` / `get_laser_damage_per_second` | `() -> float` | 用当前级三个乘区返回单发伤害或最终 DPS。 |
 | `launch_projectile` | `(target: CombatTarget, damage: float) -> Projectile` | 用当前级速度/尺寸/颜色/模型资产通过 CombatManager 发射。 |
+| `launch_directional_projectile` | `(damage: float) -> Projectile` | 沿逻辑朝向发射从起点即按线段碰撞的直线弹道，并通知复制镜同步攻击。 |
+| `fires_along_facing_without_target` | `() -> bool` | 读取当前级 `projectile_fire_mode`，不按建筑种类硬编码。 |
+| `get_occupied_cells` | `() -> Array[Vector3i]` | 返回当前建筑真实占格，供选择表现和未来多格建筑复用。 |
 | `get_projectile_model_asset` | `() -> ModelAssetDefinition` | 返回复制体投射物必须沿用的当前等级资产。 |
 | `get_action_anchor` | `() -> Vector3` | 返回悬浮操作按钮使用的建筑上方世界锚点。 |
 | `rotate_facing` / `set_facing_index` | `(step: int = 1) -> void` / `(value: int) -> void` | 更新世界固定离散朝向。 |
@@ -196,10 +211,14 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 
 ### BuildingManager.gd
 
+- `refresh_world_transforms() -> void`：批量转发现有实体与放置预览的表面位置刷新；不增删建筑、不扣费、不改变资源产出。
+
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `configure` | `(grid: GridManager, tiles: TileManager, resources: ResourceManager, combat: CombatManager) -> void` | 注入模块入口，并深度刷新 `.tres` 等级资源缓存。 |
 | `place_building` | `(cell: Vector3i, definition: BuildingDefinition, placement_facing: int = -1) -> Building` | 原子放置 1 级建筑并可继承预览朝向。 |
+| `export_initial_placements` | `() -> Array[BuildingPlacementData]` | 按稳定空间键导出全部真实建筑；排除预览与镜像虚像。 |
+| `load_initial_placements` | `(placements: Array) -> Array[String]` | 免建造费装配开局建筑并计入 cap；任一失败清理本批已装配实体。 |
 | `upgrade_selected` | `() -> bool` | 升级当前选择。 |
 | `upgrade_building` | `(building: Building) -> bool` | 扣下一等级费用、切换完整参数；失败回滚费用。 |
 | `update_preview` | `(cell: Vector3i, definition: BuildingDefinition) -> bool` | 在可建造空格创建/更新不占格虚影。 |

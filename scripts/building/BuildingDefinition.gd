@@ -12,6 +12,7 @@ enum Kind {
 	LASER_TOWER,
 	BARRIER,
 	EDGE_BARRIER,
+	CROSSBOW_TOWER,
 }
 
 enum PlacementSurface {
@@ -64,7 +65,7 @@ func is_configured() -> bool:
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	ConfigValidator.require_text(errors, "建筑显示名", display_name)
-	ConfigValidator.require_integer_range(errors, "建筑类型", kind, Kind.ARROW_TOWER, Kind.EDGE_BARRIER)
+	ConfigValidator.require_integer_range(errors, "建筑类型", kind, Kind.ARROW_TOWER, Kind.CROSSBOW_TOWER)
 	ConfigValidator.require_integer_range(
 		errors,
 		"放置表面",

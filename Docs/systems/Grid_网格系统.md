@@ -127,7 +127,8 @@ Main（场景装配）
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `get_geometry_tag` | `() -> StringName` | 从 `grid_shape` 派生 `hex` 或 `square`。 |
-| `get_tile_building_facing_count` | `() -> int` | 返回普通地块建筑方向数（HEX=6，SQUARE=8）。 |
+| `get_tile_building_facing_count` | `() -> int` | 返回块建筑36档自由朝向，每档10°，与网格形状无关。 |
+| `get_tile_content_facing_count` | `() -> int` | 返回网格绑定内容的作者方向数（HEX=6，SQUARE=8）；Stuff 使用此接口。 |
 | `get_edge_building_facing_count` | `() -> int` | 返回边建筑方向数（HEX=6，SQUARE=4）。 |
 
 ### GridRenderer.gd（Node3D · 纯表现层）
@@ -137,6 +138,7 @@ Main（场景装配）
 - `_ready()` → 建材质/实例；若编辑器已提供 `grid`，调用私有 `_connect_grid()` 完成订阅与首次重建。
 - `_rebuild_grid_lines() -> void`：遍历 `enumerate_cells` 用 `ImmediateMesh`(PRIMITIVE_LINES) 画所有格边线；空网格直接令 mesh 为 null，不调用零顶点 `surface_end()`。
 - `highlight_cell(cell: Vector3i, has: bool) -> void`：填充多边形高亮格（has=false 隐藏）。
+- 选中建筑的占地与索敌范围不复用鼠标悬停高亮，由 `BuildingSelectionVisualizer` 独立绘制，避免选择态覆盖 Hover 生命周期。
 - `highlight_edge(cell: Vector3i, edge_index: int, has: bool) -> void`：画抬高线段高亮边。
 - 私有：`_setup_materials` / `_make_unshaded(c) -> StandardMaterial3D` / `_setup_instances` / `_connect_grid() -> void`。
 

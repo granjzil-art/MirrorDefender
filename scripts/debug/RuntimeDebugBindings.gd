@@ -16,6 +16,7 @@ var _path_route_planner: PathRoutePlanner
 var _grid_manager: GridManager
 var _combat_manager: CombatManager
 var _mirror_manager: MirrorManager
+var _stuff_editor_controller: Node
 var _pick_provider: Callable
 
 
@@ -27,7 +28,8 @@ func configure(
 	path_route_planner: PathRoutePlanner,
 	grid_manager: GridManager,
 	combat_manager: CombatManager,
-	mirror_manager: MirrorManager
+	mirror_manager: MirrorManager,
+	stuff_editor_controller: Node = null
 ) -> void:
 	_level_loader = level_loader
 	_resource_manager = resource_manager
@@ -37,6 +39,7 @@ func configure(
 	_grid_manager = grid_manager
 	_combat_manager = combat_manager
 	_mirror_manager = mirror_manager
+	_stuff_editor_controller = stuff_editor_controller
 	command_registry = DebugCommandRegistryScript.new()
 	category_registry = DebugCategoryRegistryScript.new()
 	_register_categories()
@@ -91,6 +94,12 @@ func _register_commands() -> void:
 		"debug <list|set category on|off>",
 		"列出或切换调试分类",
 		Callable(self, "_command_debug")
+	)
+	command_registry.register_command(
+		&"stuff",
+		"stuff edit <on|off>",
+		"开启或关闭运行时关卡元素编辑",
+		Callable(self, "_command_stuff")
 	)
 
 
@@ -183,6 +192,17 @@ func _command_debug(arguments: Array[String]) -> Dictionary:
 			return _error("未知调试分类：%s" % arguments[1])
 		return _ok("%s = %s" % [category_id, enabled_value])
 	return _error("用法：debug list 或 debug set <category> <on|off>")
+
+
+func _command_stuff(arguments: Array[String]) -> Dictionary:
+	if arguments.size() != 2 or arguments[0] != "edit" or arguments[1] not in ["on", "off"]:
+		return _error("用法：stuff edit <on|off>")
+	if _stuff_editor_controller == null or not _stuff_editor_controller.has_method("set_active"):
+		return _error("运行时关卡元素编辑器未连接")
+	var enabled := arguments[1] == "on"
+	if not bool(_stuff_editor_controller.call("set_active", enabled)):
+		return _error("无法%s关卡元素编辑；可能存在未保存修改" % ("开启" if enabled else "关闭"))
+	return _ok("关卡元素编辑已%s" % ("开启" if enabled else "关闭"))
 
 
 func _find_enemy(level: LevelResource, enemy_id: String) -> EnemyDefinition:

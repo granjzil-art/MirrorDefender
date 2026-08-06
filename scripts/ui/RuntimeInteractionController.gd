@@ -10,6 +10,7 @@ enum Mode {
 	PLACE_BLOCK_BUILDING,
 	PLACE_EDGE_BUILDING,
 	PLACE_COPY_MIRROR,
+	PLACE_REFLECT_MIRROR,
 }
 
 signal mode_changed(mode: Mode)
@@ -50,6 +51,14 @@ func is_copy_mirror_mode() -> bool:
 	return _mode == Mode.PLACE_COPY_MIRROR
 
 
+func is_reflect_mirror_mode() -> bool:
+	return _mode == Mode.PLACE_REFLECT_MIRROR
+
+
+func is_mirror_mode() -> bool:
+	return is_copy_mirror_mode() or is_reflect_mirror_mode()
+
+
 func get_selected_definition() -> BuildingDefinition:
 	return _selected_definition
 
@@ -87,6 +96,19 @@ func select_copy_mirror_card() -> bool:
 	_selected_definition = null
 	_set_mode(Mode.PLACE_COPY_MIRROR)
 	status_changed.emit("选择 %s：左键放置，R 翻面，右键取消" % _mirror_manager.copy_mirror_definition.display_name)
+	return true
+
+
+func select_reflect_mirror_card() -> bool:
+	if _mirror_manager == null or _mirror_manager.reflect_mirror_definition == null:
+		return false
+	_clear_world_selection()
+	_selected_definition = null
+	_set_mode(Mode.PLACE_REFLECT_MIRROR)
+	status_changed.emit(
+		"选择 %s：左键放置，R 翻面，右键取消"
+		% _mirror_manager.reflect_mirror_definition.display_name
+	)
 	return true
 
 
@@ -152,6 +174,23 @@ func handle_primary(cell_pick: Dictionary, edge_pick: Dictionary) -> Dictionary:
 						== edge_pick.get("cell", Vector3i.ZERO)
 					)
 				var placed := _mirror_manager.place_copy_mirror(
+					edge_pick.get("cell", Vector3i.ZERO),
+					int(edge_pick.get("edge_index", -1)),
+					active_from_side
+				)
+				success = placed != null
+		Mode.PLACE_REFLECT_MIRROR:
+			if not bool(edge_pick.get("hit", false)):
+				reason = "未命中有效边"
+			else:
+				var active_from_side: Variant = null
+				var preview := _mirror_manager.get_preview_info()
+				if not preview.is_empty():
+					active_from_side = (
+						preview.get("active_cell", edge_pick.get("cell", Vector3i.ZERO))
+						== edge_pick.get("cell", Vector3i.ZERO)
+					)
+				var placed := _mirror_manager.place_reflect_mirror(
 					edge_pick.get("cell", Vector3i.ZERO),
 					int(edge_pick.get("edge_index", -1)),
 					active_from_side

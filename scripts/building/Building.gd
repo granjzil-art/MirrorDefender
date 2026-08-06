@@ -6,6 +6,8 @@ const ArrowAttackStrategyScript := preload("res://scripts/combat/ArrowAttackStra
 const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
 const BarrierDurabilityScript := preload("res://scripts/building/BarrierDurability.gd")
 const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
+const FREE_FACING_SLOT_COUNT := 36
+const FREE_FACING_STEP_DEGREES := 10.0
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -137,6 +139,15 @@ func _configure_common(
 	_combat_manager = combat_manager
 	_preview_mode = preview_mode
 	feature_enabled = not preview_mode
+	refresh_world_transform()
+	apply_level(initial_level)
+	set_facing_index(edge_index if is_edge_placement() else 0)
+
+
+## Re-samples the canonical terrain surface without rebuilding combat state.
+func refresh_world_transform() -> void:
+	if _grid == null or _tile_manager == null:
+		return
 	if is_edge_placement():
 		var endpoints: Array[Vector3] = _grid.get_edge_endpoints(cell, edge_index)
 		var edge_midpoint := _grid.cell_to_world(cell)
@@ -149,8 +160,6 @@ func _configure_common(
 		position = edge_midpoint + Vector3(0.0, edge_height, 0.0)
 	else:
 		position = _grid.cell_to_world(cell) + Vector3(0.0, _tile_manager.get_world_height(cell), 0.0)
-	apply_level(initial_level)
-	set_facing_index(edge_index if is_edge_placement() else 0)
 
 func apply_level(value: int) -> bool:
 	if definition == null or not definition.is_configured():
@@ -294,17 +303,14 @@ func set_facing_index(value: int) -> void:
 
 func get_facing_slot_count() -> int:
 	if _grid == null:
-		return 6
-	return _grid.get_edge_building_facing_count() if is_edge_placement() else _grid.get_tile_building_facing_count()
+		return FREE_FACING_SLOT_COUNT
+	return _grid.get_edge_building_facing_count() if is_edge_placement() else FREE_FACING_SLOT_COUNT
 
 func get_facing_direction() -> Vector3:
 	if is_edge_placement() and _grid != null:
 		return (_grid.cell_to_world(edge_to_cell) - _grid.cell_to_world(cell)).normalized()
-	if get_facing_slot_count() == 8:
-		var square_angle := deg_to_rad(45.0 * float(facing_index))
-		return Vector3(cos(square_angle), 0.0, sin(square_angle)).normalized()
-	var hex_angle := deg_to_rad(-30.0 + 60.0 * float(facing_index))
-	return Vector3(cos(hex_angle), 0.0, sin(hex_angle)).normalized()
+	var angle := deg_to_rad(FREE_FACING_STEP_DEGREES * float(facing_index))
+	return Vector3(cos(angle), 0.0, sin(angle)).normalized()
 
 ## Updates presentation only. Logical facing_index and fixed-direction attacks
 ## remain owned by set_facing_index().
@@ -314,9 +320,9 @@ func update_visual_orientation(delta: float) -> bool:
 	if _visual_root == null or not is_instance_valid(_visual_root):
 		return false
 	var target := _get_valid_visual_target()
-	if target == null:
-		return false
-	var world_direction := target.get_target_position() - get_attack_origin()
+	var world_direction := get_facing_direction()
+	if target != null:
+		world_direction = target.get_target_position() - get_attack_origin()
 	world_direction.y = 0.0
 	if world_direction.length_squared() <= 0.000001:
 		return false
@@ -349,11 +355,26 @@ func get_laser_end() -> Vector3:
 func get_targeting_range_world() -> float:
 	return _stats.targeting_range * _grid.cell_size
 
+
+func uses_targeting_range() -> bool:
+	return (
+		definition != null
+		and not definition.is_defensive_structure()
+		and definition.aim_mode == BuildingDefinition.AimMode.TRACK_TARGET
+	)
+
 func get_attack_range_world() -> float:
 	return _stats.attack_range * _grid.cell_size
 
 func get_attacks_per_second() -> float:
 	return _stats.attacks_per_second
+
+
+func fires_along_facing_without_target() -> bool:
+	return (
+		_stats != null
+		and _stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
+	)
 
 func get_instant_damage() -> float:
 	return DamageCalculator.compute(_stats.base_damage, _stats.level_factor, _stats.extra_factor)
@@ -373,6 +394,8 @@ func get_copy_kind() -> StringName:
 		return &"laser_tower"
 	if definition.kind == BuildingDefinition.Kind.ARROW_TOWER:
 		return &"arrow_tower"
+	if definition.kind == BuildingDefinition.Kind.CROSSBOW_TOWER:
+		return &"crossbow_tower"
 	return &""
 
 func get_copy_display_name() -> String:
@@ -411,12 +434,50 @@ func launch_projectile(target: CombatTarget, damage: float) -> Projectile:
 		_stats.projectile_length * _grid.cell_size,
 		_stats.projectile_width * _grid.cell_size,
 		_stats.attack_color,
-		_stats.projectile_model_asset
+		_stats.projectile_model_asset,
+		self
 	)
 	if projectile != null:
 		projectile.impacted.connect(_on_projectile_impacted)
 		notify_copy_attack(&"projectile", get_attack_origin(), target.get_target_position(), damage)
 	return projectile
+
+
+func launch_directional_projectile(damage: float) -> Projectile:
+	if _combat_manager == null or _stats == null or _grid == null:
+		return null
+	var start := get_attack_origin()
+	var direction := get_facing_direction()
+	var projectile := _combat_manager.spawn_directional_projectile(
+		start,
+		direction,
+		_stats.projectile_speed * _grid.cell_size,
+		damage,
+		get_attack_range_world(),
+		_stats.projectile_length * _grid.cell_size,
+		_stats.projectile_width * _grid.cell_size,
+		_stats.attack_color,
+		_stats.projectile_model_asset,
+		self
+	)
+	if projectile != null:
+		projectile.impacted.connect(_on_projectile_impacted)
+		notify_copy_attack(
+			&"directional_projectile",
+			start,
+			start + direction * get_attack_range_world(),
+			damage
+		)
+	return projectile
+
+
+## Presentation-facing occupancy contract. Multi-cell placement can extend this
+## list later without changing the selection visualizer API.
+func get_occupied_cells() -> Array[Vector3i]:
+	var occupied: Array[Vector3i] = []
+	if not is_edge_placement():
+		occupied.append(cell)
+	return occupied
 
 func show_attack_line(world_end: Vector3, _persistent: bool) -> void:
 	if _attack_line_instance == null:

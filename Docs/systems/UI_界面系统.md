@@ -4,11 +4,13 @@
 提供程序启动选关、局内 HUD 与操作入口，承载六槽分页、卡槽、资源、检视、逐波释放、全局状态、时间控制和退关生命周期。M6 的整体布局、批次边界与验收事实源为 `Docs/07_M6_操作与UI大版本_需求与开发计划.md`。
 
 ## 分类 / 做法
-- **M6 批次 1 正式 HUD（已实现）**：底部为独立复制镜卡加单行建筑卡；建筑卡数由关卡配置，默认 6。默认携带箭塔、激光塔、屏障，未使用位置显示空镜面；边障保留玩法但不进入默认卡组。整排不绘制也不拦截外层大卡槽，仅单张复制镜卡、建筑卡与空卡自身保留镜框，卡片之间的空白区域不属于 UI。
-- **卡片状态**：卡片显示名称、可替换图标和 1 级建造费用；资源不足或达到对应上限时置灰且不可新选，选中卡使用金色镜框。`BuildingDefinition.card_icon` 与 `CopyMirrorDefinition.card_icon` 为空时使用稳定文字灰盒。
+- **M6 批次 1 正式 HUD（已实现）**：底部为独立复制镜/反射镜卡加单行建筑卡；建筑卡数由关卡配置，默认 6。默认依次携带箭塔、激光塔、屏障、弩箭塔，未使用位置显示空镜面；边障保留玩法但不进入默认卡组。整排不绘制也不拦截外层大卡槽，仅单张镜子卡、建筑卡与空卡自身保留镜框，卡片之间的空白区域不属于 UI。
+- **卡片状态**：卡片显示名称、可替换图标和建造费用；复制镜与反射镜共享镜子 cap，但分别读取各自 Definition 的经济和图标。资源不足或达到对应上限时置灰且不可新选，选中卡使用金色镜框。
 - **单次放置**：`RuntimeInteractionController` 是正式交互事实源。每次选卡只允许一次世界点击；成功、资源不足、上限、非法地块、非法边或未命中都会取消卡片/预览/实体选择并回 `SELECT`，成功放置的实体不会保持自动选中。
 - **取消和输入消费**：左键执行肯定操作；右键短点击在释放时全局取消并回选择模式，右键拖动超过阈值后改为运行时相机旋转且不取消。中/右键仅从世界区域起手可导航相机；正式卡片和按钮消费左键，点击 UI 不会穿透到世界。
 - **正式时间控制（批次 3 已实现）**：右下独立慢放、2x 和暂停/继续按钮，`GameTimeController` 固定按 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x` 求解。暂停前的 2x 请求会保留，继续后恢复。选卡或选中实体建筑/镜子时仍默认触发 0.1x。
+- **运行时关卡元素编辑**：左侧“关卡元素编辑”开启 Stuff-only 作者工作区。进入后隐藏建筑卡、冻结玩法时间但保留 UI/镜头输入；目录按钮选择元素，左键放置或选择，`R` 旋转，“删除选中元素”按钮或 `Delete` 删除，`Ctrl+Z/Ctrl+Y` 撤销/重做，右键取消当前工具。删除按钮只在选中已有 Stuff 时启用，同格多实例逐个删除。真实模型预览以绿/红叠色表示可放置/非法或断路警告。
+- **运行时保存边界**：工作区提供“保存元素”“全量保存”、保存并退出、放弃并退出。“保存元素”只更新 Stuff；“全量保存”额外把当前实体建筑与全部实体镜子种类写成开局陈列，明确排除虚像和战斗临时状态。编辑器运行时可写回当前 `res://` 关卡；导出游戏默认另存 `user://levels/`。脏会话不会被静默关闭，切关会终止旧会话且绝不把旧快照覆盖到新关卡。
 - **M6 批次 2 地块详情（已实现）**：选择模式点击含实体块建筑、任一相邻边建筑/复制镜、同格虚像或关卡元素的格时，右侧展开镜面详情板；空格、取消、选卡或放置完成时收起。条目可滚动，显示类型、实体/虚像、图标灰盒、等级、耐久、朝向、根源格、产生镜子及元素运行时状态。
 - **两级显示配置（已实现）**：`InspectionDisplayConfig.visible` 是对象级开关；关闭后实体和由它产生的虚像都不进入列表。其余 `show_*` 是字段级开关，分别控制图标、类型、实体/虚像、功能、位置、高度、权限、等级、耐久、朝向、战斗、经济、容量、时序、对空及虚像谱系行。全部默认 `true`，保持已有显示。
 - **名称与功能说明**：建筑、复制镜和地块定义各自持有 `inspection_display`；可编辑 `display_name` 和 `function_description`。空值向后兼容原显示名和内置说明，面板统一增加“功能：”行；虚像使用根源对象配置。
@@ -32,6 +34,7 @@
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
 - **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后删除/升级可用，旋转因边对齐锁定而置灰。
 - **复制镜反馈**：“复制镜”模式显示镜面生效侧、最近源格、对称目标格、整格内容名称与青蓝虚像；无源只警告仍可放置。`R` 翻面立即重算。选中后 `MirrorActionPanel` 悬浮提供删除/翻面，实体镜与建筑选择互斥。
+- **反射镜反馈**：“反射镜”模式复用真实镜框/实时镜面预览、边权限、红色非法提示、`R` 翻面和删除操作，但不生成复制内容预览；提示当前生效面将反射我方投射物。
 - **旧波次 UI 兼容**：`WaveStatusPanel` 与 `WaveTimelinePanel` 均保留脚本/场景用于历史兼容和模型回归，但二者都不在正式 `RuntimeHud.tscn` 实例化；现役操作统一由右侧 `WaveControlPanel` 承担。
 
 ## 关键参数
@@ -49,7 +52,8 @@
 | DebugOverlayPanel.`feature_enabled` / `refresh_interval` | true / 0.2 | 左上常驻调试摘要总开关和真实时间刷新间隔。 |
 | DebugOverlayPanel.`panel_texture` | null | 左上常驻摘要镜面背景美术接口。 |
 | WaveStatusPanel.`feature_enabled` | true | 旧 M4 兼容面板开关；正式主场景不再实例化。 |
-| LevelResource.`building_card_slot_count` | 6 | 正式建筑携带槽数，范围 1～12；复制镜独立槽不计入。 |
+| LevelResource.`building_card_slot_count` | 6 | 正式建筑携带槽数，范围 1～12；复制镜与反射镜独立卡不计入。 |
+| 默认建筑卡第4格 | 弩箭塔 | 由 RuntimeHud 的正式携带顺序注入；不占独立镜子卡。 |
 | BuildCardBar.`card_size` | `(96,126)` | 单张卡片的基准尺寸。 |
 | BuildCardBar.`card_separation` | 6 | 建筑卡之间的像素间距。 |
 | BuildCardBar.`mirror_slot_separation` | 14 | 独立镜子槽与建筑槽组之间的间距。 |
@@ -90,6 +94,9 @@
 | `scripts/Main.gd` | `MainController` / `Node3D` | 局内组合根；装配 Manager、正式 HUD、路径预览、调试绑定并把退出请求上送 AppFlow。 |
 | `scripts/ui/RuntimeInteractionController.gd` | `RuntimeInteractionController` / `Node` | 正式 SELECT/块放置/边放置/镜子放置状态机和单次尝试事务。 |
 | `scripts/ui/GameTimeController.gd` | `GameTimeController` / `Node` | 统一求解暂停、战术慢放、2x 与 1x 的时间优先级。 |
+| `scripts/ui/RuntimeStuffEditorPanel.gd` | `RuntimeStuffEditorPanel` / `Control` | 运行时元素目录、选择、历史、保存与断路作者覆盖入口。 |
+| `scripts/stuff/RuntimeStuffEditorController.gd` | `RuntimeStuffEditorController` / `Node3D` | HUD 与 Stuff-only 编辑事务之间的状态机和世界预览。 |
+| `scenes/ui/RuntimeStuffEditorPanel.tscn` | 无 / `Control` 场景 | RuntimeHud 内的运行时元素编辑面板实例。 |
 | `scripts/ui/RuntimeSettings.gd` | `RuntimeSettings` / `RefCounted` | 读写并应用主音量、窗口模式和 UI 缩放。 |
 | `scripts/ui/EconomyPanel.gd` / `scenes/ui/EconomyPanel.tscn` | `EconomyPanel` / `Control` | 真实时间资源数字滚动和多事件弹字。 |
 | `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的关卡/据点/敌人/容量摘要。 |
@@ -99,7 +106,7 @@
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧释放下一波/重启/退出三按钮、下一波详情与路径预览信号。 |
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 正式 HUD 的三个圆形按钮和向左展开详情板。 |
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧左侧纵向时间轴兼容文件；正式 HUD 不实例化。 |
-| `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 独立镜子槽、可调建筑槽、卡片可用性、选中框、空镜面和状态反馈。 |
+| `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 独立复制/反射镜卡、可调建筑槽、共享 cap 可用性、选中框、空镜面和状态反馈。 |
 | `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 跨建筑、镜子、地块共享的两级只读检视显示策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
@@ -118,7 +125,7 @@
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 右上角运行时选关快捷入口；显示当前关卡并通过正式 LevelLoader 打开资源选择器。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 旧 M3 灰盒兼容脚本；正式主场景隐藏且不配置。 |
 | `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
-| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中复制镜，提供删除和生效侧翻面。 |
+| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，提供删除和生效侧翻面。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 58 项只读模型、自定义功能说明、实体/复制塔 Combat 一致性、激光最终 DPS、动态刷新、选择语义、滚动和三档分辨率回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 94 项默认兼容、正式资源/BuildingManager 箭塔深加载绑定、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
@@ -248,13 +255,15 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeHud.gd` | `configure_wave_controls(wave_manager: WaveManager) -> void` | 注入现役 WaveManager 并由 WaveControlPanel 驱动逐波操作。 |
 | `RuntimeInteractionController.gd` | `select_building_card(definition) -> bool` | 清除实体选择并进入块/边建筑放置状态。 |
 | `RuntimeInteractionController.gd` | `select_copy_mirror_card() -> bool` | 清除实体选择并进入复制镜边放置状态。 |
+| `RuntimeInteractionController.gd` | `select_reflect_mirror_card() -> bool` | 清除实体选择并进入投射物反射镜边放置状态。 |
 | `RuntimeInteractionController.gd` | `handle_primary(cell_pick, edge_pick) -> Dictionary` | 在选择模式选实体，或执行恰好一次放置并返回稳定结果。 |
 | `RuntimeInteractionController.gd` | `cancel_to_select(clear_world_selection=true) -> void` | 清卡、清预览、按需清实体并回选择模式。 |
 | `RuntimeInteractionController.gd` | `has_world_selection() -> bool` / `get_world_selection_cell() -> Vector3i` / `get_world_selection_edge_id() -> String` | 返回正式选择模式当前锁定格/边；变化通过 `world_selection_changed(has_cell, cell, edge_id)` 广播。 |
 | `GameTimeController.gd` | `configure(interaction: RuntimeInteractionController, building_manager: BuildingManager, mirror_manager: MirrorManager) -> void` | 订阅交互与实体选择，建立战术上下文。 |
 | `GameTimeController.gd` | `set_tactical_slow_enabled(enabled: bool) -> void` | 开关自动战术慢放并立即重算倍率。 |
 | `GameTimeController.gd` | `set_fast_enabled(enabled: bool) -> void` / `set_paused(paused: bool) -> void` | 保存快速/暂停请求并按固定优先级重算。 |
-| `GameTimeController.gd` | `reset_runtime_state() -> void` | 退关前清除快速/暂停请求并恢复 `Engine.time_scale = 1.0`。 |
+| `GameTimeController.gd` | `set_authoring_paused(paused: bool) -> void` | 独立冻结玩法时间，不改写玩家暂停请求。 |
+| `GameTimeController.gd` | `reset_runtime_state() -> void` | 退关前清除快速、玩家暂停和作者暂停请求并恢复 `Engine.time_scale = 1.0`。 |
 | `EconomyPanel.gd` | `configure(resource_manager) -> void` | 订阅资源变化，不持有任何经济修改入口。 |
 | `EconomyPanel.gd` | `advance_ui_time(real_delta: float) -> void` | 以不受 `Engine.time_scale` 影响的 delta 推进滚动数字和弹字。 |
 | `GlobalInfoPanel.gd` | `configure(resource_manager, wave_manager, base_core) -> void` | 订阅容量、敌人数和据点生命信号。 |
@@ -264,8 +273,11 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `PauseMenu.gd` | `open_menu() -> void` / `close_menu() -> void` / `is_open() -> bool` | 管理模态可见性及设置折叠状态。 |
 | `RuntimeSettings.gd` | `load_from_file(path)` / `save_to_file(path)` | 使用 `ConfigFile` 持久化局外设置。 |
 | `RuntimeSettings.gd` | `apply_to_runtime(root_window) -> void` | 应用主音量、窗口模式与 UI 缩放。 |
-| `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count) -> void` | 构造独立镜子卡、建筑卡和空镜面并订阅经济信号。 |
-| `RuntimeHud.gd` | `configure(interaction: RuntimeInteractionController, time_controller: GameTimeController, resource_manager: ResourceManager, building_manager: BuildingManager, mirror_manager: MirrorManager, slot_count: int = 6) -> void` | 组合卡槽、交互、经济、时间和暂停控制器。 |
+| `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count, reflect_mirror_definition = null) -> void` | 构造独立复制/反射镜卡、建筑卡和空镜面并订阅经济信号。 |
+| `RuntimeHud.gd` | `configure(interaction: RuntimeInteractionController, time_controller: GameTimeController, resource_manager: ResourceManager, building_manager: BuildingManager, mirror_manager: MirrorManager, slot_count: int = 6, stuff_editor_controller: Node = null) -> void` | 组合卡槽、交互、经济、时间、暂停与可选运行时元素编辑器。 |
+| `RuntimeStuffEditorPanel.gd` | `configure(controller: RuntimeStuffEditorController) -> void` | 注入统一作者控制器，构建地形、高度、斜坡与Stuff工具并同步历史、选择和保存状态。 |
+| `RuntimeStuffEditorPanel.gd` | `_on_delete_pressed() -> void` | 删除当前选中的单个 Stuff 或整段斜坡；可用状态随选择同步。 |
+| `RuntimeStuffEditorPanel.gd` | `_on_full_save_pressed() -> void` | 请求保存 Grid、Ramp、Stuff 与当前实体建筑/复制镜初始陈列。 |
 | `RuntimeHud.gd` | `configure_global_info(resource_manager: ResourceManager, wave_manager: WaveManager, base_core: BaseCore) -> void` | 注入全局只读显示依赖。 |
 | `RuntimeHud.gd` | `configure_debug_console(command_registry: DebugCommandRegistry, category_registry: DebugCategoryRegistry) -> void` | 注入外置命令与分类事实源。 |
 | `DebugOverlayPanel.gd` | `configure(category_registry: DebugCategoryRegistry) -> void` | 订阅与控制台相同的分类事实源。 |
@@ -307,6 +319,8 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 - Catalog 的 `pages` 数组顺序是页面顺序；Page 的 `levels[0..5]` 是槽位顺序，GridContainer 三列使视觉顺序为从左到右、从上到下。null 不压缩、不补位。
 - 正式局内波次操作只来自 `WaveControlPanel -> WaveManager`；旧 Timeline/Status 不得重新成为现役事实源。
 - 路径预览只能按 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发；UI 不直接持有 PathManager。
+- 左侧“运行时关卡编辑”是开发者作者工具：地形按钮启用地形刷；高度下拉选择1～4层后点击“启用高度刷”；斜坡选择坡长、基础层和可选覆盖地形后启用，鼠标悬停显示真实候选，`R` 或“旋转选中/预览”改变方向，`Delete` 删除选中 Stuff/斜坡。
+- “保存元素”只保存 Stuff；存在地形或斜坡改动时必须使用“全量保存”。“保存并退出”检测到 Terrain/Ramp 修改时自动走全量保存，避免静默丢失可视地形。
 - 重启保留当前 Main，通过 LevelLoader 完整重载；退出先清理 Main 局内状态，再由 AppFlow 释放 Main、恢复 1x 并重建选关。两者不可混用。
 - `LevelThumbnail` 缓存只读绘制数据；不补齐稀疏地块、不创建 Grid/Tile/Path/Wave Manager、不写回 LevelResource。
 

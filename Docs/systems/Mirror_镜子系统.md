@@ -2,7 +2,7 @@
 
 > 模块职责：管理复制镜、反射镜两类边建筑的放置、朝向、镜像几何与生效逻辑。
 > 关键架构、函数索引和参数必须与实现同步维护。
-> 状态：M5 复制镜与镜面/虚像表现优化已实现并通过 Godot 4.7.1 回归（2026-07-21）；会改变激光方向的反射镜仍属于 M6。
+> 状态：复制镜、镜面/虚像表现与投射物反射镜均已实现并通过 Godot 4.7.1 回归；持续激光反射尚未接入。
 
 ---
 
@@ -14,9 +14,10 @@
 4. 放置时需要通过建筑附近敌人、资源和镜子上限校验。
 5. 镜子有正反两个生效面。`R` 只在两侧之间翻面，不改变所在物理边。
 6. 镜面所在边的直线是所有镜像计算的对称轴；点、方向和攻击线均使用同一套线反射公式。
-7. 镜子可被选中、翻面和删除；复制镜不参与升级、耐久、攻击或路径阻挡。
+7. 镜子可被选中、翻面和删除；复制镜与反射镜都不参与升级、耐久、主动攻击或路径阻挡。
 8. 镜子本身永远不可复制，任何其他边建筑也不属于 M5 的整格复制内容。
 9. 放置复制镜前必须将候选镜加入当前稳定迭代，检查它导致的全部直接/递归障碍投影；任一受影响出生点失去到原目标据点的最后可达路线时拒绝放置。
+10. `MirrorPlacementData` 可把实体镜子的种类、物理边与生效侧保存为开局陈列；旧数据默认复制镜，数组顺序是重载时的镜链装配顺序。虚像始终由实体镜重新推导，禁止持久化。
 
 ---
 
@@ -69,7 +70,7 @@
 - 攻击起点、目标点、固定朝向和激光线段通过投影的复合镜像变换获得。
 - 投影不重新校正敌人，因此镜像位置没有敌人时允许打空。
 - 投影无独立转向决策；实体建筑因目标追踪或手动逻辑朝向发生任何模型姿态变化时，既有投影在原节点上实时同步完整姿态。
-- 投射物投影仍按原塔等级参数使用飞行速度、尺寸、伤害、空中目标开关与 `projectile_model_asset`；自定义模型保留源场景 Transform 和运行时 Scale，并叠加虚像发光层，飞向镜像后的固定目标点而不独立追踪。
+- 投射物投影仍按原塔等级参数使用飞行速度、尺寸、伤害、空中目标开关与 `projectile_model_asset`；普通索敌攻击飞向镜像后的固定目标点而不独立追踪，`TARGET_OR_FACING` 的无目标攻击则从起点即沿镜像后的逻辑方向直射并检测沿途目标。两者都保留源场景 Transform 和运行时 Scale，并叠加虚像发光层。
 - 激光投影按镜像线段逐 tick 结算，继承原塔等级的持续伤害和空中目标开关。
 
 ### 2.6 屏障投影
@@ -101,7 +102,7 @@
 ### 2.9 视觉规范
 
 - 复制镜的玩法生效侧仍是唯一事实源，决定最近源格和投影方向，不再额外生成顶部朝向标记。默认仅在表现层启用双观察侧镜面：同一个反射 Quad 根据主相机所在侧贴到朝向观察者的实体表面，因此拉远视角跨过镜面无限平面时不会退回镜体底色，也不会增加第二个反射视口。可用 `reflection_two_sided_visual` 恢复仅生效侧可见。
-- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体自遮挡。
+- 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体自遮挡。镜面 Camera3D 不继承主相机最终视口 DOF，反射纹理由主视口统一虚化一次。
 - 实际镜面刷新由 `MirrorManager` 轮询调度；镜面中心或任一矩形角点处于主相机视锥时均可刷新，并限制刷新间隔与每帧上限。放置预览使用独立低分辨率。
 - 建筑投影创建 `Building._visual_root` 的无行为快照，之后每帧同步源的视觉根变换、子 `Node3D` 姿态、可见性和 `Skeleton3D` 骨骼姿态，不重建投影节点。地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
 - 所有视觉快照按 payload 的完整镜链做严格仿射反射。不得用圆盘、圆柱、方块等独立几何替代地块/建筑，也不得用位移、缩放或垂直错层拆开重叠虚像。
@@ -112,16 +113,14 @@
 
 ---
 
-## 三、反射镜 · ReflectMirror（M6 设计保留）
+## 三、投射物反射镜 · ReflectMirror（已实现）
 
-1. 激光命中反射镜生效面时按 `r = d - 2(d·n)n` 改向。
-2. 背面模式可配置为 `PASS`（穿过）或 `BLOCK`（阻挡）。
-3. 激光可多次反射，`reflect_max` 默认 8，用于阻断镜间闭环。
-4. 镜子长度等于整条地块边；交点必须在线段范围内，端点命中按闭区间处理。
-5. 建筑不阻挡激光；障碍、隆起地形、据点、边界及 `BLOCK` 背面可以终止光路。
-6. 近垂直入射可用 `perp_offset` 做微小切向偏移，避免入射线和反射线完全重叠。
-
-M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入点。
+1. 反射镜是独立镜子种类，与复制镜共享边权限、物理边占用、镜子 cap、经济、镜框/实时镜面、预览、翻面、选中和删除规则。
+2. 我方实体塔与复制塔投射物从生效侧命中有限镜面矩形时，按 `r = d - 2(d·n)n` 反射；切向分量保持、法线分量反号。背面保持穿过。
+3. 首次反射前实体塔追踪弹继续追踪原目标，复制塔普通投射物保持固定镜像终点；两者首次反射后变为直线弹道。弩箭塔类无目标直射弹从生成起就是直线弹道。所有直线段都命中第一个满足源塔 `affects_target` 的敌人。
+4. 可经过任意多面反射镜；`max_reflections_per_frame` 只是防止极高速单帧循环的工作预算，不是生命周期反射次数上限，未完成距离会在下一帧继续。
+5. 投射物当前等级 `attack_range` 是从发射到销毁的累计总路径长度上限；入射段、所有反射段及防止重复命中的微小偏移都计入该预算。
+6. 镜面碰撞范围严格使用完整地块边宽度与 `mirror_height_ratio` 高度，不把无限平面当作镜子。复制镜不会反射投射物，反射镜不会参与复制链，也不能被复制。
 
 ---
 
@@ -155,9 +154,8 @@ M5 不实现反射镜。共享边占用和镜像数学必须为 M6 保留接入�
 | `projection_ring_spacing_ratio` | 0.045 格 | CopyMirrorDefinition | 同格虚像标识环的半径间隔，不移动源几何 |
 | `projection_ring_thickness_ratio` | 0.022 格 | CopyMirrorDefinition | 标识环粗细 |
 | `mirror_side_default` | from | CopyMirrorDefinition | 新镜子默认生效侧 |
-| `reflect_max` | 8 | ReflectMirror（M6） | 单束激光最大反射次数 |
-| `back_face_mode` | PASS | ReflectMirror（M6） | 背面穿过/阻挡 |
-| `perp_offset` | 0.05 | ReflectMirror（M6） | 近垂直反射视觉偏移 |
+| `collision_epsilon_ratio` | 0.002 格 | ReflectMirrorDefinition | 反射点沿新方向推进的防重入距离；计入总路径。 |
+| `max_reflections_per_frame` | 8 | ReflectMirrorDefinition | 单帧最多处理的反射次数；不是投射物生命周期上限。 |
 
 ---
 
@@ -204,19 +202,24 @@ MirrorProjection
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
 | `scripts/shared/EdgeOccupancyRegistry.gd` | `EdgeOccupancyRegistry` / `RefCounted` | 镜子、边屏障共用的规范化物理边占用表。 |
-| `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `Resource` | 经济、链深、占位开关与虚像表现参数，并通过 `validate_configuration()` 返回完整配置错误。 |
+| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、经济、放置方向和实时镜面表现契约。 |
+| `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `MirrorDefinition` | 复制链深、占位开关与虚像表现参数，并复用共享镜子配置校验。 |
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧和程序化表现。 |
+| `scripts/mirror/ReflectMirrorDefinition.gd` | `ReflectMirrorDefinition` / `MirrorDefinition` | 投射物反射防重入偏移和单帧工作预算。 |
+| `scripts/mirror/ReflectMirror.gd` | `ReflectMirror` / `CopyMirror` | 复用实体镜表现但只向弹道查询注册为反射镜。 |
+| `scripts/mirror/MirrorPlacementData.gd` | `MirrorPlacementData` / `Resource` | 一个开局实体镜子的种类、起始格、边方向与生效侧。 |
 | `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、屏幕对齐反射与反射相机横向手性补偿。 |
 | `scripts/mirror/MirrorCopyPayload.gd` | `MirrorCopyPayload` / `RefCounted` | 稳定来源、镜子谱系和复合反射变换。 |
 | `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、源模型实时姿态同步、稳定透明渲染顺序、严格反射、屏障与地块效果代理。 |
-| `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点投射物。 |
+| `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点或从起点直射投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、预览、固定点镜链和跨模块查询。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 镜像石头最终转发到的真实逐格耐久源。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子的删除/翻面按钮。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 104 项双网格、玩法联调、屏障/石头投影重叠优先级、空洞共享容量/深度、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 109 项双网格、玩法联调、屏障/石头投影重叠优先级、空洞共享容量/深度、横向镜面顺序、追踪/固定朝向、完整姿态同步、生命周期与远距离反射回归。 |
+| `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制塔总路程上限、预览与初始陈列类型回归。 |
 
 ## 六、函数索引
 
@@ -224,15 +227,21 @@ MirrorProjection
 |---|---|---|
 | `GridManager.get_mirror_cell_pair` | `(from_cell, edge_index, active_from_side, distance_from_edge) -> Dictionary` | 在 Grid 内封装四/六边形法线源格/目标格对。 |
 | `MirrorManager.place_copy_mirror` | `(from_cell, edge_index, active_from_side = null) -> CopyMirror` | 完成校验、扣费、共享边登记和投影重建。 |
-| `MirrorManager.validate_placement` | `(from_cell, edge_index, check_economy = true) -> Dictionary` | 返回边界、权限、占用、敌人和经济校验结果。 |
+| `MirrorManager.place_reflect_mirror` | `(from_cell: Vector3i, edge_index: int, active_from_side: Variant = null) -> ReflectMirror` | 按同一物理边规则放置投射物反射镜；不参与复制连通性计算。 |
+| `MirrorManager.export_initial_placements` | `() -> Array[MirrorPlacementData]` | 按实体镜 `placement_order` 导出初始镜面陈列，不包含投影。 |
+| `MirrorManager.load_initial_placements` | `(placements: Array) -> Array[String]` | 按数组顺序免建造费恢复实体镜、登记共享边并计入镜子 cap。 |
+| `MirrorManager.validate_placement` | `(from_cell: Vector3i, edge_index: int, check_economy: bool = true, mirror_kind: MirrorPlacementData.MirrorKind = COPY) -> Dictionary` | 按具体镜子 Definition 返回边界、权限、占用、敌人和经济校验结果。 |
 | `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、经济、链深、镜面预算、颜色与全部虚像表现范围。 |
 | `MirrorManager.rebuild_now` | `() -> void` | 从实体来源计算稳定有限镜链并重建投影覆盖层。 |
+| `MirrorManager.refresh_world_transforms` | `() -> void` | Terrain变化后重采样实体/预览镜的物理边坡高，再重建投影；不改变镜面陈列顺序。 |
 | `MirrorManager.get_projected_effects` | `(cell) -> Array[TileEffect]` | 向 TileEffectSystem 提供同格可叠加效果。 |
 | `MirrorManager.get_projected_effect_bindings` | `(cell: Vector3i) -> Array[Dictionary]` | 返回 `{effect, source_cell, state_key}` 列表，使有状态地块投影归并到真实根源。 |
 | `MirrorManager.blocks_enemy_navigation` | `(cell, target = null) -> bool` | 向 TileManager 提供投影岩石阻断。 |
 | `MirrorManager.resolve_projected_blocker` | `(cell, target = null) -> Node` | 向 BuildingManager 提供投影屏障代理。 |
 | `MirrorManager.resolve_projected_navigation_blocker` | `(cell, target = null) -> Node` | 向 TileManager 提供可攻击的投影石头代理，保持石头“先换路”与屏障“直接攻击”的入口分离。 |
 | `MirrorManager.update_preview` / `flip_preview` | `(from_cell, edge_index) -> bool` / `() -> bool` | 构建镜面、源格/目标格信息和投影虚影，翻面后重算。 |
+| `MirrorManager.update_reflect_preview` | `(from_cell: Vector3i, edge_index: int) -> bool` | 创建真实反射镜模型预览并显示当前投射物生效侧。 |
+| `MirrorManager.trace_projectile_reflection` | `(start: Vector3, end: Vector3) -> Dictionary` | 返回首个生效面有限矩形交点；键为 `{hit, position, normal, distance, mirror, epsilon, max_reflections_per_frame}`。 |
 | `MirrorManager.get_prospective_blocked_cells` | `(extra_source: Variant = null, candidate_mirror: Variant = null, target: Node = null) -> Dictionary` | 返回完整稳定递归图中对指定导航档案有效的屏障/石头投影格集。 |
 | `MirrorManager.set_path_connectivity_validator` | `(value: Callable) -> void` | 注入 Path 模块的候选放置校验；实体登记和扣费前复核。 |
 | `MirrorManager.get_preview_mirror` / `get_preview_projections` | `() -> CopyMirror` / `() -> Array[MirrorProjection]` | 返回当前可见预览对象，供表现验收与自动化回归读取。 |
@@ -245,18 +254,20 @@ MirrorProjection
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
 | `Building.sync_copy_visual_snapshot` | `(snapshot: Node3D) -> bool` | 把当前子节点与骨骼姿态同步到既有无行为快照，不启动独立动画时钟。 |
 | `MirrorProjection.sync_source_visual_pose` | `() -> bool` | 不重建投影，先同步源模型姿态，再将 payload 的全部镜轴组合变换作用于视觉根。 |
-| `MirrorProjectionProjectile.configure` | `(combat_manager, source_building, start, end, speed, damage, visual_length, visual_width, color, model_asset = null) -> void` | 配置固定镜像终点，并沿用源建筑投射物模型资产或灰盒。 |
+| `MirrorProjectionProjectile.configure` | `(combat_manager: CombatManager, source_building: Building, start: Vector3, end: Vector3, speed: float, damage: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, maximum_distance: float = -1.0, reflection_resolver: Callable = Callable(), ballistic_from_start: bool = false) -> void` | 配置固定镜像终点；`ballistic_from_start=true` 时从生成起沿途命中，二者都沿用源建筑投射物模型或灰盒。 |
 | `MirrorProjection.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 把屏障或石头投影承伤转发到 payload 的真实根源耐久。 |
 | `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 镜面矩形进入视锥时按当前观察侧更新实体表面与反射相机，并请求 SubViewport 单帧刷新。 |
 | `CopyMirror.get_reflection_viewport` | `() -> SubViewport` | 返回屏幕对齐反射目标，供调试与回归检查宽高比。 |
 | `CopyMirror.refresh_visual` | `() -> void` | Definition 表现参数变化时重建镜框、镜面目标与当前生效面。 |
+| `CopyMirror.refresh_world_transform` | `() -> void` | 只重采样共享边中点高度，保留生效侧和镜面运行时状态。 |
 | `EdgeOccupancyRegistry.try_register` / `unregister` | `(edge_id, occupant) -> bool` / `(edge_id, expected = null) -> bool` | 原子登记/释放物理边。 |
 
 ## 七、已知限制
 
-- M5 只实现复制镜；反射镜及反射激光在 M6 实现。
+- 当前反射镜只作用于我方实体塔和复制塔的单发投射物；敌方投射物与持续激光尚未接入反射。
 - 最近源格仅沿镜面法线离散扫描，不支持任意角度射线穿格。
 - 投影攻击忠实复制原攻击，允许因镜像空间无目标而打空。
 - 屏幕对齐方案不提供任意形状镜面的逐像素斜裁面；当前复制镜均为矩形边建筑，镜面外区域由实体 Quad 自身裁切。
 - 为阻止递归和镜体自遮挡，所有反射相机不渲染镜面与镜体背板；镜中不会出现其它镜子的反射画面或蓝色背板，也不会出现无限镜廊。
+- 反射相机当前不继承任何主相机 CameraAttributes；未来若主相机加入独立曝光参数，需要选择性复制曝光字段并继续排除 DOF。

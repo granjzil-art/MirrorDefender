@@ -1,4 +1,4 @@
-## Screen-projected actions for the selected copy mirror.
+## Screen-projected actions for the selected physical mirror.
 class_name MirrorActionPanel
 extends Control
 
@@ -26,8 +26,8 @@ func _ready() -> void:
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	actions.add_theme_constant_override("separation", 4)
 	panel.add_child(actions)
-	var delete_button := _add_button(actions, "删除", "删除复制镜并返还配置资源")
-	var flip_button := _add_button(actions, "翻面", "切换复制镜生效侧")
+	var delete_button := _add_button(actions, "删除", "删除镜子并返还配置资源")
+	var flip_button := _add_button(actions, "翻面", "切换镜子生效侧")
 	delete_button.pressed.connect(_on_delete_pressed)
 	flip_button.pressed.connect(_on_flip_pressed)
 

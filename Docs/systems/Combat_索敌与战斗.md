@@ -1,6 +1,6 @@
 # 索敌与战斗 · Combat
 
-> 实现状态：已完成我方索敌/攻击策略、标准投射物与激光，以及敌人对路径屏障的冷却攻击和近战/远程投射物。
+> 实现状态：已完成我方索敌/攻击策略、标准投射物与激光、我方投射物多镜反射，以及敌人对路径屏障的冷却攻击和近战/远程投射物。
 
 ## 职责
 
@@ -14,7 +14,8 @@
 - **索敌范围**：箭塔仅从 `targeting_range` 内建立候选并应用优先级。
 - **攻击范围**：所选目标必须在独立的 `attack_range` 内才会发射；投射物最大飞行距离也使用该范围。激光用它作为线段长度。
 - **投射物表现**：建筑、敌人与复制体投射物均可读取 `ModelAssetDefinition`；模型可视包围盒会精确拟合到 `visual_length/visual_width`，不再依赖资产根 Transform 或旧 Scale 校尺寸。为空或非法时使用同尺寸 BoxMesh 短直线回退；复制体沿用源建筑当前等级投射物资产并叠加虚像发光层。
-- **投射物跟踪**：目标存活时刷新目标位置；目标失效后飞向最后位置并在最大距离处销毁，不对失效目标结算伤害。
+- **投射物跟踪与反射**：首次命中反射镜之前保持原追踪行为；命中生效面后用 `r = d - 2(d·n)n` 转为直线弹道，可连续反射并命中后续线段上的首个有效敌人。背面不反射。每段移动（含防重入偏移）都累计到同一个 `attack_range` 世界距离预算，达到上限立即销毁。
+- **可配置无目标直射**：箭塔类每级通过 `projectile_fire_mode` 选择 `TARGET_ONLY` 或 `TARGET_OR_FACING`。后者有索敌候选时仍使用原追踪弹；候选为空时沿建筑逻辑朝向发射直线弹，从生成起对每一移动段查询所有适用敌人并命中最近者。冷却、伤害、速度、对空过滤、累计射程和反射规则与普通投射物共用。
 - **索敌优先级**：最近、最远、最高血、最低血、最快、首个进入、锁定；锁定失效后回退到最近。
 - **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径和灰盒表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
 - **空中目标过滤**：CombatTarget 用 `airborne` / `is_airborne_unit()` 暴露统一分类。每级建筑用 `affects_airborne` 决定是否接纳飞行目标；单体索敌、独立射程复核与激光线段结算使用同一过滤入口。
@@ -22,6 +23,7 @@
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
 - **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
 - **复制塔攻击事件**：Building 在真实投射物发射或激光每 tick 结算前发出 `copy_attack_triggered`。MirrorManager 只镜像起点/终点和本次伤害，不让虚像索敌或持有冷却；箭塔虚像使用固定终点投射物，激光虚像沿镜像线段结算，因此都允许打空。
+- **复制塔投射物反射**：固定终点只维持到首次反射；反射后同样转为直线弹道、使用源建筑 `affects_target` 过滤，并共享源建筑当前级 `attack_range` 总路程预算。
 
 ## 关键参数
 
@@ -35,6 +37,7 @@
 | BuildingLevelStats | `level_factor` / `extra_factor` | 当前级等级乘区 / 其它乘区。 |
 | BuildingLevelStats | `targeting_range` / `attack_range` | 独立的候选半径 / 发射或激光范围。 |
 | BuildingLevelStats | `attacks_per_second` | 单发冷却频率。 |
+| BuildingLevelStats | `projectile_fire_mode` | 仅有目标射击，或在无目标时沿逻辑朝向继续直射；逐等级独立。 |
 | BuildingLevelStats | `projectile_speed` | 投射物格/秒速度。 |
 | BuildingLevelStats | `projectile_length` / `projectile_width` | 恒定短直线尺寸。 |
 | BuildingLevelStats | `projectile_model_asset` | 建筑及其复制体投射物共用的模型场景与附加 Scale。 |
@@ -61,7 +64,7 @@
 | `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定射线穿透与持续伤害。 |
 | `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 敌人攻击冷却和 `perform_attack` 调度。 |
 | `scripts/combat/EnemyProjectile.gd` | `EnemyProjectile` / `Node3D` | 面向屏障方法契约的追踪投射物、表现与命中。 |
-| `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | M5 塔虚像使用的固定终点、不追踪投射物。 |
+| `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 塔虚像使用的固定终点或从起点直射投射物；反射后使用共享距离预算的直线弹道。 |
 
 ### 模块调用关系 / 数据流
 
@@ -75,7 +78,9 @@ Arrow Building
   -> Building.is_target_in_attack_range(attack_range)
   -> DamageCalculator.compute
   -> CombatManager.spawn_projectile
-  -> Projectile flies with constant short-line mesh
+  -> Projectile homes before first reflection
+  -> ReflectMirror active-face hit: r = d - 2(d·n)n, then ballistic
+  -> every segment consumes the same attack_range distance budget
   -> impact -> CombatTarget.take_damage -> projectile_hit / attack_performed
 
 Laser Building facing
@@ -119,7 +124,11 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 | `unregister_target` | `(target: CombatTarget) -> void` | 幂等移除候选、解除生命周期回调并广播。 |
 | `get_targets_in_range` | `(origin: Vector3, range_world: float) -> Array[CombatTarget]` | 按 XZ 距离返回范围候选。 |
 | `get_targets_on_segment` | `(start: Vector3, end: Vector3) -> Array[CombatTarget]` | 用点到线段距离返回全部激光触碰目标。 |
-| `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null) -> Projectile` | 创建、配置并跟踪投射物；模型为空时保留灰盒。 |
+| `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null) -> Projectile` | 创建、配置并跟踪投射物；注入来源后可在反射弹道上继续执行对空过滤。 |
+| `spawn_directional_projectile` | `(start: Vector3, direction: Vector3, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null) -> Projectile` | 创建从起点即沿线段检敌的直线弹，复用投射物注册、反射查询和总路程预算。 |
+| `Projectile.configure_directional` | `(start: Vector3, direction: Vector3, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null, target_query: Callable = Callable(), reflection_resolver: Callable = Callable()) -> void` | 配置无独立目标的方向弹道。 |
+| `set_projectile_reflection_resolver` | `(resolver: Callable) -> void` | 注入 Mirror 模块的有限镜面线段查询，不让 CombatManager 持有镜子实现。 |
+| `clear_projectile_reflection_resolver` | `(expected_owner: Object = null) -> void` | 仅由当前提供者安全清除反射查询。 |
 | `spawn_debug_target` | `(world_position: Vector3) -> CombatTarget` | 生成并注册 M3 靶标。 |
 | `clear_projectiles` | `() -> void` | 清理全部飞行投射物。 |
 | `clear_targets` | `() -> void` | 切关时清空目标、投射物和进入序号。 |
@@ -128,9 +137,10 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `configure` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null) -> void` | 配置飞行、伤害、距离和可替换模型。 |
-| `_process` | `(delta: float) -> void` | 追踪/飞向最后目标点，处理命中和最大距离。 |
-| `_impact` | `() -> void` | 仅对仍存活目标结算伤害并广播 `impacted`。 |
+| `configure` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null, target_query: Callable = Callable(), reflection_resolver: Callable = Callable()) -> void` | 配置追踪、伤害、总路程、目标过滤和镜面查询。 |
+| `_process` | `(delta: float) -> void` | 首次反射前追踪，反射后沿严格反射方向推进；逐段结算命中和累计距离。 |
+| `get_distance_traveled` / `has_reflected` | `() -> float` / `() -> bool` | 暴露累计总路程和弹道阶段供调试与回归。 |
+| `_impact` | `(target: CombatTarget) -> void` | 仅对当前线段实际命中的存活目标结算伤害并广播 `impacted`。 |
 
 ### EnemyAttackStrategy / EnemyProjectile
 
@@ -158,5 +168,5 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 ## 已知限制 / 初版不做的部分
 
 - M3 调试靶标仍静止；EnemyUnit 的移动、护甲、路径和据点伤害实现见 Unit、Path、Wave 文档。
-- 投射物当前追踪目标，无加速度、抛物线、范围爆炸或对象池；正式大量单位阶段需评估池化。
+- 投射物首次反射前追踪目标，反射后为直线弹道；当前无加速度、抛物线、范围爆炸或对象池，正式大量单位阶段需评估池化。
 - 不做克制、暴击、闪避、DOT 叠层或衰减。

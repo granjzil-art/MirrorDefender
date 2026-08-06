@@ -25,11 +25,11 @@ func _test_level_geometry_contract() -> void:
 	var level := LevelResource.new()
 	level.grid_shape = GridManager.Shape.HEX
 	_expect(level.get_geometry_tag() == &"hex", "hex level exposes the derived hex tag")
-	_expect(level.get_tile_building_facing_count() == 6, "hex tile buildings use six facings")
+	_expect(level.get_tile_building_facing_count() == 36, "hex tile buildings use 36 free facings")
 	_expect(level.get_edge_building_facing_count() == 6, "hex edge buildings use six edges")
 	level.grid_shape = GridManager.Shape.SQUARE
 	_expect(level.get_geometry_tag() == &"square", "square level exposes the derived square tag")
-	_expect(level.get_tile_building_facing_count() == 8, "square tile buildings use eight facings")
+	_expect(level.get_tile_building_facing_count() == 36, "square tile buildings use 36 free facings")
 	_expect(level.get_edge_building_facing_count() == 4, "square edge buildings use four edges")
 
 func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:

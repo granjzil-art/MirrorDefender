@@ -111,6 +111,14 @@ func _test_production_definition_smoke() -> void:
 	_expect(mirror != null, "CopyMirror.tres loads as CopyMirrorDefinition")
 	if mirror != null:
 		_expect(mirror.validate_configuration().is_empty(), "CopyMirror.tres passes configuration validation")
+	var reflector := ResourceLoader.load(
+		"res://resources/mirrors/ReflectMirror.tres",
+		"",
+		ResourceLoader.CACHE_MODE_REPLACE_DEEP
+	) as ReflectMirrorDefinition
+	_expect(reflector != null, "ReflectMirror.tres loads as ReflectMirrorDefinition")
+	if reflector != null:
+		_expect(reflector.validate_configuration().is_empty(), "ReflectMirror.tres passes configuration validation")
 
 	var reflection := ResourceLoader.load(
 		"res://resources/fx/LevelReflection.tres",

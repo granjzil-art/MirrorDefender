@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="StuffDefinition" format=3 uid="uid://d3u7f5raq44wc"]
+
+[ext_resource type="PackedScene" uid="uid://b7457usf4835p" path="res://assets/stuffs/Rock/tscn/highstone.tscn" id="1_qtbnu"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_cgva4"]
+[ext_resource type="Script" uid="uid://blu6reftyrrnp" path="res://scripts/stuff/StuffDefinition.gd" id="3_67sib"]
+
+[sub_resource type="Resource" id="Resource_3sm2t"]
+script = ExtResource("2_cgva4")
+scene = ExtResource("1_qtbnu")
+
+[resource]
+script = ExtResource("3_67sib")
+stuff_id = &"highstone"
+display_name = "高石头"
+enemy_navigation = 2
+durability_mode = 2
+model_asset = SubResource("Resource_3sm2t")

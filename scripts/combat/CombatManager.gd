@@ -23,6 +23,20 @@ var _targets: Array[CombatTarget] = []
 var _projectiles: Array[Projectile] = []
 var _next_entry_order: int = 0
 var _target_exit_callbacks: Dictionary = {}
+var _projectile_reflection_resolver: Callable
+var _projectile_reflection_owner: Object
+
+
+func set_projectile_reflection_resolver(resolver: Callable) -> void:
+	_projectile_reflection_resolver = resolver
+	_projectile_reflection_owner = resolver.get_object() if resolver.is_valid() else null
+
+
+func clear_projectile_reflection_resolver(expected_owner: Object = null) -> void:
+	if expected_owner != null and _projectile_reflection_owner != expected_owner:
+		return
+	_projectile_reflection_resolver = Callable()
+	_projectile_reflection_owner = null
 
 func register_target(target: CombatTarget) -> bool:
 	if not feature_enabled or target == null or _targets.has(target):
@@ -98,7 +112,8 @@ func spawn_projectile(
 	visual_length: float,
 	visual_width: float,
 	color: Color,
-	model_asset: ModelAssetDefinition = null
+	model_asset: ModelAssetDefinition = null,
+	source_building: Building = null
 ) -> Projectile:
 	if not feature_enabled or target == null or not target.is_alive():
 		return null
@@ -113,7 +128,48 @@ func spawn_projectile(
 		visual_length,
 		visual_width,
 		color,
-		model_asset
+		model_asset,
+		source_building,
+		Callable(self, "get_targets"),
+		_projectile_reflection_resolver
+	)
+	projectile.impacted.connect(_on_projectile_impacted)
+	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
+	_projectiles.append(projectile)
+	projectile_spawned.emit(projectile)
+	return projectile
+
+
+## Creates and owns a targetless straight projectile using the shared query chain.
+func spawn_directional_projectile(
+	start: Vector3,
+	direction: Vector3,
+	speed: float,
+	damage: float,
+	maximum_distance: float,
+	visual_length: float,
+	visual_width: float,
+	color: Color,
+	model_asset: ModelAssetDefinition = null,
+	source_building: Building = null
+) -> Projectile:
+	if not feature_enabled or direction.length_squared() <= 0.000001:
+		return null
+	var projectile := Projectile.new()
+	add_child(projectile)
+	projectile.configure_directional(
+		start,
+		direction,
+		speed,
+		damage,
+		maximum_distance,
+		visual_length,
+		visual_width,
+		color,
+		model_asset,
+		source_building,
+		Callable(self, "get_targets"),
+		_projectile_reflection_resolver
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))

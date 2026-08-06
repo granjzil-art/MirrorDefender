@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MiniatureDofDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/camera/MiniatureDofDefinition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+focus_height_offset_cells = 0.35
+near_focus_margin_cells = 2.0
+far_focus_margin_cells = 2.0
+blur_amount = 0.1
+near_transition_cells = 3.0
+far_transition_cells = 3.0

@@ -1,14 +1,14 @@
-[gd_resource type="Resource" script_class="StuffDefinition" format=3]
+[gd_resource type="Resource" script_class="StuffDefinition" format=3 uid="uid://dtew6at2l0e6t"]
 
-[ext_resource type="Script" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
-[ext_resource type="Resource" path="res://resources/tile_effects/Spike.tres" id="2_effect"]
+[ext_resource type="Script" uid="uid://blu6reftyrrnp" path="res://scripts/stuff/StuffDefinition.gd" id="1_stuff"]
+[ext_resource type="Resource" uid="uid://5hgy7c78xilg" path="res://resources/tile_effects/Spike.tres" id="2_effect"]
 
 [resource]
 script = ExtResource("1_stuff")
 stuff_id = &"spike"
 display_name = "尖刺"
-blocks_tile_building = true
-blocks_edge_building = false
+enemy_navigation = 1
 effect = ExtResource("2_effect")
+durability_mode = 1
 fallback_visual_kind = 2
 fallback_color = Color(0.95, 0.28, 0.2, 1)

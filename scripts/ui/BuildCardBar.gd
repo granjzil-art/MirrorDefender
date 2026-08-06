@@ -1,4 +1,4 @@
-## One-row production build card bar with a dedicated copy-mirror slot.
+## One-row production build card bar with dedicated physical-mirror cards.
 class_name BuildCardBar
 extends Control
 
@@ -16,16 +16,20 @@ extends Control
 
 signal building_card_selected(definition: BuildingDefinition)
 signal mirror_card_selected
+signal reflect_mirror_card_selected
 
 var _resource_manager: ResourceManager
 var _mirror_definition: CopyMirrorDefinition
+var _reflect_mirror_definition: ReflectMirrorDefinition
 var _building_definitions: Array[BuildingDefinition] = []
 var _building_buttons: Dictionary = {}
 var _mirror_button: Button
+var _reflect_mirror_button: Button
 var _cards_row: HBoxContainer
 var _status_label: Label
 var _selected_definition: BuildingDefinition
 var _mirror_selected: bool = false
+var _reflect_mirror_selected: bool = false
 
 
 func _ready() -> void:
@@ -37,11 +41,13 @@ func configure(
 	resource_manager: ResourceManager,
 	mirror_definition: CopyMirrorDefinition,
 	building_definitions: Array[BuildingDefinition],
-	slot_count: int = 6
+	slot_count: int = 6,
+	reflect_mirror_definition: ReflectMirrorDefinition = null
 ) -> void:
 	_disconnect_resource_manager()
 	_resource_manager = resource_manager
 	_mirror_definition = mirror_definition
+	_reflect_mirror_definition = reflect_mirror_definition
 	_building_definitions = building_definitions.duplicate()
 	building_slot_count = clampi(slot_count, 1, 12)
 	if _resource_manager != null:
@@ -61,6 +67,7 @@ func set_slot_count(value: int) -> void:
 func set_selected_building(definition: BuildingDefinition) -> void:
 	_selected_definition = definition
 	_mirror_selected = false
+	_reflect_mirror_selected = false
 	_refresh_card_states()
 
 
@@ -68,12 +75,22 @@ func set_mirror_selected(selected: bool) -> void:
 	_mirror_selected = selected
 	if selected:
 		_selected_definition = null
+		_reflect_mirror_selected = false
+	_refresh_card_states()
+
+
+func set_reflect_mirror_selected(selected: bool) -> void:
+	_reflect_mirror_selected = selected
+	if selected:
+		_selected_definition = null
+		_mirror_selected = false
 	_refresh_card_states()
 
 
 func clear_selection() -> void:
 	_selected_definition = null
 	_mirror_selected = false
+	_reflect_mirror_selected = false
 	_refresh_card_states()
 
 
@@ -92,6 +109,13 @@ func get_filled_building_card_count() -> int:
 	return mini(building_slot_count, _building_definitions.size())
 
 
+## Returns the configured building card at a zero-based formal slot index.
+func get_building_definition_at(slot_index: int) -> BuildingDefinition:
+	if slot_index < 0 or slot_index >= building_slot_count or slot_index >= _building_definitions.size():
+		return null
+	return _building_definitions[slot_index]
+
+
 func get_empty_building_card_count() -> int:
 	return building_slot_count - get_filled_building_card_count()
 
@@ -102,6 +126,10 @@ func is_building_card_available(definition: BuildingDefinition) -> bool:
 
 func is_mirror_card_available() -> bool:
 	return _is_mirror_available()
+
+
+func is_reflect_mirror_card_available() -> bool:
+	return _is_reflect_mirror_available()
 
 
 func _build_interface() -> void:
@@ -144,6 +172,18 @@ func _rebuild_cards() -> void:
 	_mirror_button.name = "MirrorCard"
 	_mirror_button.pressed.connect(_on_mirror_pressed)
 	_cards_row.add_child(_mirror_button)
+	if _reflect_mirror_definition != null:
+		_reflect_mirror_button = _create_card_button(
+			_reflect_mirror_definition.display_name,
+			_reflect_mirror_definition.card_icon,
+			_reflect_mirror_definition.cost,
+			true
+		)
+		_reflect_mirror_button.name = "ReflectMirrorCard"
+		_reflect_mirror_button.pressed.connect(_on_reflect_mirror_pressed)
+		_cards_row.add_child(_reflect_mirror_button)
+	else:
+		_reflect_mirror_button = null
 
 	var spacer := Control.new()
 	spacer.custom_minimum_size.x = mirror_slot_separation
@@ -232,6 +272,12 @@ func _create_empty_card(index: int) -> Control:
 func _refresh_card_states() -> void:
 	if _mirror_button != null:
 		_apply_button_state(_mirror_button, _is_mirror_available(), _mirror_selected)
+	if _reflect_mirror_button != null:
+		_apply_button_state(
+			_reflect_mirror_button,
+			_is_reflect_mirror_available(),
+			_reflect_mirror_selected
+		)
 	for raw_definition in _building_buttons:
 		var definition: BuildingDefinition = raw_definition
 		var button: Button = _building_buttons[definition]
@@ -285,6 +331,15 @@ func _is_mirror_available() -> bool:
 	)
 
 
+func _is_reflect_mirror_available() -> bool:
+	return (
+		_reflect_mirror_definition != null
+		and _resource_manager != null
+		and _resource_manager.can_add_mirror()
+		and _resource_manager.can_afford(_reflect_mirror_definition.cost)
+	)
+
+
 func _on_building_pressed(definition: BuildingDefinition) -> void:
 	if _is_building_available(definition):
 		building_card_selected.emit(definition)
@@ -293,6 +348,11 @@ func _on_building_pressed(definition: BuildingDefinition) -> void:
 func _on_mirror_pressed() -> void:
 	if _is_mirror_available():
 		mirror_card_selected.emit()
+
+
+func _on_reflect_mirror_pressed() -> void:
+	if _is_reflect_mirror_available():
+		reflect_mirror_card_selected.emit()
 
 
 func _on_resource_changed(_current: float, _delta: float, _reason: String) -> void:

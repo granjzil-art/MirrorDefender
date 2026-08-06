@@ -132,7 +132,7 @@ func _make_building_entry(building: Building) -> Dictionary:
 
 
 func _make_mirror_entry(mirror: CopyMirror) -> Dictionary:
-	var definition: CopyMirrorDefinition = mirror.definition
+	var definition: MirrorDefinition = mirror.definition
 	var config: InspectionDisplayConfigScript = definition.inspection_display if definition != null else null
 	if not _is_object_visible(config):
 		return {}
@@ -142,11 +142,16 @@ func _make_mirror_entry(mirror: CopyMirror) -> Dictionary:
 		lines.append("两侧：%s ↔ %s" % [str(mirror.from_cell), str(mirror.to_cell)])
 	if _shows(config, &"show_orientation"):
 		lines.append("生效侧：%s" % str(mirror.get_active_cell()))
-	var fallback_name := definition.display_name if definition != null else "复制镜"
+	var fallback_name := definition.display_name if definition != null else "镜子"
+	var fallback_description := (
+		"按入射角等于反射角反射经过生效面的我方投射物。"
+		if mirror.is_projectile_reflector()
+		else "复制镜面法线方向最近非空地块上的全部对象到对称位置。"
+	)
 	return _make_entry(&"mirror", _resolve_name(config, fallback_name), "边建筑", "实体",
 		definition.card_icon if definition != null else null,
 		definition.mirror_color if definition != null else Color(0.2, 0.78, 1.0),
-		lines, config, "复制镜面法线方向最近非空地块上的全部对象到对称位置。")
+		lines, config, fallback_description)
 
 
 func _make_tile_element_entry(tile: TileCellData, effect: TileEffect) -> Dictionary:
@@ -341,6 +346,11 @@ func _append_building_gameplay_lines(
 			attack_rate_text = "DPS %.1f" % building.get_laser_damage_per_second()
 		else:
 			attack_rate_text = "攻速 %.2f/s" % stats.attacks_per_second
+		if (
+			_shows(config, &"show_combat")
+			and stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
+		):
+			lines.append("无目标：沿逻辑朝向持续射击")
 		if _shows(config, &"show_combat") and _shows(config, &"show_economy"):
 			lines.append("%s · 产出 %.1f/s" % [attack_rate_text, stats.resource_per_second])
 		elif _shows(config, &"show_combat"):
@@ -393,6 +403,8 @@ func _building_description(definition: BuildingDefinition) -> String:
 	if definition == null:
 		return "可由玩家放置、升级、旋转或删除的建筑。"
 	match definition.kind:
+		BuildingDefinition.Kind.CROSSBOW_TOWER:
+			return "索敌范围内按普通箭塔逻辑攻击；无目标时沿建筑逻辑朝向持续发射直线弩箭。"
 		BuildingDefinition.Kind.ARROW_TOWER:
 			return "自动索敌并发射投射物，攻击索敌范围和射程内的敌人。"
 		BuildingDefinition.Kind.LASER_TOWER:

@@ -13,6 +13,7 @@ const DebugConsoleScript := preload("res://scripts/ui/DebugConsole.gd")
 const DebugOverlayPanelScript := preload("res://scripts/ui/DebugOverlayPanel.gd")
 const DebugCommandRegistryScript := preload("res://scripts/debug/DebugCommandRegistry.gd")
 const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryRegistry.gd")
+const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEditorPanel.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
@@ -24,6 +25,7 @@ const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryR
 @onready var wave_control_panel: WaveControlPanelScript = $WaveControlPanel
 @onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
 @onready var debug_console: DebugConsoleScript = $DebugConsole
+@onready var runtime_stuff_editor_panel: RuntimeStuffEditorPanelScript = $RuntimeStuffEditorPanel
 
 signal restart_level_requested
 signal exit_level_requested
@@ -34,6 +36,7 @@ signal wave_paths_preview_cleared
 var _interaction: RuntimeInteractionControllerScript
 var _time_controller: GameTimeControllerScript
 var _last_modal_state: bool = false
+var _stuff_editor_controller: Node
 
 
 func _ready() -> void:
@@ -54,26 +57,38 @@ func configure(
 	resource_manager: ResourceManager,
 	building_manager: BuildingManager,
 	mirror_manager: MirrorManager,
-	slot_count: int = 6
+	slot_count: int = 6,
+	stuff_editor_controller: Node = null
 ) -> void:
 	_disconnect_sources()
 	_interaction = interaction
 	_time_controller = time_controller
 	var cards: Array[BuildingDefinition] = []
-	for definition in [building_manager.arrow_tower, building_manager.laser_tower, building_manager.barrier]:
+	for definition in [
+		building_manager.arrow_tower,
+		building_manager.laser_tower,
+		building_manager.barrier,
+		building_manager.crossbow_tower,
+	]:
 		if definition is BuildingDefinition:
 			cards.append(definition)
 	build_card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
 		cards,
-		slot_count
+		slot_count,
+		mirror_manager.reflect_mirror_definition
 	)
 	build_card_bar.building_card_selected.connect(_on_building_card_selected)
 	build_card_bar.mirror_card_selected.connect(_on_mirror_card_selected)
+	build_card_bar.reflect_mirror_card_selected.connect(_on_reflect_mirror_card_selected)
 	economy_panel.configure(resource_manager)
 	time_control_panel.configure(_time_controller)
 	pause_menu.configure(get_window())
+	_stuff_editor_controller = stuff_editor_controller
+	runtime_stuff_editor_panel.configure(_stuff_editor_controller)
+	if _stuff_editor_controller != null and _stuff_editor_controller.has_signal(&"active_changed"):
+		_stuff_editor_controller.connect(&"active_changed", _on_stuff_editor_active_changed)
 	if _interaction != null:
 		_interaction.mode_changed.connect(_on_mode_changed)
 		_interaction.placement_resolved.connect(_on_placement_resolved)
@@ -84,6 +99,11 @@ func configure(
 	_on_mode_changed(_interaction.get_mode() if _interaction != null else RuntimeInteractionControllerScript.Mode.SELECT)
 	_sync_world_selection()
 	_on_paused_changed(_time_controller.is_paused() if _time_controller != null else false)
+	_on_stuff_editor_active_changed(
+		bool(stuff_editor_controller.call("is_active"))
+		if stuff_editor_controller != null and stuff_editor_controller.has_method("is_active")
+		else false
+	)
 
 
 func configure_global_info(
@@ -180,11 +200,18 @@ func _on_mirror_card_selected() -> void:
 		build_card_bar.set_mirror_selected(true)
 
 
+func _on_reflect_mirror_card_selected() -> void:
+	if _interaction != null and _interaction.select_reflect_mirror_card():
+		build_card_bar.set_reflect_mirror_selected(true)
+
+
 func _on_mode_changed(mode: RuntimeInteractionControllerScript.Mode) -> void:
 	if mode == RuntimeInteractionControllerScript.Mode.SELECT:
 		build_card_bar.clear_selection()
 	elif mode == RuntimeInteractionControllerScript.Mode.PLACE_COPY_MIRROR:
 		build_card_bar.set_mirror_selected(true)
+	elif mode == RuntimeInteractionControllerScript.Mode.PLACE_REFLECT_MIRROR:
+		build_card_bar.set_reflect_mirror_selected(true)
 	elif _interaction != null:
 		build_card_bar.set_selected_building(_interaction.get_selected_definition())
 
@@ -227,6 +254,10 @@ func _on_debug_console_open_changed(_open: bool) -> void:
 	_sync_modal_state()
 
 
+func _on_stuff_editor_active_changed(active: bool) -> void:
+	build_card_bar.visible = not active
+
+
 func _sync_modal_state() -> void:
 	var open := is_modal_open()
 	wave_control_panel.set_preview_suppressed(open)
@@ -258,6 +289,8 @@ func _disconnect_sources() -> void:
 			build_card_bar.building_card_selected.disconnect(_on_building_card_selected)
 		if build_card_bar.mirror_card_selected.is_connected(_on_mirror_card_selected):
 			build_card_bar.mirror_card_selected.disconnect(_on_mirror_card_selected)
+		if build_card_bar.reflect_mirror_card_selected.is_connected(_on_reflect_mirror_card_selected):
+			build_card_bar.reflect_mirror_card_selected.disconnect(_on_reflect_mirror_card_selected)
 	if _interaction != null:
 		if _interaction.mode_changed.is_connected(_on_mode_changed):
 			_interaction.mode_changed.disconnect(_on_mode_changed)
@@ -270,3 +303,8 @@ func _disconnect_sources() -> void:
 	if _time_controller != null:
 		if _time_controller.paused_changed.is_connected(_on_paused_changed):
 			_time_controller.paused_changed.disconnect(_on_paused_changed)
+	if _stuff_editor_controller != null:
+		var callback := Callable(self, "_on_stuff_editor_active_changed")
+		if _stuff_editor_controller.is_connected(&"active_changed", callback):
+			_stuff_editor_controller.disconnect(&"active_changed", callback)
+	_stuff_editor_controller = null

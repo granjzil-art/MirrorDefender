@@ -243,7 +243,9 @@ func _update_reflection_camera() -> void:
 		maxf(near_plane + 1.0, _source_camera.far)
 	)
 	_reflection_camera.environment = _source_camera.environment
-	_reflection_camera.attributes = _source_camera.attributes
+	# Camera DOF belongs to the final player viewport. Applying it to this
+	# offscreen capture would blur the reflection twice and waste GPU time.
+	_reflection_camera.attributes = null
 
 func _make_reflection_material(texture: Texture2D) -> ShaderMaterial:
 	var material := ShaderMaterial.new()

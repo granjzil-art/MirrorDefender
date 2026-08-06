@@ -92,7 +92,7 @@ func _test_inspection_model(fixture: Dictionary) -> void:
 	await process_frame
 	_expect(tower.facing_index != previous_facing, "fixture tower rotates through the existing building operation")
 	var changed_tower: Dictionary = _find_entry(service.inspect_cell(source_cell).entries, &"building")
-	_expect(_lines_contain(changed_tower, "朝向：2 / 8"), "selected-cell model refreshes after facing changes")
+	_expect(_lines_contain(changed_tower, "朝向：2 / 36"), "selected-cell model refreshes after facing changes")
 
 	var mirror: CopyMirror = fixture["copy_mirror"]
 	var previous_active_cell := mirror.get_active_cell()

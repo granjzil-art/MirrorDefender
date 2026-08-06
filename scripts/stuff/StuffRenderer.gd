@@ -49,6 +49,12 @@ func create_stuff_visual_snapshot(placement_id: StringName) -> Node3D:
 	return _build_visual(runtime) if runtime != null else null
 
 
+## Behaviorless local visual used by the runtime authoring preview. The caller
+## owns the returned node and applies validation overlays/world transform.
+func create_preview_visual(runtime: StuffRuntime) -> Node3D:
+	return _build_visual(runtime)
+
+
 func _rebuild_all() -> void:
 	_clear_visuals()
 	if not feature_enabled or _stuff_manager == null:

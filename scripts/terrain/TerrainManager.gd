@@ -9,6 +9,7 @@ const GridCellDataScript := preload("res://scripts/terrain/GridCellData.gd")
 const RampPlacementDataScript := preload("res://scripts/terrain/RampPlacementData.gd")
 const TerrainDefinitionScript := preload("res://scripts/terrain/TerrainDefinition.gd")
 const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMetrics.gd")
+const CANONICAL_CONTENT_VERSION: int = 2
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -111,6 +112,10 @@ func get_level_resource() -> LevelResource:
 	return _level
 
 
+func get_grid_shape() -> IGridShape:
+	return _grid.get_shape() if _grid != null else null
+
+
 func get_grid_cell(cell: Vector3i) -> GridCellDataScript:
 	return _grid_cells.get(cell) as GridCellDataScript
 
@@ -124,6 +129,75 @@ func get_grid_cells() -> Array[GridCellDataScript]:
 		if grid_cell != null:
 			out.append(grid_cell)
 	return out
+
+
+## Returns detached canonical Grid data suitable for authoring snapshots.
+func export_grid_cells() -> Array[GridCellDataScript]:
+	var out: Array[GridCellDataScript] = []
+	for source in get_grid_cells():
+		out.append(_clone_grid_cell(source))
+	return out
+
+
+## Returns detached canonical ramp data suitable for authoring snapshots.
+func export_ramp_placements() -> Array[RampPlacementDataScript]:
+	var out: Array[RampPlacementDataScript] = []
+	for source in _ramps:
+		out.append(_clone_ramp(source))
+	return out
+
+
+## Atomically replaces mutable runtime Grid/Ramp state without changing the
+## loaded LevelResource identity. Used by runtime preview, undo and redo.
+func replace_runtime_content(grid_cells: Array, ramp_placements: Array) -> bool:
+	if _level == null or _grid == null:
+		return false
+	var candidate := _level.duplicate(true) as LevelResource
+	if candidate == null:
+		return false
+	var candidate_cells: Array[GridCellDataScript] = []
+	for raw_cell in grid_cells:
+		if not raw_cell is GridCellDataScript:
+			return false
+		candidate_cells.append(_clone_grid_cell(raw_cell))
+	var candidate_ramps: Array[RampPlacementDataScript] = []
+	for raw_ramp in ramp_placements:
+		if not raw_ramp is RampPlacementDataScript:
+			return false
+		candidate_ramps.append(_clone_ramp(raw_ramp))
+	candidate.grid_cells.assign(candidate_cells)
+	candidate.ramp_placements.assign(candidate_ramps)
+	candidate.terrain_content_version = CANONICAL_CONTENT_VERSION
+	candidate.tiles = []
+	if not candidate.validate_runtime().is_empty():
+		return false
+	var next_cells: Dictionary = {}
+	for source_cell in candidate_cells:
+		if not _grid.is_in_bounds(source_cell.cell) or next_cells.has(source_cell.cell):
+			return false
+		next_cells[source_cell.cell] = _clone_grid_cell(source_cell)
+	for cell in _grid.enumerate_cells():
+		if not next_cells.has(cell):
+			return false
+	var next_ramps: Array[RampPlacementDataScript] = []
+	var next_bindings: Dictionary = {}
+	for source_ramp in candidate_ramps:
+		var ramp := _clone_ramp(source_ramp)
+		var footprint := ramp.get_footprint_cells(_grid.get_shape())
+		if footprint.size() != ramp.run_length:
+			return false
+		for footprint_index in range(footprint.size()):
+			var ramp_cell: Vector3i = footprint[footprint_index]
+			if not next_cells.has(ramp_cell) or next_bindings.has(ramp_cell):
+				return false
+			next_bindings[ramp_cell] = {"ramp": ramp, "index": footprint_index}
+		next_ramps.append(ramp)
+	_grid_cells = next_cells
+	_ramps = next_ramps
+	_ramp_bindings = next_bindings
+	_uses_legacy_snapshot = false
+	terrain_loaded.emit(_level)
+	return true
 
 
 func get_default_terrain() -> TerrainDefinitionScript:

@@ -3,6 +3,7 @@ class_name BuildingManager
 extends Node3D
 
 const BuildingPlacementRulesScript := preload("res://scripts/building/BuildingPlacementRules.gd")
+const BuildingPlacementDataScript := preload("res://scripts/building/BuildingPlacementData.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -12,6 +13,7 @@ const BuildingPlacementRulesScript := preload("res://scripts/building/BuildingPl
 @export var laser_tower: BuildingDefinition
 @export var barrier: BuildingDefinition
 @export var edge_barrier: BuildingDefinition
+@export var crossbow_tower: BuildingDefinition
 
 signal building_placed(building: Building)
 signal building_removed(building: Building)
@@ -58,6 +60,7 @@ func configure(
 	laser_tower = _reload_definition(laser_tower)
 	barrier = _reload_definition(barrier)
 	edge_barrier = _reload_definition(edge_barrier)
+	crossbow_tower = _reload_definition(crossbow_tower)
 	if _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 
@@ -76,17 +79,105 @@ func place_building(
 	definition: BuildingDefinition,
 	placement_facing: int = -1
 ) -> Building:
-	var failure := _validate_placement(cell, definition)
+	return _place_tile_building(cell, definition, placement_facing, 1, true, true, true)
+
+
+func place_edge_building(
+	from_cell: Vector3i,
+	placement_edge_index: int,
+	definition: BuildingDefinition
+) -> Building:
+	return _place_edge_building(from_cell, placement_edge_index, definition, 1, true, true, true)
+
+
+## Captures only real Buildings. Preview nodes and mirror projections are excluded.
+func export_initial_placements() -> Array[BuildingPlacementData]:
+	var placements: Array[BuildingPlacementData] = []
+	for building in get_buildings():
+		var placement := BuildingPlacementDataScript.new()
+		placement.configure(
+			building.definition,
+			building.cell,
+			building.facing_index,
+			building.edge_index if building.is_edge_placement() else -1,
+			building.level
+		)
+		placements.append(placement)
+	placements.sort_custom(func(a: BuildingPlacementData, b: BuildingPlacementData) -> bool:
+		return _placement_sort_key(a) < _placement_sort_key(b)
+	)
+	return placements
+
+
+## Keeps current runtime state while re-sampling edited terrain heights.
+func refresh_world_transforms() -> void:
+	for building in get_buildings():
+		building.refresh_world_transform()
+	if _preview_building != null and is_instance_valid(_preview_building):
+		_preview_building.refresh_world_transform()
+
+
+## Rebuilds the authored initial layout without charging initial_resource.
+## Returns one message per rejected placement and rolls back partial assembly.
+func load_initial_placements(placements: Array) -> Array[String]:
+	clear_buildings(false)
+	var errors: Array[String] = []
+	for index in range(placements.size()):
+		var raw_placement: Variant = placements[index]
+		if not raw_placement is BuildingPlacementDataScript:
+			errors.append("初始建筑 %d 数据类型无效" % (index + 1))
+			continue
+		var placement: BuildingPlacementData = raw_placement
+		var building: Building
+		if placement.is_edge_placement():
+			building = _place_edge_building(
+				placement.cell,
+				placement.edge_index,
+				placement.definition,
+				placement.level,
+				false,
+				false,
+				false
+			)
+		else:
+			building = _place_tile_building(
+				placement.cell,
+				placement.definition,
+				placement.facing_index,
+				placement.level,
+				false,
+				false,
+				false
+			)
+		if building == null:
+			errors.append("初始建筑 %d 装配失败" % (index + 1))
+	if not errors.is_empty():
+		clear_buildings(true)
+	else:
+		select_building(null)
+	return errors
+
+
+func _place_tile_building(
+	cell: Vector3i,
+	definition: BuildingDefinition,
+	placement_facing: int,
+	initial_level: int,
+	charge_cost: bool,
+	check_connectivity: bool,
+	select_after_placement: bool
+) -> Building:
+	var failure := _validate_placement(cell, definition, charge_cost)
 	if not failure.is_empty():
 		placement_failed.emit(cell, failure)
 		return null
 	var level_one_stats := definition.get_level_stats(1)
 	var building := Building.new()
 	add_child(building)
-	building.configure(definition, cell, _grid, _tile_manager, _combat_manager)
+	building.configure(definition, cell, _grid, _tile_manager, _combat_manager, initial_level)
 	var connectivity_failure := (
 		_validate_path_connectivity({"extra_tile_blocker": building})
-		if building.is_tile_path_blocker()
+		if check_connectivity and building.is_tile_path_blocker()
 		else ""
 	)
 	if not connectivity_failure.is_empty():
@@ -102,24 +193,35 @@ func place_building(
 		building.queue_free()
 		placement_failed.emit(cell, "地块已被占用")
 		return null
-	if not _resource_manager.try_register_building(level_one_stats.cost):
+	var registered := (
+		_resource_manager.try_register_building(level_one_stats.cost)
+		if charge_cost
+		else _resource_manager.try_register_initial_building()
+	)
+	if not registered:
 		_tile_manager.clear_occupant(cell, building)
 		_disconnect_building_lifecycle(building)
 		building.queue_free()
-		placement_failed.emit(cell, "资源不足或达到建筑上限")
+		placement_failed.emit(cell, "资源不足或达到建筑上限" if charge_cost else "初始建筑超过建筑上限")
 		return null
 	_buildings[cell] = building
 	_sync_building_income()
-	select_building(building)
+	if select_after_placement:
+		select_building(building)
 	building_placed.emit(building)
 	return building
 
-func place_edge_building(
+
+func _place_edge_building(
 	from_cell: Vector3i,
 	placement_edge_index: int,
-	definition: BuildingDefinition
+	definition: BuildingDefinition,
+	initial_level: int,
+	charge_cost: bool,
+	check_connectivity: bool,
+	select_after_placement: bool
 ) -> Building:
-	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition)
+	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition, charge_cost)
 	var failure: String = validation["failure"]
 	if not failure.is_empty():
 		placement_failed.emit(from_cell, failure)
@@ -137,11 +239,12 @@ func place_edge_building(
 		canonical_id,
 		_grid,
 		_tile_manager,
-		_combat_manager
+		_combat_manager,
+		initial_level
 	)
 	var connectivity_failure := (
 		_validate_path_connectivity({"extra_edge_blocker": building})
-		if building.is_edge_path_blocker()
+		if check_connectivity and building.is_edge_path_blocker()
 		else ""
 	)
 	if not connectivity_failure.is_empty():
@@ -149,20 +252,26 @@ func place_edge_building(
 		placement_failed.emit(from_cell, connectivity_failure)
 		return null
 	_register_building_lifecycle(building)
-	if not _resource_manager.try_register_building(level_one_stats.cost):
+	var registered := (
+		_resource_manager.try_register_building(level_one_stats.cost)
+		if charge_cost
+		else _resource_manager.try_register_initial_building()
+	)
+	if not registered:
 		_disconnect_building_lifecycle(building)
 		building.queue_free()
-		placement_failed.emit(from_cell, "资源不足或达到建筑上限")
+		placement_failed.emit(from_cell, "资源不足或达到建筑上限" if charge_cost else "初始建筑超过建筑上限")
 		return null
 	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(canonical_id, building):
-		_resource_manager.unregister_building(level_one_stats.cost)
+		_resource_manager.unregister_building(level_one_stats.cost if charge_cost else 0.0)
 		_disconnect_building_lifecycle(building)
 		building.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
 	_edge_buildings[canonical_id] = building
 	_sync_building_income()
-	select_building(building)
+	if select_after_placement:
+		select_building(building)
 	building_placed.emit(building)
 	return building
 
@@ -341,6 +450,8 @@ func get_selected_building() -> Building:
 	return _selected_building if is_instance_valid(_selected_building) else null
 
 func get_definition(kind: int) -> BuildingDefinition:
+	if kind == BuildingDefinition.Kind.CROSSBOW_TOWER:
+		return crossbow_tower
 	if kind == BuildingDefinition.Kind.EDGE_BARRIER:
 		return edge_barrier
 	if kind == BuildingDefinition.Kind.BARRIER:
@@ -386,10 +497,14 @@ func resolve_physical_path_blocker(from_cell: Vector3i, to_cell: Vector3i, targe
 func is_path_cell(cell: Vector3i) -> bool:
 	return _placement_rules.is_path_cell(cell)
 
-func _validate_placement(cell: Vector3i, definition: BuildingDefinition) -> String:
+func _validate_placement(
+	cell: Vector3i,
+	definition: BuildingDefinition,
+	check_economy: bool = true
+) -> String:
 	if not feature_enabled:
 		return "建筑系统已关闭"
-	return _placement_rules.validate_tile(cell, definition)
+	return _placement_rules.validate_tile(cell, definition, check_economy)
 
 func _validate_edge_placement(
 	from_cell: Vector3i,
@@ -435,6 +550,17 @@ func _sync_building_income() -> void:
 	for building in get_buildings():
 		total += building.get_resource_per_second()
 	_resource_manager.set_building_resource_per_second(total)
+
+
+func _placement_sort_key(placement: BuildingPlacementData) -> String:
+	return "%d,%d,%d|%d|%d|%s" % [
+		placement.cell.x,
+		placement.cell.y,
+		placement.cell.z,
+		placement.edge_index,
+		placement.facing_index,
+		placement.definition.resource_path if placement.definition != null else "",
+	]
 
 func _reload_definition(definition: BuildingDefinition) -> BuildingDefinition:
 	if definition == null or definition.resource_path.is_empty():

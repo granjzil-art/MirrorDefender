@@ -25,6 +25,25 @@ static func make_copy_mirror_definition() -> CopyMirrorDefinition:
 	return definition
 
 
+static func make_reflect_mirror_definition() -> ReflectMirrorDefinition:
+	var definition := ReflectMirrorDefinition.new()
+	definition.display_name = "测试反射镜"
+	definition.cost = 80.0
+	definition.refund = 40.0
+	definition.active_from_side_by_default = true
+	definition.mirror_thickness_ratio = 0.08
+	definition.mirror_height_ratio = 2.0
+	definition.reflection_enabled = true
+	definition.reflection_two_sided_visual = true
+	definition.reflection_resolution = 128
+	definition.reflection_preview_resolution = 64
+	definition.reflection_update_interval_frames = 1
+	definition.reflection_max_updates_per_frame = 6
+	definition.collision_epsilon_ratio = 0.002
+	definition.max_reflections_per_frame = 8
+	return definition
+
+
 static func make_building_definition(kind: BuildingDefinition.Kind) -> BuildingDefinition:
 	var definition := BuildingDefinition.new()
 	definition.kind = kind
@@ -33,7 +52,7 @@ static func make_building_definition(kind: BuildingDefinition.Kind) -> BuildingD
 	definition.blocks_both_directions = true
 	definition.aim_mode = (
 		BuildingDefinition.AimMode.TRACK_TARGET
-		if kind == BuildingDefinition.Kind.ARROW_TOWER
+		if kind in [BuildingDefinition.Kind.ARROW_TOWER, BuildingDefinition.Kind.CROSSBOW_TOWER]
 		else BuildingDefinition.AimMode.FIXED_FACING
 	)
 	definition.visual_turn_speed_degrees = 2160.0
@@ -57,6 +76,8 @@ static func _make_building_stats(kind: BuildingDefinition.Kind) -> BuildingLevel
 
 static func _building_display_name(kind: BuildingDefinition.Kind) -> String:
 	match kind:
+		BuildingDefinition.Kind.CROSSBOW_TOWER:
+			return "测试弩箭塔"
 		BuildingDefinition.Kind.LASER_TOWER:
 			return "测试激光塔"
 		BuildingDefinition.Kind.BARRIER:

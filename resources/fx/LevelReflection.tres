@@ -4,6 +4,7 @@
 
 [resource]
 script = ExtResource("1_definition")
+feature_enabled = false
 vertical_offset = 8.0
 edge_margin_cells = 8.0
 surface_tint = Color(0.40392157, 0.73333335, 0.93333334, 1)

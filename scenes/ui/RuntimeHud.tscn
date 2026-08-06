@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/WaveControlPanel.tscn" id="9_wave_controls"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DebugConsole.tscn" id="10_debug_console"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DebugOverlayPanel.tscn" id="11_debug_overlay"]
+[ext_resource type="PackedScene" path="res://scenes/ui/RuntimeStuffEditorPanel.tscn" id="12_stuff_editor"]
 
 [node name="RuntimeHud" type="Control"]
 layout_mode = 3
@@ -102,3 +103,5 @@ script = ExtResource("3_tile_inspection")
 [node name="DebugOverlayPanel" parent="." instance=ExtResource("11_debug_overlay")]
 
 [node name="DebugConsole" parent="." instance=ExtResource("10_debug_console")]
+
+[node name="RuntimeStuffEditorPanel" parent="." instance=ExtResource("12_stuff_editor")]

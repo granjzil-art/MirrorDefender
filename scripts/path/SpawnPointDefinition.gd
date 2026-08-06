@@ -3,6 +3,8 @@
 class_name SpawnPointDefinition
 extends Resource
 
+const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
+
 @export_group("Identity")
 @export var spawn_id: StringName = &"north"
 @export var display_name: String = "北侧入口"
@@ -11,6 +13,20 @@ extends Resource
 
 @export_group("Location")
 @export var cell: Vector3i = Vector3i.ZERO
+
+@export_group("Presentation")
+@export var model_asset: ModelAssetDefinition
+
+
+func get_model_asset() -> ModelAssetDefinition:
+	return model_asset
+
+
+func validate_configuration() -> Array[String]:
+	var errors: Array[String] = []
+	if model_asset != null:
+		ConfigValidator.append_prefixed(errors, "出生点模型", model_asset.validate_configuration())
+	return errors
 
 static func make_id_for_path(path: PathDefinition) -> StringName:
 	if path == null:

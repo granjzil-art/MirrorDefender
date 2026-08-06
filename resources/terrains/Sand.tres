@@ -1,9 +1,18 @@
-[gd_resource type="Resource" script_class="TerrainDefinition" format=3]
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://dpnvaki7pqc01"]
 
-[ext_resource type="Script" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+[ext_resource type="PackedScene" uid="uid://8pbciis2k4m1" path="res://assets/blocks/tscn/mud_1.tscn" id="1_khjk6"]
+[ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="1_terrain"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_eefon"]
+
+[sub_resource type="Resource" id="Resource_fa55k"]
+script = ExtResource("2_eefon")
+scene = ExtResource("1_khjk6")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_terrain")
 terrain_id = &"sand"
 display_name = "沙地"
 fallback_color = Color(0.78, 0.62, 0.31, 1)
+flat_model_asset = SubResource("Resource_fa55k")

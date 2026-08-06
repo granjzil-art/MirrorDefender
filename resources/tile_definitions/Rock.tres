@@ -2,7 +2,15 @@
 
 [ext_resource type="Script" uid="uid://cduluin1f63fj" path="res://scripts/tile/TileDefinition.gd" id="1_definition"]
 [ext_resource type="Resource" uid="uid://cwmyd2ct7p1i4" path="res://resources/tile_effects/Rock.tres" id="2_effect"]
+[ext_resource type="PackedScene" uid="uid://dtjsy0big8r5" path="res://assets/stuffs/Rock/tscn/rock_type_2_01.tscn" id="2_ry3ja"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_x67iq"]
+
+[sub_resource type="Resource" id="Resource_jorb1"]
+script = ExtResource("3_x67iq")
+scene = ExtResource("2_ry3ja")
+runtime_scale = Vector3(0.8, 0.8, 0.8)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Inspection_rock"]
 script = ExtResource("3_inspection")
@@ -25,3 +33,4 @@ allows_tile_building = false
 effect = ExtResource("2_effect")
 visual_kind = 3
 visual_color = Color(0.08, 0.085, 0.09, 1)
+element_model_asset = SubResource("Resource_jorb1")

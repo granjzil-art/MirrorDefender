@@ -1,13 +1,15 @@
 [gd_resource type="Resource" script_class="LevelSelectPageDefinition" format=3 uid="uid://dbmiic5wydpks"]
 
 [ext_resource type="Script" uid="uid://ckayuxy8ijk2o" path="res://scripts/level/LevelSelectPageDefinition.gd" id="1_page"]
-[ext_resource type="Resource" uid="uid://bp16pgi5yajah" path="res://resources/levels/DemoLevel1.tres" id="2_jynh8"]
+[ext_resource type="Resource" uid="uid://bttr7netyje3j" path="res://resources/levels/DemoLevel1.tres" id="2_jynh8"]
 [ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="2_level_script"]
-[ext_resource type="Resource" uid="uid://dt8jg1gt6aanp" path="res://resources/levels/DemoLevel2.tres" id="3_ee12i"]
-[ext_resource type="Resource" uid="uid://c5k5wdktkg6jn" path="res://resources/levels/TestLevel0.tres" id="4_j8yns"]
+[ext_resource type="Resource" uid="uid://bbcm1mpoyikkn" path="res://resources/levels/DemoLevel2.tres" id="3_ee12i"]
 [ext_resource type="Resource" uid="uid://lx385gcllqu0" path="res://resources/levels/TestLevel1.tres" id="5_welku"]
+[ext_resource type="Resource" uid="uid://rdhtpk7httcx" path="res://resources/levels/Level1.tres" id="6_ee12i"]
+[ext_resource type="Resource" uid="uid://bgihm6jjx6dhj" path="res://resources/levels/Level3.tres" id="7_j8yns"]
+[ext_resource type="Resource" uid="uid://gxvu0f1jn3m1" path="res://resources/levels/Level2.tres" id="7_welku"]
 
 [resource]
 script = ExtResource("1_page")
 display_name = "正式关卡"
-levels = Array[ExtResource("2_level_script")]([ExtResource("2_jynh8"), ExtResource("3_ee12i"), ExtResource("4_j8yns"), ExtResource("5_welku")])
+levels = Array[ExtResource("2_level_script")]([ExtResource("2_jynh8"), ExtResource("3_ee12i"), ExtResource("5_welku"), ExtResource("6_ee12i"), ExtResource("7_j8yns"), ExtResource("7_welku")])
