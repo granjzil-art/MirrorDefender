@@ -12,7 +12,6 @@ function_description = "按入射角等于反射角的规则反射经过生效�
 script = ExtResource("1_definition")
 display_name = "反射镜"
 inspection_display = SubResource("Inspection_reflect_mirror")
-cost = 80.0
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false
 reflection_resolution = 512

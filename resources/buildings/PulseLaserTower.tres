@@ -1,0 +1,87 @@
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://ctfjo6s81k4qg"]
+
+[ext_resource type="Texture2D" uid="uid://b0p4nvpf47eev" path="res://assets/png/PulseLayer_o.png" id="1_buxgg"]
+[ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
+[ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+[ext_resource type="PackedScene" uid="uid://dln0p5ag1c1bb" path="res://assets/buildings/PalseLayer/pulse_layer.tscn" id="3_xte1l"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_buxgg"]
+
+[sub_resource type="Resource" id="Inspection_pulse_laser"]
+script = ExtResource("3_inspection")
+display_name = "镭射塔"
+function_description = "沿固定朝向周期发射脉冲镭射；光路可反射、无限穿透敌人，并在保持阶段开始时按光段独立结算伤害。"
+show_position = false
+show_height = false
+show_build_permissions = false
+show_economy = false
+show_projection_source = false
+show_producing_mirror = false
+
+[sub_resource type="Resource" id="Resource_hn4ii"]
+script = ExtResource("4_buxgg")
+scene = ExtResource("3_xte1l")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Level1"]
+script = ExtResource("2_stats")
+cost = 180.0
+base_damage = 24.0
+targeting_range = 6.0
+attack_range = 9.0
+attacks_per_second = 0.7
+model_asset = SubResource("Resource_hn4ii")
+tower_color = Color(0.72, 0.12, 0.08, 1)
+attack_color = Color(1, 0.08, 0.04, 1)
+pulse_laser_width = 0.06999999999999999
+pulse_laser_emission_energy = 2.0
+
+[sub_resource type="Resource" id="Resource_nany5"]
+script = ExtResource("4_buxgg")
+scene = ExtResource("3_xte1l")
+runtime_scale = Vector3(1.1, 1.1, 1.1)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Level2"]
+script = ExtResource("2_stats")
+cost = 160.0
+base_damage = 30.0
+targeting_range = 7.0
+attack_range = 11.0
+level_factor = 1.2
+model_asset = SubResource("Resource_nany5")
+tower_color = Color(0.86, 0.22, 0.05, 1)
+attack_color = Color(1, 0.36, 0.03, 1)
+pulse_laser_width = 0.09
+pulse_laser_emission_energy = 2.5
+pulse_laser_fade_in_time = 0.04
+pulse_laser_hold_time = 0.07
+
+[sub_resource type="Resource" id="Resource_bjg1l"]
+script = ExtResource("4_buxgg")
+scene = ExtResource("3_xte1l")
+runtime_scale = Vector3(1.2, 1.2, 1.2)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Level3"]
+script = ExtResource("2_stats")
+cost = 220.0
+base_damage = 36.0
+targeting_range = 8.0
+attack_range = 14.0
+attacks_per_second = 1.2
+level_factor = 1.5
+model_asset = SubResource("Resource_bjg1l")
+tower_color = Color(0.92, 0.34, 0.04, 1)
+attack_color = Color(1, 0.88, 0.04, 1)
+pulse_laser_fade_in_time = 0.04
+pulse_laser_hold_time = 0.08
+pulse_laser_fade_out_time = 0.2
+
+[resource]
+script = ExtResource("1_definition")
+kind = 6
+display_name = "镭射塔"
+card_icon = ExtResource("1_buxgg")
+inspection_display = SubResource("Inspection_pulse_laser")
+levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])

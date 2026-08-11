@@ -14,6 +14,8 @@ const BuildingPlacementDataScript := preload("res://scripts/building/BuildingPla
 @export var barrier: BuildingDefinition
 @export var edge_barrier: BuildingDefinition
 @export var crossbow_tower: BuildingDefinition
+@export var mace_tower: BuildingDefinition
+@export var pulse_laser_tower: BuildingDefinition
 
 signal building_placed(building: Building)
 signal building_removed(building: Building)
@@ -61,6 +63,8 @@ func configure(
 	barrier = _reload_definition(barrier)
 	edge_barrier = _reload_definition(edge_barrier)
 	crossbow_tower = _reload_definition(crossbow_tower)
+	mace_tower = _reload_definition(mace_tower)
+	pulse_laser_tower = _reload_definition(pulse_laser_tower)
 	if _tile_manager != null:
 		_tile_manager.level_loaded.connect(_on_level_loaded)
 
@@ -452,12 +456,16 @@ func get_selected_building() -> Building:
 func get_definition(kind: int) -> BuildingDefinition:
 	if kind == BuildingDefinition.Kind.CROSSBOW_TOWER:
 		return crossbow_tower
+	if kind == BuildingDefinition.Kind.MACE_TOWER:
+		return mace_tower
 	if kind == BuildingDefinition.Kind.EDGE_BARRIER:
 		return edge_barrier
 	if kind == BuildingDefinition.Kind.BARRIER:
 		return barrier
 	if kind == BuildingDefinition.Kind.LASER_TOWER:
 		return laser_tower
+	if kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
+		return pulse_laser_tower
 	return arrow_tower
 
 func get_path_blocker(cell: Vector3i, target: Node = null) -> Node:

@@ -4,6 +4,9 @@ const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFacto
 
 var _failures: int = 0
 var _checks: int = 0
+var _copy_preview_origin: Vector3 = Vector3.ZERO
+var _copy_preview_direction: Vector3 = Vector3.ZERO
+var _copy_preview_reflection_point: Vector3 = Vector3.ZERO
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -12,6 +15,7 @@ func _run() -> void:
 	print("[CopyMirror] running")
 	await _test_grid_geometry(GridManager.Shape.SQUARE)
 	await _test_grid_geometry(GridManager.Shape.HEX)
+	await _test_building_preview_and_copy_trajectory()
 	await _test_whole_tile_preview_stacking_and_tower_attacks()
 	await _test_projected_barrier_and_shared_edge_occupancy()
 	await _test_projected_rock_after_overlapping_barrier_breaks()
@@ -45,6 +49,138 @@ func _test_grid_geometry(shape: GridManager.Shape) -> void:
 	_expect(reflected.distance_to(grid.cell_to_world(pair.target_cell)) < 0.001, "%s cell pair is geometrically reflected across the shared edge" % grid.get_geometry_tag())
 	host.queue_free()
 	await process_frame
+
+
+func _test_building_preview_and_copy_trajectory() -> void:
+	var fixture := _make_fixture(_make_level(false))
+	var host: Node3D = fixture.host
+	var grid: GridManager = fixture.grid
+	var building_manager: BuildingManager = fixture.building
+	var mirror_manager: MirrorManager = fixture.mirror
+	var source_cell := Vector3i(2, 2, 0)
+	var from_cell := Vector3i(3, 2, 0)
+	var to_cell := Vector3i(4, 2, 0)
+	var target_cell := Vector3i(5, 2, 0)
+	var edge_index := grid.find_edge_index(from_cell, to_cell)
+	var mirror := mirror_manager.place_copy_mirror(from_cell, edge_index, true)
+	_expect(mirror != null, "building-preview fixture places its copy mirror")
+	_expect(
+		building_manager.update_preview(source_cell, building_manager.arrow_tower),
+		"valid building placement creates the real-source preview"
+	)
+	var preview_building := building_manager.get_preview_building()
+	var preview_projections := mirror_manager.get_building_preview_projections()
+	_expect(
+		preview_projections.size() == 1
+		and preview_projections[0].payload.root_source == preview_building
+		and preview_projections[0].payload.projected_cell == target_cell,
+		"building placement previews the corresponding copy at the reflected cell"
+	)
+	_expect(
+		preview_projections.size() == 1
+		and preview_projections[0].preview_mode
+		and preview_projections[0].get_visual_snapshot() != null,
+		"building copy preview is a behaviorless translucent virtual image"
+	)
+	var visualizer := BuildingSelectionVisualizer.new()
+	host.add_child(visualizer)
+	visualizer.configure(grid, building_manager)
+	visualizer.set_projectile_copy_resolver(
+		Callable(mirror_manager, "get_projectile_trajectory_copy_payloads")
+	)
+	var payload := preview_projections[0].payload
+	_copy_preview_origin = payload.transform_point(preview_building.get_attack_origin())
+	_copy_preview_direction = payload.transform_direction(
+		preview_building.get_projectile_launch_directions()[0]
+	).normalized()
+	_copy_preview_reflection_point = _copy_preview_origin + _copy_preview_direction * 0.5
+	visualizer.set_projectile_reflection_resolver(
+		Callable(self, "_trace_copy_preview_reflection")
+	)
+	visualizer.set_projectile_blocker_resolver(Callable(self, "_trace_copy_preview_blocker"))
+	_assert_original_and_copy_trajectories(
+		visualizer.debug_get_projectile_trajectory_segments(),
+		"building placement"
+	)
+	building_manager.clear_preview()
+	_expect(
+		mirror_manager.get_building_preview_projections().is_empty(),
+		"clearing building placement also clears its copy virtual images"
+	)
+	var building := building_manager.place_building(source_cell, building_manager.arrow_tower)
+	_expect(building != null, "copy-trajectory fixture places the previewed building")
+	var live_payloads := mirror_manager.get_projectile_trajectory_copy_payloads(building)
+	_expect(
+		live_payloads.size() == 1 and live_payloads[0].projected_cell == target_cell,
+		"selected live building resolves its corresponding copy payload"
+	)
+	visualizer.refresh()
+	_assert_original_and_copy_trajectories(
+		visualizer.debug_get_projectile_trajectory_segments(),
+		"selected building"
+	)
+	host.queue_free()
+	await process_frame
+
+
+func _assert_original_and_copy_trajectories(segments: Array[Dictionary], context: String) -> void:
+	var originals: Array[Dictionary] = []
+	var copies: Array[Dictionary] = []
+	for segment in segments:
+		if bool(segment.get("projected", false)):
+			copies.append(segment)
+		else:
+			originals.append(segment)
+	_expect(originals.size() == 1, "%s keeps the source trajectory" % context)
+	_expect(
+		copies.size() == 2
+		and int(copies[0].get("reflection_index", -1)) == 0
+		and int(copies[1].get("reflection_index", -1)) == 1,
+		"%s copy trajectory calculates its reflected segment" % context
+	)
+	_expect(
+		copies.size() == 2
+		and not bool(copies[0].get("blocked", true))
+		and bool(copies[1].get("blocked", false)),
+		"%s copy trajectory stops at the shared ballistic blocker" % context
+	)
+
+
+func _trace_copy_preview_reflection(start: Vector3, end: Vector3) -> Dictionary:
+	var segment := end - start
+	if (
+		start.distance_to(_copy_preview_origin) > 0.001
+		or segment.length_squared() <= 0.000001
+		or segment.normalized().dot(_copy_preview_direction) < 0.999
+		or segment.length() < 0.5
+	):
+		return {"hit": false}
+	return {
+		"hit": true,
+		"position": _copy_preview_reflection_point,
+		"normal": _copy_preview_direction,
+		"distance": 0.5,
+		"epsilon": 0.0001,
+	}
+
+
+func _trace_copy_preview_blocker(start: Vector3, end: Vector3) -> Dictionary:
+	var segment := end - start
+	var reflected_direction := -_copy_preview_direction
+	if (
+		start.distance_to(_copy_preview_reflection_point) > 0.001
+		or segment.length_squared() <= 0.000001
+		or segment.normalized().dot(reflected_direction) < 0.999
+		or segment.length() < 0.75
+	):
+		return {"hit": false}
+	var position := start + reflected_direction * 0.75
+	return {
+		"hit": true,
+		"position": position,
+		"distance": 0.75,
+		"blocker": self,
+	}
 
 func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var level := _make_level(false)
@@ -201,6 +337,11 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var mirrored_target_cell := Vector3i(6, 2, 0)
 	var mirrored_target := _make_target(host, grid.cell_to_world(mirrored_target_cell))
 	combat_manager.register_target(mirrored_target)
+	var stuff_manager := StuffManager.new()
+	host.add_child(stuff_manager)
+	stuff_manager.configure(grid, null)
+	_expect(stuff_manager.load_level(_make_level(false)), "copy attack fixture Stuff runtime loads")
+	mirror_manager.set_stuff_manager(stuff_manager)
 	var original_endpoint := grid.cell_to_world(Vector3i(1, 2, 0)) + Vector3(0.0, mirrored_target.debug_height * 0.55, 0.0)
 	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
 	var projection_projectile := _find_projection_projectile(combat_manager)
@@ -208,9 +349,35 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	if projection_projectile != null:
 		projection_projectile._process(10.0)
 	_expect(is_equal_approx(mirrored_target.current_hp, mirrored_target.max_hp - 17.0), "projection projectile damages a target only at the mirrored endpoint")
+	await process_frame
+	var ballistic_blocker := StuffDefinition.new()
+	ballistic_blocker.stuff_id = &"copy_attack_blocker"
+	ballistic_blocker.display_name = "Copy attack blocker"
+	ballistic_blocker.blocks_ballistics = true
+	var blocker_runtime := stuff_manager.add_stuff(
+		mirrored_target_cell,
+		ballistic_blocker,
+		0,
+		&"copy_attack_blocker_1"
+	)
+	_expect(blocker_runtime != null, "copy attack fixture places a live ballistic-blocking Stuff")
+	var blocked_arrow_before := mirrored_target.current_hp
+	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
+	var blocked_projection_projectile := _find_projection_projectile(combat_manager)
+	if blocked_projection_projectile != null:
+		blocked_projection_projectile._process(10.0)
+	_expect(
+		blocked_projection_projectile != null
+		and blocked_projection_projectile.is_queued_for_deletion()
+		and is_equal_approx(mirrored_target.current_hp, blocked_arrow_before),
+		"copy-mirror projectile is absorbed by real blocking Stuff before its mirrored target"
+	)
+	_expect(stuff_manager.remove_stuff(&"copy_attack_blocker_1"), "copy attack fixture removes the projectile blocker")
+	await process_frame
 
 	building_manager.remove_building(source_cell, 0.0)
 	var laser := building_manager.place_building(source_cell, building_manager.laser_tower)
+	laser.set_process(false)
 	mirror_manager.rebuild_now()
 	_expect(laser != null and _has_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower"), "source replacement dynamically rebuilds a laser projection")
 	var laser_projection := _find_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower")
@@ -231,6 +398,102 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var laser_before := mirrored_target.current_hp
 	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 9.0)
 	_expect(is_equal_approx(mirrored_target.current_hp, laser_before - 9.0), "laser projection mirrors the source segment and damage tick without independent targeting")
+	_expect(mirrored_target.is_movement_slowed(), "copied continuous laser mirrors the source cold status")
+	_expect(
+		laser_projection.get_laser_propagation_distance() > 0.0
+		and laser_projection.get_laser_propagation_distance() < laser.get_attack_range_world(),
+		"copied continuous laser maintains its own non-instant propagation front"
+	)
+	var copied_burst_before := mirrored_target.current_hp
+	laser.notify_copy_attack(&"laser_burst", laser.get_attack_origin(), original_endpoint, laser.get_laser_burst_damage())
+	_expect(
+		is_equal_approx(
+			mirrored_target.current_hp,
+			copied_burst_before - laser.get_laser_burst_damage()
+		),
+		"copied laser mirrors endpoint burst damage at its independently traced endpoint"
+	)
+	blocker_runtime = stuff_manager.add_stuff(
+		mirrored_target_cell,
+		ballistic_blocker,
+		0,
+		&"copy_attack_blocker_2"
+	)
+	var projected_laser_start := laser_projection.payload.transform_point(laser.get_attack_origin())
+	var projected_laser_end := laser_projection.payload.transform_point(original_endpoint)
+	var retained_laser_blocker_hit := mirror_manager.trace_ballistic_blocker(
+		projected_laser_start,
+		projected_laser_end
+	)
+	_expect(
+		bool(retained_laser_blocker_hit.get("hit", false)),
+		"copy-mirror retained-laser path resolves the real blocking Stuff"
+	)
+	var blocked_laser_before := mirrored_target.current_hp
+	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 9.0)
+	_expect(
+		blocker_runtime != null and is_equal_approx(mirrored_target.current_hp, blocked_laser_before),
+		"copy-mirror retained laser is truncated by real blocking Stuff"
+	)
+	var blocked_laser_endpoint := laser_projection.get_laser_endpoint(projected_laser_start)
+	var blocked_laser_distance := laser_projection.get_laser_propagation_distance()
+	var blocked_laser_key := laser_projection.payload.stable_key
+	_expect(stuff_manager.remove_stuff(&"copy_attack_blocker_2"), "copy attack fixture removes the retained-laser blocker")
+	await process_frame
+	laser_projection = _find_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower")
+	_expect(laser_projection != null, "laser projection rebuild preserves a live projection after Stuff removal")
+	if laser_projection == null:
+		host.queue_free()
+		return
+	projected_laser_start = laser_projection.payload.transform_point(laser.get_attack_origin())
+	_expect(
+		laser_projection.payload.stable_key == blocked_laser_key
+		and is_equal_approx(
+			laser_projection.get_laser_propagation_distance(),
+			blocked_laser_distance
+		),
+		"laser projection rebuild restores the stable-key propagation distance"
+	)
+	laser.definition.get_level_stats(laser.level).projectile_penetration_count = 32
+	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 1.2)
+	var resumed_laser_endpoint := laser_projection.get_laser_endpoint(projected_laser_start)
+	_expect(
+		resumed_laser_endpoint.distance_to(projected_laser_start)
+		> blocked_laser_endpoint.distance_to(projected_laser_start),
+		"copied continuous laser resumes growth after its local Stuff blocker disappears"
+	)
+
+	building_manager.remove_building(source_cell, 0.0)
+	var pulse := building_manager.place_building(source_cell, building_manager.pulse_laser_tower)
+	mirror_manager.rebuild_now()
+	_expect(pulse != null and _has_projection_kind(mirror_manager.get_projections(target_cell), &"pulse_laser_tower"), "source replacement dynamically rebuilds an independent pulse-laser projection")
+	var pulse_before := mirrored_target.current_hp
+	pulse.notify_copy_attack(&"pulse_laser", pulse.get_attack_origin(), original_endpoint, 11.0)
+	var projection_pulse := _find_pulse_laser(combat_manager)
+	_expect(projection_pulse != null, "pulse-laser projection spawns a full path through the shared combat manager")
+	if projection_pulse != null:
+		projection_pulse._process(0.10)
+	_expect(is_equal_approx(mirrored_target.current_hp, pulse_before - 11.0), "pulse-laser projection independently resolves its mirrored beam damage")
+	await process_frame
+	blocker_runtime = stuff_manager.add_stuff(
+		mirrored_target_cell,
+		ballistic_blocker,
+		0,
+		&"copy_attack_blocker_3"
+	)
+	var blocked_pulse_before := mirrored_target.current_hp
+	pulse.notify_copy_attack(&"pulse_laser", pulse.get_attack_origin(), original_endpoint, 11.0)
+	var blocked_projection_pulse := _find_pulse_laser(combat_manager)
+	if blocked_projection_pulse != null:
+		blocked_projection_pulse._process(0.10)
+	_expect(
+		blocker_runtime != null
+		and blocked_projection_pulse != null
+		and is_equal_approx(mirrored_target.current_hp, blocked_pulse_before),
+		"copy-mirror pulse laser is truncated by real blocking Stuff"
+	)
+	_expect(stuff_manager.remove_stuff(&"copy_attack_blocker_3"), "copy attack fixture removes the pulse-laser blocker")
+	await process_frame
 
 	var overlapping := building_manager.place_building(target_cell, building_manager.arrow_tower)
 	_expect(overlapping != null, "a real building can occupy a tile already containing non-occupying projections")
@@ -253,7 +516,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		replacement_building_manager,
 		fixture.registry
 	)
-	laser.notify_copy_attack(&"laser", laser.get_attack_origin(), original_endpoint, 9.0)
+	pulse.notify_copy_attack(&"pulse_laser", pulse.get_attack_origin(), original_endpoint, 9.0)
 	_expect(
 		is_equal_approx(mirrored_target.current_hp, health_before_reconfigure_attack),
 		"mirror manager reconfiguration disconnects attacks from the previous building module"
@@ -284,7 +547,7 @@ func _test_projected_barrier_and_shared_edge_occupancy() -> void:
 	_expect(is_equal_approx(barrier.current_durability, durability_before - 11.0), "damage to a barrier projection is forwarded to the original durability pool")
 	_expect(building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier) == null, "edge barrier cannot overlap a mirror in the shared physical-edge registry")
 	var mirror_edge_id := mirror.edge_id
-	_expect(mirror_manager.remove_mirror(mirror, 0.0), "selected physical mirror can be removed")
+	_expect(mirror_manager.remove_mirror(mirror), "selected physical mirror can be removed")
 	_expect(mirror_manager.get_mirror(mirror_edge_id) == null, "mirror removal releases the mirror registry entry")
 	var external_mirror := mirror_manager.place_copy_mirror(from_cell, edge_index, true)
 	_expect(external_mirror != null, "released edge accepts another copy mirror")
@@ -478,6 +741,7 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	host.add_child(building_manager)
 	building_manager.arrow_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
 	building_manager.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
+	building_manager.pulse_laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.PULSE_LASER_TOWER)
 	building_manager.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
 	building_manager.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	building_manager.set_edge_occupancy_registry(registry)
@@ -665,6 +929,13 @@ func _find_first_mesh_instance(node: Node) -> MeshInstance3D:
 func _find_projection_projectile(combat_manager: CombatManager) -> MirrorProjectionProjectile:
 	for child in combat_manager.get_children():
 		if child is MirrorProjectionProjectile:
+			return child
+	return null
+
+
+func _find_pulse_laser(combat_manager: CombatManager) -> PulseLaserBeam:
+	for child in combat_manager.get_children():
+		if child is PulseLaserBeam:
 			return child
 	return null
 

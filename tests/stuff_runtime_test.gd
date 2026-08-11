@@ -17,6 +17,8 @@ func _run() -> void:
 	print("[StuffRuntime] running")
 	await _test_multiple_stuff_permissions_effects_and_durability()
 	await _test_mirror_copies_every_stuff_with_shared_effect_identity()
+	await _test_catalog_definition_supersedes_stale_level_copy()
+	await _test_level2_spruce_uses_catalog_definition()
 	await _test_legacy_level_uses_transient_stuff()
 	await _test_loader_rolls_back_stuff()
 	if _failures == 0:
@@ -46,6 +48,15 @@ func _test_multiple_stuff_permissions_effects_and_durability() -> void:
 	var rock: StuffRuntime = stuff.get_stuff_at(rock_cell)[0]
 	_expect(tile.blocks_enemy_navigation(rock_cell), "independent rock Stuff reaches the navigation facade")
 	_expect(tile.resolve_navigation_blocker(rock_cell) == rock, "navigation resolves the concrete Stuff attack target")
+	var rock_center := stuff.get_ballistic_blocker_center(rock)
+	var rock_ballistic_hit := stuff.trace_ballistic_blocker(
+		rock_center - Vector3.RIGHT * 2.0,
+		rock_center + Vector3.RIGHT * 2.0
+	)
+	_expect(
+		bool(rock_ballistic_hit.get("hit", false)) and rock_ballistic_hit.get("blocker") == rock,
+		"ballistic query resolves the live Rock Stuff sphere"
+	)
 	var effect_system := TileEffectSystem.new()
 	fixture.host.add_child(effect_system)
 	effect_system.configure(tile)
@@ -59,6 +70,10 @@ func _test_multiple_stuff_permissions_effects_and_durability() -> void:
 	var maximum := rock.max_durability
 	rock.take_structure_damage(maximum)
 	_expect(stuff.get_stuff_at(rock_cell).is_empty(), "depleted rock removes only its Stuff instance")
+	_expect(
+		not bool(stuff.trace_ballistic_blocker(rock_center - Vector3.RIGHT * 2.0, rock_center + Vector3.RIGHT * 2.0).get("hit", false)),
+		"depleted Stuff immediately stops blocking ballistics"
+	)
 	_expect(tile.can_place(rock_cell) and tile.allows_edge_building(rock_cell), "rock removal restores the underlying Grid permissions")
 	_expect(stuff.get_stuff_at(source).size() == 2, "destroying one Stuff never mutates another cell's collection")
 	fixture.host.queue_free()
@@ -87,11 +102,29 @@ func _test_mirror_copies_every_stuff_with_shared_effect_identity() -> void:
 	buildings.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	buildings.set_edge_occupancy_registry(registry)
 	buildings.configure(grid, tile, resource, combat)
+	var explicit_blocker := StuffDefinition.new()
+	explicit_blocker.stuff_id = &"effect_free_blocker"
+	explicit_blocker.display_name = "无效果堵路元素"
+	explicit_blocker.exclusive_with_other_stuff = false
+	explicit_blocker.enemy_navigation = StuffDefinition.EnemyNavigation.BLOCKED
+	explicit_blocker.durability_mode = StuffDefinition.DurabilityMode.DESTRUCTIBLE
+	explicit_blocker.max_durability = 40.0
+	explicit_blocker.blocks_ballistics = true
+	explicit_blocker.fallback_visual_kind = StuffDefinition.FallbackVisualKind.ROCK
+	var explicit_blocker_runtime := stuff.add_stuff(
+		Vector3i(2, 2, 0),
+		explicit_blocker,
+		0,
+		&"effect_free_blocker_1"
+	)
+	_expect(explicit_blocker_runtime != null, "effect-free explicit navigation blocker joins the Stuff source cell")
 	var mirrors := MirrorManager.new()
 	host.add_child(mirrors)
 	mirrors.copy_mirror_definition = TestDefinitionFactory.make_copy_mirror_definition()
 	mirrors.configure(grid, tile, resource, combat, buildings, registry)
 	mirrors.set_stuff_manager(stuff)
+	tile.set_navigation_overlay_resolver(Callable(mirrors, "blocks_enemy_navigation"))
+	tile.set_navigation_overlay_blocker_resolver(Callable(mirrors, "resolve_projected_navigation_blocker"))
 	var from_cell := Vector3i(3, 2, 0)
 	var to_cell := Vector3i(4, 2, 0)
 	var target_cell := Vector3i(5, 2, 0)
@@ -99,12 +132,59 @@ func _test_mirror_copies_every_stuff_with_shared_effect_identity() -> void:
 	var mirror := mirrors.place_copy_mirror(from_cell, edge_index, true)
 	_expect(mirror != null, "canonical Stuff fixture places a copy mirror")
 	var projections := mirrors.get_projections(target_cell)
-	_expect(projections.size() == 2, "one mirror copies every Stuff on the nearest non-empty cell")
+	_expect(projections.size() == 3, "one mirror copies every Stuff on the nearest non-empty cell")
 	var kinds: Dictionary = {}
 	for projection in projections:
 		kinds[projection.payload.copy_kind] = true
-	_expect(kinds.has(&"spike") and kinds.has(&"void"), "multi-Stuff projection preserves each configured effect kind")
+	_expect(
+		kinds.has(&"spike") and kinds.has(&"void") and kinds.has(&"stuff_effect_free_blocker"),
+		"multi-Stuff projection preserves effect-backed and effect-free kinds"
+	)
 	_expect(projections.all(func(projection: MirrorProjection) -> bool: return projection.get_visual_snapshot() != null), "every Stuff projection uses its real Stuff visual snapshot")
+	_expect(
+		tile.blocks_enemy_navigation(target_cell),
+		"an effect-free Stuff projection honors its explicit navigation-blocking definition"
+	)
+	_expect(
+		mirrors.get_prospective_blocked_cells().has(target_cell),
+		"connectivity validation sees effect-free Stuff projections as prospective blockers"
+	)
+	var airborne_profile := PathNavigationProfile.new()
+	host.add_child(airborne_profile)
+	airborne_profile.configure(true)
+	_expect(
+		not tile.blocks_enemy_navigation(target_cell, airborne_profile),
+		"an explicit Stuff projection preserves its ground-only navigation setting"
+	)
+	explicit_blocker.navigation_affects_airborne = true
+	_expect(
+		tile.blocks_enemy_navigation(target_cell, airborne_profile),
+		"an explicit Stuff projection honors the airborne navigation switch"
+	)
+	var projected_blocker := mirrors.resolve_projected_navigation_blocker(target_cell)
+	_expect(
+		projected_blocker is MirrorProjection
+		and projected_blocker.payload.root_source == explicit_blocker_runtime,
+		"an effect-free destructible Stuff projection resolves its concrete attack target"
+	)
+	if projected_blocker != null:
+		var projected_center: Vector3 = projected_blocker.call("get_structure_target_position")
+		var projected_ballistic_hit := mirrors.trace_ballistic_blocker(
+			projected_center - Vector3.RIGHT * 2.0,
+			projected_center + Vector3.RIGHT * 2.0
+		)
+		_expect(
+			bool(projected_ballistic_hit.get("hit", false))
+			and projected_ballistic_hit.get("blocker") == projected_blocker,
+			"copied Stuff inherits the source definition's ballistic-blocking sphere"
+		)
+	var blocker_durability_before := explicit_blocker_runtime.current_durability
+	if projected_blocker != null:
+		projected_blocker.call("take_structure_damage", 11.0, null)
+	_expect(
+		is_equal_approx(explicit_blocker_runtime.current_durability, blocker_durability_before - 11.0),
+		"damage to an effect-free Stuff projection reaches the shared source durability"
+	)
 	var direct_bindings := stuff.get_effect_bindings(Vector3i(2, 2, 0))
 	var projected_bindings := mirrors.get_projected_effect_bindings(target_cell)
 	var direct_keys: Dictionary = {}
@@ -115,6 +195,61 @@ func _test_mirror_copies_every_stuff_with_shared_effect_identity() -> void:
 	_expect(standalone_snapshot != null, "StuffRenderer exposes a model-preserving mirror snapshot interface")
 	if standalone_snapshot != null:
 		standalone_snapshot.free()
+	fixture.host.queue_free()
+	await process_frame
+
+
+func _test_catalog_definition_supersedes_stale_level_copy() -> void:
+	var catalog: StuffCatalog = load("res://resources/stuffs/StuffCatalog.tres")
+	var canonical := catalog.get_definition(&"stuff", true)
+	_expect(canonical != null, "Stuff catalog exposes the canonical spruce definition")
+	if canonical == null:
+		return
+	var stale: StuffDefinition = canonical.duplicate(true)
+	stale.durability_mode = StuffDefinition.DurabilityMode.DESTRUCTIBLE
+	stale.max_durability = 100.0
+	var level := _make_canonical_level(false)
+	level.stuff_placements.append(
+		_make_placement(&"stale_spruce_1", Vector3i(3, 3, 0), stale)
+	)
+	var fixture := _make_fixture(level, false, catalog)
+	var runtime: StuffRuntime = fixture.stuff.get_stuff(&"stale_spruce_1")
+	_expect(
+		runtime != null and runtime.definition == canonical,
+		"runtime relinks a stale embedded Stuff copy to its catalog definition"
+	)
+	_expect(
+		runtime != null and not runtime.is_destructible(),
+		"catalog-authoritative spruce cannot be destroyed through its navigation blocker"
+	)
+	fixture.host.queue_free()
+	await process_frame
+
+
+func _test_level2_spruce_uses_catalog_definition() -> void:
+	var level: LevelResource = load("res://resources/levels/Level2.tres")
+	var catalog: StuffCatalog = load("res://resources/stuffs/StuffCatalog.tres")
+	var canonical := catalog.get_definition(&"stuff", true)
+	var authored_indestructible := true
+	for placement: StuffPlacementData in level.stuff_placements:
+		if placement.definition != null and placement.definition.stuff_id == &"stuff":
+			authored_indestructible = authored_indestructible and (
+				placement.definition.durability_mode == StuffDefinition.DurabilityMode.INDESTRUCTIBLE
+			)
+	_expect(authored_indestructible, "Level2 serializes spruce as indestructible")
+	var fixture := _make_fixture(level, false, catalog)
+	var spruce_count := 0
+	var all_canonical := true
+	var all_indestructible := true
+	for runtime: StuffRuntime in fixture.stuff.get_all_stuff():
+		if runtime.definition == null or runtime.definition.stuff_id != &"stuff":
+			continue
+		spruce_count += 1
+		all_canonical = all_canonical and runtime.definition == canonical
+		all_indestructible = all_indestructible and not runtime.is_destructible()
+	_expect(spruce_count > 0, "Level2 loads its authored spruce placements")
+	_expect(all_canonical, "every Level2 spruce resolves to the catalog definition")
+	_expect(all_indestructible, "every Level2 spruce navigation blocker is indestructible")
 	fixture.host.queue_free()
 	await process_frame
 
@@ -168,7 +303,11 @@ func _test_loader_rolls_back_stuff() -> void:
 	await process_frame
 
 
-func _make_fixture(level: LevelResource, rejecting_tile: bool = false) -> Dictionary:
+func _make_fixture(
+	level: LevelResource,
+	rejecting_tile: bool = false,
+	catalog: StuffCatalog = null
+) -> Dictionary:
 	var host := Node3D.new()
 	root.add_child(host)
 	var grid := GridManager.new()
@@ -178,6 +317,7 @@ func _make_fixture(level: LevelResource, rejecting_tile: bool = false) -> Dictio
 	terrain.set_grid(grid)
 	var stuff := StuffManagerScript.new()
 	host.add_child(stuff)
+	stuff.stuff_catalog = catalog
 	stuff.configure(grid, terrain)
 	var renderer := StuffRendererScript.new()
 	host.add_child(renderer)
@@ -201,6 +341,7 @@ func _make_canonical_level(include_rock: bool) -> LevelResource:
 	level.grid_shape = GridManager.Shape.SQUARE
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(7, 5)
+	level.base_cell = Vector3i(6, 4, 0)
 	level.terrain_content_version = 2
 	level.default_terrain = load("res://resources/terrains/Grass.tres")
 	level.layer_height = 1.0
@@ -238,6 +379,7 @@ func _make_canonical_level(include_rock: bool) -> LevelResource:
 		rock.display_name = "大石头"
 		rock.blocks_tile_building = true
 		rock.blocks_edge_building = false
+		rock.blocks_ballistics = true
 		rock.effect = RockTileEffect.new()
 		rock.fallback_visual_kind = StuffDefinition.FallbackVisualKind.ROCK
 		rock.fallback_color = Color("34363c")

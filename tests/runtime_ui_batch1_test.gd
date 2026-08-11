@@ -35,6 +35,10 @@ func _run() -> void:
 func _test_level_and_asset_interfaces() -> void:
 	var level := LevelResource.new()
 	_expect(level.building_card_slot_count == 6, "levels default to six building card slots")
+	var level1 := load("res://resources/levels/Level1.tres") as LevelResource
+	var level2 := load("res://resources/levels/Level2.tres") as LevelResource
+	_expect(level1 != null and level1.building_card_slot_count == 5, "Level1 exposes five building card slots")
+	_expect(level2 != null and level2.building_card_slot_count == 6, "Level2 exposes six building card slots")
 	level.building_card_slot_count = 13
 	_expect(
 		level.validate_runtime().any(func(message: String) -> bool: return message.contains("卡槽")),
@@ -43,7 +47,18 @@ func _test_level_and_asset_interfaces() -> void:
 	var building := TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
 	var mirror := TestDefinitionFactory.make_copy_mirror_definition()
 	_expect(building.card_icon == null, "building definitions expose an optional card icon")
+	_expect(building.full_card_art == null, "building definitions expose an optional complete-card artwork")
 	_expect(mirror.card_icon == null, "copy mirror definitions expose an optional card icon")
+	var production_arrow := load("res://resources/buildings/ArrowTower.tres") as BuildingDefinition
+	var production_mace := load("res://resources/buildings/MaceTower.tres") as BuildingDefinition
+	_expect(
+		production_arrow != null and production_arrow.full_card_art != null,
+		"the production arrow tower configures a no-cost complete card face"
+	)
+	_expect(
+		production_mace != null and production_mace.full_card_art != null,
+		"the production mace configures the supplied at.png complete card face"
+	)
 
 
 func _test_card_bar(fixture: Dictionary) -> void:
@@ -58,19 +73,123 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		building_manager.laser_tower,
 		building_manager.barrier,
 	]
-	card_bar.configure(resource_manager, mirror_manager.copy_mirror_definition, cards, 6)
+	var test_icon := _make_test_card_icon()
+	building_manager.arrow_tower.card_icon = test_icon
+	building_manager.arrow_tower.full_card_art = _make_test_full_card_art()
+	card_bar.configure(
+		resource_manager,
+		mirror_manager.copy_mirror_definition,
+		cards,
+		6,
+		mirror_manager.reflect_mirror_definition,
+		mirror_manager
+	)
 	_expect(not card_bar.has_signal("cancel_requested"), "right-click cancellation is centralized in the runtime camera click classifier")
 	_expect(card_bar.get_building_slot_count() == 6, "card bar respects the configured six-slot capacity")
 	_expect(card_bar.get_filled_building_card_count() == 3, "default loadout fills arrow, laser, and barrier cards")
 	_expect(card_bar.get_empty_building_card_count() == 3, "unused loadout positions render as three empty mirror slots")
 	_expect(card_bar.is_mirror_card_available(), "dedicated mirror card is available outside building slots")
 	_expect(card_bar.is_building_card_available(building_manager.arrow_tower), "affordable building card is available")
+	_expect(
+		card_bar.mirror_upper_color.get_luminance() > 0.88
+		and card_bar.mirror_face_color.get_luminance() > 0.65
+		and card_bar.mirror_lower_color.get_luminance() > 0.44,
+		"procedural mirror palette stays in the bright silver range of the full-card reference"
+	)
+	_expect(
+		card_bar.frame_color.is_equal_approx(Color("dea967")),
+		"procedural card frames use the authored #DEA967 color"
+	)
+	var configured_cards_row := card_bar.get_node("Layout/Cards") as HBoxContainer
+	var arrow_card := configured_cards_row.get_node("BuildingCard1") as Button
+	var mirror_surface := arrow_card.get_node_or_null("MirrorSurface") as ColorRect
+	var mirror_material := mirror_surface.material as ShaderMaterial if mirror_surface != null else null
+	_expect(mirror_surface != null, "filled cards own a generated mirror surface")
+	_expect(
+		mirror_material != null
+		and mirror_material.shader != null
+		and mirror_material.shader.code.contains("moving_sheen"),
+		"generated card surfaces use the procedural mirror shader"
+	)
+	var artwork := arrow_card.get_node_or_null("Content/Artwork") as TextureRect
+	_expect(
+		artwork != null
+		and artwork.texture == test_icon
+		and artwork.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED,
+		"card_icon is treated as centered building artwork instead of a complete card face"
+	)
+	_expect(
+		(arrow_card.get_node("Content/Title") as Label).text == building_manager.arrow_tower.display_name,
+		"card title remains data-driven above the supplied artwork"
+	)
+	_expect(
+		(arrow_card.get_node("Content/Footer") as Label).text.begins_with("◆ "),
+		"card cost remains data-driven below the supplied artwork"
+	)
+	_expect(
+		configured_cards_row.get_node_or_null("EmptyCard4/MirrorSurface") != null,
+		"empty slots reuse the generated mirror treatment"
+	)
+	card_bar.set_selected_building(building_manager.arrow_tower)
+	_expect(
+		is_equal_approx(float(mirror_material.get_shader_parameter("selected_strength")), 1.0),
+		"selected cards promote the generated mirror highlight"
+	)
+	card_bar.clear_selection()
 
 	resource_manager.spend(resource_manager.main_resource, "test_empty_wallet")
 	_expect(not card_bar.is_building_card_available(building_manager.arrow_tower), "resource shortage disables building cards")
-	_expect(not card_bar.is_mirror_card_available(), "resource shortage disables the mirror card")
+	_expect(
+		float(mirror_material.get_shader_parameter("disabled_strength")) > 0.0,
+		"resource shortage desaturates the generated mirror surface"
+	)
+	_expect(card_bar.is_mirror_card_available(), "mirror cards no longer depend on the main-resource balance")
 	resource_manager.gain(500.0, "test_restore_wallet")
 	_expect(card_bar.is_building_card_available(building_manager.arrow_tower), "resource gain immediately restores card availability")
+	card_bar.set_card_visual_mode(BuildCardBarScript.CardVisualMode.FULL_ARTWORK)
+	_expect(
+		card_bar.get_card_visual_mode() == BuildCardBarScript.CardVisualMode.FULL_ARTWORK,
+		"card bar switches to the alternate complete-artwork mode"
+	)
+	configured_cards_row = card_bar.get_node("Layout/Cards") as HBoxContainer
+	var full_art_card := configured_cards_row.get_node("BuildingCard1") as Button
+	var full_artwork := full_art_card.get_node_or_null("FullArtwork") as TextureRect
+	_expect(
+		full_artwork != null and full_artwork.texture is AtlasTexture,
+		"complete artwork automatically trims transparent source padding"
+	)
+	_expect(
+		full_art_card.get_node_or_null("MirrorSurface") == null
+		and full_art_card.get_node_or_null("InnerFrame") == null
+		and full_art_card.get_node_or_null("Content/Title") == null,
+		"complete-artwork cards hide the generated slot, frame and building title"
+	)
+	var live_cost := full_art_card.get_node_or_null("Cost") as Label
+	_expect(
+		live_cost != null
+		and live_cost.text == "◆ %d" % ceili(building_manager.arrow_tower.get_level_stats(1).cost)
+		and live_cost.position.y < card_bar.card_size.y * 0.5,
+		"complete artwork overlays the live cost above the building"
+	)
+	var invisible_empty := configured_cards_row.get_node("EmptyCard4") as Control
+	_expect(
+		invisible_empty.get_child_count() == 0
+		and invisible_empty.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"alternate-mode empty building slots are invisible and input-transparent"
+	)
+	_expect(
+		configured_cards_row.get_node_or_null("MirrorCard/MirrorSurface") != null,
+		"dedicated mirror cards retain their cooldown-capable procedural treatment"
+	)
+	var full_art_selections: Array[BuildingDefinition] = []
+	card_bar.building_card_selected.connect(
+		func(definition: BuildingDefinition) -> void: full_art_selections.append(definition)
+	)
+	full_art_card.pressed.emit()
+	_expect(
+		full_art_selections == [building_manager.arrow_tower],
+		"the artwork itself remains the complete clickable building-card target"
+	)
 	card_bar.queue_free()
 	await process_frame
 
@@ -81,7 +200,32 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		root.add_child(hud)
 		await process_frame
 		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal bottom card bar")
+		var style_toggle := hud.get_node_or_null("CardStyleToggle") as Button
+		_expect(style_toggle != null, "runtime HUD owns the top-left card-style toggle")
+		_expect(
+			style_toggle != null and style_toggle.text.contains("程序镜面"),
+			"the style toggle defaults to the existing procedural implementation"
+		)
+		if style_toggle != null:
+			style_toggle.pressed.emit()
+			_expect(
+				(hud.get_node("BuildCardBar") as BuildCardBarScript).get_card_visual_mode()
+				== BuildCardBarScript.CardVisualMode.FULL_ARTWORK
+				and style_toggle.text.contains("原画卡面"),
+				"the top-left button switches the card bar to complete artwork"
+			)
+			style_toggle.pressed.emit()
 		_expect(hud.get_node_or_null("TimeControlPanel/Controls/TacticalSlowButton") != null, "runtime HUD owns the automatic slow toggle")
+		var debug_overlay := hud.get_node("DebugOverlayPanel") as Control
+		_expect(
+			style_toggle == null or not style_toggle.get_global_rect().intersects(debug_overlay.get_global_rect()),
+			"the relocated debug overlay leaves the top-left style toggle unobstructed"
+		)
+		var lighting_test_panel_rect := Rect2(16.0, 16.0, 774.0, 42.0)
+		_expect(
+			style_toggle == null or not style_toggle.get_global_rect().intersects(lighting_test_panel_rect),
+			"the top-left style toggle stays below the runtime lighting test panel"
+		)
 		var original_window_size := root.size
 		for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
 			root.size = resolution
@@ -134,14 +278,72 @@ func _test_one_shot_placement_and_time_priority(fixture: Dictionary) -> void:
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 0.1), "selecting a card activates default tactical slow")
 	time_controller.set_fast_enabled(true)
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 0.1), "tactical slow overrides the remembered 2x request")
+	_expect(
+		building_manager.update_preview(Vector3i(0, 0, 0), building_manager.arrow_tower),
+		"building placement mode creates a rotatable preview"
+	)
+	var preview_before := building_manager.get_preview_facing_index()
+	var main := MainController.new()
+	var test_hud := RuntimeHud.new()
+	var test_stuff_editor := RuntimeStuffEditorController.new()
+	main.building_manager = building_manager
+	main.runtime_interaction = interaction
+	main.mirror_manager = mirror_manager
+	main.runtime_hud = test_hud
+	main.runtime_stuff_editor = test_stuff_editor
+	var wheel_up := InputEventMouseButton.new()
+	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel_up.pressed = true
+	_expect(
+		main._handle_building_rotation_wheel(wheel_up)
+		and building_manager.get_preview_facing_index() == posmod(preview_before + 1, 36),
+		"wheel up rotates the active placement preview instead of zooming"
+	)
+	preview_before = building_manager.get_preview_facing_index()
+	_expect(main._rotate_active_building_target(), "the first R action rotates the active placement preview")
+	main._selected_rotation_repeat.configure(0.1, 0.1, 4)
+	main._selected_rotation_repeat.press()
+	Input.action_press("rotate_facing")
+	main._update_selected_rotation_repeat(0.31)
+	Input.action_release("rotate_facing")
+	main._update_selected_rotation_repeat(0.1)
+	var preview_facing := building_manager.get_preview_facing_index()
+	_expect(
+		preview_facing == posmod(preview_before + 4, 36),
+		"holding R continuously advances the building placement preview"
+	)
+	_expect(not main._selected_rotation_repeat.is_active(), "releasing R stops preview rotation immediately")
 
 	var first_result := interaction.handle_primary(
 		{"hit": true, "cell": Vector3i(0, 0, 0)},
 		{"hit": false}
 	)
 	_expect(first_result.success, "valid tile placement succeeds")
-	_expect(interaction.is_select_mode(), "successful placement consumes the card and returns to select")
+	var first_building := building_manager.get_building(Vector3i(0, 0, 0))
+	_expect(
+		first_building != null and first_building.facing_index == preview_facing,
+		"confirmed building preserves the continuously rotated preview facing"
+	)
 	_expect(building_manager.get_selected_building() == null, "newly placed building is not auto-selected by the formal interaction")
+	building_manager.select_building(first_building)
+	var placed_facing_before := first_building.facing_index
+	var wheel_down := InputEventMouseButton.new()
+	wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel_down.pressed = true
+	_expect(
+		main._handle_building_rotation_wheel(wheel_down)
+		and first_building.facing_index == posmod(placed_facing_before - 1, first_building.get_facing_slot_count()),
+		"wheel down rotates an already placed selected building in the opposite direction"
+	)
+	building_manager.select_building(null)
+	_expect(
+		not main._handle_building_rotation_wheel(wheel_down),
+		"wheel input falls back to camera zoom after building selection is cleared"
+	)
+	test_hud.free()
+	test_stuff_editor.free()
+	main.free()
+	_expect(interaction.is_select_mode(), "successful placement consumes the card and returns to select")
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 2.0), "successful placement restores the remembered fast scale")
 	_expect(_placement_results.size() == 1, "one successful click emits exactly one placement result")
 
@@ -244,6 +446,7 @@ func _make_fixture() -> Dictionary:
 	host.add_child(building_manager)
 	building_manager.arrow_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
 	building_manager.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
+	building_manager.pulse_laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.PULSE_LASER_TOWER)
 	building_manager.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
 	building_manager.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	building_manager.set_edge_occupancy_registry(registry)
@@ -268,6 +471,19 @@ func _make_fixture() -> Dictionary:
 		"building": building_manager,
 		"mirror": mirror_manager,
 	}
+
+
+func _make_test_card_icon() -> Texture2D:
+	var image := Image.create(12, 24, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.84, 0.58, 0.26, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+func _make_test_full_card_art() -> Texture2D:
+	var image := Image.create(40, 60, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	image.fill_rect(Rect2i(10, 6, 20, 48), Color(0.74, 0.64, 0.52, 1.0))
+	return ImageTexture.create_from_image(image)
 
 
 func _make_level() -> LevelResource:

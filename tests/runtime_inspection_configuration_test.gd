@@ -111,6 +111,7 @@ func _test_filtering_and_adaptive_layout() -> void:
 	var level := LevelResource.new()
 	level.grid_shape = GridManager.Shape.SQUARE
 	level.grid_size = Vector2i(2, 2)
+	level.base_cell = Vector3i(1, 1, 0)
 	level.tiles = [tile]
 	_expect(loader.load_level(level, "memory://inspection-configuration"), "configuration fixture level loads")
 	await process_frame

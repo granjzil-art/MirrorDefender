@@ -20,6 +20,7 @@ var _grid: GridManager
 var _tile_manager: TileManager
 var _base_cells: Array[Vector3i] = []
 var _marker_roots: Array[Node3D] = []
+var _marker_points: Array[BasePointDefinition] = []
 var _labels: Array[Label3D] = []
 var _occupied_cells: Dictionary = {}
 
@@ -44,9 +45,10 @@ func load_level(level_resource: LevelResource) -> void:
 	for base_point in base_points:
 		if base_point == null:
 			continue
-		_base_cells.append(base_point.cell)
-		if _tile_manager.place_occupant(base_point.cell, self):
-			_occupied_cells[base_point.cell] = true
+		for footprint_cell in base_point.get_footprint_cells():
+			_base_cells.append(footprint_cell)
+			if _tile_manager.place_occupant(footprint_cell, self):
+				_occupied_cells[footprint_cell] = true
 		_build_point_visual(base_point, level_resource)
 	visible = true
 	_emit_health_changed()
@@ -70,7 +72,7 @@ func get_base_cells() -> Array[Vector3i]:
 
 
 func get_base_point_count() -> int:
-	return _base_cells.size()
+	return _marker_points.size()
 
 
 func get_marker_labels() -> Array[String]:
@@ -85,20 +87,20 @@ func get_marker_labels() -> Array[String]:
 func refresh_world_transforms() -> void:
 	if _grid == null or _tile_manager == null:
 		return
-	for index in range(mini(_marker_roots.size(), _base_cells.size())):
+	for index in range(mini(_marker_roots.size(), _marker_points.size())):
 		var marker_root := _marker_roots[index]
 		if marker_root != null and is_instance_valid(marker_root):
-			var base_cell := _base_cells[index]
-			marker_root.position = _grid.cell_to_world(base_cell) + Vector3(0.0, _tile_manager.get_world_height(base_cell), 0.0)
+			_apply_point_transform(marker_root, _marker_points[index])
 
 
 func _build_point_visual(base_point: BasePointDefinition, level_resource: LevelResource) -> void:
 	var marker_root := Node3D.new()
 	marker_root.name = "BasePoint_%s" % str(base_point.base_id)
-	marker_root.position = _grid.cell_to_world(base_point.cell) + Vector3(0.0, _tile_manager.get_world_height(base_point.cell), 0.0)
+	_apply_point_transform(marker_root, base_point)
 	add_child(marker_root)
 	_marker_roots.append(marker_root)
-	var model_asset := base_point.get_model_asset()
+	_marker_points.append(base_point)
+	var model_asset := level_resource.get_base_point_model_asset(base_point)
 	var visual_root := (
 		model_asset.instantiate_grounded_model(&"BasePointModel")
 		if model_asset != null
@@ -116,6 +118,17 @@ func _build_point_visual(base_point: BasePointDefinition, level_resource: LevelR
 	label.text = level_resource.get_base_marker_label(base_point)
 	marker_root.add_child(label)
 	_labels.append(label)
+
+
+func _apply_point_transform(marker_root: Node3D, base_point: BasePointDefinition) -> void:
+	if marker_root == null or base_point == null or _grid == null or _tile_manager == null:
+		return
+	var center := base_point.get_footprint_center_world(_grid)
+	center.y = _tile_manager.get_world_height(base_point.cell)
+	marker_root.position = center
+	var facing_cell_direction := base_point.get_facing_cell_direction()
+	var facing_world := Vector3(facing_cell_direction.x, 0.0, facing_cell_direction.y).normalized()
+	marker_root.rotation.y = atan2(-facing_world.x, -facing_world.z)
 
 
 func _build_point_fallback(marker_root: Node3D) -> void:
@@ -150,6 +163,7 @@ func _clear_runtime_points() -> void:
 			_tile_manager.clear_occupant(occupied_cell, self)
 	_occupied_cells.clear()
 	_base_cells.clear()
+	_marker_points.clear()
 	_labels.clear()
 	for marker_root in _marker_roots:
 		if marker_root != null and is_instance_valid(marker_root):

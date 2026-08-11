@@ -1,6 +1,6 @@
 # Level Editor · 关卡编辑器
 
-> 实现状态：体素地块重构批次4已完成地块页迁移。Terrain Grid、斜坡与 Stuff 使用规范数组；波次页、镜头页及其序列化数据未修改。
+> 实现状态：体素地块重构批次4已完成地块页迁移。Terrain Grid、斜坡与 Stuff 使用规范数组；波次页、镜头页及其序列化数据未修改。编辑器现支持规范关卡资源的自动保存与外部文件刷新。
 
 ## 职责与边界
 
@@ -25,6 +25,14 @@ Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 5. **斜坡 S1**：选上坡方向、1:N坡度、基础层与“斜坡地形”，再点击“最低坡格”。默认“跟随坡底基底”；也可选一种Terrain作为整条坡的独立模型/颜色。工具仍自动统一坡体底层Grid的基底Terrain/基础层，低端对齐基础层，高端设为基础层+1。
 6. **单格检查器**：“选择/检查”模式下点格子，可精确修改 Terrain、层数、两类权限、Stuff 朝向，或单独删除 Stuff/斜坡。坡体的底层Grid Terrain/层数保持锁定，但“斜坡地形”可独立改为任一Terrain或恢复“跟随坡底基底”；此操作不改底层Grid。
 
+## 资源双向同步
+
+- 地块页修改会在当前关卡已有 `resource_path` 时自动合并保存完整 `LevelResource`。保存粒度是整个 `.tres`，因此 `grid_cells`、`ramp_placements`、`stuff_placements`、路径、出生点、据点、波次、镜头、初始建筑和镜子布局一起写入；连续画笔在同一帧内只合并为一次保存请求。
+- 新建但尚未保存的内存关卡不会静默写入工具栏中的默认路径；首次点击“保存”建立 `.tres` 后才启用自动同步。
+- 编辑器每250ms检查当前 `.tres` 的文件变化。直接在 Godot Inspector 或外部文本编辑器保存关卡后，若编辑器没有本地未保存改动，会重新加载完整资源并刷新地块、路径、波次和镜头页。
+- 若检测到外部文件变化时编辑器仍有未保存改动，不会静默覆盖当前编辑；顶部状态栏会提示冲突，需先保存或重新加载。
+- 规范资源的唯一可编辑事实源是 `terrain_content_version >= 2` 的 `default_terrain`、`grid_cells`、`ramp_placements` 和 `stuff_placements`。旧 `tiles` 仅在加载旧关卡时作为一次性迁移输入，迁移后会清空并保存为规范数组；之后直接修改旧 `tiles` 不会覆盖规范 Terrain。
+
 更改网格形状或尺寸会弹出确认并重建 Terrain/Ramp/Stuff；路径、出生点、据点、波次、镜头数据保留，但必须重新校验越界端点。
 
 ## 旧关卡导入
@@ -41,7 +49,7 @@ Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 | `addons/mirror_tile_editor/stuff_catalog_manager.gd` | `StuffCatalogManager / Window` | 元素类型数据管理；作为地块页的惰性弹窗，不占用主分割布局。 |
 | `scripts/stuff/StuffCatalogAuthoring.gd` | `StuffCatalogAuthoring / RefCounted` | 元素类型新建、复制、资源保存与关卡引用保护。 |
 | `resources/stuffs/StuffCatalog.tres` | `StuffCatalog / Resource` | 关卡编辑器与运行时编辑器共用的显式元素白名单和顺序。 |
-| `addons/mirror_tile_editor/tile_editor_panel.gd` | 无 / `Control` | 组装四分页，负责加载、校验、保存和脏标记。 |
+| `addons/mirror_tile_editor/tile_editor_panel.gd` | 无 / `Control` | 组装四分页，负责加载、校验、完整资源自动保存、内存/磁盘双向同步和脏标记。 |
 | `addons/mirror_tile_editor/tile_editor_canvas.gd` | 无 / `Control` | 路径/镜头页共用预览，只读显示规范 Terrain/Ramp/Stuff。 |
 | `tests/terrain_stuff_editor_test.gd` | 无 / `SceneTree` | 导入、独立工具、多Stuff、S1和分页边界回归。 |
 
@@ -61,6 +69,10 @@ Godot 主界面选择 `Mirror 关卡编辑器 -> 地块`。
 | `StuffCatalogAuthoring.create_definition` | `(catalog: StuffCatalog, requested_id: String, display_name: String, model_scene: PackedScene = null, runtime_scale: Vector3 = Vector3.ONE) -> Dictionary` | 新建并注册带安全默认值的独立 StuffDefinition。 |
 | `StuffCatalogAuthoring.remove_definition_if_unreferenced` | `(catalog: StuffCatalog, definition: StuffDefinition, level_directory: String) -> Dictionary` | 有关卡引用时拒绝移出目录。 |
 | `TerrainStuffCanvas.reset_view` | `() -> void` | 有有效布局尺寸时立即重置视图；隐藏零尺寸时只记录一次待重置状态。 |
+| `TileEditorPanel._queue_resource_auto_sync` | `() -> void` | 合并地块页修改并延迟触发完整 `LevelResource` 保存。 |
+| `TileEditorPanel._poll_active_resource_file` | `() -> void` | 检查当前关卡文件签名，发现外部修改时按冲突策略重载完整资源。 |
+| `TileEditorPanel._refresh_views_from_active_resource` | `() -> void` | 将当前内存 `LevelResource` 的变化同步到地块、路径、波次和镜头页面。 |
+| `TileEditorPanel._save_level_to_path` | `(path: String, auto_sync: bool = false) -> void` | 将完整关卡资源保存到指定路径并更新同步签名。 |
 
 ## 数据流
 

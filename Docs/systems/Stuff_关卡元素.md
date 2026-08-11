@@ -1,6 +1,6 @@
 # Stuff · 关卡元素
 
-> 实现状态：独立 Stuff 运行时、显式元素目录、运行时元素编辑器与 Godot 元素库管理器均已完成。旧 `TileDefinition` 只保留为只读迁移输入；波次页与镜头页未修改。
+> 实现状态：独立 Stuff 运行时、显式元素目录、运行时元素编辑器、Godot 元素库管理器以及可配置的统一弹道阻挡均已完成。
 
 ## 职责与边界
 
@@ -8,7 +8,7 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 
 运行时事实源分为三层：
 
-- `StuffManager`：装配、索引、权限合成、效果绑定、导航阻挡与移除事务。
+- `StuffManager`：装配、索引、权限合成、效果绑定、导航阻挡、统一球形弹道查询与移除事务。
 - `StuffRuntime`：单个实例的格位置、朝向、耐久和镜像共享源身份。
 - `StuffRenderer`：模型/灰盒、同格错位显示、黑洞填充深度和复制快照；不修改玩法状态。
 
@@ -23,6 +23,7 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `StuffDefinition` | `exclusive_with_other_stuff` | 默认 `true`；只有同格双方都为 `false` 才能共存。 |
 | `StuffDefinition` | `blocks_tile_building` | 存活时否决块建筑放置。 |
 | `StuffDefinition` | `blocks_edge_building` | 存活时否决该格参与的边建筑放置。 |
+| `StuffDefinition` | `blocks_ballistics` | 存活时是否吸收激光与全部投射物类型；默认 false 保持旧资源兼容。 |
 | `StuffDefinition` | `enemy_navigation` | `FOLLOW_EFFECT / PASSABLE / BLOCKED`；新元素必须显式选择是否堵路，旧资源可继续跟随效果策略。 |
 | `StuffDefinition` | `navigation_affects_airborne` | 显式堵路时是否也阻挡空中敌人。 |
 | `StuffDefinition` | `durability_mode` / `max_durability` | `FOLLOW_EFFECT / INDESTRUCTIBLE / DESTRUCTIBLE`；允许无自定义 Effect 的新元素直接配置耐久。 |
@@ -46,11 +47,12 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `scripts/stuff/StuffPlacementData.gd` | `StuffPlacementData / Resource` | 单个作者配置实例。 |
 | `scripts/stuff/StuffRuntime.gd` | `StuffRuntime / Node3D` | 独立耐久、效果身份、攻击目标和复制源。 |
 | `scripts/stuff/StuffManager.gd` | `StuffManager / Node3D` | 运行时唯一状态/查询入口。 |
+| `scripts/combat/BallisticGeometry.gd` | `BallisticGeometry / RefCounted` | Stuff 统一球形的线段入射交点工具。 |
 | `scripts/stuff/StuffRenderer.gd` | `StuffRenderer / Node3D` | 独立模型与灰盒渲染、复制快照。 |
 | `scripts/stuff/StuffPlacementValidator.gd` | `StuffPlacementValidator / RefCounted` | 运行时预览与提交共用的边界、互斥、占位、方向和路径校验。 |
 | `scripts/stuff/RuntimeStuffEditSession.gd` | `RuntimeStuffEditSession / Node` | Stuff 快照、撤销/重做、普通保存、可选全量初始陈列保存与放弃恢复事务。 |
 | `scripts/stuff/RuntimeStuffEditorController.gd` | `RuntimeStuffEditorController / Node3D` | 运行时创作状态机、真实模型预览、选择、旋转和时间冻结。 |
-| `scripts/ui/RuntimeStuffEditorPanel.gd` | `RuntimeStuffEditorPanel / Control` | 局内元素目录、单实例删除、历史、保存/退出和不可达作者开关。 |
+| `scripts/ui/RuntimeStuffEditorPanel.gd` | `RuntimeStuffEditorPanel / Control` | 局内元素目录、单实例删除、历史、保存/退出和不可达作者开关；工具内容使用单一纵向滚动区适配不同窗口高度。 |
 | `addons/mirror_tile_editor/stuff_catalog_manager.gd` | `StuffCatalogManager / Window` | Godot 编辑器内的数据化元素类型管理窗口。 |
 | `scripts/level/LevelContentMigrationAdapter.gd` | `LevelContentMigrationAdapter / RefCounted` | 旧 Tile 元素到规范 Stuff 的只读映射。 |
 | `scripts/tile/TileEffectSystem.gd` | `TileEffectSystem / Node` | 调度 Stuff 与镜像的进入、停留、黑洞容量效果。 |
@@ -79,6 +81,8 @@ Stuff 是放在 Grid 表面上的关卡对象，不是地形，也不是玩家�
 | `StuffManager.allows_tile_building` | `(cell: Vector3i) -> bool` | 汇总同格全部 Stuff 的块建筑否决。 |
 | `StuffManager.allows_edge_building` | `(cell: Vector3i) -> bool` | 汇总同格全部 Stuff 的边建筑否决。 |
 | `StuffManager.resolve_navigation_blocker` | `(cell: Vector3i, target: Node = null) -> Node` | 返回敌人可攻击的具体 Stuff 阻挡体。 |
+| `StuffManager.trace_ballistic_blocker` | `(start: Vector3, end: Vector3, excluded: Object = null) -> Dictionary` | 返回存活且启用字段的最近 Stuff 球形入射点。 |
+| `StuffManager.get_ballistic_blocker_center` / `get_ballistic_blocker_radius` | `(runtime) -> Vector3` / `() -> float` | 以全局 `height_ratio` / `radius_ratio` 产生所有 Stuff 共用的球形命中体。 |
 | `StuffManager.remove_stuff` | `(placement_id: StringName) -> bool` | 只移除一个实例及其限制，并发出刷新信号。 |
 | `StuffRuntime.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 修改独立运行时耐久；归零后通知 Manager 删除自身。 |
 | `StuffRenderer.create_stuff_visual_snapshot` | `(placement_id: StringName) -> Node3D` | 为复制镜生成与实体模型/灰盒一致的无行为快照。 |
@@ -116,6 +120,7 @@ StuffManager
   -> TileEffectSystem      -> 进入、停留、黑洞容量
   -> StuffRenderer         -> 实体模型与动态深度
   -> MirrorManager         -> 同格全部 Stuff 的投影 payload
+  -> Combat / Mirror       -> 实体+投影最近球形弹道阻挡
   -> TileInspectionService -> 右侧对象详情
 
 Runtime HUD 运行时关卡编辑
@@ -157,6 +162,8 @@ Godot 元素库管理器
 
 - 同格每个 Stuff 都有独立效果绑定；即使两个黑洞共用同一个 `VoidTileEffect` 资源，也使用不同 `state_key` 保存容量和冷却。
 - 镜像 payload 保留根 `StuffRuntime`，直接与递归虚像共享根效果状态和可破坏耐久；销毁根石头会使相关虚像失效。
+- 弹道阻挡也跟随根源生命周期；投影不复制一份独立开关或耐久。
+- Godot 元素库管理器提供“阻挡激光与投射物”勾选项。正式资源已为岩石（`Rock.tres`）、大树（`tree1.tres`）、高石（`highstone.tres`）和杉树（`stuff.tres`）启用；未指定的棕榈树保持关闭。
 - 一面镜子命中最近非空格后，会复制该格全部可复制 Building 与全部可复制 Stuff。
 - Terrain 基底、路径色、体素层数和斜坡不会进入 `MirrorManager` 的内容图，也不会出现在 Stuff 快照中。
 

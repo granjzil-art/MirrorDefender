@@ -48,6 +48,20 @@ func _run() -> void:
 	var panel: Control = RuntimeStuffEditorPanelScene.instantiate()
 	fixture.host.add_child(panel)
 	panel.configure(controller)
+	panel.set_deferred("size", Vector2(640.0, 520.0))
+	await process_frame
+	var content_scroll := panel.find_child("RuntimeEditorContentScroll", true, false) as ScrollContainer
+	_expect(content_scroll != null, "runtime editor exposes one scrollable tool workspace")
+	_expect(
+		content_scroll != null
+		and content_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED,
+		"runtime editor keeps the narrow sidebar free of horizontal scrolling"
+	)
+	_expect(
+		content_scroll != null
+		and content_scroll.get_v_scroll_bar().max_value > content_scroll.get_v_scroll_bar().page,
+		"runtime editor can vertically scroll when the viewport clips its controls"
+	)
 	var enabled_definition_count: int = fixture.stuff.stuff_catalog.get_enabled_definitions().size()
 	_expect(enabled_definition_count > 0, "runtime editor fixture has enabled catalog definitions")
 	_expect(panel.get_palette_definition_count() == enabled_definition_count, "runtime editor palette comes from the explicit catalog")

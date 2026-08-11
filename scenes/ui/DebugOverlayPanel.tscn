@@ -22,10 +22,10 @@ process_mode = 3
 z_index = 80
 layout_mode = 3
 anchors_preset = 0
-offset_left = 18.0
-offset_top = 16.0
-offset_right = 478.0
-offset_bottom = 164.0
+offset_left = 210.0
+offset_top = 68.0
+offset_right = 670.0
+offset_bottom = 216.0
 mouse_filter = 2
 script = ExtResource("1_overlay")
 

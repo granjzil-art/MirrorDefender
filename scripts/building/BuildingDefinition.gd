@@ -13,6 +13,8 @@ enum Kind {
 	BARRIER,
 	EDGE_BARRIER,
 	CROSSBOW_TOWER,
+	MACE_TOWER,
+	PULSE_LASER_TOWER,
 }
 
 enum PlacementSurface {
@@ -29,8 +31,13 @@ enum AimMode {
 @export_group("Identity")
 @export var kind: Kind = Kind.ARROW_TOWER
 @export var display_name: String = "箭塔"
-## Optional production-HUD artwork. The card bar provides a stable fallback.
+## Optional transparent building artwork. BuildCardBar generates the mirror,
+## frame, title, cost and interaction states around it.
 @export var card_icon: Texture2D
+## Optional finished card artwork for BuildCardBar's full-artwork mode. The
+## texture may contain transparent padding; the card bar trims it at runtime.
+## Keep the cost out of this texture because the HUD overlays live level-1 cost.
+@export var full_card_art: Texture2D
 
 @export_group("Runtime Inspector")
 @export var inspection_display: InspectionDisplayConfigScript
@@ -50,11 +57,34 @@ enum AimMode {
 @export_group("Levels")
 @export var levels: Array[BuildingLevelStats] = []
 
+@export_group("Pulse Laser")
+@export_range(0, 64, 1) var pulse_laser_reflect_max: int = 8
+@export var pulse_laser_reflection_colors: Array[Color] = [
+	Color(1.0, 0.08, 0.04, 1.0),
+	Color(1.0, 0.36, 0.03, 1.0),
+	Color(1.0, 0.88, 0.04, 1.0),
+	Color(0.16, 1.0, 0.20, 1.0),
+	Color(0.02, 0.92, 1.0, 1.0),
+	Color(0.10, 0.34, 1.0, 1.0),
+	Color(0.62, 0.12, 1.0, 1.0),
+]
+
 func get_level_stats(value: int) -> BuildingLevelStats:
 	if levels.is_empty():
 		return null
 	var index := clampi(value, 1, get_max_level()) - 1
 	return levels[index]
+
+## Level 1 is the construction cost; every later entry is the cost paid to
+## reach that level. Active demolition returns this full cumulative amount.
+func get_cumulative_cost(value: int) -> float:
+	var resolved_level := clampi(value, 0, get_max_level())
+	var cumulative_cost: float = 0.0
+	for index in range(resolved_level):
+		var stats := levels[index]
+		if stats != null:
+			cumulative_cost += stats.cost
+	return cumulative_cost
 
 func get_max_level() -> int:
 	return mini(MAX_LEVEL, levels.size())
@@ -65,7 +95,7 @@ func is_configured() -> bool:
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	ConfigValidator.require_text(errors, "建筑显示名", display_name)
-	ConfigValidator.require_integer_range(errors, "建筑类型", kind, Kind.ARROW_TOWER, Kind.CROSSBOW_TOWER)
+	ConfigValidator.require_integer_range(errors, "建筑类型", kind, Kind.ARROW_TOWER, Kind.PULSE_LASER_TOWER)
 	ConfigValidator.require_integer_range(
 		errors,
 		"放置表面",
@@ -102,6 +132,16 @@ func validate_configuration() -> Array[String]:
 			"第 %d 级" % (index + 1),
 			stats.validate_configuration()
 		)
+	if kind == Kind.PULSE_LASER_TOWER:
+		ConfigValidator.require_integer_range(errors, "脉冲镭射最大反射次数", pulse_laser_reflect_max, 0, 64)
+		if pulse_laser_reflection_colors.is_empty():
+			errors.append("脉冲镭射颜色序列不能为空")
+		for index in range(pulse_laser_reflection_colors.size()):
+			ConfigValidator.require_color(
+				errors,
+				"脉冲镭射颜色 %d" % (index + 1),
+				pulse_laser_reflection_colors[index]
+			)
 	return errors
 
 func is_defensive_structure() -> bool:

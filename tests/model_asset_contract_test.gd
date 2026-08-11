@@ -252,15 +252,19 @@ func _test_enemy_and_enemy_projectile_models() -> void:
 
 func _test_base_and_spawn_point_models() -> void:
 	var scene := _make_model_scene(Vector3(0.8, 1.2, 0.8))
-	var base_asset := _make_model_asset(scene, Vector3(1.5, 1.5, 1.5))
-	var spawn_asset := _make_model_asset(scene, Vector3(0.7, 0.7, 0.7))
+	var base_asset := _make_model_asset(scene, Vector3(1.2, 1.2, 1.2))
+	var spawn_asset := _make_model_asset(scene, Vector3(0.6, 0.6, 0.6))
+	var base_override_asset := _make_model_asset(scene, Vector3(1.5, 1.5, 1.5))
+	var spawn_override_asset := _make_model_asset(scene, Vector3(0.7, 0.7, 0.7))
 	var level := _make_level()
+	level.base_model_asset = base_asset
+	level.spawn_point_model_asset = spawn_asset
 	var modeled_base := BasePointDefinition.new()
 	modeled_base.base_id = &"base_modeled"
 	modeled_base.display_name = "模型据点"
 	modeled_base.display_number = 1
 	modeled_base.cell = Vector3i(1, 0, 0)
-	modeled_base.model_asset = base_asset
+	modeled_base.model_asset = base_override_asset
 	var fallback_base := BasePointDefinition.new()
 	fallback_base.base_id = &"base_fallback"
 	fallback_base.display_name = "回退据点"
@@ -271,7 +275,7 @@ func _test_base_and_spawn_point_models() -> void:
 	modeled_spawn.display_name = "模型出生点"
 	modeled_spawn.display_number = 1
 	modeled_spawn.cell = Vector3i(0, 0, 0)
-	modeled_spawn.model_asset = spawn_asset
+	modeled_spawn.model_asset = spawn_override_asset
 	var fallback_spawn := SpawnPointDefinition.new()
 	fallback_spawn.spawn_id = &"spawn_fallback"
 	fallback_spawn.display_name = "回退出生点"
@@ -279,6 +283,16 @@ func _test_base_and_spawn_point_models() -> void:
 	fallback_spawn.cell = Vector3i(0, 1, 0)
 	level.base_points.assign([modeled_base, fallback_base])
 	level.spawn_points.assign([modeled_spawn, fallback_spawn])
+	_expect(
+		level.get_base_point_model_asset(modeled_base) == base_override_asset
+		and level.get_base_point_model_asset(fallback_base) == base_asset,
+		"base point model resolution prefers a point override before the level default"
+	)
+	_expect(
+		level.get_spawn_point_model_asset(modeled_spawn) == spawn_override_asset
+		and level.get_spawn_point_model_asset(fallback_spawn) == spawn_asset,
+		"spawn point model resolution prefers a point override before the level default"
+	)
 	var fixture := _make_tile_fixture(level)
 	var host: Node3D = fixture["host"]
 	var grid: GridManager = fixture["grid"]
@@ -292,33 +306,67 @@ func _test_base_and_spawn_point_models() -> void:
 	host.add_child(base_core)
 	base_core.configure(grid, tile_manager)
 	base_core.load_level(level)
-	var live_spawn_model := path_manager.find_child("SpawnPointModel", true, false) as Node3D
-	var live_base_model := base_core.find_child("BasePointModel", true, false) as Node3D
+	var modeled_spawn_root := path_manager.find_child("SpawnPoint_spawn_modeled", true, false) as Node3D
+	var default_spawn_root := path_manager.find_child("SpawnPoint_spawn_fallback", true, false) as Node3D
+	var modeled_base_root := base_core.find_child("BasePoint_base_modeled", true, false) as Node3D
+	var default_base_root := base_core.find_child("BasePoint_base_fallback", true, false) as Node3D
+	var live_spawn_model := modeled_spawn_root.get_node_or_null("SpawnPointModel") as Node3D if modeled_spawn_root != null else null
+	var default_spawn_model := default_spawn_root.get_node_or_null("SpawnPointModel") as Node3D if default_spawn_root != null else null
+	var live_base_model := modeled_base_root.get_node_or_null("BasePointModel") as Node3D if modeled_base_root != null else null
+	var default_base_model := default_base_root.get_node_or_null("BasePointModel") as Node3D if default_base_root != null else null
 	_expect(
-		live_spawn_model != null and live_spawn_model.scale.is_equal_approx(spawn_asset.runtime_scale),
-		"spawn point consumes the shared grounded model asset contract"
+		live_spawn_model != null and live_spawn_model.scale.is_equal_approx(spawn_override_asset.runtime_scale),
+		"spawn point consumes its point-level grounded model asset override"
 	)
 	_expect(
-		live_base_model != null and live_base_model.scale.is_equal_approx(base_asset.runtime_scale),
-		"base point consumes the shared grounded model asset contract"
+		default_spawn_model != null and default_spawn_model.scale.is_equal_approx(spawn_asset.runtime_scale),
+		"spawn point consumes the ModelAsset configured directly on LevelResource"
 	)
+	_expect(
+		live_base_model != null and live_base_model.scale.is_equal_approx(base_override_asset.runtime_scale),
+		"base point consumes its point-level grounded model asset override"
+	)
+	_expect(
+		default_base_model != null and default_base_model.scale.is_equal_approx(base_asset.runtime_scale),
+		"base point consumes the ModelAsset configured directly on LevelResource"
+	)
+	level.base_model_asset = null
+	level.spawn_point_model_asset = null
+	path_manager.load_level(null)
+	base_core.load_level(null)
+	await process_frame
+	path_manager.load_level(level)
+	base_core.load_level(level)
 	_expect(
 		path_manager.find_child("SpawnPointFallback", true, false) != null,
-		"spawn point without a configured model retains its greybox fallback"
+		"spawn point without a point or level model retains its greybox fallback"
 	)
 	_expect(
 		base_core.find_child("BasePointFallback", true, false) != null,
-		"base point without a configured model retains its greybox fallback"
+		"base point without a point or level model retains its greybox fallback"
 	)
-	base_asset.runtime_scale = Vector3.ZERO
+	base_override_asset.runtime_scale = Vector3.ZERO
 	_expect(
 		not modeled_base.validate_configuration().is_empty(),
 		"base point validates its nested model asset"
 	)
-	spawn_asset.runtime_scale = Vector3.ZERO
+	spawn_override_asset.runtime_scale = Vector3.ZERO
 	_expect(
 		not modeled_spawn.validate_configuration().is_empty(),
 		"spawn point validates its nested model asset"
+	)
+	base_asset.runtime_scale = Vector3.ZERO
+	spawn_asset.runtime_scale = Vector3.ZERO
+	level.base_model_asset = base_asset
+	level.spawn_point_model_asset = spawn_asset
+	var level_errors := level.validate_runtime()
+	_expect(
+		_contains_text(level_errors, "关卡默认据点模型"),
+		"LevelResource validates its directly configured base model asset"
+	)
+	_expect(
+		_contains_text(level_errors, "关卡默认出生点模型"),
+		"LevelResource validates its directly configured spawn point model asset"
 	)
 	host.queue_free()
 	await process_frame
@@ -454,6 +502,13 @@ func _make_tile_fixture(level: LevelResource) -> Dictionary:
 func _get_building_model_wrapper(building: Building) -> Node3D:
 	var visual_root := building.get("_visual_root") as Node3D
 	return visual_root.get_node_or_null("BuildingModel") as Node3D if visual_root != null else null
+
+
+func _contains_text(values: Array[String], expected: String) -> bool:
+	for value in values:
+		if value.contains(expected):
+			return true
+	return false
 
 
 func _expect(condition: bool, message: String) -> void:

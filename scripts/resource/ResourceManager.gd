@@ -101,8 +101,8 @@ func unregister_building(refund: float = 0.0) -> void:
 func can_add_mirror() -> bool:
 	return feature_enabled and _mirror_count < mirror_cap
 
-func try_register_mirror(cost: float) -> bool:
-	if not can_add_mirror() or not spend(cost, "mirror_cost"):
+func try_register_mirror() -> bool:
+	if not can_add_mirror():
 		return false
 	_mirror_count += 1
 	_emit_limits_changed()
@@ -117,10 +117,8 @@ func try_register_initial_mirror() -> bool:
 	_emit_limits_changed()
 	return true
 
-func unregister_mirror(refund: float = 0.0) -> void:
+func unregister_mirror() -> void:
 	_mirror_count = maxi(0, _mirror_count - 1)
-	if refund > 0.0:
-		gain(refund, "mirror_refund")
 	_emit_limits_changed()
 
 func set_building_resource_per_second(value: float) -> void:

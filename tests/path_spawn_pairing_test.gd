@@ -115,21 +115,21 @@ func _test_editor_creation_and_wave_binding() -> void:
 	_expect(tile_canvas != null and tile_canvas.has_method("reset_view"), "editor canvas exposes reset_view after tool-script loading")
 	var level := panel.get("_level") as LevelResource
 	level.grid_shape = GridManager.Shape.SQUARE
-	level.grid_size = Vector2i(6, 3)
+	level.grid_size = Vector2i(10, 6)
 	var authored_shape := SquareGridShape.new()
 	authored_shape.setup(level.grid_cell_size)
 	TerrainStuffAuthoringScript.rebuild_grid(level, authored_shape, GridManager.Shape.SQUARE, level.grid_size)
 	(panel.get("_terrain_stuff_editor") as Control).call("set_level", level)
-	level.base_cell = Vector3i(5, 1, 0)
+	level.base_cell = Vector3i(8, 1, 0)
 	var path_canvas: Control = panel.get("_path_canvas")
 	path_canvas.set("has_selected_cell", true)
 	path_canvas.set("selected_cell", Vector3i(0, 1, 0))
 	panel.call("_add_spawn_point")
-	path_canvas.set("selected_cell", Vector3i(0, 2, 0))
+	path_canvas.set("selected_cell", Vector3i(0, 4, 0))
 	panel.call("_add_spawn_point")
-	path_canvas.set("selected_cell", Vector3i(5, 1, 0))
+	path_canvas.set("selected_cell", Vector3i(8, 1, 0))
 	panel.call("_set_selected_base_cell")
-	path_canvas.set("selected_cell", Vector3i(5, 2, 0))
+	path_canvas.set("selected_cell", Vector3i(8, 4, 0))
 	panel.call("_add_base_point")
 	_expect(level.spawn_points.size() == 2, "editor authors spawn points independently from paths")
 	_expect(level.base_points.size() == 2, "editor authors multiple shared-health base locations")
@@ -150,6 +150,7 @@ func _test_editor_creation_and_wave_binding() -> void:
 	first_path.cells = [
 		Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0),
 		Vector3i(3, 1, 0), Vector3i(4, 1, 0), Vector3i(5, 1, 0),
+		Vector3i(6, 1, 0), Vector3i(7, 1, 0),
 	]
 	panel.call("_add_path")
 	var second_path: PathDefinition = level.paths[1]
@@ -157,8 +158,9 @@ func _test_editor_creation_and_wave_binding() -> void:
 	path_base_option.select(2)
 	panel.call("_on_path_base_selected", 2)
 	second_path.cells = [
-		Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(2, 1, 0),
-		Vector3i(3, 1, 0), Vector3i(4, 1, 0), Vector3i(4, 2, 0), Vector3i(5, 2, 0),
+		Vector3i(0, 1, 0), Vector3i(0, 2, 0), Vector3i(0, 3, 0), Vector3i(0, 4, 0),
+		Vector3i(1, 4, 0), Vector3i(2, 4, 0), Vector3i(3, 4, 0), Vector3i(4, 4, 0),
+		Vector3i(5, 4, 0), Vector3i(6, 4, 0), Vector3i(7, 4, 0),
 	]
 	_expect(level.paths.size() == 2, "editor creates two paths")
 	var added_path_overlays: Array = path_canvas.get("_overlay_paths")
@@ -171,14 +173,14 @@ func _test_editor_creation_and_wave_binding() -> void:
 	_expect((path_canvas.get("_overlay_spawn_points") as Array).size() == 2, "path isolation keeps every authored spawn marker visible")
 	_expect((path_canvas.get("_overlay_base_points") as Array).size() == 2, "path isolation keeps every authored base marker visible")
 	var path_page_cells: Dictionary = path_canvas.get("_path_cells")
-	_expect(path_page_cells.has(Vector3i(5, 1, 0)) and path_page_cells.has(Vector3i(5, 2, 0)), "path isolation preserves the all-path terrain-color union")
+	_expect(path_page_cells.has(Vector3i(7, 1, 0)) and path_page_cells.has(Vector3i(7, 4, 0)), "path isolation preserves the all-path terrain-color union")
 	tile_canvas.call("_rebuild_path_cells")
 	var terrain_page_cells: Dictionary = tile_canvas.get("_path_cells")
 	var camera_canvas: Control = panel.get("_camera_canvas")
 	camera_canvas.call("_rebuild_path_cells")
 	var camera_page_cells: Dictionary = camera_canvas.get("_path_cells")
-	_expect(terrain_page_cells.has(Vector3i(5, 1, 0)) and terrain_page_cells.has(Vector3i(5, 2, 0)), "terrain page continues to include every path cell")
-	_expect(camera_page_cells.has(Vector3i(5, 1, 0)) and camera_page_cells.has(Vector3i(5, 2, 0)), "camera page continues to include every path cell")
+	_expect(terrain_page_cells.has(Vector3i(7, 1, 0)) and terrain_page_cells.has(Vector3i(7, 4, 0)), "terrain page continues to include every path cell")
+	_expect(camera_page_cells.has(Vector3i(7, 1, 0)) and camera_page_cells.has(Vector3i(7, 4, 0)), "camera page continues to include every path cell")
 	path_select.select(1)
 	panel.call("_on_path_selected", 1)
 	visible_overlays = path_canvas.get("_overlay_paths")

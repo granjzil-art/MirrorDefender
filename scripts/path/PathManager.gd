@@ -258,7 +258,11 @@ func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
 	marker_root.name = "SpawnPoint_%s" % str(spawn_point.spawn_id)
 	marker_root.position = get_cell_world_position(spawn_point.cell)
 	_marker_root.add_child(marker_root)
-	var model_asset := spawn_point.get_model_asset()
+	var model_asset := (
+		_level.get_spawn_point_model_asset(spawn_point)
+		if _level != null
+		else spawn_point.get_model_asset()
+	)
 	var visual_root := (
 		model_asset.instantiate_grounded_model(&"SpawnPointModel")
 		if model_asset != null

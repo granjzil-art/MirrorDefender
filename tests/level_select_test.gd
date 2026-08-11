@@ -3,7 +3,6 @@ extends SceneTree
 const LevelSelectCatalogScript := preload("res://scripts/level/LevelSelectCatalog.gd")
 const LevelSelectPageDefinitionScript := preload("res://scripts/level/LevelSelectPageDefinition.gd")
 const LevelThumbnailScript := preload("res://scripts/ui/LevelThumbnail.gd")
-const LevelSelectSlotScript := preload("res://scripts/ui/LevelSelectSlot.gd")
 const LevelSelectViewScript := preload("res://scripts/ui/LevelSelectView.gd")
 const LevelSelectViewScene := preload("res://scenes/ui/LevelSelectView.tscn")
 
@@ -18,7 +17,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[LevelSelect] running")
 	_test_page_and_catalog_validation()
-	await _test_view_slots_paging_and_signal()
+	await _test_view_portal_cube_and_signal()
 	await _test_thumbnail_geometry_and_read_only_data()
 	_test_default_resources()
 	if _failures == 0:
@@ -38,10 +37,10 @@ func _test_page_and_catalog_validation() -> void:
 	_expect(duplicate_page.levels.size() == 2, "page validation does not rewrite duplicate slots")
 
 	var overflow_page := LevelSelectPageDefinitionScript.new()
-	overflow_page.levels.resize(7)
+	overflow_page.levels.resize(5)
 	page_errors = overflow_page.validate_configuration()
-	_expect(_contains_text(page_errors, "最多只能配置 6"), "page validation rejects more than six slots")
-	_expect(overflow_page.levels.size() == 7, "overflow validation remains read-only")
+	_expect(_contains_text(page_errors, "最多只能配置 4"), "page validation rejects more than four portal faces")
+	_expect(overflow_page.levels.size() == 5, "overflow validation remains read-only")
 
 	var invalid_level := _make_level("Invalid")
 	invalid_level.grid_shape = 99
@@ -61,188 +60,72 @@ func _test_page_and_catalog_validation() -> void:
 	_expect(catalog.pages.size() == 3 and catalog.pages[1] == null, "catalog validation preserves page ordering and nulls")
 
 
-func _test_view_slots_paging_and_signal() -> void:
+func _test_view_portal_cube_and_signal() -> void:
 	var levels: Array[LevelResource] = []
-	for index in range(8):
+	for index in range(4):
 		levels.append(_make_level("Level %d" % (index + 1)))
-	var page_1 := LevelSelectPageDefinitionScript.new()
-	page_1.display_name = "Page One"
-	page_1.levels = _level_array([levels[0], null, levels[1], levels[2], levels[3], levels[4]])
-	var page_2 := LevelSelectPageDefinitionScript.new()
-	page_2.levels = _level_array([levels[5]])
-	var page_3 := LevelSelectPageDefinitionScript.new()
-	page_3.levels = _level_array([levels[6], levels[7]])
+	var page := LevelSelectPageDefinitionScript.new()
+	page.display_name = "Portal Cube"
+	page.levels = _level_array([levels[0], null, levels[1], levels[2]])
 	var catalog := LevelSelectCatalogScript.new()
-	catalog.pages = _page_array([page_1, page_2, page_3])
+	catalog.pages = _page_array([page])
 
 	var view: LevelSelectViewScript = LevelSelectViewScene.instantiate() as LevelSelectViewScript
+	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	view.size = Vector2(1280.0, 720.0)
 	root.add_child(view)
 	await process_frame
 	view.configure(catalog)
 	await process_frame
+	await process_frame
+
 	var background := view.get_node("Background") as ColorRect
-	var page_viewport := view.get_node("PageViewport") as Control
-	var grid := view.get_node("PageViewport/CurrentPage/LevelGrid") as GridContainer
-	var standby_grid := view.get_node("PageViewport/StandbyPage/StandbyLevelGrid") as GridContainer
-	var previous_button := view.get_node("PreviousButton") as Button
-	var next_button := view.get_node("NextButton") as Button
-	_expect(background.color == Color.BLACK, "level select uses a full-screen pure-black background")
-	_expect(page_viewport.clip_contents, "page viewport clips both sliding pages")
-	_expect(is_equal_approx(view.page_slide_duration, 0.25), "page slide defaults to 0.25 seconds")
-	_expect(grid.get_child_count() == 6 and standby_grid.get_child_count() == 6, "current and standby pages each own six slots")
-	_expect(view.find_child("Panel", true, false) == null, "level select has no outer panel")
-	_expect(view.find_child("Title", true, false) == null, "level select has no visible title nodes")
-	_expect(view.find_child("PageName", true, false) == null and view.find_child("PageNumber", true, false) == null, "level select has no page name or page number")
-	_expect(grid.columns == 3 and view.get_slot_count() == 6, "view always creates a fixed 3x2 grid with six slots")
-	_expect(grid.custom_minimum_size == Vector2.ZERO, "level grid has no legacy fixed minimum size")
-	_expect(view.get_slot_control(-1) == null and view.get_slot_control(6) == null, "slot query rejects out-of-range indexes")
-	_expect(view.get_slot_level(0) == levels[0] and view.get_slot_level(2) == levels[1], "slot order follows authored page order without compacting holes")
-	_expect(view.get_slot_level(1) == null, "authored null remains at its fixed slot index")
-	var first_slot: LevelSelectSlotScript = view.get_slot_control(0)
-	var empty_slot: LevelSelectSlotScript = view.get_slot_control(1)
-	var third_slot: LevelSelectSlotScript = view.get_slot_control(2)
-	var fourth_slot: LevelSelectSlotScript = view.get_slot_control(3)
-	_expect(empty_slot.visible and empty_slot.disabled and is_zero_approx(empty_slot.self_modulate.a), "empty slot keeps layout space but is transparent and disabled")
-	_expect(not first_slot.disabled and is_equal_approx(first_slot.self_modulate.a, 1.0), "filled slot remains opaque and clickable")
-	_expect(first_slot.flat and first_slot.find_child("Title", true, false) == null, "slot has no decorative frame or title child")
-	_expect(first_slot.custom_minimum_size == Vector2.ZERO, "slot has no legacy fixed minimum size")
-	_expect(first_slot.get_thumbnail() != null and first_slot.get_thumbnail().get_parent() == first_slot, "level thumbnail directly fills the slot")
-	_expect(first_slot.get_thumbnail().get_global_rect().is_equal_approx(first_slot.get_global_rect()), "thumbnail covers the complete slot rectangle")
-	_expect(previous_button.flat and next_button.flat and previous_button.text == "‹" and next_button.text == "›", "navigation controls render as pure arrows")
-	_expect(not view.is_previous_page_visible() and view.is_next_page_visible(), "first page shows only the right arrow")
-	_expect(first_slot.position.x < empty_slot.position.x and empty_slot.position.x < third_slot.position.x, "first grid row preserves three ordered columns")
-	_expect(is_equal_approx(first_slot.position.y, empty_slot.position.y) and is_equal_approx(empty_slot.position.y, third_slot.position.y), "first grid row shares one vertical position")
-	_expect(fourth_slot.position.y > first_slot.position.y and is_equal_approx(fourth_slot.position.x, first_slot.position.x), "fourth slot starts the fixed second row")
+	var viewport_container := view.get_node("CubeViewportContainer") as SubViewportContainer
+	var cube_viewport := view.get_node("CubeViewportContainer/CubeViewport") as SubViewport
+	_expect(background.color == Color(0.006, 0.01, 0.016, 1.0), "portal cube uses the authored dark background")
+	_expect(viewport_container.stretch, "cube viewport stretches with the full-screen selection view")
+	_expect(cube_viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "outer cube viewport remains live while the cube rotates")
+	_expect(view.get_slot_count() == 4 and view.get_face_count() == 4, "selection cube owns exactly four level faces")
+	_expect(view.get_title_face() != null and view.get_base_root() != null, "cube owns a title top and a non-selectable display base")
+	_expect(not view.is_previous_page_visible() and not view.is_next_page_visible(), "four-face selection has no paging arrows")
+	_expect(view.get_face_level(0) == levels[0] and view.get_face_level(2) == levels[1], "face order preserves authored level order without compacting holes")
+	_expect(view.get_face_level(1) == null, "authored null remains an empty cube face")
+	_expect(view.get_face_area(0).collision_layer != 0, "filled level face participates in selection raycasts")
+	_expect(view.get_face_area(1).collision_layer == 0, "empty level face is excluded from selection raycasts")
+	_expect(view.get_face_area(0).get_meta("level_face_index") == 0, "face hit area retains its stable authored index")
+
+	var first_preview = view.get_preview(0)
+	_expect(first_preview != null and first_preview.get_level() == levels[0], "first face owns an isolated preview viewport for its exact level")
+	_expect(first_preview.is_loaded(), "valid sparse level loads into the preview renderer stack")
+	_expect(first_preview.get_content_scale() > 0.0, "preview content is normalized into the canonical display volume")
+	_expect(first_preview.get_preview_camera().projection == Camera3D.PROJECTION_FRUSTUM, "visible preview uses an off-axis frustum")
+
+	var camera_transform := view.get_cube_camera().global_transform
+	var yaw_before := view.get_cube_yaw()
+	var pitch_before := view.get_cube_pitch()
+	var observer_before := first_preview.get_last_observer_local()
+	view.apply_drag_for_test(Vector2(36.0, -18.0))
+	await process_frame
+	_expect(not is_equal_approx(view.get_cube_yaw(), yaw_before), "horizontal drag rotates the cube yaw pivot")
+	_expect(not is_equal_approx(view.get_cube_pitch(), pitch_before), "vertical drag rotates the cube pitch pivot")
+	_expect(view.get_cube_camera().global_transform.is_equal_approx(camera_transform), "dragging changes the cube, never the fixed external camera")
+	_expect(not first_preview.get_last_observer_local().is_equal_approx(observer_before), "cube rotation remaps the observer inside the face preview world")
+
+	view.apply_drag_for_test(Vector2(0.0, -10000.0))
+	_expect(view.get_cube_pitch() <= deg_to_rad(view.maximum_pitch_degrees) + 0.0001, "cube pitch is clamped before exposing the underside")
 
 	var selected: Array[LevelResource] = []
 	view.level_selected.connect(func(level: LevelResource) -> void: selected.append(level))
-	first_slot.pressed.emit()
-	_expect(selected.size() == 1 and selected[0] == levels[0], "filled-slot click emits the exact LevelResource")
-	empty_slot.pressed.emit()
-	_expect(selected.size() == 1, "empty-slot activation emits no level")
+	view.activate_face_for_test(1)
+	_expect(selected.is_empty(), "empty cube face emits no level")
+	view.activate_face_for_test(0)
+	_expect(selected.size() == 1 and selected[0] == levels[0], "filled cube face emits the exact LevelResource")
+	view.activate_face_for_test(2)
+	_expect(selected.size() == 1, "selection locks after the first accepted face activation")
 
-	var wheel_down := InputEventMouseButton.new()
-	wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
-	wheel_down.pressed = true
-	var wheel_up := InputEventMouseButton.new()
-	wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
-	wheel_up.pressed = true
-
-	next_button.pressed.emit()
-	_expect(view.is_sliding_for_test() and view.get_current_page_index() == 0, "right arrow starts a slide without committing the target page early")
-	_expect(view.get_standby_page_position_for_test().x > 0.0, "next page starts to the right of the active page")
-	_expect(first_slot.disabled and is_equal_approx(first_slot.self_modulate.a, 1.0), "slide locks filled slots without hiding them")
-	_expect(view.is_previous_page_visible() and view.is_next_page_visible(), "navigation reflects the middle target page when a slide starts")
-	first_slot.pressed.emit()
-	_expect(selected.size() == 1, "programmatic slot activation is ignored while sliding")
+	view.size = Vector2(1600.0, 900.0)
 	await process_frame
-	_expect(view.get_active_page_position_for_test().x < 0.0 and view.get_standby_page_position_for_test().x > 0.0, "next slide moves the active page left and the target page in from the right")
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(not view.is_sliding_for_test() and view.get_current_page_index() == 1, "completed next slide commits exactly one page")
-	_expect(view.get_slot_level(0) == levels[5] and not view.get_slot_control(0).disabled, "completed slide exposes and unlocks the target page slots")
-
-	view._gui_input(wheel_down)
-	_expect(view.is_sliding_for_test() and view.get_current_page_index() == 1, "wheel-down uses the same deferred slide entry")
-	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "navigation reflects the last target page at slide start")
-	view._gui_input(wheel_down)
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 2 and not view.is_sliding_for_test(), "outward request at the last target page is not queued")
-
-	view._gui_input(wheel_up)
-	_expect(view.get_standby_page_position_for_test().x < 0.0, "previous page starts to the left of the active page")
-	view.change_page(1)
-	view.change_page(-1)
-	await process_frame
-	_expect(view.get_active_page_position_for_test().x > 0.0 and view.get_standby_page_position_for_test().x < 0.0, "previous slide moves the active page right and the target page in from the left")
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 1 and view.is_sliding_for_test(), "only the last legal request starts automatically after the current slide")
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "last queued reverse request completes on the expected page")
-
-	view._gui_input(wheel_up)
-	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "wheel-up at the first page does not start or queue a slide")
-	wheel_up.pressed = false
-	view._gui_input(wheel_up)
-	_expect(not view.is_sliding_for_test(), "released wheel events do not page")
-	wheel_up.pressed = true
-
-	view.change_page(1)
-	view.change_page(1)
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 1 and view.is_sliding_for_test(), "same-direction request chains from the first target page")
-	view.change_page(1)
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 2 and not view.is_sliding_for_test(), "outward request during a slide to the last page is not queued")
-	_expect(view.is_previous_page_visible() and not view.is_next_page_visible(), "completed final page keeps only the left arrow visible")
-	view.change_page(1)
-	_expect(not view.is_sliding_for_test(), "right paging clamps at the final page")
-
-	view.change_page(-1)
-	view.change_page(-1)
-	var reset_catalog := LevelSelectCatalogScript.new()
-	reset_catalog.pages = _page_array([page_1, page_2, page_3])
-	view.configure(reset_catalog)
-	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "configure stops the tween, clears the queue, and resets the page index")
-	_expect(view.get_active_page_position_for_test().is_equal_approx(Vector2.ZERO) and is_equal_approx(view.get_standby_page_position_for_test().x, page_viewport.size.x), "configure restores active and standby page positions")
-	_expect(view.get_slot_level(0) == levels[0] and not view.get_slot_control(0).disabled, "configure restores the new catalog first page interaction state")
-	_expect(view.get_slot_control(1).disabled and is_zero_approx(view.get_slot_control(1).self_modulate.a), "unlock after configure preserves empty-slot disabled transparency")
-	_expect(not view.is_previous_page_visible() and view.is_next_page_visible(), "configure restores first-page arrow visibility")
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 0 and not view.is_sliding_for_test(), "stopped configure transition cannot execute its old queued request")
-
-	Engine.time_scale = 0.0
-	view.change_page(1)
-	await create_timer(view.page_slide_duration + 0.05, true, false, true).timeout
-	Engine.time_scale = 1.0
-	_expect(view.get_current_page_index() == 1 and not view.is_sliding_for_test(), "slide duration uses real time independently of Engine.time_scale")
-	previous_button.pressed.emit()
-	view.complete_slide_for_test()
-	await process_frame
-	_expect(view.get_current_page_index() == 0, "left arrow returns through the shared paging entry")
-	view.change_page(1)
-	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	view.size = Vector2(1400.0, 800.0)
-	await process_frame
-	_expect(view.get_current_page_index() == 1 and not view.is_sliding_for_test(), "resizing during a slide commits the target page without exposing stale offsets")
-	view.change_page(-1)
-	view.complete_slide_for_test()
-	await process_frame
-
-	view.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	view.position = Vector2.ZERO
-	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		view.size = Vector2(resolution)
-		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
-		var grid_rect := grid.get_global_rect()
-		_expect(viewport_rect.encloses(grid_rect), "level grid stays inside %dx%d" % [resolution.x, resolution.y])
-		_expect(is_equal_approx(grid_rect.position.x, 16.0) and is_equal_approx(grid_rect.position.y, 16.0), "level grid starts at the 16px safe margin at %dx%d" % [resolution.x, resolution.y])
-		_expect(is_equal_approx(viewport_rect.end.x - grid_rect.end.x, 16.0) and is_equal_approx(viewport_rect.end.y - grid_rect.end.y, 16.0), "level grid fills through the opposite 16px safe margin at %dx%d" % [resolution.x, resolution.y])
-		_expect(viewport_rect.encloses(previous_button.get_global_rect()) and viewport_rect.encloses(next_button.get_global_rect()), "page arrows stay inside %dx%d" % [resolution.x, resolution.y])
-		var slot_width := (float(resolution.x) - 32.0 - 24.0) / 3.0
-		var slot_height := (float(resolution.y) - 32.0 - 12.0) / 2.0
-		for slot_index in range(view.get_slot_count()):
-			var slot_rect := view.get_slot_control(slot_index).get_global_rect()
-			_expect(viewport_rect.encloses(slot_rect), "slot %d stays inside %dx%d" % [slot_index + 1, resolution.x, resolution.y])
-			_expect(absf(slot_rect.size.x - slot_width) <= 1.0 and absf(slot_rect.size.y - slot_height) <= 1.0, "slot %d equally fills the available grid at %dx%d" % [slot_index + 1, resolution.x, resolution.y])
-		var first_rect := view.get_slot_control(0).get_global_rect()
-		var second_rect := view.get_slot_control(1).get_global_rect()
-		var fourth_rect := view.get_slot_control(3).get_global_rect()
-		_expect(is_equal_approx(second_rect.position.x - first_rect.end.x, 12.0), "column gap remains 12px at %dx%d" % [resolution.x, resolution.y])
-		_expect(is_equal_approx(fourth_rect.position.y - first_rect.end.y, 12.0), "row gap remains 12px at %dx%d" % [resolution.x, resolution.y])
-		_expect(view.get_slot_control(0).size.x > 300.0 and view.get_slot_control(0).size.y > 210.0, "each slot is larger than the previous fixed size at %dx%d" % [resolution.x, resolution.y])
-
-	var single_page_catalog := LevelSelectCatalogScript.new()
-	single_page_catalog.pages = _page_array([page_1])
-	view.configure(single_page_catalog)
-	_expect(not view.is_previous_page_visible() and not view.is_next_page_visible(), "single-page catalog hides both arrows")
+	_expect(viewport_container.size.is_equal_approx(view.size), "portal cube remains full-screen after resizing")
 	view.queue_free()
 	await process_frame
 	return
@@ -317,7 +200,7 @@ func _test_default_resources() -> void:
 	for page_index in range(catalog.get_page_count()):
 		var page: LevelSelectPageDefinitionScript = catalog.get_page(page_index)
 		pages_fit_fixed_grid = pages_fit_fixed_grid and page != null and page.levels.size() <= LevelSelectPageDefinitionScript.SLOT_COUNT
-	_expect(pages_fit_fixed_grid, "every authored page fits the fixed six-slot grid")
+	_expect(pages_fit_fixed_grid, "every authored page fits the fixed four-face cube")
 	return
 
 

@@ -10,6 +10,7 @@ const RuntimeStuffEditorControllerScript := preload("res://scripts/stuff/Runtime
 var _controller: RuntimeStuffEditorControllerScript
 var _toggle_button: Button
 var _workspace: PanelContainer
+var _content_scroll: ScrollContainer
 var _palette: VBoxContainer
 var _terrain_palette: GridContainer
 var _selection_label: Label
@@ -87,19 +88,32 @@ func _build_interface() -> void:
 	title.text = "运行时关卡编辑器"
 	title.add_theme_font_size_override("font_size", 22)
 	root_box.add_child(title)
+	_content_scroll = ScrollContainer.new()
+	_content_scroll.name = "RuntimeEditorContentScroll"
+	_content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_content_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	root_box.add_child(_content_scroll)
+	var content_box := VBoxContainer.new()
+	content_box.name = "RuntimeEditorContent"
+	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_box.add_theme_constant_override("separation", 8)
+	_content_scroll.add_child(content_box)
 	var select_button := Button.new()
 	select_button.text = "选择工具"
 	select_button.pressed.connect(_on_select_tool_pressed)
-	root_box.add_child(select_button)
+	content_box.add_child(select_button)
 	var terrain_title := Label.new()
 	terrain_title.text = "地块类型（悬停即预览）"
-	root_box.add_child(terrain_title)
+	content_box.add_child(terrain_title)
 	_terrain_palette = GridContainer.new()
 	_terrain_palette.columns = 2
 	_terrain_palette.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root_box.add_child(_terrain_palette)
+	content_box.add_child(_terrain_palette)
 	var layer_row := HBoxContainer.new()
-	root_box.add_child(layer_row)
+	content_box.add_child(layer_row)
 	var layer_label := Label.new()
 	layer_label.text = "高度"
 	layer_row.add_child(layer_label)
@@ -113,9 +127,9 @@ func _build_interface() -> void:
 	layer_row.add_child(layer_button)
 	var ramp_title := Label.new()
 	ramp_title.text = "斜坡（点击低端，R 调整朝向）"
-	root_box.add_child(ramp_title)
+	content_box.add_child(ramp_title)
 	var ramp_row := HBoxContainer.new()
-	root_box.add_child(ramp_row)
+	content_box.add_child(ramp_row)
 	_ramp_run_option = OptionButton.new()
 	for run_length in range(1, 5):
 		_ramp_run_option.add_item("1:%d" % run_length, run_length)
@@ -133,28 +147,24 @@ func _build_interface() -> void:
 	_ramp_terrain_option = OptionButton.new()
 	_ramp_terrain_option.add_item("斜坡地形：跟随基底", 0)
 	_ramp_terrain_option.item_selected.connect(_on_ramp_terrain_selected)
-	root_box.add_child(_ramp_terrain_option)
+	content_box.add_child(_ramp_terrain_option)
 	var stuff_title := Label.new()
 	stuff_title.text = "关卡元素"
-	root_box.add_child(stuff_title)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(270.0, 110.0)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_box.add_child(scroll)
+	content_box.add_child(stuff_title)
 	_palette = VBoxContainer.new()
 	_palette.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_palette.add_theme_constant_override("separation", 5)
-	scroll.add_child(_palette)
+	content_box.add_child(_palette)
 	_allow_warning = CheckBox.new()
 	_allow_warning.text = "允许不可达布局（作者警告）"
 	_allow_warning.toggled.connect(_on_allow_warning_toggled)
-	root_box.add_child(_allow_warning)
+	content_box.add_child(_allow_warning)
 	_selection_label = Label.new()
 	_selection_label.text = "未选择元素"
 	_selection_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root_box.add_child(_selection_label)
+	content_box.add_child(_selection_label)
 	var selection_action_row := HBoxContainer.new()
-	root_box.add_child(selection_action_row)
+	content_box.add_child(selection_action_row)
 	_delete_button = Button.new()
 	_delete_button.name = "DeleteSelectedStuffButton"
 	_delete_button.text = "删除选中元素"
@@ -169,7 +179,7 @@ func _build_interface() -> void:
 	_rotate_button.pressed.connect(_on_rotate_pressed)
 	selection_action_row.add_child(_rotate_button)
 	var history_row := HBoxContainer.new()
-	root_box.add_child(history_row)
+	content_box.add_child(history_row)
 	_undo_button = Button.new()
 	_undo_button.text = "撤销"
 	_undo_button.pressed.connect(_on_undo_pressed)
@@ -190,7 +200,7 @@ func _build_interface() -> void:
 	_full_save_button.pressed.connect(_on_full_save_pressed)
 	history_row.add_child(_full_save_button)
 	var close_row := HBoxContainer.new()
-	root_box.add_child(close_row)
+	content_box.add_child(close_row)
 	var save_close := Button.new()
 	save_close.text = "保存并退出"
 	save_close.pressed.connect(_on_save_close_pressed)
@@ -202,7 +212,7 @@ func _build_interface() -> void:
 	_status_label = Label.new()
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_box.add_child(_status_label)
+	content_box.add_child(_status_label)
 	_discard_confirmation = ConfirmationDialog.new()
 	_discard_confirmation.title = "放弃运行时关卡修改"
 	_discard_confirmation.dialog_text = "当前运行时关卡存在未保存修改，确定放弃并退出吗？"
@@ -220,7 +230,7 @@ func _update_layout() -> void:
 	if _workspace == null:
 		return
 	var viewport_height := size.y if size.y > 0.0 else get_viewport_rect().size.y
-	_workspace.size = Vector2(300.0, maxf(360.0, viewport_height - _workspace.position.y - 18.0))
+	_workspace.size = Vector2(300.0, maxf(120.0, viewport_height - _workspace.position.y - 18.0))
 
 
 func _rebuild_palette() -> void:

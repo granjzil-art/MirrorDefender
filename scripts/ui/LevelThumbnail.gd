@@ -173,12 +173,18 @@ func _rebuild_overlay_data() -> void:
 		var base_point: Resource = _level.base_points[base_index]
 		if base_point == null:
 			continue
-		var cell: Vector3i = base_point.get("cell")
-		if not _shape.is_in_bounds(cell, _level.grid_size):
+		var footprint: Array = base_point.call("get_footprint_cells") if base_point.has_method("get_footprint_cells") else [base_point.get("cell")]
+		var position_sum := Vector2.ZERO
+		var footprint_count := 0
+		for footprint_cell in footprint:
+			if footprint_cell is Vector3i and _shape.is_in_bounds(footprint_cell, _level.grid_size):
+				position_sum += _cell_world_position(footprint_cell)
+				footprint_count += 1
+		if footprint_count == 0:
 			continue
 		var authored_number := int(base_point.get("display_number"))
 		_base_draw_data.append({
-			"position": _cell_world_position(cell),
+			"position": position_sum / float(footprint_count),
 			"number": authored_number if authored_number > 0 else base_index + 1,
 		})
 

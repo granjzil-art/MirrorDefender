@@ -7,6 +7,7 @@ signal impacted(target: CombatTarget, applied_damage: float)
 signal reflected(mirror: CopyMirror, world_position: Vector3, direction: Vector3)
 
 const MIN_DIRECTION_LENGTH_SQUARED := 0.000001
+const CONTACT_CLEARANCE := 0.001
 
 var _combat_manager: CombatManager
 var _source_building: Building
@@ -16,7 +17,11 @@ var _speed: float = 1.0
 var _damage: float = 0.0
 var _maximum_distance: float = 1.0
 var _distance_traveled: float = 0.0
+var _penetration_limit: int = 0
+var _penetration_value: int = 0
+var _contact_targets: Dictionary = {}
 var _reflection_resolver: Callable
+var _blocker_resolver: Callable
 var _has_reflected: bool = false
 var _ballistic_from_start: bool = false
 var _active: bool = false
@@ -35,7 +40,9 @@ func configure(
 	model_asset: ModelAssetDefinition = null,
 	maximum_distance: float = -1.0,
 	reflection_resolver: Callable = Callable(),
-	ballistic_from_start: bool = false
+	ballistic_from_start: bool = false,
+	penetration_count: int = 0,
+	blocker_resolver: Callable = Callable()
 ) -> void:
 	_combat_manager = combat_manager
 	_source_building = source_building
@@ -45,8 +52,15 @@ func configure(
 	_speed = maxf(0.1, speed)
 	_damage = maxf(0.0, damage)
 	_maximum_distance = maxf(0.1, start.distance_to(end) if maximum_distance < 0.0 else maximum_distance)
+	_distance_traveled = 0.0
+	_penetration_limit = maxi(0, penetration_count)
+	_penetration_value = 0
+	_contact_targets.clear()
 	_reflection_resolver = reflection_resolver
+	_blocker_resolver = blocker_resolver
+	_has_reflected = false
 	_ballistic_from_start = ballistic_from_start
+	_active = false
 	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color, model_asset)
 	_update_orientation(_direction)
 	_active = true
@@ -90,24 +104,68 @@ func _advance(travel_budget: float) -> void:
 	var remaining := maxf(0.0, travel_budget)
 	var reflections_this_frame := 0
 	while _active and remaining > 0.000001:
+		_refresh_contact_targets()
 		var start := global_position
 		var end := start + _direction * remaining
 		var mirror_hit := _query_reflection(start, end)
+		var blocker_hit := _query_blocker(start, end)
+		var mirror_distance := _valid_interaction_distance(mirror_hit, remaining)
+		var blocker_distance := _valid_interaction_distance(blocker_hit, remaining)
+		var blocker_is_first := blocker_distance <= mirror_distance
+		var nearest_interaction := minf(mirror_distance, blocker_distance)
 		var segment_distance := (
-			clampf(float(mirror_hit.get("distance", remaining)), 0.0, remaining)
-			if bool(mirror_hit.get("hit", false))
-			else remaining
+			nearest_interaction if is_finite(nearest_interaction) else remaining
 		)
 		var segment_end := start + _direction * segment_distance
 		if _has_reflected or _ballistic_from_start:
-			var target_hit := _find_first_target_hit(start, segment_end)
+			var target_center_limit := (
+				blocker_distance
+				if blocker_is_first and is_finite(blocker_distance)
+				else INF
+			)
+			var target_hit := _find_first_target_hit(
+				start,
+				segment_end,
+				target_center_limit
+			)
 			if bool(target_hit.get("hit", false)):
 				var target_distance := clampf(float(target_hit.get("distance", 0.0)), 0.0, segment_distance)
-				global_position = start + _direction * target_distance
-				_distance_traveled += target_distance
-				_impact_target(target_hit.get("target") as CombatTarget)
-				return
-		if not bool(mirror_hit.get("hit", false)):
+				var target_center_distance := float(target_hit.get("center_distance", INF))
+				var target_precedes_blocker := (
+					not blocker_is_first
+					or not is_finite(blocker_distance)
+					or target_center_distance < blocker_distance - 0.000001
+				)
+				if (
+					target_precedes_blocker
+					and (
+						target_distance < segment_distance - 0.000001
+						or not is_finite(nearest_interaction)
+					)
+				):
+					global_position = start + _direction * target_distance
+					_distance_traveled += target_distance
+					if not _impact_target(target_hit.get("target") as CombatTarget):
+						return
+					var clearance_budget := minf(
+						remaining - target_distance,
+						maxf(0.0, segment_distance - target_distance)
+					)
+					var contact_step := minf(CONTACT_CLEARANCE, clearance_budget)
+					if contact_step > 0.0:
+						global_position += _direction * contact_step
+						_distance_traveled += contact_step
+						remaining -= target_distance + contact_step
+					else:
+						remaining -= target_distance
+					continue
+		if blocker_is_first and is_finite(blocker_distance):
+			global_position = blocker_hit.get("position", segment_end)
+			_distance_traveled += blocker_distance
+			_active = false
+			queue_free()
+			return
+		if not is_finite(mirror_distance):
 			global_position = end
 			_distance_traveled += remaining
 			remaining = 0.0
@@ -144,9 +202,31 @@ func _query_reflection(start: Vector3, end: Vector3) -> Dictionary:
 	return result if result is Dictionary else {"hit": false}
 
 
-func _find_first_target_hit(start: Vector3, end: Vector3) -> Dictionary:
+func _query_blocker(start: Vector3, end: Vector3) -> Dictionary:
+	if not _blocker_resolver.is_valid():
+		return {"hit": false}
+	var result: Variant = _blocker_resolver.call(start, end)
+	return result if result is Dictionary else {"hit": false}
+
+
+func _valid_interaction_distance(hit: Dictionary, maximum_distance: float) -> float:
+	if not bool(hit.get("hit", false)):
+		return INF
+	var distance := float(hit.get("distance", INF))
+	if not is_finite(distance) or distance < 0.0 or distance > maximum_distance + 0.000001:
+		return INF
+	return clampf(distance, 0.0, maximum_distance)
+
+
+func _find_first_target_hit(
+	start: Vector3,
+	end: Vector3,
+	maximum_center_distance: float = INF
+) -> Dictionary:
 	var best: CombatTarget
 	var best_distance := INF
+	var best_center_distance := INF
+	var segment_direction := (end - start).normalized()
 	if (
 		_combat_manager == null
 		or _source_building == null
@@ -155,6 +235,14 @@ func _find_first_target_hit(start: Vector3, end: Vector3) -> Dictionary:
 		return {"hit": false}
 	for target in _combat_manager.get_targets():
 		if not target.is_alive() or not _source_building.affects_target(target):
+			continue
+		if _contact_targets.has(target.get_instance_id()):
+			continue
+		var center_distance := maxf(
+			0.0,
+			(target.get_target_position() - start).dot(segment_direction)
+		)
+		if center_distance >= maximum_center_distance - 0.000001:
 			continue
 		var distance := _ray_sphere_entry_distance(
 			start,
@@ -165,10 +253,12 @@ func _find_first_target_hit(start: Vector3, end: Vector3) -> Dictionary:
 		if distance >= 0.0 and distance < best_distance:
 			best = target
 			best_distance = distance
+			best_center_distance = center_distance
 	return {
 		"hit": best != null,
 		"target": best,
 		"distance": best_distance if best != null else 0.0,
+		"center_distance": best_center_distance if best != null else 0.0,
 	}
 
 
@@ -197,16 +287,43 @@ func _ray_sphere_entry_distance(
 
 
 func _impact_endpoint() -> void:
-	_impact_target(_find_target_at_endpoint())
+	var target := _find_target_at_endpoint()
+	if target == null:
+		_active = false
+		queue_free()
+		return
+	_impact_target(target)
 
 
-func _impact_target(target: CombatTarget) -> void:
-	_active = false
+func _impact_target(target: CombatTarget) -> bool:
+	if target == null or not is_instance_valid(target) or not target.is_alive():
+		return _active
+	_contact_targets[target.get_instance_id()] = target
 	var applied_damage := 0.0
-	if target != null and is_instance_valid(target) and target.is_alive():
-		applied_damage = target.take_damage(_damage)
-		impacted.emit(target, applied_damage)
-	queue_free()
+	applied_damage = target.take_damage(_damage)
+	impacted.emit(target, applied_damage)
+	_penetration_value += 1
+	if _penetration_value > _penetration_limit:
+		_active = false
+		queue_free()
+		return false
+	_ballistic_from_start = true
+	return true
+
+
+func _refresh_contact_targets() -> void:
+	for instance_id in _contact_targets.keys():
+		var target_value: Variant = _contact_targets[instance_id]
+		if not is_instance_valid(target_value):
+			_contact_targets.erase(instance_id)
+			continue
+		var target := target_value as CombatTarget
+		if (
+			target == null
+			or not target.is_alive()
+			or global_position.distance_to(target.get_target_position()) > target.hit_radius + CONTACT_CLEARANCE
+		):
+			_contact_targets.erase(instance_id)
 
 
 func _find_target_at_endpoint() -> CombatTarget:

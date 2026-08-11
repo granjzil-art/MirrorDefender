@@ -1,9 +1,9 @@
 @tool
-## Ordered definition for one fixed six-slot level-selection page.
+## Ordered definition for the four portal faces of one level-selection cube.
 class_name LevelSelectPageDefinition
 extends Resource
 
-const SLOT_COUNT: int = 6
+const SLOT_COUNT: int = 4
 
 @export_group("Identity")
 @export var display_name: String = ""

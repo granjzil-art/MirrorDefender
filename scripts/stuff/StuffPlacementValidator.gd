@@ -49,12 +49,15 @@ func validate_placement(
 	var facing_count := maxi(1, _grid.get_tile_content_facing_count())
 	if facing_index < 0 or facing_index >= facing_count:
 		return _invalid("关卡元素朝向超出当前网格方向数")
+	var occupant := _tile_manager.get_occupant(cell)
+	if occupant is BaseCore:
+		return _invalid("据点占地不允许放置关卡元素")
 	if not placement_id.is_empty() and _stuff_manager.get_stuff(placement_id) != null:
 		return _invalid("关卡元素实例 ID 已存在：%s" % placement_id)
 	for existing in _stuff_manager.get_stuff_at(cell):
 		if not definition.can_coexist_with(existing.definition):
 			return _invalid("该格已有与其互斥的关卡元素")
-	if definition.blocks_tile_building and _tile_manager.get_occupant(cell) != null:
+	if definition.blocks_tile_building and occupant != null:
 		return _invalid("该格已有块建筑，不能放置会阻止块建筑的元素")
 	if definition.blocks_edge_building and _has_edge_occupant(cell):
 		return _invalid("该格边上已有建筑或镜子，不能放置会阻止边建筑的元素")

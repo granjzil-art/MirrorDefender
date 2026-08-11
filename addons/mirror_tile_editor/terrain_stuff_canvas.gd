@@ -305,7 +305,7 @@ func _draw_cell(cell: Vector3i) -> void:
 
 func _draw_permission_marker(cell: Vector3i) -> void:
 	var data := Authoring.get_grid_cell(level, cell)
-	if data == null or (data.allows_tile_building and data.allows_edge_building):
+	if data == null:
 		return
 	var center := _cell_center_screen(cell)
 	var text := ""
@@ -313,15 +313,25 @@ func _draw_permission_marker(cell: Vector3i) -> void:
 		text += "■"
 	if not data.allows_edge_building:
 		text += "◇"
-	draw_string(
-		ThemeDB.fallback_font,
-		center + Vector2(-12.0, 18.0),
-		text,
-		HORIZONTAL_ALIGNMENT_CENTER,
-		24.0,
-		13,
-		Color(0.10, 0.13, 0.18, 0.92)
-	)
+	if not text.is_empty():
+		draw_string(
+			ThemeDB.fallback_font,
+			center + Vector2(-12.0, 18.0),
+			text,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			24.0,
+			13,
+			Color(0.10, 0.13, 0.18, 0.92)
+		)
+	var corners := _shape.get_corners(cell)
+	for edge_index in range(mini(corners.size(), GridCellDataScript.SQUARE_EDGE_COUNT)):
+		if data.allows_edge(edge_index):
+			continue
+		var a: Vector3 = corners[edge_index]
+		var b: Vector3 = corners[(edge_index + 1) % corners.size()]
+		var screen_a := _project_world(Vector3(a.x, _surface_height_at(cell, a) + 0.012, a.z))
+		var screen_b := _project_world(Vector3(b.x, _surface_height_at(cell, b) + 0.012, b.z))
+		draw_line(screen_a, screen_b, Color(0.96, 0.18, 0.16, 0.96), 3.0, true)
 
 
 func _draw_stuff_markers(cell: Vector3i) -> void:
@@ -511,7 +521,7 @@ func _apply_tool_at(position: Vector2) -> void:
 		ToolMode.LAYER:
 			changed = Authoring.paint_layer(level, cell, _layer_brush)
 		ToolMode.PERMISSIONS:
-			changed = Authoring.paint_permissions(level, cell, _permission_tile, _permission_edge)
+			changed = Authoring.paint_permissions(level, cell, _permission_tile, _permission_edge, _shape)
 		ToolMode.STUFF:
 			var stuff_result := Authoring.add_stuff(level, cell, _stuff_brush, _stuff_facing)
 			changed = bool(stuff_result["success"])

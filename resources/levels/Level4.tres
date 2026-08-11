@@ -1,0 +1,200 @@
+[gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://dors3ajtnpyq2"]
+
+[ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_lpki5"]
+[ext_resource type="Script" uid="uid://dpcthtee87fmy" path="res://scripts/camera/CameraPresetDefinition.gd" id="2_jsaas"]
+[ext_resource type="Resource" uid="uid://dfellj0a8eoec" path="res://resources/terrains/Grass.tres" id="3_p25ft"]
+[ext_resource type="Script" uid="uid://dw37dj1c5jtnm" path="res://scripts/terrain/GridCellData.gd" id="4_mv8sf"]
+[ext_resource type="Script" uid="uid://6u57bd6s2ae7" path="res://scripts/building/BuildingPlacementData.gd" id="5_vcapj"]
+[ext_resource type="Script" uid="uid://dq00co5slh7di" path="res://scripts/mirror/MirrorPlacementData.gd" id="6_oym2u"]
+[ext_resource type="Script" uid="uid://cmnbro6e5dpqq" path="res://scripts/path/PathDefinition.gd" id="7_iy1bc"]
+[ext_resource type="Script" uid="uid://ec1bf62qerai" path="res://scripts/terrain/RampPlacementData.gd" id="8_b411b"]
+[ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="9_1l2ru"]
+[ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="10_4yvon"]
+[ext_resource type="Script" uid="uid://b2irkm1liqpq5" path="res://scripts/stuff/StuffPlacementData.gd" id="11_v8oro"]
+[ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="12_omu2r"]
+
+[sub_resource type="Resource" id="Resource_rn6jn"]
+script = ExtResource("4_mv8sf")
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_dq2tn"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(0, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_pkfo0"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(0, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_y2e81"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(0, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_540jl"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(0, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_ibt53"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(0, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_g162q"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 0, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_57n8l"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_2i3du"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_dakc0"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_kx5rg"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_kqut6"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(1, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_s40tb"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 0, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_e4awk"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_s382w"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_j531q"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_3tkh8"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_obobx"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(2, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_n76jl"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 0, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_8uqq7"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_w3h2q"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_rk4we"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_ljgte"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_njbaw"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(3, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_c2oqj"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 0, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_lvcii"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_dw7hp"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_2bqm3"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_s1a46"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_3uwlu"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(4, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_laawm"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 0, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_vqvnu"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 1, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_mpqeo"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 2, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_a1w76"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 3, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_qg8wj"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 4, 0)
+terrain = ExtResource("3_p25ft")
+
+[sub_resource type="Resource" id="Resource_ya4xs"]
+script = ExtResource("4_mv8sf")
+cell = Vector3i(5, 5, 0)
+terrain = ExtResource("3_p25ft")
+
+[resource]
+script = ExtResource("9_1l2ru")
+grid_shape = 1
+height_levels = 4
+terrain_content_version = 2
+grid_cells = Array[ExtResource("4_mv8sf")]([SubResource("Resource_rn6jn"), SubResource("Resource_dq2tn"), SubResource("Resource_pkfo0"), SubResource("Resource_y2e81"), SubResource("Resource_540jl"), SubResource("Resource_ibt53"), SubResource("Resource_g162q"), SubResource("Resource_57n8l"), SubResource("Resource_2i3du"), SubResource("Resource_dakc0"), SubResource("Resource_kx5rg"), SubResource("Resource_kqut6"), SubResource("Resource_s40tb"), SubResource("Resource_e4awk"), SubResource("Resource_s382w"), SubResource("Resource_j531q"), SubResource("Resource_3tkh8"), SubResource("Resource_obobx"), SubResource("Resource_n76jl"), SubResource("Resource_8uqq7"), SubResource("Resource_w3h2q"), SubResource("Resource_rk4we"), SubResource("Resource_ljgte"), SubResource("Resource_njbaw"), SubResource("Resource_c2oqj"), SubResource("Resource_lvcii"), SubResource("Resource_dw7hp"), SubResource("Resource_2bqm3"), SubResource("Resource_s1a46"), SubResource("Resource_3uwlu"), SubResource("Resource_laawm"), SubResource("Resource_vqvnu"), SubResource("Resource_mpqeo"), SubResource("Resource_a1w76"), SubResource("Resource_qg8wj"), SubResource("Resource_ya4xs")])

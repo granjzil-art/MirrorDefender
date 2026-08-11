@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FoliageShadowDefinition" format=3 uid="uid://b7uh21q5vf5i0"]
+
+[ext_resource type="Script" uid="uid://bg3fxplu04obm" path="res://scripts/lighting/FoliageShadowDefinition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+cluster_count = 10
+leaves_per_cluster_min = 10
+leaves_per_cluster_max = 12
+cluster_spread_uv = 0.2
+leaf_radius_min_uv = 0.06
+leaf_radius_max_uv = 0.1
+shadow_strength = 2.0
+edge_softness = 0.1
+pattern_tiles = Vector2(3, 3)
+motion_speed = 0.8

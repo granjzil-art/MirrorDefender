@@ -21,7 +21,7 @@
 
 | 分组 | 参数 | 说明 |
 |---|---|---|
-| Economy | `cost` / `refund_amount` / `resource_per_second` | 建造或升级费用、当前级删除退款、每秒资源。 |
+| Economy | `cost` / `resource_per_second` | 建造或升级费用、每秒资源；主动拆除自动全额返还 1..当前级的累计 `cost`。 |
 | Combat | `affects_airborne` | 本级边屏障是否阻挡飞行敌人；默认 true 兼容旧资源。 |
 | Defense | `max_durability` | 当前等级最大耐久；升级增加最大值并保留已有损伤。 |
 | Defense | `regeneration_delay` / `regeneration_per_second` | 脱战等待时间与每秒回血。 |

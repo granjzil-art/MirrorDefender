@@ -26,6 +26,16 @@ func _test_default_catalog() -> void:
 	_expect(catalog.get_enabled_definitions().size() >= 4, "default catalog keeps its foundational enabled definitions")
 	for required_id: StringName in [&"rock", &"spike", &"tree", &"void"]:
 		_expect(catalog.get_definition(required_id) != null, "catalog resolves %s by stable id" % required_id)
+	for blocker_path in [
+		"res://resources/stuffs/Rock.tres",
+		"res://resources/stuffs/tree1.tres",
+		"res://resources/stuffs/highstone.tres",
+		"res://resources/stuffs/stuff.tres",
+	]:
+		var blocker: StuffDefinition = load(blocker_path) as StuffDefinition
+		_expect(blocker != null and blocker.blocks_ballistics, "%s enables the shared ballistic blocker" % blocker_path.get_file())
+	var palm: StuffDefinition = load("res://resources/stuffs/Tree.tres") as StuffDefinition
+	_expect(palm != null and not palm.blocks_ballistics, "unrequested palm tree keeps ballistic blocking disabled")
 
 
 func _test_catalog_validation() -> void:

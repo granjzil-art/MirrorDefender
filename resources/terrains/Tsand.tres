@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://cn507dug48oy1"]
+
+[ext_resource type="PackedScene" uid="uid://0x60e82j3mx3" path="res://assets/blocks/gltf/sand_B.gltf" id="1_88jn6"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_mgar4"]
+[ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="3_wgikt"]
+
+[sub_resource type="Resource" id="Resource_fa55k"]
+script = ExtResource("2_mgar4")
+scene = ExtResource("1_88jn6")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[resource]
+script = ExtResource("3_wgikt")
+terrain_id = &"tsand"
+display_name = "真沙地"
+fallback_color = Color(0.78, 0.62, 0.31, 1)
+flat_model_asset = SubResource("Resource_fa55k")

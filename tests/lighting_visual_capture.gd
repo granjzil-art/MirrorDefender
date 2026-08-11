@@ -1,16 +1,17 @@
-## Manual visual-regression capture for the DemoLevel1 display case lighting.
+## Manual visual-regression capture for the current Level2 display case lighting.
 ##
 ## Run without --headless so the viewport uses the project's Forward+ renderer:
 ## godot --path <project> --script res://tests/lighting_visual_capture.gd
 extends SceneTree
 
 const MainScene := preload("res://scenes/Main.tscn")
-const DemoLevel := preload("res://resources/levels/DemoLevel1.tres")
+const LightingTestLevel := preload("res://resources/levels/Level2.tres")
 const OUTPUT_DIRECTORY := "res://outputs/lighting_profiles"
 const PROFILE_FILENAMES: Array[String] = [
-	"demo_level_1_white_soft.png",
-	"demo_level_1_warm_yellow.png",
-	"demo_level_1_cyan_red.png",
+	"level_2_white_soft.png",
+	"level_2_warm_yellow.png",
+	"level_2_cyan_red.png",
+	"level_2_night_spotlight.png",
 ]
 
 
@@ -20,8 +21,8 @@ func _initialize() -> void:
 
 func _run_capture() -> void:
 	var main: Node = MainScene.instantiate()
-	if not bool(main.call("configure_startup_level", DemoLevel)):
-		push_error("Unable to configure DemoLevel1 as the startup level")
+	if not bool(main.call("configure_startup_level", LightingTestLevel)):
+		push_error("Unable to configure Level2 as the startup level")
 		quit(1)
 		return
 	root.add_child(main)

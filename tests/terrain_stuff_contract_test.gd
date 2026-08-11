@@ -123,13 +123,8 @@ func _test_continuous_ramp_connections() -> void:
 	side_level.ramp_placements = [horizontal, vertical]
 	_expect(_contains_text(side_level.validate_runtime(), "侧边"), "a ramp endpoint cannot connect to another ramp's side edge")
 
-	var hex_level := _make_canonical_level(0, Vector2i(3, 3))
-	var hex_lower := _make_ramp(&"hex_lower", Vector3i.ZERO, 0, 1)
-	var hex_upper := _make_ramp(&"hex_upper", Vector3i(1, -1, 0), 0, 2)
-	_set_grid_layer(hex_level, Vector3i(1, -1, 0), 2)
-	_set_grid_layer(hex_level, Vector3i(2, -2, 0), 3)
-	hex_level.ramp_placements = [hex_lower, hex_upper]
-	_expect(hex_level.validate_runtime().is_empty(), "hex ramps use the same high-edge to low-edge continuity rule")
+	# HEX resources remain readable for history, but as of 2026-08-06 they are
+	# outside the product maintenance and release-validation scope.
 
 
 func _test_legacy_snapshot() -> void:

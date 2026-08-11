@@ -20,6 +20,13 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_range(0.0, 0.5, 0.01) var base_overhang_cells: float = 0.12
 @export_range(0.005, 0.15, 0.005) var gasket_thickness_cells: float = 0.025
 
+@export_group("Projectile Reflection")
+@export var projectile_reflection_enabled: bool = true
+## Prevents a reflected projectile from immediately hitting the same wall again.
+@export_range(0.0001, 0.05, 0.0001) var collision_epsilon_ratio: float = 0.002
+## Safety budget for a very fast projectile crossing several case walls in one frame.
+@export_range(1, 32, 1) var max_reflections_per_frame: int = 8
+
 @export_group("Base Material")
 @export_color_no_alpha var wood_color: Color = Color(0.22, 0.105, 0.055, 1.0)
 @export_range(0.0, 1.0, 0.01) var wood_roughness: float = 0.48
@@ -33,6 +40,8 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "顶面余量", top_margin_cells, 0.0, 4.0)
 	ConfigValidator.require_number(errors, "边缘厚度", edge_thickness_cells, 0.0, INF, false)
 	ConfigValidator.require_number(errors, "底座厚度", base_thickness_cells, 0.0, INF, false)
+	ConfigValidator.require_number(errors, "投射物反射偏移比例", collision_epsilon_ratio, 0.0001, 0.05)
+	ConfigValidator.require_integer_range(errors, "单帧投射物反射上限", max_reflections_per_frame, 1, 32)
 	ConfigValidator.require_color(errors, "木底座颜色", wood_color)
 	ConfigValidator.require_color(errors, "密封条颜色", gasket_color)
 	return errors

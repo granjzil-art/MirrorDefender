@@ -8,12 +8,17 @@ extends Node3D
 const StuffPlacementDataScript := preload("res://scripts/stuff/StuffPlacementData.gd")
 const StuffRuntimeScript := preload("res://scripts/stuff/StuffRuntime.gd")
 const StuffCatalogScript := preload("res://scripts/stuff/StuffCatalog.gd")
+const BallisticGeometryScript := preload("res://scripts/combat/BallisticGeometry.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
 @export_group("Catalog")
 @export var stuff_catalog: StuffCatalogScript
+
+@export_group("Ballistic Blocking")
+@export_range(0.01, 1.0, 0.01, "or_greater") var ballistic_blocker_radius_ratio: float = 0.32
+@export_range(0.0, 2.0, 0.01, "or_greater") var ballistic_blocker_height_ratio: float = 0.42
 
 signal stuff_loaded(level_resource: LevelResource)
 signal stuff_cleared
@@ -112,6 +117,50 @@ func get_all_stuff() -> Array[StuffRuntime]:
 	return out
 
 
+func trace_ballistic_blocker(
+	start: Vector3,
+	end: Vector3,
+	excluded: Object = null
+) -> Dictionary:
+	var result := {
+		"hit": false,
+		"position": end,
+		"distance": start.distance_to(end),
+		"blocker": null,
+	}
+	var best_distance := INF
+	for runtime in get_all_stuff():
+		if runtime == excluded or not runtime.blocks_ballistics():
+			continue
+		var distance := BallisticGeometryScript.ray_sphere_entry_distance(
+			start,
+			end,
+			get_ballistic_blocker_center(runtime),
+			get_ballistic_blocker_radius()
+		)
+		if distance < 0.0 or distance >= best_distance:
+			continue
+		best_distance = distance
+		var direction := (end - start).normalized()
+		result.hit = true
+		result.position = start + direction * distance
+		result.distance = distance
+		result.blocker = runtime
+	return result
+
+
+func get_ballistic_blocker_center(runtime: StuffRuntime) -> Vector3:
+	if runtime == null or not is_instance_valid(runtime):
+		return Vector3.ZERO
+	var size := _grid.cell_size if _grid != null else 1.0
+	return runtime.global_position + Vector3.UP * size * ballistic_blocker_height_ratio
+
+
+func get_ballistic_blocker_radius() -> float:
+	var size := _grid.cell_size if _grid != null else 1.0
+	return size * ballistic_blocker_radius_ratio
+
+
 func export_placements() -> Array[StuffPlacementData]:
 	var result: Array[StuffPlacementData] = []
 	for runtime in get_all_stuff():
@@ -147,14 +196,15 @@ func add_stuff(
 	var facing_count := maxi(1, _grid.get_tile_content_facing_count())
 	if facing_index < 0 or facing_index >= facing_count:
 		return null
+	var resolved_definition := _resolve_catalog_definition(definition)
 	for existing in get_stuff_at(cell):
-		if not definition.can_coexist_with(existing.definition):
+		if not resolved_definition.can_coexist_with(existing.definition):
 			return null
-	var resolved_id := placement_id if not placement_id.is_empty() else _next_placement_id(definition.stuff_id)
+	var resolved_id := placement_id if not placement_id.is_empty() else _next_placement_id(resolved_definition.stuff_id)
 	if resolved_id.is_empty() or get_stuff(resolved_id) != null:
 		return null
 	var placement := StuffPlacementDataScript.new()
-	placement.configure(resolved_id, cell, definition, facing_index)
+	placement.configure(resolved_id, cell, resolved_definition, facing_index)
 	var runtime := _create_runtime(placement)
 	if runtime == null:
 		return null
@@ -340,8 +390,20 @@ func _register_runtime(runtime: StuffRuntime) -> void:
 
 func _clone_placement(source: StuffPlacementData) -> StuffPlacementData:
 	var clone := StuffPlacementDataScript.new()
-	clone.configure(source.placement_id, source.cell, source.definition, source.facing_index)
+	clone.configure(
+		source.placement_id,
+		source.cell,
+		_resolve_catalog_definition(source.definition),
+		source.facing_index
+	)
 	return clone
+
+
+func _resolve_catalog_definition(definition: StuffDefinition) -> StuffDefinition:
+	if definition == null or stuff_catalog == null or definition.stuff_id.is_empty():
+		return definition
+	var canonical := stuff_catalog.get_definition(definition.stuff_id, true)
+	return canonical if canonical != null else definition
 
 
 func _prepare_placements(raw_placements: Array) -> Dictionary:

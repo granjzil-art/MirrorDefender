@@ -37,16 +37,26 @@ func _test_production_definitions() -> void:
 	_expect(crossbow != null and crossbow.validate_configuration().is_empty(), "crossbow definition loads and validates")
 	if crossbow != null:
 		_expect(crossbow.kind == BuildingDefinition.Kind.CROSSBOW_TOWER, "crossbow has an appended stable building kind")
+		_expect(crossbow.display_name == "导弹塔", "the stable crossbow kind is now presented as the missile tower")
 		for level_index in range(1, crossbow.get_max_level() + 1):
 			_expect(
-				crossbow.get_level_stats(level_index).projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING,
-				"crossbow level %d keeps firing along its facing" % level_index
+				crossbow.get_level_stats(level_index).projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
+				and crossbow.get_level_stats(level_index).projectile_is_missile
+				and crossbow.get_level_stats(level_index).prioritizes_airborne,
+				"missile level %d keeps facing fire, missile behavior, and airborne priority" % level_index
 			)
 	_expect(
 		arrow != null
 		and arrow.get_level_stats(1).projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_ONLY
 		and arrow.get_level_stats(3).projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING,
 		"arrow tower unlocks configurable facing fire at level three"
+	)
+	_expect(
+		arrow != null
+		and arrow.get_level_stats(1).prioritizes_airborne
+		and arrow.get_level_stats(2).prioritizes_airborne
+		and arrow.get_level_stats(3).prioritizes_airborne,
+		"all arrow tower levels share airborne-first targeting"
 	)
 
 

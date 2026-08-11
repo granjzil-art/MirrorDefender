@@ -10,6 +10,7 @@ var root_source_cell: Vector3i = Vector3i.ZERO
 var projected_cell: Vector3i = Vector3i.ZERO
 var root_source: Object
 var tile_effect: TileEffect
+var uses_structure_lifetime: bool = false
 var primary_color: Color = Color.WHITE
 var lineage: Array[String] = []
 var axes: Array = []
@@ -20,7 +21,10 @@ func is_source_valid() -> bool:
 		return tile_effect != null
 	if not is_instance_valid(root_source):
 		return false
-	if root_source.has_method("is_structure_alive") and copy_kind in [&"barrier", &"rock"]:
+	# Stuff definitions may opt into navigation blocking without using a TileEffect.
+	# Their copy kind is data-driven (for example, `stuff_highstone`), so source
+	# lifetime is carried explicitly rather than inferred from legacy kind names.
+	if uses_structure_lifetime and root_source.has_method("is_structure_alive"):
 		return bool(root_source.call("is_structure_alive"))
 	return not (root_source is Node and root_source.is_queued_for_deletion())
 
@@ -42,6 +46,7 @@ func copy_through(
 	next.projected_cell = target_cell
 	next.root_source = root_source
 	next.tile_effect = tile_effect
+	next.uses_structure_lifetime = uses_structure_lifetime
 	next.primary_color = primary_color
 	next.lineage = lineage.duplicate()
 	next.lineage.append(mirror_id)

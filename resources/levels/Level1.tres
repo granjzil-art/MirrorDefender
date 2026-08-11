@@ -1,1088 +1,1649 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://rdhtpk7httcx"]
+[gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://dot2rm5qksv54"]
 
-[ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_f2lvq"]
-[ext_resource type="Script" uid="uid://dpcthtee87fmy" path="res://scripts/camera/CameraPresetDefinition.gd" id="2_1p0po"]
-[ext_resource type="Resource" uid="uid://dfellj0a8eoec" path="res://resources/terrains/Grass.tres" id="3_dwnwh"]
-[ext_resource type="Script" uid="uid://dw37dj1c5jtnm" path="res://scripts/terrain/GridCellData.gd" id="4_nx7p2"]
-[ext_resource type="Resource" uid="uid://dpnvaki7pqc01" path="res://resources/terrains/Sand.tres" id="5_7xn0h"]
-[ext_resource type="Resource" uid="uid://c7506gde3yfnk" path="res://resources/terrains/Mud.tres" id="6_1p0po"]
-[ext_resource type="Script" uid="uid://cmnbro6e5dpqq" path="res://scripts/path/PathDefinition.gd" id="6_ykc4r"]
-[ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="7_8tj5o"]
-[ext_resource type="Script" uid="uid://6u57bd6s2ae7" path="res://scripts/building/BuildingPlacementData.gd" id="7_nx7p2"]
-[ext_resource type="Script" uid="uid://dq00co5slh7di" path="res://scripts/mirror/MirrorPlacementData.gd" id="8_7xn0h"]
-[ext_resource type="Script" uid="uid://ec1bf62qerai" path="res://scripts/terrain/RampPlacementData.gd" id="8_j7tra"]
-[ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="9_2nio4"]
-[ext_resource type="Script" uid="uid://b2irkm1liqpq5" path="res://scripts/stuff/StuffPlacementData.gd" id="10_fxe43"]
-[ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="11_v2y8g"]
+[ext_resource type="PackedScene" uid="uid://cd5nxsfdc7ofb" path="res://assets/buildings/Castle/tscn/desertcastle.tscn" id="1_fxe43"]
+[ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_nx7p2"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_v2y8g"]
+[ext_resource type="Script" uid="uid://dpcthtee87fmy" path="res://scripts/camera/CameraPresetDefinition.gd" id="3_ykc4r"]
+[ext_resource type="Resource" uid="uid://cnktdqpik6fsj" path="res://resources/terrains/Water.tres" id="5_8tj5o"]
+[ext_resource type="Script" uid="uid://dw37dj1c5jtnm" path="res://scripts/terrain/GridCellData.gd" id="5_j7tra"]
+[ext_resource type="Resource" uid="uid://cn507dug48oy1" path="res://resources/terrains/Tsand.tres" id="5_ykc4r"]
+[ext_resource type="Resource" uid="uid://c7506gde3yfnk" path="res://resources/terrains/Mud.tres" id="6_2nio4"]
+[ext_resource type="Script" uid="uid://6u57bd6s2ae7" path="res://scripts/building/BuildingPlacementData.gd" id="7_fxe43"]
+[ext_resource type="Script" uid="uid://dq00co5slh7di" path="res://scripts/mirror/MirrorPlacementData.gd" id="8_v2y8g"]
+[ext_resource type="Script" uid="uid://cmnbro6e5dpqq" path="res://scripts/path/PathDefinition.gd" id="9_pwjr2"]
+[ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="10_7la6t"]
+[ext_resource type="Script" uid="uid://ec1bf62qerai" path="res://scripts/terrain/RampPlacementData.gd" id="11_58wot"]
+[ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="12_1dmoi"]
+[ext_resource type="Script" uid="uid://b2irkm1liqpq5" path="res://scripts/stuff/StuffPlacementData.gd" id="13_pshws"]
+[ext_resource type="Script" uid="uid://brasgb3k6ur7" path="res://scripts/wave/WaveDefinition.gd" id="14_dx78j"]
+[ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="14_ykc4r"]
+[ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="15_8tj5o"]
+[ext_resource type="PackedScene" uid="uid://bju5gcnbyqfcc" path="res://assets/buildings/enemymirror/tscn/enemymirror.tscn" id="15_pwjr2"]
+[ext_resource type="Resource" uid="uid://chkijuvf231f" path="res://resources/enemies/Runner.tres" id="16_j7tra"]
+[ext_resource type="Resource" uid="uid://d3u7f5raq44wc" path="res://resources/stuffs/highstone.tres" id="17_7la6t"]
+[ext_resource type="Resource" uid="uid://b24npe6p1xf4q" path="res://resources/stuffs/Rock.tres" id="18_58wot"]
+[ext_resource type="Resource" uid="uid://cdnq2ad22utt3" path="res://resources/stuffs/Tree.tres" id="19_1dmoi"]
+[ext_resource type="Resource" uid="uid://cnwwdb4wfo5ur" path="res://resources/enemies/Archer.tres" id="24_58wot"]
+[ext_resource type="Resource" uid="uid://jhoves7q4q0h" path="res://resources/enemies/Flyer.tres" id="25_1dmoi"]
 
-[sub_resource type="Resource" id="Resource_0867t"]
-script = ExtResource("1_f2lvq")
+[sub_resource type="Resource" id="Resource_7la6t"]
+script = ExtResource("2_v2y8g")
+scene = ExtResource("1_fxe43")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Resource_58wot"]
+script = ExtResource("1_nx7p2")
 display_number = 1
-cell = Vector3i(0, 4, 0)
+cell = Vector3i(7, 13, 0)
+footprint_mode = 1
+facing_index = 3
 
-[sub_resource type="Resource" id="Resource_tqy3f"]
-script = ExtResource("1_f2lvq")
-base_id = &"base_2"
-display_name = "据点 2"
-display_number = 2
-cell = Vector3i(0, 5, 0)
+[sub_resource type="Resource" id="Resource_1dmoi"]
+script = ExtResource("5_j7tra")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_fu7kh"]
-script = ExtResource("4_nx7p2")
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_levsc"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_pshws"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_o2mfk"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_dx78j"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_gpmem"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_o032t"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ot6gd"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7trtx"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_i6mai"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_pn285"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 5, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_h2hmb"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_y415d"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_0mcn3"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_3lkl6"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3bwvx"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_y52f4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_xbvsb"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_r5bc4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(0, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_plb44"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_bn3hd"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_flri3"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 11, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_h7crc"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 12, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_6c353"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 13, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_hrldx"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 14, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_0gudc"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_nyq42"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(0, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_1fuiq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_7b7nc"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_qwb7y"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_fohgd"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_78irj"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_sknli"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_v241p"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_twg8x"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_id04o"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_kadsg"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_237h5"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 5, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_jibe7"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_4gldk"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_y3mot"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_lmft1"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_1im6a"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_e1q74"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_4vqsu"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_f3xhj"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(1, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_wc8uy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_fwm37"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_8ucqf"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 11, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_jilkc"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_8bedg"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_n6thw"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_t6uab"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_pbxrt"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(1, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_34mj7"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_mlr61"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_p404l"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_vi1po"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_d0n57"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_yimkm"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_ynfrd"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_l4k2c"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_5msbv"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_o7rv6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_ualvh"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 5, 0)
-terrain = ExtResource("6_1p0po")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_4eyc6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_6mfy7"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_jelpy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_w022p"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3s71d"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_tl72g"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_47cwb"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_cnnjy"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(2, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ricgq"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_o52jj"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_k6b70"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_32l7r"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_43wr4"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_y1p0g"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_1iyt1"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_mj1vp"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(2, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_dtjee"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3y8iu"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_u1iuw"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_w262m"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_tx5f3"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_aus3j"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_v8ouc"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_gg0yt"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_igbi6"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_2dsry"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_oe0wp"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 5, 0)
-terrain = ExtResource("6_1p0po")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_8gdct"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_m42ol"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_3vs0a"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_5w3eh"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3lxac"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_detxl"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_cp3t0"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_5l2ss"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(3, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ikeb3"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7dmdl"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_pd4bt"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_34mw2"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_mt2cj"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_rwfuy"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_s5s8e"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_f67ro"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(3, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_81xdq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_4cimo"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_5hki2"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_85ehj"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_ob7rn"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_jq0a6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_soldh"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 3, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_u6o6y"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_r18h4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_t3neq"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_vgk6d"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 5, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_0uyj5"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_lxobe"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 6, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_k26ka"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_tfkxv"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 7, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_m1ndj"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7vees"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_40ql7"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_o2r2a"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(4, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_dyeto"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_e58m8"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_gmnev"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_bd8m5"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_j4xxr"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_1w51v"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_ri7vx"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_s2st0"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(4, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_2dxen"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_88xig"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_2aqhx"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_nys3b"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_6lavn"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 2, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_aiwxl"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_qussw"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 3, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_rwhc2"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_g0esq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_tdib0"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_rwswr"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 5, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_4mcsx"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_u086b"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_kxkla"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_fg5fd"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_lk5jy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_rexkb"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_wu3ic"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_g62yc"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(5, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_8im61"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_x8xg0"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_abda8"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_f6sw3"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_2ffti"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_ltbv5"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_c2alg"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_kbhey"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(5, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_u0jvr"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_tc0hq"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_4ljbf"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_lj2s0"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_layls"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 2, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_g4phx"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_pqij4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_p38qd"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_pq8tq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_4bej2"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7yp0q"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 5, 0)
-terrain = ExtResource("3_dwnwh")
-layer_count = 2
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_0pao0"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_f4ihq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_dxwtd"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_pxa6k"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_fi6r4"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_65o07"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_r4v5p"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_p3psx"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(6, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ind6b"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_fc6ru"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_vwkbo"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_bux7u"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_mm7bs"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_2jhyq"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_tvdtu"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_7is6m"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(6, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_noavt"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_grgya"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_rhycw"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_mj2u8"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_83vcs"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_j266d"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_rc7e6"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_oefg8"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_2j5g4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_0nc0i"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_mimp4"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 5, 0)
-terrain = ExtResource("3_dwnwh")
-layer_count = 2
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_7y7vs"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_3f6el"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_j3agy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_18veq"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_ilx8r"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_78rbg"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_kvdmp"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_3aw3l"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(7, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_bxs57"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_x0c2e"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 10, 0)
+terrain = ExtResource("6_2nio4")
+
+[sub_resource type="Resource" id="Resource_7yn66"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 11, 0)
+terrain = ExtResource("6_2nio4")
+
+[sub_resource type="Resource" id="Resource_nqqrb"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 12, 0)
+terrain = ExtResource("6_2nio4")
+
+[sub_resource type="Resource" id="Resource_1hvhf"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_jm0m2"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_7ggq1"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_hm2d0"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(7, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_p0lrh"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_tljwk"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_wdqns"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_v3cr5"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_vg0xv"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_piyqu"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_l616l"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_revfg"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_vx14w"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_v28l1"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7mqoa"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 5, 0)
-terrain = ExtResource("3_dwnwh")
-layer_count = 2
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_x3mvc"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_i72a0"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_tlq2q"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_6o123"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ff776"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_q4l7h"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_wosj1"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_i7lq0"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(8, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3oykw"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_wyiwn"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_ykvlt"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_pcwa5"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_0v0hx"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_4nv3r"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_5y7tm"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_unwdg"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(8, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_2th0u"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_e2v5v"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_2otas"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_o1tkt"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_0v51i"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_scboc"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_5x8wm"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_3cduy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_71qgt"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_i88yf"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_b218e"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 5, 0)
-terrain = ExtResource("3_dwnwh")
-layer_count = 2
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_i5rt7"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_ceirj"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 6, 0)
-terrain = ExtResource("3_dwnwh")
-layer_count = 2
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_4rp47"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_dbomk"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 7, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_1r8ly"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_t5juf"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_lks72"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_encfb"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(9, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_llu50"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_fje1a"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_2gs2s"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_y6taw"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_n7by3"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_cea5l"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_nvpgd"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_wnir4"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(9, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_oongp"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_eidr6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_jgkse"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_jcvub"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_so736"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_gmt7d"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_uqcj2"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_cbda3"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_73qob"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_u3yxa"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_wt0qn"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 5, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_xjdr5"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_0k26h"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_4wecr"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_6qs3u"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_oygau"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_de67a"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_33kix"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_we1co"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(10, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_jlc6y"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_sweqk"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_x7ad6"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_7sdv3"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_nx7nf"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_lhj7x"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_ppa1p"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_4ens1"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(10, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_nve6q"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_vbtwq"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_akw4j"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_6gjs8"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_3c7xu"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_2hpxc"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_2y7y8"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_nhwvx"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_k2ijp"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_rdfev"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_ywr28"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 5, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_rohr0"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_yu4bw"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("6_2nio4")
 
-[sub_resource type="Resource" id="Resource_8aie2"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_6n73h"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 7, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ky7ys"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_cchs7"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 8, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_aerjp"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_eajo1"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(11, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_p40m6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_28b8i"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 10, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_r5qrq"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_424s1"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_p5xsn"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_af3yv"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_yv6cq"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_md1ak"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(11, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_snm2j"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_xu6ky"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_perqt"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_4hvcn"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_8xftb"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_usw37"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_dy5t0"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_k3srq"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_oovcb"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 4, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_ljgbh"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_2qxjx"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 5, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_76a6f"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_obsmj"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 6, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_amtgo"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_qk8fc"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 7, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_qyttk"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_f2tue"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_ccn1x"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_eusj7"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(12, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_k4j4d"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_x1ka4"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_qs37h"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 11, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_qd170"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_y0ob2"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_qhhrl"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_5807k"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 15, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_oof01"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(12, 16, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_04ul5"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_mr4nb"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_h1vs7"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 1, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_p6ihh"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_gg1e3"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 2, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_fuhra"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_7dxuw"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 3, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_uw2ho"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_722u0"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_al52s"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_xq1yi"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 5, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_w1p2o"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_yn5uu"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 6, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_ykc4r")
 
-[sub_resource type="Resource" id="Resource_oqvw8"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_qvd25"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_qoqf8"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_otlac"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_6t72q"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_dqoac"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(13, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_x5cx6"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_r2c5o"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 10, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_j4wxf"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 11, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_0817q"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 12, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_2nijl"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 13, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_bfo7c"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 14, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_34rgf"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 15, 0)
+terrain = ExtResource("5_8tj5o")
+
+[sub_resource type="Resource" id="Resource_1br4q"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(13, 16, 0)
+terrain = ExtResource("5_ykc4r")
+
+[sub_resource type="Resource" id="Resource_wn51k"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 0, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_fjwm3"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_tp16v"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 1, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_3esxa"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_jb63b"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 2, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_cvsft"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_j6u4g"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 3, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_amktu"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_tbgya"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 4, 0)
-terrain = ExtResource("5_7xn0h")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_1x1i1"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_sscly"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 5, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_6kp4b"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_w7bqh"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 6, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_kjpuy"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_sliub"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 7, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_0yxft"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_xbm50"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 8, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_2dfi1"]
-script = ExtResource("4_nx7p2")
+[sub_resource type="Resource" id="Resource_sbjis"]
+script = ExtResource("5_j7tra")
 cell = Vector3i(14, 9, 0)
-terrain = ExtResource("3_dwnwh")
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_8bpqi"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 0, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_m4spc"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 10, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_k2oy2"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 1, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_8p3jn"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 11, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_gl6si"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 2, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_ovmkx"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 12, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_k66m5"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 3, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_25wn7"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 13, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_1cmil"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 4, 0)
-terrain = ExtResource("5_7xn0h")
+[sub_resource type="Resource" id="Resource_3cumq"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 14, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_s4vw8"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 5, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_uyu6w"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 15, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_4wsxv"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 6, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_wltek"]
+script = ExtResource("5_j7tra")
+cell = Vector3i(14, 16, 0)
+terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_erxwu"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 7, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_c5wco"]
+script = ExtResource("8_v2y8g")
+mirror_kind = 1
+from_cell = Vector3i(7, 8, 0)
+edge_index = 2
 
-[sub_resource type="Resource" id="Resource_qar1i"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 8, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_h1v45"]
+script = ExtResource("8_v2y8g")
+mirror_kind = 1
+from_cell = Vector3i(7, 7, 0)
 
-[sub_resource type="Resource" id="Resource_8vqcx"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(15, 9, 0)
-terrain = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_if1vi"]
+script = ExtResource("8_v2y8g")
+mirror_kind = 1
+from_cell = Vector3i(7, 9, 0)
 
-[sub_resource type="Resource" id="Resource_le8sb"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 0, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_86xfv"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 1, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_i618l"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 2, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_ed1ls"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 3, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_33tnh"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 4, 0)
-terrain = ExtResource("5_7xn0h")
-
-[sub_resource type="Resource" id="Resource_i8wsf"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 5, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_iqnfw"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 6, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_fjqn0"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 7, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_t5jx8"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 8, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_tj4jn"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(16, 9, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_dhd37"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 0, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_27en1"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 1, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_kte11"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 2, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_rh1yc"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 3, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_4s34e"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 4, 0)
-terrain = ExtResource("5_7xn0h")
-
-[sub_resource type="Resource" id="Resource_mkntx"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 5, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_d843s"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 6, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_kvvap"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 7, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_n2yye"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 8, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_28uy4"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(17, 9, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_w5bsw"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 0, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_j0fsr"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 1, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_gvtpc"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 2, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_pm022"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 3, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_68j0r"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 4, 0)
-terrain = ExtResource("5_7xn0h")
-
-[sub_resource type="Resource" id="Resource_fou7p"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 5, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_rrtoo"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 6, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_3mbo1"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 7, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_gxp2t"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 8, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_m7b1n"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(18, 9, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_mikoy"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 0, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_nrgag"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 1, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_ffk5b"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 2, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_ijb56"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 3, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_u2pgp"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 4, 0)
-terrain = ExtResource("6_1p0po")
-
-[sub_resource type="Resource" id="Resource_mqajw"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 5, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_a6gu0"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 6, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_d8ody"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 7, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_6jvbx"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 8, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_rfiim"]
-script = ExtResource("4_nx7p2")
-cell = Vector3i(19, 9, 0)
-terrain = ExtResource("3_dwnwh")
-
-[sub_resource type="Resource" id="Resource_efxel"]
-script = ExtResource("7_8tj5o")
+[sub_resource type="Resource" id="Resource_a3sx3"]
+script = ExtResource("10_7la6t")
 spawn_id = &"spawn_1"
 display_name = "出生点 1"
 display_number = 1
-cell = Vector3i(19, 4, 0)
+cell = Vector3i(3, 1, 0)
 
-[sub_resource type="Resource" id="Resource_n027s"]
-script = ExtResource("6_ykc4r")
+[sub_resource type="Resource" id="Resource_s1ujp"]
+script = ExtResource("9_pwjr2")
 path_id = &"path_1"
 display_name = "路径 1"
-spawn_point = SubResource("Resource_efxel")
-target_base = SubResource("Resource_0867t")
-cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(13, 4, 0), Vector3i(13, 3, 0), Vector3i(13, 2, 0), Vector3i(13, 1, 0), Vector3i(12, 1, 0), Vector3i(11, 1, 0), Vector3i(10, 1, 0), Vector3i(9, 1, 0), Vector3i(8, 1, 0), Vector3i(7, 1, 0), Vector3i(6, 1, 0), Vector3i(6, 2, 0), Vector3i(5, 2, 0), Vector3i(5, 3, 0), Vector3i(4, 3, 0), Vector3i(4, 4, 0), Vector3i(3, 4, 0), Vector3i(2, 4, 0), Vector3i(1, 4, 0), Vector3i(0, 4, 0)])
+spawn_point = SubResource("Resource_a3sx3")
+target_base = SubResource("Resource_58wot")
+cells = Array[Vector3i]([Vector3i(3, 1, 0), Vector3i(3, 2, 0), Vector3i(3, 3, 0), Vector3i(3, 4, 0), Vector3i(3, 5, 0), Vector3i(3, 6, 0), Vector3i(4, 6, 0), Vector3i(5, 6, 0), Vector3i(5, 5, 0), Vector3i(5, 4, 0), Vector3i(5, 3, 0), Vector3i(6, 3, 0), Vector3i(7, 3, 0), Vector3i(7, 4, 0), Vector3i(7, 5, 0), Vector3i(7, 6, 0), Vector3i(7, 7, 0), Vector3i(7, 8, 0), Vector3i(7, 9, 0), Vector3i(7, 10, 0), Vector3i(7, 11, 0), Vector3i(7, 12, 0), Vector3i(7, 13, 0)])
 
-[sub_resource type="Resource" id="Resource_8armp"]
-script = ExtResource("6_ykc4r")
+[sub_resource type="Resource" id="Resource_ws4fj"]
+script = ExtResource("10_7la6t")
+spawn_id = &"spawn_2"
+display_name = "出生点 2"
+display_number = 2
+cell = Vector3i(11, 1, 0)
+
+[sub_resource type="Resource" id="Resource_b6a5e"]
+script = ExtResource("9_pwjr2")
 path_id = &"path_2"
 display_name = "路径 2"
-spawn_point = SubResource("Resource_efxel")
-target_base = SubResource("Resource_tqy3f")
-cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(13, 4, 0), Vector3i(13, 5, 0), Vector3i(13, 6, 0), Vector3i(12, 6, 0), Vector3i(12, 7, 0), Vector3i(11, 7, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(8, 8, 0), Vector3i(7, 8, 0), Vector3i(6, 8, 0), Vector3i(5, 8, 0), Vector3i(4, 8, 0), Vector3i(4, 7, 0), Vector3i(4, 6, 0), Vector3i(4, 5, 0), Vector3i(3, 5, 0), Vector3i(2, 5, 0), Vector3i(1, 5, 0), Vector3i(0, 5, 0)])
+spawn_point = SubResource("Resource_ws4fj")
+target_base = SubResource("Resource_58wot")
+cells = Array[Vector3i]([Vector3i(11, 1, 0), Vector3i(11, 2, 0), Vector3i(11, 3, 0), Vector3i(11, 4, 0), Vector3i(11, 5, 0), Vector3i(11, 6, 0), Vector3i(10, 6, 0), Vector3i(9, 6, 0), Vector3i(9, 5, 0), Vector3i(9, 4, 0), Vector3i(9, 3, 0), Vector3i(8, 3, 0), Vector3i(7, 3, 0), Vector3i(7, 4, 0), Vector3i(7, 5, 0), Vector3i(7, 6, 0), Vector3i(7, 7, 0), Vector3i(7, 8, 0), Vector3i(7, 9, 0), Vector3i(7, 10, 0), Vector3i(7, 11, 0), Vector3i(7, 12, 0), Vector3i(7, 13, 0)])
 
-[sub_resource type="Resource" id="Resource_sf05s"]
-script = ExtResource("6_ykc4r")
-path_id = &"path_3"
-display_name = "路径 3"
-spawn_point = SubResource("Resource_efxel")
-target_base = SubResource("Resource_tqy3f")
-cells = Array[Vector3i]([Vector3i(19, 4, 0), Vector3i(18, 4, 0), Vector3i(17, 4, 0), Vector3i(16, 4, 0), Vector3i(15, 4, 0), Vector3i(14, 4, 0), Vector3i(13, 4, 0), Vector3i(13, 5, 0), Vector3i(13, 6, 0), Vector3i(12, 6, 0), Vector3i(12, 7, 0), Vector3i(11, 7, 0), Vector3i(11, 8, 0), Vector3i(10, 8, 0), Vector3i(9, 8, 0), Vector3i(9, 7, 0), Vector3i(9, 6, 0), Vector3i(9, 5, 0), Vector3i(8, 5, 0), Vector3i(7, 5, 0), Vector3i(6, 5, 0), Vector3i(5, 5, 0), Vector3i(4, 5, 0), Vector3i(3, 5, 0), Vector3i(2, 5, 0), Vector3i(1, 5, 0), Vector3i(0, 5, 0)])
+[sub_resource type="Resource" id="Resource_c35gm"]
+script = ExtResource("2_v2y8g")
+scene = ExtResource("15_pwjr2")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
-[sub_resource type="Resource" id="Resource_1p0po"]
-script = ExtResource("8_j7tra")
-anchor_cell = Vector3i(9, 7, 0)
-facing_index = 3
-terrain_override = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_lm6e2"]
+script = ExtResource("13_pshws")
+placement_id = &"highstone_1"
+cell = Vector3i(2, 12, 0)
+definition = ExtResource("17_7la6t")
 
-[sub_resource type="Resource" id="Resource_dwnwh"]
-script = ExtResource("8_j7tra")
-ramp_id = &"ramp_2"
-anchor_cell = Vector3i(5, 5, 0)
-terrain_override = ExtResource("3_dwnwh")
+[sub_resource type="Resource" id="Resource_r347m"]
+script = ExtResource("13_pshws")
+placement_id = &"highstone_2"
+cell = Vector3i(12, 11, 0)
+definition = ExtResource("17_7la6t")
+
+[sub_resource type="Resource" id="Resource_td0rj"]
+script = ExtResource("13_pshws")
+placement_id = &"highstone_3"
+cell = Vector3i(13, 6, 0)
+definition = ExtResource("17_7la6t")
+
+[sub_resource type="Resource" id="Resource_6uxgq"]
+script = ExtResource("13_pshws")
+placement_id = &"highstone_4"
+cell = Vector3i(1, 13, 0)
+definition = ExtResource("17_7la6t")
+
+[sub_resource type="Resource" id="Resource_4ulbd"]
+script = ExtResource("13_pshws")
+placement_id = &"rock_1"
+cell = Vector3i(8, 2, 0)
+definition = ExtResource("18_58wot")
+
+[sub_resource type="Resource" id="Resource_jenex"]
+script = ExtResource("13_pshws")
+placement_id = &"rock_2"
+cell = Vector3i(11, 11, 0)
+definition = ExtResource("18_58wot")
+
+[sub_resource type="Resource" id="Resource_3dpgh"]
+script = ExtResource("13_pshws")
+placement_id = &"rock_3"
+cell = Vector3i(12, 12, 0)
+definition = ExtResource("18_58wot")
+
+[sub_resource type="Resource" id="Resource_p3idn"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_1"
+cell = Vector3i(2, 6, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_lj6uq"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_2"
+cell = Vector3i(10, 4, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_flmf3"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_3"
+cell = Vector3i(6, 1, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_cxqll"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_4"
+cell = Vector3i(9, 13, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_wglsl"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_5"
+cell = Vector3i(5, 13, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_d58a8"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_6"
+cell = Vector3i(2, 11, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_lmebr"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_7"
+cell = Vector3i(12, 15, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_sv15o"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_8"
+cell = Vector3i(4, 15, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_myrdx"]
+script = ExtResource("13_pshws")
+placement_id = &"tree_9"
+cell = Vector3i(11, 12, 0)
+definition = ExtResource("19_1dmoi")
+
+[sub_resource type="Resource" id="Resource_jvd3x"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("15_8tj5o")
+count = 10
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_lgd0m"]
+script = ExtResource("14_dx78j")
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_jvd3x")])
+
+[sub_resource type="Resource" id="Resource_opfkf"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("16_j7tra")
+spawn_point = SubResource("Resource_ws4fj")
+path = SubResource("Resource_b6a5e")
+
+[sub_resource type="Resource" id="Resource_r11xv"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("15_8tj5o")
+count = 10
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_thr8n"]
+script = ExtResource("14_dx78j")
+display_name = "第 2 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_opfkf"), SubResource("Resource_r11xv")])
+
+[sub_resource type="Resource" id="Resource_lt68l"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+count = 8
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_ryx31"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("16_j7tra")
+count = 7
+interval = 0.5
+spawn_point = SubResource("Resource_ws4fj")
+path = SubResource("Resource_b6a5e")
+
+[sub_resource type="Resource" id="Resource_cqfg7"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("15_8tj5o")
+count = 12
+spawn_point = SubResource("Resource_ws4fj")
+path = SubResource("Resource_b6a5e")
+
+[sub_resource type="Resource" id="Resource_evvdv"]
+script = ExtResource("14_dx78j")
+display_name = "第 3 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_lt68l"), SubResource("Resource_ryx31"), SubResource("Resource_cqfg7")])
+
+[sub_resource type="Resource" id="Resource_i7sfs"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("15_8tj5o")
+count = 20
+interval = 1.2
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_ifqav"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("25_1dmoi")
+count = 12
+interval = 2.0
+spawn_point = SubResource("Resource_ws4fj")
+path = SubResource("Resource_b6a5e")
+
+[sub_resource type="Resource" id="Resource_yh07j"]
+script = ExtResource("14_dx78j")
+display_name = "第 4 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_i7sfs"), SubResource("Resource_ifqav")])
+
+[sub_resource type="Resource" id="Resource_ek4xf"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("16_j7tra")
+count = 20
+interval = 1.0
+spawn_point = SubResource("Resource_ws4fj")
+path = SubResource("Resource_b6a5e")
+
+[sub_resource type="Resource" id="Resource_gmm5u"]
+script = ExtResource("14_dx78j")
+display_name = "第 5 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_ek4xf")])
+
+[sub_resource type="Resource" id="Resource_ykhs5"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_wow8r"]
+script = ExtResource("14_dx78j")
+display_name = "第 6 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_ykhs5")])
+
+[sub_resource type="Resource" id="Resource_peckk"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_lm2bd"]
+script = ExtResource("14_dx78j")
+display_name = "第 7 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_peckk")])
+
+[sub_resource type="Resource" id="Resource_3hfqo"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_pxa7m"]
+script = ExtResource("14_dx78j")
+display_name = "第 8 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_3hfqo")])
+
+[sub_resource type="Resource" id="Resource_0q784"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_jdqdf"]
+script = ExtResource("14_dx78j")
+display_name = "第 9 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_0q784")])
+
+[sub_resource type="Resource" id="Resource_n6bcj"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_nntgq"]
+script = ExtResource("14_dx78j")
+display_name = "第 10 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_n6bcj")])
+
+[sub_resource type="Resource" id="Resource_f52y1"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_qilnw"]
+script = ExtResource("14_dx78j")
+display_name = "第 11 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_f52y1")])
+
+[sub_resource type="Resource" id="Resource_35j8s"]
+script = ExtResource("14_ykc4r")
+enemy = ExtResource("24_58wot")
+spawn_point = SubResource("Resource_a3sx3")
+path = SubResource("Resource_s1ujp")
+
+[sub_resource type="Resource" id="Resource_ga1t4"]
+script = ExtResource("14_dx78j")
+display_name = "第 12 波"
+spawn_groups = Array[ExtResource("14_ykc4r")]([SubResource("Resource_35j8s")])
 
 [resource]
-script = ExtResource("9_2nio4")
+script = ExtResource("12_1dmoi")
 grid_shape = 1
-grid_size = Vector2i(20, 10)
+grid_size = Vector2i(15, 17)
 height_levels = 4
 terrain_content_version = 2
-grid_cells = Array[ExtResource("4_nx7p2")]([SubResource("Resource_fu7kh"), SubResource("Resource_levsc"), SubResource("Resource_o2mfk"), SubResource("Resource_gpmem"), SubResource("Resource_ot6gd"), SubResource("Resource_i6mai"), SubResource("Resource_h2hmb"), SubResource("Resource_0mcn3"), SubResource("Resource_3bwvx"), SubResource("Resource_xbvsb"), SubResource("Resource_plb44"), SubResource("Resource_7b7nc"), SubResource("Resource_fohgd"), SubResource("Resource_sknli"), SubResource("Resource_twg8x"), SubResource("Resource_kadsg"), SubResource("Resource_jibe7"), SubResource("Resource_y3mot"), SubResource("Resource_1im6a"), SubResource("Resource_4vqsu"), SubResource("Resource_wc8uy"), SubResource("Resource_mlr61"), SubResource("Resource_vi1po"), SubResource("Resource_yimkm"), SubResource("Resource_l4k2c"), SubResource("Resource_o7rv6"), SubResource("Resource_4eyc6"), SubResource("Resource_jelpy"), SubResource("Resource_3s71d"), SubResource("Resource_47cwb"), SubResource("Resource_ricgq"), SubResource("Resource_3y8iu"), SubResource("Resource_w262m"), SubResource("Resource_aus3j"), SubResource("Resource_gg0yt"), SubResource("Resource_2dsry"), SubResource("Resource_8gdct"), SubResource("Resource_3vs0a"), SubResource("Resource_3lxac"), SubResource("Resource_cp3t0"), SubResource("Resource_ikeb3"), SubResource("Resource_4cimo"), SubResource("Resource_85ehj"), SubResource("Resource_jq0a6"), SubResource("Resource_u6o6y"), SubResource("Resource_t3neq"), SubResource("Resource_0uyj5"), SubResource("Resource_k26ka"), SubResource("Resource_m1ndj"), SubResource("Resource_40ql7"), SubResource("Resource_dyeto"), SubResource("Resource_88xig"), SubResource("Resource_nys3b"), SubResource("Resource_aiwxl"), SubResource("Resource_rwhc2"), SubResource("Resource_tdib0"), SubResource("Resource_4mcsx"), SubResource("Resource_kxkla"), SubResource("Resource_lk5jy"), SubResource("Resource_wu3ic"), SubResource("Resource_8im61"), SubResource("Resource_tc0hq"), SubResource("Resource_lj2s0"), SubResource("Resource_g4phx"), SubResource("Resource_p38qd"), SubResource("Resource_4bej2"), SubResource("Resource_0pao0"), SubResource("Resource_dxwtd"), SubResource("Resource_fi6r4"), SubResource("Resource_r4v5p"), SubResource("Resource_ind6b"), SubResource("Resource_grgya"), SubResource("Resource_mj2u8"), SubResource("Resource_j266d"), SubResource("Resource_oefg8"), SubResource("Resource_0nc0i"), SubResource("Resource_7y7vs"), SubResource("Resource_j3agy"), SubResource("Resource_ilx8r"), SubResource("Resource_kvdmp"), SubResource("Resource_bxs57"), SubResource("Resource_tljwk"), SubResource("Resource_v3cr5"), SubResource("Resource_piyqu"), SubResource("Resource_revfg"), SubResource("Resource_v28l1"), SubResource("Resource_x3mvc"), SubResource("Resource_tlq2q"), SubResource("Resource_ff776"), SubResource("Resource_wosj1"), SubResource("Resource_3oykw"), SubResource("Resource_e2v5v"), SubResource("Resource_o1tkt"), SubResource("Resource_scboc"), SubResource("Resource_3cduy"), SubResource("Resource_i88yf"), SubResource("Resource_i5rt7"), SubResource("Resource_4rp47"), SubResource("Resource_1r8ly"), SubResource("Resource_lks72"), SubResource("Resource_llu50"), SubResource("Resource_eidr6"), SubResource("Resource_jcvub"), SubResource("Resource_gmt7d"), SubResource("Resource_cbda3"), SubResource("Resource_u3yxa"), SubResource("Resource_xjdr5"), SubResource("Resource_4wecr"), SubResource("Resource_oygau"), SubResource("Resource_33kix"), SubResource("Resource_jlc6y"), SubResource("Resource_vbtwq"), SubResource("Resource_6gjs8"), SubResource("Resource_2hpxc"), SubResource("Resource_nhwvx"), SubResource("Resource_rdfev"), SubResource("Resource_rohr0"), SubResource("Resource_8aie2"), SubResource("Resource_ky7ys"), SubResource("Resource_aerjp"), SubResource("Resource_p40m6"), SubResource("Resource_xu6ky"), SubResource("Resource_4hvcn"), SubResource("Resource_usw37"), SubResource("Resource_k3srq"), SubResource("Resource_ljgbh"), SubResource("Resource_76a6f"), SubResource("Resource_amtgo"), SubResource("Resource_qyttk"), SubResource("Resource_ccn1x"), SubResource("Resource_k4j4d"), SubResource("Resource_mr4nb"), SubResource("Resource_p6ihh"), SubResource("Resource_fuhra"), SubResource("Resource_uw2ho"), SubResource("Resource_al52s"), SubResource("Resource_w1p2o"), SubResource("Resource_oqvw8"), SubResource("Resource_qoqf8"), SubResource("Resource_6t72q"), SubResource("Resource_x5cx6"), SubResource("Resource_fjwm3"), SubResource("Resource_3esxa"), SubResource("Resource_cvsft"), SubResource("Resource_amktu"), SubResource("Resource_1x1i1"), SubResource("Resource_6kp4b"), SubResource("Resource_kjpuy"), SubResource("Resource_0yxft"), SubResource("Resource_2dfi1"), SubResource("Resource_8bpqi"), SubResource("Resource_k2oy2"), SubResource("Resource_gl6si"), SubResource("Resource_k66m5"), SubResource("Resource_1cmil"), SubResource("Resource_s4vw8"), SubResource("Resource_4wsxv"), SubResource("Resource_erxwu"), SubResource("Resource_qar1i"), SubResource("Resource_8vqcx"), SubResource("Resource_le8sb"), SubResource("Resource_86xfv"), SubResource("Resource_i618l"), SubResource("Resource_ed1ls"), SubResource("Resource_33tnh"), SubResource("Resource_i8wsf"), SubResource("Resource_iqnfw"), SubResource("Resource_fjqn0"), SubResource("Resource_t5jx8"), SubResource("Resource_tj4jn"), SubResource("Resource_dhd37"), SubResource("Resource_27en1"), SubResource("Resource_kte11"), SubResource("Resource_rh1yc"), SubResource("Resource_4s34e"), SubResource("Resource_mkntx"), SubResource("Resource_d843s"), SubResource("Resource_kvvap"), SubResource("Resource_n2yye"), SubResource("Resource_28uy4"), SubResource("Resource_w5bsw"), SubResource("Resource_j0fsr"), SubResource("Resource_gvtpc"), SubResource("Resource_pm022"), SubResource("Resource_68j0r"), SubResource("Resource_fou7p"), SubResource("Resource_rrtoo"), SubResource("Resource_3mbo1"), SubResource("Resource_gxp2t"), SubResource("Resource_m7b1n"), SubResource("Resource_mikoy"), SubResource("Resource_nrgag"), SubResource("Resource_ffk5b"), SubResource("Resource_ijb56"), SubResource("Resource_u2pgp"), SubResource("Resource_mqajw"), SubResource("Resource_a6gu0"), SubResource("Resource_d8ody"), SubResource("Resource_6jvbx"), SubResource("Resource_rfiim")])
-ramp_placements = Array[ExtResource("8_j7tra")]([SubResource("Resource_1p0po"), SubResource("Resource_dwnwh")])
-base_cell = Vector3i(0, 4, 0)
-base_points = Array[ExtResource("1_f2lvq")]([SubResource("Resource_0867t"), SubResource("Resource_tqy3f")])
-paths = Array[ExtResource("6_ykc4r")]([SubResource("Resource_n027s"), SubResource("Resource_8armp"), SubResource("Resource_sf05s")])
-spawn_points = Array[ExtResource("7_8tj5o")]([SubResource("Resource_efxel")])
+default_terrain = ExtResource("5_ykc4r")
+grid_cells = Array[ExtResource("5_j7tra")]([SubResource("Resource_1dmoi"), SubResource("Resource_pshws"), SubResource("Resource_dx78j"), SubResource("Resource_o032t"), SubResource("Resource_7trtx"), SubResource("Resource_pn285"), SubResource("Resource_y415d"), SubResource("Resource_3lkl6"), SubResource("Resource_y52f4"), SubResource("Resource_r5bc4"), SubResource("Resource_bn3hd"), SubResource("Resource_flri3"), SubResource("Resource_h7crc"), SubResource("Resource_6c353"), SubResource("Resource_hrldx"), SubResource("Resource_0gudc"), SubResource("Resource_nyq42"), SubResource("Resource_1fuiq"), SubResource("Resource_qwb7y"), SubResource("Resource_78irj"), SubResource("Resource_v241p"), SubResource("Resource_id04o"), SubResource("Resource_237h5"), SubResource("Resource_4gldk"), SubResource("Resource_lmft1"), SubResource("Resource_e1q74"), SubResource("Resource_f3xhj"), SubResource("Resource_fwm37"), SubResource("Resource_8ucqf"), SubResource("Resource_jilkc"), SubResource("Resource_8bedg"), SubResource("Resource_n6thw"), SubResource("Resource_t6uab"), SubResource("Resource_pbxrt"), SubResource("Resource_34mj7"), SubResource("Resource_p404l"), SubResource("Resource_d0n57"), SubResource("Resource_ynfrd"), SubResource("Resource_5msbv"), SubResource("Resource_ualvh"), SubResource("Resource_6mfy7"), SubResource("Resource_w022p"), SubResource("Resource_tl72g"), SubResource("Resource_cnnjy"), SubResource("Resource_o52jj"), SubResource("Resource_k6b70"), SubResource("Resource_32l7r"), SubResource("Resource_43wr4"), SubResource("Resource_y1p0g"), SubResource("Resource_1iyt1"), SubResource("Resource_mj1vp"), SubResource("Resource_dtjee"), SubResource("Resource_u1iuw"), SubResource("Resource_tx5f3"), SubResource("Resource_v8ouc"), SubResource("Resource_igbi6"), SubResource("Resource_oe0wp"), SubResource("Resource_m42ol"), SubResource("Resource_5w3eh"), SubResource("Resource_detxl"), SubResource("Resource_5l2ss"), SubResource("Resource_7dmdl"), SubResource("Resource_pd4bt"), SubResource("Resource_34mw2"), SubResource("Resource_mt2cj"), SubResource("Resource_rwfuy"), SubResource("Resource_s5s8e"), SubResource("Resource_f67ro"), SubResource("Resource_81xdq"), SubResource("Resource_5hki2"), SubResource("Resource_ob7rn"), SubResource("Resource_soldh"), SubResource("Resource_r18h4"), SubResource("Resource_vgk6d"), SubResource("Resource_lxobe"), SubResource("Resource_tfkxv"), SubResource("Resource_7vees"), SubResource("Resource_o2r2a"), SubResource("Resource_e58m8"), SubResource("Resource_gmnev"), SubResource("Resource_bd8m5"), SubResource("Resource_j4xxr"), SubResource("Resource_1w51v"), SubResource("Resource_ri7vx"), SubResource("Resource_s2st0"), SubResource("Resource_2dxen"), SubResource("Resource_2aqhx"), SubResource("Resource_6lavn"), SubResource("Resource_qussw"), SubResource("Resource_g0esq"), SubResource("Resource_rwswr"), SubResource("Resource_u086b"), SubResource("Resource_fg5fd"), SubResource("Resource_rexkb"), SubResource("Resource_g62yc"), SubResource("Resource_x8xg0"), SubResource("Resource_abda8"), SubResource("Resource_f6sw3"), SubResource("Resource_2ffti"), SubResource("Resource_ltbv5"), SubResource("Resource_c2alg"), SubResource("Resource_kbhey"), SubResource("Resource_u0jvr"), SubResource("Resource_4ljbf"), SubResource("Resource_layls"), SubResource("Resource_pqij4"), SubResource("Resource_pq8tq"), SubResource("Resource_7yp0q"), SubResource("Resource_f4ihq"), SubResource("Resource_pxa6k"), SubResource("Resource_65o07"), SubResource("Resource_p3psx"), SubResource("Resource_fc6ru"), SubResource("Resource_vwkbo"), SubResource("Resource_bux7u"), SubResource("Resource_mm7bs"), SubResource("Resource_2jhyq"), SubResource("Resource_tvdtu"), SubResource("Resource_7is6m"), SubResource("Resource_noavt"), SubResource("Resource_rhycw"), SubResource("Resource_83vcs"), SubResource("Resource_rc7e6"), SubResource("Resource_2j5g4"), SubResource("Resource_mimp4"), SubResource("Resource_3f6el"), SubResource("Resource_18veq"), SubResource("Resource_78rbg"), SubResource("Resource_3aw3l"), SubResource("Resource_x0c2e"), SubResource("Resource_7yn66"), SubResource("Resource_nqqrb"), SubResource("Resource_1hvhf"), SubResource("Resource_jm0m2"), SubResource("Resource_7ggq1"), SubResource("Resource_hm2d0"), SubResource("Resource_p0lrh"), SubResource("Resource_wdqns"), SubResource("Resource_vg0xv"), SubResource("Resource_l616l"), SubResource("Resource_vx14w"), SubResource("Resource_7mqoa"), SubResource("Resource_i72a0"), SubResource("Resource_6o123"), SubResource("Resource_q4l7h"), SubResource("Resource_i7lq0"), SubResource("Resource_wyiwn"), SubResource("Resource_ykvlt"), SubResource("Resource_pcwa5"), SubResource("Resource_0v0hx"), SubResource("Resource_4nv3r"), SubResource("Resource_5y7tm"), SubResource("Resource_unwdg"), SubResource("Resource_2th0u"), SubResource("Resource_2otas"), SubResource("Resource_0v51i"), SubResource("Resource_5x8wm"), SubResource("Resource_71qgt"), SubResource("Resource_b218e"), SubResource("Resource_ceirj"), SubResource("Resource_dbomk"), SubResource("Resource_t5juf"), SubResource("Resource_encfb"), SubResource("Resource_fje1a"), SubResource("Resource_2gs2s"), SubResource("Resource_y6taw"), SubResource("Resource_n7by3"), SubResource("Resource_cea5l"), SubResource("Resource_nvpgd"), SubResource("Resource_wnir4"), SubResource("Resource_oongp"), SubResource("Resource_jgkse"), SubResource("Resource_so736"), SubResource("Resource_uqcj2"), SubResource("Resource_73qob"), SubResource("Resource_wt0qn"), SubResource("Resource_0k26h"), SubResource("Resource_6qs3u"), SubResource("Resource_de67a"), SubResource("Resource_we1co"), SubResource("Resource_sweqk"), SubResource("Resource_x7ad6"), SubResource("Resource_7sdv3"), SubResource("Resource_nx7nf"), SubResource("Resource_lhj7x"), SubResource("Resource_ppa1p"), SubResource("Resource_4ens1"), SubResource("Resource_nve6q"), SubResource("Resource_akw4j"), SubResource("Resource_3c7xu"), SubResource("Resource_2y7y8"), SubResource("Resource_k2ijp"), SubResource("Resource_ywr28"), SubResource("Resource_yu4bw"), SubResource("Resource_6n73h"), SubResource("Resource_cchs7"), SubResource("Resource_eajo1"), SubResource("Resource_28b8i"), SubResource("Resource_r5qrq"), SubResource("Resource_424s1"), SubResource("Resource_p5xsn"), SubResource("Resource_af3yv"), SubResource("Resource_yv6cq"), SubResource("Resource_md1ak"), SubResource("Resource_snm2j"), SubResource("Resource_perqt"), SubResource("Resource_8xftb"), SubResource("Resource_dy5t0"), SubResource("Resource_oovcb"), SubResource("Resource_2qxjx"), SubResource("Resource_obsmj"), SubResource("Resource_qk8fc"), SubResource("Resource_f2tue"), SubResource("Resource_eusj7"), SubResource("Resource_x1ka4"), SubResource("Resource_qs37h"), SubResource("Resource_qd170"), SubResource("Resource_y0ob2"), SubResource("Resource_qhhrl"), SubResource("Resource_5807k"), SubResource("Resource_oof01"), SubResource("Resource_04ul5"), SubResource("Resource_h1vs7"), SubResource("Resource_gg1e3"), SubResource("Resource_7dxuw"), SubResource("Resource_722u0"), SubResource("Resource_xq1yi"), SubResource("Resource_yn5uu"), SubResource("Resource_qvd25"), SubResource("Resource_otlac"), SubResource("Resource_dqoac"), SubResource("Resource_r2c5o"), SubResource("Resource_j4wxf"), SubResource("Resource_0817q"), SubResource("Resource_2nijl"), SubResource("Resource_bfo7c"), SubResource("Resource_34rgf"), SubResource("Resource_1br4q"), SubResource("Resource_wn51k"), SubResource("Resource_tp16v"), SubResource("Resource_jb63b"), SubResource("Resource_j6u4g"), SubResource("Resource_tbgya"), SubResource("Resource_sscly"), SubResource("Resource_w7bqh"), SubResource("Resource_sliub"), SubResource("Resource_xbm50"), SubResource("Resource_sbjis"), SubResource("Resource_m4spc"), SubResource("Resource_8p3jn"), SubResource("Resource_ovmkx"), SubResource("Resource_25wn7"), SubResource("Resource_3cumq"), SubResource("Resource_uyu6w"), SubResource("Resource_wltek")])
+stuff_placements = Array[ExtResource("13_pshws")]([SubResource("Resource_lm6e2"), SubResource("Resource_r347m"), SubResource("Resource_td0rj"), SubResource("Resource_6uxgq"), SubResource("Resource_4ulbd"), SubResource("Resource_jenex"), SubResource("Resource_3dpgh"), SubResource("Resource_p3idn"), SubResource("Resource_lj6uq"), SubResource("Resource_flmf3"), SubResource("Resource_cxqll"), SubResource("Resource_wglsl"), SubResource("Resource_d58a8"), SubResource("Resource_lmebr"), SubResource("Resource_sv15o"), SubResource("Resource_myrdx")])
+initial_mirror_placements = Array[ExtResource("8_v2y8g")]([SubResource("Resource_c5wco"), SubResource("Resource_h1v45"), SubResource("Resource_if1vi")])
+base_model_asset = SubResource("Resource_7la6t")
+spawn_point_model_asset = SubResource("Resource_c35gm")
+initial_resource = 1000
+building_cap = 5
+mirror_cap = 10
+building_card_slot_count = 5
+base_cell = Vector3i(7, 13, 0)
+base_points = Array[ExtResource("1_nx7p2")]([SubResource("Resource_58wot")])
+paths = Array[ExtResource("9_pwjr2")]([SubResource("Resource_s1ujp"), SubResource("Resource_b6a5e")])
+spawn_points = Array[ExtResource("10_7la6t")]([SubResource("Resource_a3sx3"), SubResource("Resource_ws4fj")])
+waves = Array[ExtResource("14_dx78j")]([SubResource("Resource_lgd0m"), SubResource("Resource_thr8n"), SubResource("Resource_evvdv"), SubResource("Resource_yh07j"), SubResource("Resource_gmm5u"), SubResource("Resource_wow8r"), SubResource("Resource_lm2bd"), SubResource("Resource_pxa7m"), SubResource("Resource_jdqdf"), SubResource("Resource_nntgq"), SubResource("Resource_qilnw"), SubResource("Resource_ga1t4")])

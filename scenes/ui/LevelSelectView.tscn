@@ -9,6 +9,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 1
 script = ExtResource("1_view")
 
 [node name="Background" type="ColorRect" parent="."]
@@ -19,20 +20,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.006, 0.01, 0.016, 1)
 
-[node name="PageViewport" type="Control" parent="."]
-unique_name_in_owner = true
-clip_contents = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="CurrentPage" type="MarginContainer" parent="PageViewport"]
+[node name="CubeViewportContainer" type="SubViewportContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -40,81 +30,34 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+mouse_filter = 0
+stretch = true
 
-[node name="LevelGrid" type="GridContainer" parent="PageViewport/CurrentPage"]
+[node name="CubeViewport" type="SubViewport" parent="CubeViewportContainer"]
 unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-mouse_filter = 2
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 12
-columns = 3
+handle_input_locally = false
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+msaa_3d = 1
 
-[node name="StandbyPage" type="MarginContainer" parent="PageViewport"]
+[node name="InteractionHint" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = -58.0
+offset_right = -24.0
+offset_bottom = -20.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 mouse_filter = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
-
-[node name="StandbyLevelGrid" type="GridContainer" parent="PageViewport/StandbyPage"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-mouse_filter = 2
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 12
-columns = 3
-
-[node name="PreviousButton" type="Button" parent="."]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 4
-anchor_top = 0.5
-anchor_bottom = 0.5
-offset_left = 16.0
-offset_top = -48.0
-offset_right = 80.0
-offset_bottom = 48.0
-grow_vertical = 2
-mouse_filter = 1
-focus_mode = 0
-mouse_default_cursor_shape = 2
-theme_override_font_sizes/font_size = 52
-text = "‹"
-flat = true
-
-[node name="NextButton" type="Button" parent="."]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 6
-anchor_left = 1.0
-anchor_top = 0.5
-anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -80.0
-offset_top = -48.0
-offset_right = -16.0
-offset_bottom = 48.0
-grow_horizontal = 0
-grow_vertical = 2
-mouse_filter = 1
-focus_mode = 0
-mouse_default_cursor_shape = 2
-theme_override_font_sizes/font_size = 52
-text = "›"
-flat = true
+theme_override_colors/font_color = Color(0.72, 0.84, 0.92, 0.92)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+text = "右键拖动旋转立方体 · 左键选择关卡"
+horizontal_alignment = 1

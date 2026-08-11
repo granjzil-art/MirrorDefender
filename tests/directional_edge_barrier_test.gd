@@ -112,9 +112,14 @@ func _test_directional_blocking_and_lifecycle() -> void:
 		barrier.take_structure_damage(10.0, reflection_target)
 		_expect(reflection_target.current_hp < hp_before_reflection, "edge barrier reuses configured damage reflection")
 		_expect(not building_manager.upgrade_selected(), "max-level edge barrier rejects another upgrade")
-		var expected_after_delete := initial_resource - barrier.definition.get_level_stats(1).cost - level_two_stats.cost - level_three_stats.cost + level_three_stats.refund_amount
+		var cumulative_cost := (
+			barrier.definition.get_level_stats(1).cost
+			+ level_two_stats.cost
+			+ level_three_stats.cost
+		)
+		_expect(is_equal_approx(barrier.get_refund_amount(), cumulative_cost), "demolition refund equals all construction and upgrade costs")
 		_expect(building_manager.remove_selected_building(), "edge barrier uses the shared delete transaction")
-		_expect(is_equal_approx(resource_manager.main_resource, expected_after_delete), "edge barrier delete refunds its current-level amount")
+		_expect(is_equal_approx(resource_manager.main_resource, initial_resource), "edge barrier demolition returns every invested resource without loss")
 		_expect(building_manager.get_edge_building(grid.canonical_edge_id(from_cell, edge_index)) == null, "delete releases physical edge occupancy")
 	host.queue_free()
 	await process_frame

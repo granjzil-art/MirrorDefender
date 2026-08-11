@@ -9,9 +9,9 @@
 ## 分类 / 做法
 
 - **线性路线**：每个 PathDefinition 是从出生点到据点的一串连续格子，至少两个格。
-- **双网格**：连续性由当前 GridManager 的 `get_neighbors()` 判断，支持 HEX 与 SQUARE。
+- **正方形路网**：连续性由当前 GridManager 的 `get_neighbors()` 判断。正式内容仅维护 SQUARE；HEX 只保留历史代码，新功能不再做适配或验收。
 - **独立出生点**：SpawnPointDefinition 独立配置 ID、名称、数字标记和格坐标；多条路径可共用同一出生点。PathDefinition.`spawn_point` 是新事实源，旧关卡仍可通过波次引用/首格唯一匹配只读解析。
-- **多据点**：BasePointDefinition 独立配置 ID、名称、数字标记和格坐标；PathDefinition.`target_base` 锁定路径目标。多个位置共用 LevelResource.`base_max_hp`。旧关卡 `base_cell` 以只读虚拟“据点 1”兼容，只有用户编辑据点时才显式物化。
+- **3×2 多格据点**：BasePointDefinition.`cell` 是面向敌人的前排中格，`facing_index` 决定正面，占地向背面延伸一排。PathDefinition.`target_base` 锁定据点 ID，末格进入六格任意一格即到达；动态寻路可从同一据点六格中选择最近可达格，但不得改投其它据点。多个据点实例仍共用 LevelResource.`base_max_hp`。
 - **世界点**：PathManager 读取每格 Tile 高度，生成格心加抬升量的 `PackedVector3Array`，敌人贴合台阶路线移动。
 - **屏障语义**：边屏障和地块屏障仍是可攻击 Building，EnemyUnit 逐段查询并停步攻击，不触发换路。
 - **放置连通性守卫**：玩家放置格屏障/边屏障或放置会复制障碍的镜子前，`PathPlacementConnectivityGuard` 在不写入占位和资源的假设状态下，按每个波次实际地面/空中档案检查“出生点→原目标据点”。只有本次操作把原本可达路网变为不可达才拒绝；旧关卡已断路时不误伤无关放置。不得借道其他据点。
@@ -32,7 +32,8 @@
 | PathDefinition | `cells` / `spawn_point` / `target_base` | 出生点到指定据点的有序格，及显式端点引用。 |
 | SpawnPointDefinition | `spawn_id` / `display_name` / `display_number` | 独立出生点标识、可编辑名称和场景数字。 |
 | SpawnPointDefinition | `cell` | 入口所在格，校验时必须在地图内。 |
-| BasePointDefinition | `base_id` / `display_name` / `display_number` / `cell` | 独立据点位置与数字标记；全部共享据点生命。 |
+| BasePointDefinition | `base_id` / `display_name` / `display_number` | 据点身份、显示名与数字标记；全部共享据点生命。 |
+| BasePointDefinition | `cell` / `facing_index` / `footprint_mode` | `cell` 为前排中格；SQUARE 据点朝向为右/上/左/下；正式据点使用 `RECTANGLE_3_X_2`。 |
 | LevelResource | `path_terrain_color` | 所有路径经过格共用的地块基底色，默认 `#FFB93B`。 |
 | PathManager | `show_paths` | 路线和出生点调试表现开关。 |
 | PathManager | `path_color` / `spawn_color` / `line_lift` | 运行时灰盒颜色和抬升高度。 |
@@ -58,7 +59,8 @@
 |---|---|---|
 | `scripts/path/PathDefinition.gd` | `PathDefinition` / `Resource` | 路径 ID、名称、有序格子和显式首尾端点。 |
 | `scripts/path/SpawnPointDefinition.gd` | `SpawnPointDefinition` / `Resource` | 独立出生点 ID、名称、数字和格坐标。 |
-| `scripts/path/BasePointDefinition.gd` | `BasePointDefinition` / `Resource` | 独立据点 ID、名称、数字和格坐标。 |
+| `scripts/path/BasePointDefinition.gd` | `BasePointDefinition` / `Resource` | 据点 ID、名称、前排中格锚点、朝向与3×2占地派生。 |
+| `scripts/unit/BaseCore.gd` | `BaseCore` / `Node3D` | 每个据点生成一个居中/定向模型，六格共用同一生命与占用引用。 |
 | `scripts/path/PathManager.gd` | `PathManager` / `Node3D` | 初始路径索引、世界点解析、校验和调试绘制入口。 |
 | `scripts/path/PathBlockerPolicy.gd` | `PathBlockerPolicy` / `RefCounted` | 路径阻挡后的直接攻击/先换路后攻击策略枚举。 |
 | `scripts/path/PathRoutePlanner.gd` | `PathRoutePlanner` / `Node3D` | 同目标手工后缀优先的换路编排与调试线。 |
@@ -73,7 +75,8 @@
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | `Control` | 路径编辑页和统一关卡保存。 |
 | `tests/path_spawn_pairing_test.gd` | 无 / `SceneTree` | 独立出生点、共用入口、多据点端点、旧关卡兼容和波次派生绑定回归。 |
 | `tests/path_terrain_color_test.gd` | 无 / `SceneTree` | 路径格并集、默认色和运行时/编辑器一致性回归。 |
-| `tests/path_placement_connectivity_test.gd` | 无 / `SceneTree` | 方/六边形、备用路线、边障、空中档案与复制镜封路回归。 |
+| `tests/path_placement_connectivity_test.gd` | 无 / `SceneTree` | 备用路线、边障、空中档案与复制镜封路回归；历史 HEX 夹具仅作回归保留。 |
+| `tests/base_footprint_test.gd` | 无 / `SceneTree` | Level2 据点3×2迁移、六格占用、底层 Grid、内外边权限与多终点路网回归。 |
 
 ### 数据流
 
@@ -134,7 +137,8 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 | `SpawnPointDefinition.make_id_for_path` | `(path: PathDefinition) -> StringName` | 生成 `spawn_<path_id>` 的 1:1 出生点 ID。 |
 | `SpawnPointDefinition.make_display_name_for_path` | `(path: PathDefinition) -> String` | 生成“`<路径名> 出生点`”显示名。 |
 | `SpawnPointDefinition.sync_with_path` | `(path: PathDefinition) -> void` | 同步出生点 ID、名称和路径首格。 |
-| `LevelResource.resolve_path_spawn_point` / `resolve_path_target_base` | `(path) -> ...Definition` | 优先解析显式端点，并为旧关卡提供只读唯一匹配。 |
+| `LevelResource.resolve_path_spawn_point` / `resolve_path_target_base` | `(path) -> ...Definition` | 优先解析显式端点，据点兼容匹配检查末格是否属于六格占地。 |
+| `LevelResource.get_base_point_at_cell` | `(cell: Vector3i) -> BasePointDefinition` | 按有效占地查找据点；不只比较锚点格。 |
 | `LevelResource.get_effective_base_points` | `() -> Array[BasePointDefinition]` | 返回显式据点；旧关卡返回不写回资源的 `base_cell` 兼容据点。 |
 | `LevelResource.get_spawn_point_candidates_for_path` | `(path: PathDefinition) -> Array[SpawnPointDefinition]` | 综合新 ID、旧波次引用和起点格，返回全部候选且不改写数据。 |
 | `LevelResource.get_spawn_point_for_path` | `(path: PathDefinition) -> SpawnPointDefinition` | 仅候选唯一时返回出生点；缺失或歧义均返回 null。 |
@@ -189,17 +193,17 @@ PathManager.paths_loaded / hover exit / pause / console / level exit -> PathHove
 - 路径顺序是出生点到据点，敌人不可反向解释。
 - 路径颜色的事实源是所有 `PathDefinition.cells` 的格并集，而非单条当前选中路径；地块基底色、永久端点数字与路径页折线覆盖是三个独立表现层。路径页可只显示当前路径折线，但不得过滤地表并集或全部端点标记。
 - 波次中的 `SpawnGroupDefinition.path` 始终是初始路径；换路是单个敌人的运行时状态，不改写初始配置。
-- 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻，因此同时支持 HEX/SQUARE。
+- 路径只在格坐标相同时算相交；仅画面线段交叉不建立连接。当前格与候选格必须由 `GridManager.get_neighbors()` 证明相邻；正式验收只覆盖 SQUARE。
 - 候选后缀只排除大石头等导航阻碍；空洞与尖刺均可被选中，敌人进入后再结算地块效果。建筑屏障不使路径失效，仍由敌人停步攻击。
 - `canonical_edge_id` 是默认双向边屏障的阻挡事实；路径正反穿过同一物理边均受阻。只有关闭 `blocks_both_directions` 的未来变种才使用 `from_cell -> to_cell` 单向规则。
-- 每条路径的首格必须等于所选 `spawn_point.cell`，末格必须等于所选 `target_base.cell`；路径不得在终点前经过其他据点。
+- 每条路径的首格必须等于所选 `spawn_point.cell`，末格必须属于所选 `target_base.get_footprint_cells()`；路径首次进入该据点占地就必须结束，不得在终点前经过任何据点格。
 - 多条路径可共用出生点或据点。波次中 `SpawnGroup.path` 是选择事实源，出生点由路径派生；敌人出生后的目标据点不可转换。
 - 路径页与波次页的路径选项统一使用 `display_name [path_id]`，禁止用子资源的 `resource_path` 或所属关卡文件名作为标签。
 - PathDefinition / SpawnPointDefinition 必须由 LevelResource 持有；SpawnGroup 只能引用本关对象。
-- 路径首格和 `base_cell` 是屏障保护格；中间路径格只允许屏障类建筑，普通塔不得占路。
+- 路径首格和全部据点占地格是屏障保护格；中间路径格只允许屏障类建筑，普通塔不得占路。
 - 运行时名称不能使用 `get_path()`，该名称被 Godot Node 保留；统一使用 `get_path_definition()`。
 
 ## 已知限制 / 初版不做的部分
 
-- 自动 A* 不在全地图自由地形上行走；其可通行图只是“所有目标为同一据点的手工路径格”并集。
+- 自动 A* 不在全地图自由地形上行走；其可通行图是“所有目标为同一据点的手工路径格”并集加该据点六个目标格。A* 分别计算可达目标并选步数最少者。
 - 旧关卡的出生点和 `base_cell` 只读兼容；若候选出生点不唯一，校验会拒绝猜测。编辑器加载不会自动改写旧资源，用户首次编辑据点时才物化显式 `base_points`。

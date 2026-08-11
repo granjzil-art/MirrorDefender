@@ -18,6 +18,7 @@ func _run() -> void:
 	await _test_hex_and_airborne_profiles()
 	await _test_edge_barrier_is_rejected()
 	await _test_mirror_recursive_blocker_is_rejected()
+	await _test_mirror_effect_free_stuff_blocker_is_rejected()
 	if _failures == 0:
 		print("[PathPlacementConnectivity] PASS: %d checks" % _checks)
 		quit(0)
@@ -124,7 +125,46 @@ func _test_mirror_recursive_blocker_is_rejected() -> void:
 	await _dispose_fixture(fixture)
 
 
-func _make_fixture(level: LevelResource) -> Dictionary:
+func _test_mirror_effect_free_stuff_blocker_is_rejected() -> void:
+	var level := _make_vertical_mirror_route_level()
+	var fixture := _make_fixture(level, true)
+	var grid: GridManager = fixture.grid
+	var mirror: MirrorManager = fixture.mirror
+	var stuff: StuffManager = fixture.stuff
+	var blocker := StuffDefinition.new()
+	blocker.stuff_id = &"effect_free_highstone"
+	blocker.display_name = "Effect-free high stone"
+	blocker.enemy_navigation = StuffDefinition.EnemyNavigation.BLOCKED
+	blocker.durability_mode = StuffDefinition.DurabilityMode.INDESTRUCTIBLE
+	blocker.fallback_visual_kind = StuffDefinition.FallbackVisualKind.ROCK
+	_expect(
+		stuff.add_stuff(Vector3i(1, 2, 0), blocker, 0, &"effect_free_highstone_1") != null,
+		"effect-free Stuff source is available to the mirror graph"
+	)
+	var first_from := Vector3i(2, 2, 0)
+	var first_edge := grid.find_edge_index(first_from, Vector3i(3, 2, 0))
+	_expect(
+		mirror.place_copy_mirror(first_from, first_edge, true) != null,
+		"first mirror may project effect-free Stuff outside the protected route"
+	)
+	var from_cell := Vector3i(5, 2, 0)
+	var edge_index := grid.find_edge_index(from_cell, Vector3i(6, 2, 0))
+	_expect(
+		mirror.update_preview(from_cell, edge_index),
+		"effect-free Stuff blocker keeps a visible candidate mirror preview"
+	)
+	_expect(
+		not bool(mirror.get_preview_info().get("valid", true)),
+		"effect-free Stuff mirror preview detects final-route disconnection"
+	)
+	_expect(
+		mirror.place_copy_mirror(from_cell, edge_index, true) == null,
+		"mirror cannot close the final route with palm/high-stone-style Stuff"
+	)
+	await _dispose_fixture(fixture)
+
+
+func _make_fixture(level: LevelResource, include_stuff: bool = false) -> Dictionary:
 	var host := Node3D.new()
 	root.add_child(host)
 	var grid := GridManager.new()
@@ -132,6 +172,22 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	var tile := TileManager.new()
 	host.add_child(tile)
 	tile.set_grid(grid)
+	var terrain: TerrainManager = null
+	var stuff: StuffManager = null
+	if include_stuff:
+		terrain = TerrainManager.new()
+		host.add_child(terrain)
+		terrain.set_grid(grid)
+		stuff = StuffManager.new()
+		host.add_child(stuff)
+		stuff.configure(grid, terrain)
+		tile.legacy_content_runtime_enabled = false
+		tile.set_stuff_runtime_provider(stuff)
+		tile.set_surface_height_resolver(Callable(terrain, "get_world_height"))
+		tile.set_base_placement_resolvers(
+			Callable(terrain, "allows_tile_building"),
+			Callable(terrain, "allows_edge_building")
+		)
 	var resource := ResourceManager.new()
 	host.add_child(resource)
 	resource.apply_level_configuration(level)
@@ -150,12 +206,14 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 	host.add_child(mirror)
 	mirror.copy_mirror_definition = TestDefinitionFactory.make_copy_mirror_definition()
 	mirror.configure(grid, tile, resource, combat, building, registry)
+	if stuff != null:
+		mirror.set_stuff_manager(stuff)
 	building.set_projection_blocker_resolver(Callable(mirror, "resolve_projected_blocker"))
 	tile.set_navigation_overlay_resolver(Callable(mirror, "blocks_enemy_navigation"))
 	tile.set_navigation_overlay_blocker_resolver(Callable(mirror, "resolve_projected_navigation_blocker"))
 	var loader := LevelLoader.new()
 	host.add_child(loader)
-	loader.configure(grid, tile)
+	loader.configure(grid, tile, terrain, stuff)
 	_expect(loader.load_level(level, "memory://path-placement-connectivity"), "connectivity fixture level loads")
 	var guard: PathPlacementConnectivityGuard = GuardScript.new()
 	host.add_child(guard)
@@ -175,6 +233,8 @@ func _make_fixture(level: LevelResource) -> Dictionary:
 		"resource": resource,
 		"building": building,
 		"mirror": mirror,
+		"terrain": terrain,
+		"stuff": stuff,
 	}
 
 

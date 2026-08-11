@@ -215,7 +215,8 @@ static func _normalize_grid_cell_snapshot(
 		normalized_terrain,
 		source.layer_count,
 		source.allows_tile_building,
-		source.allows_edge_building
+		source.allows_edge_building,
+		source.edge_building_mask
 	)
 	return result
 

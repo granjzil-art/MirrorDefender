@@ -3,14 +3,24 @@ class_name LightingController
 extends Node3D
 
 signal profile_changed(profile: LightingProfile, profile_index: int)
+signal foliage_shadow_enabled_changed(enabled: bool)
+signal realistic_tree_shadow_enabled_changed(enabled: bool)
 
 const LightDefinitionScript := preload("res://scripts/lighting/LightDefinition.gd")
+const FoliageShadowControllerScript := preload("res://scripts/lighting/FoliageShadowController.gd")
+const RealisticTreeShadowControllerScript := preload("res://scripts/lighting/RealisticTreeShadowController.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
 @export_group("Testing")
 @export var test_shortcuts_enabled: bool = true
+
+@export_group("Foliage Shadow")
+@export var foliage_shadow_enabled: bool = true
+
+@export_group("Realistic Tree Shadow")
+@export var realistic_tree_shadow_enabled: bool = true
 
 var _world_environment: WorldEnvironment
 var _legacy_light: Light3D
@@ -23,6 +33,8 @@ var _active_profile_index: int = -1
 var _active_lights_root: Node3D
 var _fading_light_roots: Array[Node3D] = []
 var _reflection_probe: ReflectionProbe
+var _foliage_shadow: FoliageShadowControllerScript
+var _realistic_tree_shadow: RealisticTreeShadowControllerScript
 var _level_bounds: AABB = AABB(Vector3(-5.0, -1.0, -5.0), Vector3(10.0, 5.0, 10.0))
 var _profile_tween: Tween
 
@@ -34,7 +46,9 @@ func configure(
 	terrain_manager: TerrainManager,
 	case_definition: AcrylicDisplayCaseDefinition,
 	profiles: Array[LightingProfile],
-	visual_roots: Array[Node3D] = []
+	visual_roots: Array[Node3D] = [],
+	foliage_shadow_definition: FoliageShadowDefinition = null,
+	realistic_tree_shadow_definition: Resource = null
 ) -> void:
 	_world_environment = world_environment
 	_legacy_light = legacy_light
@@ -49,6 +63,20 @@ func configure(
 		_display_case.name = "AcrylicDisplayCase"
 		add_child(_display_case)
 	_display_case.configure(_grid, _terrain_manager, case_definition, visual_roots)
+	if foliage_shadow_definition != null:
+		if _foliage_shadow == null:
+			_foliage_shadow = FoliageShadowControllerScript.new()
+			_foliage_shadow.name = "FoliageShadowController"
+			add_child(_foliage_shadow)
+		_foliage_shadow.configure(foliage_shadow_definition)
+		_foliage_shadow.set_effect_enabled(foliage_shadow_enabled)
+	if realistic_tree_shadow_definition != null:
+		if _realistic_tree_shadow == null:
+			_realistic_tree_shadow = RealisticTreeShadowControllerScript.new()
+			_realistic_tree_shadow.name = "RealisticTreeShadowController"
+			add_child(_realistic_tree_shadow)
+		_realistic_tree_shadow.configure(_grid, _terrain_manager, realistic_tree_shadow_definition)
+		_realistic_tree_shadow.set_effect_enabled(realistic_tree_shadow_enabled)
 	if feature_enabled and not _profiles.is_empty():
 		apply_profile_by_index(0, 0.0)
 
@@ -59,6 +87,10 @@ func apply_level(_level_resource: LevelResource) -> bool:
 	if not _display_case.rebuild_for_level():
 		return false
 	_level_bounds = _display_case.get_content_bounds()
+	if _foliage_shadow != null:
+		_foliage_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
+	if _realistic_tree_shadow != null:
+		_realistic_tree_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
 	if _level_resource != null and _level_resource.lighting_profile != null:
 		_active_profile = _level_resource.lighting_profile
 		_active_profile_index = _profiles.find(_active_profile)
@@ -104,6 +136,40 @@ func get_reflection_probe() -> ReflectionProbe:
 	return _reflection_probe
 
 
+func get_foliage_shadow() -> FoliageShadowControllerScript:
+	return _foliage_shadow
+
+
+func get_realistic_tree_shadow() -> RealisticTreeShadowControllerScript:
+	return _realistic_tree_shadow
+
+
+func set_foliage_shadow_enabled(enabled: bool) -> void:
+	foliage_shadow_enabled = enabled
+	if _foliage_shadow == null:
+		foliage_shadow_enabled_changed.emit(false)
+		return
+	_foliage_shadow.set_effect_enabled(enabled)
+	foliage_shadow_enabled_changed.emit(_foliage_shadow.is_effect_enabled())
+
+
+func is_foliage_shadow_enabled() -> bool:
+	return _foliage_shadow != null and _foliage_shadow.is_effect_enabled()
+
+
+func set_realistic_tree_shadow_enabled(enabled: bool) -> void:
+	realistic_tree_shadow_enabled = enabled
+	if _realistic_tree_shadow == null:
+		realistic_tree_shadow_enabled_changed.emit(false)
+		return
+	_realistic_tree_shadow.set_effect_enabled(enabled)
+	realistic_tree_shadow_enabled_changed.emit(_realistic_tree_shadow.is_effect_enabled())
+
+
+func is_realistic_tree_shadow_enabled() -> bool:
+	return _realistic_tree_shadow != null and _realistic_tree_shadow.is_effect_enabled()
+
+
 func get_generated_light_count() -> int:
 	return _active_lights_root.get_child_count() if _active_lights_root != null else 0
 
@@ -116,6 +182,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var index := -1
 	match key_event.keycode:
+		KEY_6:
+			index = 3
 		KEY_7:
 			index = 0
 		KEY_8:

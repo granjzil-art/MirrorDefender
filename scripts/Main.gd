@@ -3,11 +3,11 @@
 ## 职责：装配 Level / Grid / Tile / Resource / Combat / Building / 相机与正式 HUD。
 ##
 ## 操作：
-##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放
+##   WASD 平移镜头 / QE 旋转镜头 / XC 调俯仰 / 滚轮缩放（选中建筑时旋转建筑）
 ##   鼠标悬停：高亮格；靠近边时高亮边（并显示 canonical_edge_id）
 ##   左键：执行正式卡槽当前模式（选择 / 单次放置）
 ##   右键：回到选择模式
-##   R    旋转选中建筑朝向
+##   滚轮/R 旋转建筑预览/已选建筑朝向（R 可按住连续旋转）
 ##   F    清除锁定的可破坏障碍
 ##   F1   打开/关闭调试控制台
 class_name MainController
@@ -52,16 +52,24 @@ const ReflectMirrorDefinitionResource := preload("res://resources/mirrors/Reflec
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
 const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tres")
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
+const MaceDefinitionResource := preload("res://resources/buildings/MaceTower.tres")
+const PulseLaserDefinitionResource := preload("res://resources/buildings/PulseLaserTower.tres")
 const AcrylicDisplayCaseDefinitionResource := preload("res://resources/lighting/AcrylicDisplayCase.tres")
 const WhiteSoftLightingProfile := preload("res://resources/lighting/WhiteSoft.tres")
 const WarmYellowLightingProfile := preload("res://resources/lighting/WarmYellow.tres")
 const CyanRedLightingProfile := preload("res://resources/lighting/CyanRedContrast.tres")
+const NightSpotlightLightingProfile := preload("res://resources/lighting/NightSpotlight.tres")
+const FoliageShadowDefinitionResource := preload("res://resources/lighting/FoliageShadowDefault.tres")
+const RealisticTreeShadowDefinitionResource := preload("res://resources/lighting/RealisticTreeShadow.tres")
 const MiniatureDofDefinitionResource := preload("res://resources/camera/MiniatureDofDefault.tres")
 
 @export_group("M6 Camera Presets")
 @export var camera_presets_enabled: bool = true
 @export_range(0.0, 5.0, 0.01, "or_greater") var camera_preset_transition_duration: float = 0.35
 @export var camera_preset_transition_curve: Curve
+
+@export_group("Mirror Placement Cooldown")
+@export_range(0.0, 1.0, 0.01) var mirror_preparation_cooldown_time_scale: float = 0.5
 
 @export_group("Miniature Depth Of Field")
 @export var miniature_dof_enabled: bool = true
@@ -74,6 +82,8 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 @export var lighting_enabled: bool = true
 @export var lighting_test_panel_enabled: bool = true
 @export var lighting_test_shortcuts_enabled: bool = true
+@export var foliage_shadow_enabled: bool = false
+@export var realistic_tree_shadow_enabled: bool = true
 
 @export_group("Building Rotation Repeat")
 @export_range(0.0, 2.0, 0.01, "or_greater") var selected_rotation_hold_delay: float = 0.3
@@ -194,11 +204,14 @@ func _ready() -> void:
 	lighting_controller.name = "LightingController"
 	lighting_controller.feature_enabled = lighting_enabled
 	lighting_controller.test_shortcuts_enabled = lighting_test_shortcuts_enabled
+	lighting_controller.foliage_shadow_enabled = foliage_shadow_enabled
+	lighting_controller.realistic_tree_shadow_enabled = realistic_tree_shadow_enabled
 	add_child(lighting_controller)
 	var lighting_profiles: Array[LightingProfile] = [
 		WhiteSoftLightingProfile,
 		WarmYellowLightingProfile,
 		CyanRedLightingProfile,
+		NightSpotlightLightingProfile,
 	]
 	var lighting_visual_roots: Array[Node3D] = [terrain_renderer, stuff_renderer]
 	lighting_controller.configure(
@@ -208,7 +221,9 @@ func _ready() -> void:
 		terrain_manager,
 		AcrylicDisplayCaseDefinitionResource,
 		lighting_profiles,
-		lighting_visual_roots
+		lighting_visual_roots,
+		FoliageShadowDefinitionResource,
+		RealisticTreeShadowDefinitionResource
 	)
 	if lighting_test_panel_enabled:
 		lighting_test_panel = LightingTestPanelScript.new()
@@ -220,6 +235,8 @@ func _ready() -> void:
 	level_reflection_surface.configure(grid, tile_manager, _camera, LevelReflectionDefinitionResource)
 	building_manager.barrier = BarrierDefinitionResource
 	building_manager.edge_barrier = EdgeBarrierDefinitionResource
+	building_manager.mace_tower = MaceDefinitionResource
+	building_manager.pulse_laser_tower = PulseLaserDefinitionResource
 	edge_occupancy_registry = EdgeOccupancyRegistryScript.new()
 	building_manager.set_edge_occupancy_registry(edge_occupancy_registry)
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
@@ -239,6 +256,25 @@ func _ready() -> void:
 	mirror_manager.set_tile_visual_snapshot_resolver(Callable(tile_renderer, "create_tile_content_visual_snapshot"))
 	mirror_manager.set_stuff_manager(stuff_manager)
 	mirror_manager.set_reflection_camera(_camera)
+	var acrylic_display_case := lighting_controller.get_display_case()
+	if acrylic_display_case != null:
+		mirror_manager.register_projectile_reflection_provider(
+			acrylic_display_case,
+			Callable(acrylic_display_case, "trace_projectile_reflection")
+		)
+	building_selection_visualizer.set_projectile_reflection_resolver(
+		Callable(mirror_manager, "trace_projectile_reflection")
+	)
+	building_selection_visualizer.set_projectile_blocker_resolver(
+		Callable(mirror_manager, "trace_ballistic_blocker")
+	)
+	building_selection_visualizer.set_projectile_copy_resolver(
+		Callable(mirror_manager, "get_projectile_trajectory_copy_payloads")
+	)
+	mirror_manager.projections_rebuilt.connect(_on_projectile_reflection_surfaces_rebuilt)
+	mirror_manager.building_preview_projections_rebuilt.connect(
+		_on_building_preview_projections_rebuilt
+	)
 	building_manager.building_selected.connect(_on_building_selected_for_exclusivity)
 	mirror_manager.mirror_selected.connect(_on_mirror_selected_for_exclusivity)
 	building_manager.set_projection_blocker_resolver(Callable(mirror_manager, "resolve_projected_blocker"))
@@ -358,6 +394,9 @@ func _ready() -> void:
 		Callable(tile_effect_system, "apply_stay"),
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
+	mirror_manager.set_cooldown_time_scale_resolver(
+		Callable(self, "_get_mirror_cooldown_time_scale")
+	)
 	runtime_path_display = RuntimePathDisplayScene.instantiate() as RuntimePathDisplayController
 	add_child(runtime_path_display)
 	runtime_path_display.configure(wave_manager, path_manager)
@@ -420,23 +459,70 @@ func _update_selected_rotation_repeat(unscaled_delta: float) -> void:
 		or runtime_stuff_editor.is_active()
 		or runtime_interaction == null
 		or runtime_interaction.is_mirror_mode()
-		or runtime_interaction.get_selected_definition() != null
 		or mirror_manager == null
 		or mirror_manager.get_selected_mirror() != null
 		or building_manager == null
 	):
 		_selected_rotation_repeat.release()
 		return
-	var selected_building := building_manager.get_selected_building()
-	if selected_building == null or not selected_building.can_rotate_in_place():
+	var rotation_target := _get_active_building_rotation_target()
+	if rotation_target == null or not rotation_target.can_rotate_in_place():
 		_selected_rotation_repeat.release()
 		return
 	var repeat_count := _selected_rotation_repeat.advance(unscaled_delta)
 	for _repeat_index in range(repeat_count):
-		if not building_manager.rotate_selected():
+		if not _rotate_active_building_target():
 			_selected_rotation_repeat.release()
 			return
 	return
+
+
+func _get_active_building_rotation_target() -> Building:
+	if building_manager == null:
+		return null
+	if runtime_interaction != null and runtime_interaction.get_selected_definition() != null:
+		return building_manager.get_preview_building()
+	return building_manager.get_selected_building()
+
+
+func _rotate_active_building_target(step: int = 1) -> bool:
+	var target := _get_active_building_rotation_target()
+	if target == null or not target.can_rotate_in_place():
+		return false
+	if runtime_interaction != null and runtime_interaction.get_selected_definition() != null:
+		return building_manager.rotate_preview(step)
+	return building_manager.rotate_selected(step)
+
+
+func _handle_building_rotation_wheel(event: InputEvent) -> bool:
+	var mouse_button := event as InputEventMouseButton
+	if mouse_button == null or not mouse_button.pressed:
+		return false
+	var step := 0
+	if mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP:
+		step = 1
+	elif mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		step = -1
+	else:
+		return false
+	if (
+		runtime_stuff_editor != null
+		and runtime_stuff_editor.is_active()
+	) or (
+		runtime_interaction != null
+		and runtime_interaction.is_mirror_mode()
+	) or (
+		mirror_manager != null
+		and mirror_manager.get_selected_mirror() != null
+	):
+		return false
+	var target := _get_active_building_rotation_target()
+	if target == null:
+		return false
+	# A selected edge building has a fixed physical orientation. Its wheel input
+	# still belongs to building rotation mode, so it must not leak into camera zoom.
+	_rotate_active_building_target(step)
+	return true
 
 
 ## Modal cancellation remains press-based. Non-modal world cancellation is
@@ -446,6 +532,12 @@ func _input(event: InputEvent) -> void:
 		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):
 			runtime_hud.close_top_modal()
 			get_viewport().set_input_as_handled()
+		return
+	if (
+		get_viewport().gui_get_hovered_control() == null
+		and _handle_building_rotation_wheel(event)
+	):
+		get_viewport().set_input_as_handled()
 		return
 
 func _update_pick() -> void:
@@ -637,7 +729,7 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
+	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放/选中建筑时旋转 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_released("rotate_facing"):
@@ -672,10 +764,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			mirror_manager.flip_preview()
 		elif mirror_manager.get_selected_mirror() != null:
 			mirror_manager.flip_selected()
-		elif runtime_interaction.get_selected_definition() != null:
-			building_manager.rotate_preview()
 		else:
-			if building_manager.rotate_selected():
+			if _rotate_active_building_target():
 				_selected_rotation_repeat.press()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_DELETE:
 		mirror_manager.remove_selected_mirror()
@@ -736,6 +826,22 @@ func _destroy_selected_obstacle() -> void:
 		return
 	tile_manager.destroy_obstacle_at(_selected_cell)
 
+
+## Keeps cooldown ownership in MirrorManager while Main translates wave phase semantics.
+func _get_mirror_cooldown_time_scale() -> float:
+	if wave_manager == null:
+		return 0.0
+	var state := wave_manager.get_state()
+	if state == WaveManager.State.READY:
+		return mirror_preparation_cooldown_time_scale
+	if state != WaveManager.State.ACTIVE:
+		return 0.0
+	if wave_manager.is_wave_action_active():
+		return 1.0
+	if not wave_manager.are_all_waves_released():
+		return mirror_preparation_cooldown_time_scale
+	return 0.0
+
 func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
 	if runtime_stuff_editor != null:
 		runtime_stuff_editor.abort_for_level_transition()
@@ -775,6 +881,16 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 func _on_effect_visual_state_changed(source_cell: Vector3i, fill_ratio: float) -> void:
 	tile_renderer.refresh_effect_visual(source_cell, fill_ratio)
 	mirror_manager.rebuild_now()
+
+
+func _on_projectile_reflection_surfaces_rebuilt(_projection_count: int) -> void:
+	if building_selection_visualizer != null:
+		building_selection_visualizer.refresh()
+
+
+func _on_building_preview_projections_rebuilt(_projection_count: int) -> void:
+	if building_selection_visualizer != null:
+		building_selection_visualizer.refresh()
 
 func _on_building_selected_for_exclusivity(building: Building) -> void:
 	if building != null and mirror_manager.get_selected_mirror() != null:

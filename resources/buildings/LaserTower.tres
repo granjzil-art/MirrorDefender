@@ -1,13 +1,16 @@
 [gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://cdehjwm442vgl"]
 
+[ext_resource type="Texture2D" uid="uid://bhfmnn75f16wb" path="res://assets/png/LaserTower_o.png" id="1_6brfg"]
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
 [ext_resource type="Script" uid="uid://b05t732bvub0h" path="res://scripts/building/BuildingLevelStats.gd" id="2_stats"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
+[ext_resource type="PackedScene" uid="uid://m25telmfkyb1" path="res://assets/buildings/LaserTower/lasertower.tscn" id="3_ryt5h"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_6brfg"]
 
 [sub_resource type="Resource" id="Inspection_laser"]
 script = ExtResource("3_inspection")
 display_name = "激光塔"
-function_description = "沿建筑当前朝向直线持续发射激光，对光路上的敌人造成持续伤害。"
+function_description = "持续激光从塔身逐段传播，会反射并有限穿透敌人，造成伤害与寒冷减速；高等级在当前传播终点周期爆发并冻结敌人。"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -15,50 +18,78 @@ show_economy = false
 show_projection_source = false
 show_producing_mirror = false
 
+[sub_resource type="Resource" id="Resource_ixmxi"]
+script = ExtResource("4_6brfg")
+scene = ExtResource("3_ryt5h")
+runtime_scale = Vector3(1.1, 1.1, 1.1)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
 cost = 200.0
-refund_amount = 60.0
-base_damage = 0.0
+base_damage = 15.0
 targeting_range = 6.0
 attack_range = 6.0
-laser_dps = 20.0
+laser_dps = 8.0
+projectile_penetration_count = 2
+model_asset = SubResource("Resource_ixmxi")
 tower_color = Color(0.16, 0.55, 0.88, 1)
 attack_color = Color(0.2, 0.95, 1, 1)
+
+[sub_resource type="Resource" id="Resource_pgv46"]
+script = ExtResource("4_6brfg")
+scene = ExtResource("3_ryt5h")
+runtime_scale = Vector3(1.2, 1.2, 1.2)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
 cost = 160.0
-refund_amount = 140.0
-base_damage = 0.0
 targeting_range = 7.0
 attack_range = 7.0
-laser_dps = 30.0
-level_factor = 1.2
+laser_dps = 10.0
+laser_beam_width = 0.09
+laser_beam_emission_energy = 3.4
+laser_propagation_speed = 4.5
+laser_burst_interval = 3.0
 projectile_speed = 8.0
 projectile_length = 0.36
 projectile_width = 0.08
+projectile_penetration_count = 3
+model_asset = SubResource("Resource_pgv46")
 tower_color = Color(0.12, 0.72, 0.92, 1)
 attack_color = Color(0.28, 1, 0.88, 1)
+
+[sub_resource type="Resource" id="Resource_150dq"]
+script = ExtResource("4_6brfg")
+scene = ExtResource("3_ryt5h")
+runtime_scale = Vector3(1.3, 1.3, 1.3)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
 cost = 220.0
-refund_amount = 250.0
-base_damage = 0.0
+base_damage = 25.0
 targeting_range = 8.0
 attack_range = 8.0
-laser_dps = 40.0
-level_factor = 1.5
+laser_dps = 12.0
+laser_beam_width = 0.1
+laser_beam_emission_energy = 3.8
+laser_propagation_speed = 5.0
+laser_burst_interval = 3.0
+laser_freeze_duration = 3.0
 projectile_speed = 9.0
 projectile_length = 0.42
 projectile_width = 0.09
+projectile_penetration_count = 4
+model_asset = SubResource("Resource_150dq")
 tower_color = Color(0.38, 0.32, 0.94, 1)
 attack_color = Color(0.64, 0.48, 1, 1)
 
 [resource]
 script = ExtResource("1_definition")
 kind = 1
-display_name = "激光塔"
+display_name = "冰冻塔"
+card_icon = ExtResource("1_6brfg")
 inspection_display = SubResource("Inspection_laser")
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])

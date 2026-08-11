@@ -16,6 +16,7 @@ const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryR
 const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEditorPanel.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
+@onready var card_style_toggle: Button = $CardStyleToggle
 @onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
 @onready var tile_inspector_panel: TileInspectorPanelScript = $TileInspectorPanel
 @onready var economy_panel: EconomyPanel = $EconomyPanel
@@ -49,6 +50,8 @@ func _ready() -> void:
 	wave_control_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
 	wave_control_panel.paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
 	debug_console.open_changed.connect(_on_debug_console_open_changed)
+	card_style_toggle.pressed.connect(_on_card_style_toggle_pressed)
+	_refresh_card_style_toggle()
 
 
 func configure(
@@ -63,21 +66,22 @@ func configure(
 	_disconnect_sources()
 	_interaction = interaction
 	_time_controller = time_controller
-	var cards: Array[BuildingDefinition] = []
-	for definition in [
+	var cards: Array[BuildingDefinition] = [
 		building_manager.arrow_tower,
 		building_manager.laser_tower,
-		building_manager.barrier,
+		building_manager.pulse_laser_tower,
 		building_manager.crossbow_tower,
-	]:
-		if definition is BuildingDefinition:
-			cards.append(definition)
+		building_manager.mace_tower,
+		null,
+		null,
+	]
 	build_card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
 		cards,
 		slot_count,
-		mirror_manager.reflect_mirror_definition
+		mirror_manager.reflect_mirror_definition,
+		mirror_manager
 	)
 	build_card_bar.building_card_selected.connect(_on_building_card_selected)
 	build_card_bar.mirror_card_selected.connect(_on_mirror_card_selected)
@@ -256,6 +260,31 @@ func _on_debug_console_open_changed(_open: bool) -> void:
 
 func _on_stuff_editor_active_changed(active: bool) -> void:
 	build_card_bar.visible = not active
+	card_style_toggle.visible = not active
+
+
+func _on_card_style_toggle_pressed() -> void:
+	var next_mode := (
+		BuildCardBarScript.CardVisualMode.FULL_ARTWORK
+		if build_card_bar.get_card_visual_mode() == BuildCardBarScript.CardVisualMode.PROCEDURAL_MIRROR
+		else BuildCardBarScript.CardVisualMode.PROCEDURAL_MIRROR
+	)
+	build_card_bar.set_card_visual_mode(next_mode)
+	_refresh_card_style_toggle()
+
+
+func _refresh_card_style_toggle() -> void:
+	if card_style_toggle == null or build_card_bar == null:
+		return
+	var uses_full_art := (
+		build_card_bar.get_card_visual_mode() == BuildCardBarScript.CardVisualMode.FULL_ARTWORK
+	)
+	card_style_toggle.text = "卡槽：原画卡面" if uses_full_art else "卡槽：程序镜面"
+	card_style_toggle.tooltip_text = (
+		"当前使用完整卡面素材；点击切换到程序镜面"
+		if uses_full_art
+		else "当前使用程序镜面；点击切换到完整卡面素材"
+	)
 
 
 func _sync_modal_state() -> void:

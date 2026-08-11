@@ -12,10 +12,10 @@
 - **建筑产出**：每个 `BuildingLevelStats.resource_per_second` 独立编辑；BuildingManager 在放置、升级、移除、清场后汇总所有建筑当前等级的产出。
 - **敌人死亡掉落**：WaveManager 只订阅 EnemyUnit 的死亡信号，以 EnemyDefinition.`reward` 调用 `grant_enemy_drop(amount)`；M3 靶标死亡不接资源，到达据点的敌人也不掉落。
 - **小数累计**：基础和建筑产出使用两个独立缓冲，累计到整数才调用 `gain()`，避免帧率差异和小数丢失。
-- **建筑/镜子上限**：`try_register_building/mirror()` 同时检查 cap 和余额并扣费；调用方不拆成非原子步骤。
+- **建筑/镜子上限**：`try_register_building()` 检查 cap、扣费并登记建筑；`try_register_mirror()` 只检查共享镜子 cap 并登记实体镜，镜子可用库存及周期累计由 MirrorManager 独立管理。
 - **初始陈列注册**：`try_register_initial_building/mirror()` 只检查 cap 并增加计数，不扣 `initial_resource`；仅供关卡静态初始陈列装配，玩家建造不得调用。
 - **升级消费**：BuildingManager 读取下一等级的 `cost`，调用 `spend()`；等级切换失败时通过 `upgrade_rollback` 全额退回。
-- **删除退款**：BuildingManager 删除选中建筑时读取当前 `BuildingLevelStats.refund_amount`，传给 `unregister_building(refund)`，使释放占格、减少计数、返还资源保持同一事务。
+- **拆除退款**：BuildingManager 删除选中建筑时通过 `BuildingDefinition.get_cumulative_cost(current_level)` 累加建造和历次升级费用，传给 `unregister_building(refund)` 100% 返还，使释放占格、减少计数、返还资源保持同一事务。
 - **屏障摧毁**：敌人将屏障耐久打到 0 时调用 `unregister_building(0)`，只释放建筑上限和产出，不获得主动删除退款。
 - **调试设置**：F1 `resource add/set` 只调用 ResourceManager 公共入口；`set_main_resource` 拒绝非有限数和负数，并以真实差值广播，经济 HUD 无需特殊刷新通道。
 
@@ -39,7 +39,7 @@
 | `mirror_cap` | 6 | 镜子数量上限，供 M5/M6 使用。 |
 | `base_resource_per_second` | 0.5 | 当前关卡的基础每秒产出。 |
 | BuildingLevelStats.`resource_per_second` | 0.0 | 单个建筑处于该等级时的每秒产出。 |
-| BuildingLevelStats.`refund_amount` | 塔种/等级定 | 删除处于该级建筑时的精确返还额。 |
+| BuildingDefinition.`get_cumulative_cost(level)` | 1..当前级 `cost` 之和 | 玩家主动拆除建筑时的无损返还额。 |
 
 ## 关键架构
 
@@ -67,7 +67,7 @@ BuildingManager.place / upgrade / remove / clear
   -> ResourceManager.set_building_resource_per_second(total)
 
 BuildingActionPanel delete -> BuildingManager.remove_selected_building
-  -> ResourceManager.unregister_building(current_level.refund_amount)
+  -> ResourceManager.unregister_building(definition.get_cumulative_cost(current_level))
 
 Barrier durability depleted -> BuildingManager.remove_building(cell, 0)
   -> ResourceManager.unregister_building(0), no refund
@@ -96,9 +96,11 @@ F1 resource add/set -> RuntimeDebugBindings
 | `spend` | `(cost: float, reason: String = "spend") -> bool` | 原子扣费并广播；失败不改余额。 |
 | `gain` | `(amount: float, reason: String = "gain") -> void` | 增加有限正数资源并广播；NaN/Infinity 不改变余额。 |
 | `set_main_resource` | `(value: float, reason: String = "set") -> bool` | 设置有限非负余额，以新旧差值广播；非法值返回 false 且不修改状态。 |
-| `try_register_building` / `try_register_mirror` | `(cost: float) -> bool` | 检查 cap、扣费并增加相应计数。 |
+| `try_register_building` | `(cost: float) -> bool` | 检查建筑 cap、扣费并增加建筑计数。 |
+| `try_register_mirror` | `() -> bool` | 检查镜子 cap 并增加实体镜计数，不改变主资源。 |
 | `try_register_initial_building` / `try_register_initial_mirror` | `() -> bool` | 免付费登记关卡初始实体并增加相应计数，仍严格遵守 cap。 |
-| `unregister_building` / `unregister_mirror` | `(refund: float = 0.0) -> void` | 安全减少计数并可选退款。 |
+| `unregister_building` | `(refund: float = 0.0) -> void` | 安全减少建筑计数并可选退款。 |
+| `unregister_mirror` | `() -> void` | 安全减少实体镜计数，不返还资源。 |
 | `set_building_resource_per_second` | `(value: float) -> void` | 设置所有当前建筑的有限逐秒产出总和；非有限值被拒绝。 |
 | `grant_enemy_drop` | `(amount: float) -> void` | 以 `enemy_drop` 原因入账；M4 敌人死亡调用。 |
 | `get_building_resource_per_second` | `() -> float` | 返回建筑产出总和。 |
@@ -110,11 +112,11 @@ F1 resource add/set -> RuntimeDebugBindings
 ## 约定事实源
 
 - LevelResource 是关卡初始经济与基础产出的事实源；ResourceManager 是当前局余额、计数和累计缓冲事实源。
-- 建筑当前级 `BuildingLevelStats.resource_per_second` 和 `refund_amount` 分别是单塔产出、删除退款的事实源；ResourceManager 不保存塔种固定数值表。
-- `refund_amount` 只用于玩家主动删除；战斗摧毁屏障固定传 0，不从配置退款。
+- 建筑当前级 `BuildingLevelStats.resource_per_second` 是单塔产出的事实源；主动拆除退款由 `BuildingDefinition` 对 1..当前级的 `cost` 动态求和，ResourceManager 不保存塔种固定数值表。
+- 累计费用退款只用于玩家主动拆除；战斗摧毁屏障固定传 0，不退款。
 - 敌人掉落数值属于 EnemyDefinition，不复用 M3 调试靶标的 reward 作为正式配置；WaveManager 的类型收窄是防止靶标误入账的唯一连接点。
 - `reason` 固定使用 `level_loaded`、`building_cost`、`building_upgrade`、`upgrade_rollback`、`base_income`、`building_income`、`enemy_drop` 等可追踪标识。
-- 实体复制镜通过 `try_register_mirror(copy_mirror_definition.cost)` 与 `unregister_mirror(refund)` 参与镜子上限和经济；虚像不注册建筑/镜子、不产出资源、不计任何 cap。
+- 实体复制镜和反射镜通过 `try_register_mirror()` 与 `unregister_mirror()` 参与共享镜子上限；两者均不改变主资源，可用库存、周期累计和主动拆除返还由 MirrorManager 处理。虚像不注册建筑/镜子、不产出资源、不计任何 cap。
 - 所有公开交易入口拒绝 NaN/Infinity，防止一次非法配置永久污染余额或被动产出缓冲。
 
 ## 已知限制 / 初版不做的部分

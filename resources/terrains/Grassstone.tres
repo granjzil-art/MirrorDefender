@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://urrj4qiugwb7"]
+
+[ext_resource type="PackedScene" uid="uid://btj74c6pv8vgt" path="res://assets/blocks/tscn/grass_stone.tscn" id="1_nfo6c"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_fja4q"]
+[ext_resource type="PackedScene" uid="uid://dfg1nktp42hui" path="res://assets/Ramp/ramp/stone_ramp.tscn" id="3_mh17p"]
+[ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="4_qetfk"]
+
+[sub_resource type="Resource" id="Resource_6vjfg"]
+script = ExtResource("2_fja4q")
+scene = ExtResource("1_nfo6c")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[sub_resource type="Resource" id="Resource_khjk6"]
+script = ExtResource("2_fja4q")
+scene = ExtResource("3_mh17p")
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
+
+[resource]
+script = ExtResource("4_qetfk")
+terrain_id = &"GrassStone"
+display_name = "青石"
+fallback_color = Color(0.36, 0.22, 0.12, 1)
+flat_model_asset = SubResource("Resource_6vjfg")
+ramp_1_to_1_model_asset = SubResource("Resource_khjk6")

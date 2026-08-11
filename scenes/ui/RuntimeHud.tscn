@@ -13,6 +13,42 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/DebugOverlayPanel.tscn" id="11_debug_overlay"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RuntimeStuffEditorPanel.tscn" id="12_stuff_editor"]
 
+[sub_resource type="StyleBoxFlat" id="Style_card_toggle_normal"]
+bg_color = Color(0.035, 0.09, 0.12, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.48, 0.62, 0.68, 0.9)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="Style_card_toggle_hover"]
+bg_color = Color(0.06, 0.16, 0.21, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.68, 0.88, 0.94, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="Style_card_toggle_pressed"]
+bg_color = Color(0.11, 0.16, 0.18, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.73, 0.18, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [node name="RuntimeHud" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -22,6 +58,25 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_runtime_hud")
+
+[node name="CardStyleToggle" type="Button" parent="."]
+z_index = 70
+layout_mode = 1
+offset_left = 18.0
+offset_top = 68.0
+offset_right = 198.0
+offset_bottom = 106.0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.9, 0.96, 0.98, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.83, 0.4, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("Style_card_toggle_normal")
+theme_override_styles/hover = SubResource("Style_card_toggle_hover")
+theme_override_styles/pressed = SubResource("Style_card_toggle_pressed")
+text = "卡槽：程序镜面"
+tooltip_text = "切换程序镜面与完整卡面素材"
 
 [node name="BuildCardBar" type="Control" parent="."]
 layout_mode = 1

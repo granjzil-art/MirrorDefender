@@ -85,7 +85,8 @@ func select_building_card(definition: BuildingDefinition) -> bool:
 		if definition.is_edge_building()
 		else Mode.PLACE_BLOCK_BUILDING
 	)
-	status_changed.emit("选择 %s：左键放置，右键取消" % definition.display_name)
+	var rotation_hint := "" if definition.is_edge_building() else "，滚轮旋转（也可按住 R）"
+	status_changed.emit("选择 %s：左键放置%s，右键取消" % [definition.display_name, rotation_hint])
 	return true
 
 

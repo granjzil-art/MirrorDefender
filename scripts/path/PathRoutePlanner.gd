@@ -222,14 +222,20 @@ func _calculate_detour(
 		return result
 	if automatic_route_enabled and _auto_route_strategy != null:
 		var allowed_cells := _build_target_path_network(target_base.base_id)
-		var automatic_cells := _auto_route_strategy.find_route(
-			_grid,
-			_tile_manager,
-			current_cell,
-			target_base.cell,
-			allowed_cells,
-			target
-		)
+		var automatic_cells: Array[Vector3i] = []
+		for goal_cell in target_base.get_footprint_cells():
+			var candidate_cells := _auto_route_strategy.find_route(
+				_grid,
+				_tile_manager,
+				current_cell,
+				goal_cell,
+				allowed_cells,
+				target
+			)
+			if candidate_cells.size() < 2:
+				continue
+			if automatic_cells.is_empty() or candidate_cells.size() < automatic_cells.size():
+				automatic_cells = candidate_cells
 		if automatic_cells.size() >= 2:
 			result["found"] = true
 			result["path"] = current_path
@@ -275,6 +281,10 @@ func _build_target_path_network(target_base_id: StringName) -> Dictionary:
 			continue
 		for cell in path.cells:
 			cells[cell] = true
+	var target_base := _level.get_base_point(target_base_id)
+	if target_base != null:
+		for footprint_cell in target_base.get_footprint_cells():
+			cells[footprint_cell] = true
 	return cells
 
 func _connector_cost(current_cell: Vector3i, join_cell: Vector3i) -> int:

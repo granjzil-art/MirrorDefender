@@ -4,6 +4,7 @@ extends CombatTarget
 
 const EnemyAttackStrategyScript := preload("res://scripts/combat/EnemyAttackStrategy.gd")
 const EnemyProjectileScript := preload("res://scripts/combat/EnemyProjectile.gd")
+const EnemyHealthBarScript := preload("res://scripts/ui/EnemyHealthBar3D.gd")
 const ATTACK_RANGE_EPSILON_RATIO := 0.001
 const PATH_PROGRESS_EPSILON := 0.0001
 
@@ -32,6 +33,7 @@ var _cell_world_resolver: Callable
 var _tile_enter_resolver: Callable
 var _tile_stay_resolver: Callable
 var _navigation_blocker_resolver: Callable
+var _projectile_blocker_resolver: Callable
 var _tile_effects_initialized: bool = false
 var _waiting_blocked_cell: Vector3i = Vector3i.ZERO
 var _is_waiting_for_route: bool = false
@@ -41,18 +43,39 @@ var _attack_strategy: EnemyAttackStrategy
 var _attack_damage: float = 0.0
 var _attacks_per_second: float = 1.0
 var _attack_range_world: float = 0.65
+var _enemy_health_bar: Node3D
 
 func _ready() -> void:
 	super._ready()
+	if _health_label != null:
+		_health_label.queue_free()
+		_health_label = null
+	_enemy_health_bar = EnemyHealthBarScript.new()
+	_enemy_health_bar.name = &"EnemyHealthBar3D"
+	_enemy_health_bar.configure(max_hp, current_hp, debug_height + 0.34)
+	add_child(_enemy_health_bar)
+	health_changed.connect(_on_enemy_health_changed)
 
 func _process(delta: float) -> void:
+	var simulation_delta := maxf(0.0, delta)
+	var frozen_duration := minf(get_freeze_remaining(), simulation_delta)
+	super._process(simulation_delta)
 	if not feature_enabled or not is_alive() or _reached_base or _path_points.is_empty():
 		return
 	_initialize_tile_effects()
 	if not is_alive():
 		return
+	if frozen_duration > 0.0:
+		_leave_attack_state()
+		_apply_current_tile_stay(frozen_duration)
+		if not is_alive():
+			return
+		simulation_delta = maxf(0.0, simulation_delta - frozen_duration)
+		if simulation_delta <= 0.0:
+			return
+	var effective_move_speed := get_effective_move_speed()
 	if _path_points.size() < 2:
-		_apply_current_tile_stay(delta)
+		_apply_current_tile_stay(simulation_delta)
 		return
 	var blocker_info := _find_first_path_blocker()
 	if blocker_info.is_empty():
@@ -63,23 +86,25 @@ func _process(delta: float) -> void:
 		if _is_within_attack_range(blocker_position):
 			_enter_attack_state(blocker)
 			_face_target(blocker_position)
-			_apply_current_tile_stay(delta)
+			_apply_current_tile_stay(simulation_delta)
 			if not is_alive():
 				return
-			_attack_strategy.tick(self, delta)
+			_attack_strategy.tick(self, simulation_delta)
 			return
 		_leave_attack_state()
 		var movement_limit := _get_path_distance_until_attack_range(blocker_info)
-		var movement_duration := _move_along_path(minf(move_speed * maxf(0.0, delta), movement_limit))
-		_apply_current_tile_stay(maxf(0.0, delta - movement_duration))
+		var movement_duration := _move_along_path(
+			minf(effective_move_speed * simulation_delta, movement_limit)
+		)
+		_apply_current_tile_stay(maxf(0.0, simulation_delta - movement_duration))
 		if is_alive() and is_instance_valid(blocker) and _is_within_attack_range(_get_blocker_position(blocker)):
 			_enter_attack_state(blocker)
 			_face_target(_get_blocker_position(blocker))
 			_attack_strategy.tick(self, 0.0)
 		return
 	_leave_attack_state()
-	var movement_duration := _move_along_path(move_speed * maxf(0.0, delta))
-	_apply_current_tile_stay(maxf(0.0, delta - movement_duration))
+	var movement_duration := _move_along_path(effective_move_speed * simulation_delta)
+	_apply_current_tile_stay(maxf(0.0, simulation_delta - movement_duration))
 
 func configure_unit(
 	enemy_definition: EnemyDefinition,
@@ -92,7 +117,8 @@ func configure_unit(
 	cell_world_resolver: Callable = Callable(),
 	tile_enter_resolver: Callable = Callable(),
 	tile_stay_resolver: Callable = Callable(),
-	navigation_blocker_resolver: Callable = Callable()
+	navigation_blocker_resolver: Callable = Callable(),
+	projectile_blocker_resolver: Callable = Callable()
 ) -> void:
 	definition = enemy_definition
 	_path_points.clear()
@@ -108,6 +134,7 @@ func configure_unit(
 	_tile_enter_resolver = tile_enter_resolver
 	_tile_stay_resolver = tile_stay_resolver
 	_navigation_blocker_resolver = navigation_blocker_resolver
+	_projectile_blocker_resolver = projectile_blocker_resolver
 	_tile_effects_initialized = false
 	_is_waiting_for_route = false
 	_reroute_attack_target = null
@@ -134,12 +161,19 @@ func configure_unit(
 	if not _path_points.is_empty():
 		# Configured before add_child() so CombatTarget._ready() uses definition visuals.
 		position = _path_points[0]
+	if _enemy_health_bar != null:
+		_enemy_health_bar.configure(max_hp, current_hp, debug_height + 0.34)
 
 func take_damage(amount: float) -> float:
 	return super.take_damage(maxf(0.0, amount - armor))
 
 func take_damage_over_time(damage_per_second: float, duration: float) -> float:
 	return super.take_damage_over_time(maxf(0.0, damage_per_second - armor), duration)
+
+
+func get_target_marker_position() -> Vector3:
+	return global_position - Vector3.UP * _flight_height + Vector3.UP * 0.025
+
 
 func is_attacking() -> bool:
 	return _attack_target != null and is_instance_valid(_attack_target) and _is_blocker_alive(_attack_target) and _is_within_attack_range(_get_blocker_position(_attack_target))
@@ -180,7 +214,7 @@ func _move_along_path(remaining_distance: float) -> float:
 				break
 			continue
 		var traveled_distance := minf(distance_to_destination, remaining_distance)
-		var traveled_duration := traveled_distance / maxf(0.0001, move_speed)
+		var traveled_duration := traveled_distance / maxf(0.0001, get_effective_move_speed())
 		_apply_current_tile_stay(traveled_duration)
 		movement_duration += traveled_duration
 		if not is_alive():
@@ -472,7 +506,8 @@ func _launch_projectile(target: Node) -> EnemyProjectile:
 		definition.projectile_length * _grid_cell_size,
 		definition.projectile_width * _grid_cell_size,
 		definition.attack_color,
-		definition.projectile_model_asset
+		definition.projectile_model_asset,
+		_projectile_blocker_resolver
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile_spawned.emit(self, projectile)
@@ -492,6 +527,14 @@ func _face_direction(direction: Vector3) -> void:
 
 func _on_projectile_impacted(target: Node, applied_damage: float) -> void:
 	attack_performed.emit(self, target, applied_damage, true)
+
+func _on_enemy_health_changed(
+	_target: CombatTarget,
+	new_current_hp: float,
+	new_maximum_hp: float
+) -> void:
+	if _enemy_health_bar != null:
+		_enemy_health_bar.update_health(new_current_hp, new_maximum_hp)
 
 func _reach_base() -> void:
 	if _reached_base:

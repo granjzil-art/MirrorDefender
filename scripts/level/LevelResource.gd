@@ -67,6 +67,12 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export_group("Presentation")
 ## Optional per-level lighting. Runtime falls back to the project's first test profile.
 @export var lighting_profile: LightingProfileScript
+## Default grounded model for every base point in this level. A point-level
+## model_asset overrides this value.
+@export var base_model_asset: ModelAssetDefinition
+## Default grounded model for every enemy spawn point in this level. A
+## point-level model_asset overrides this value.
+@export var spawn_point_model_asset: ModelAssetDefinition
 
 @export_group("Editor Terrain Colors")
 @export var height_color_low: Color = Color(0.18, 0.60, 0.31, 1.0)
@@ -235,6 +241,13 @@ func get_base_point(base_id: StringName) -> BasePointDefinitionScript:
 	return null
 
 
+func get_base_point_at_cell(cell: Vector3i) -> BasePointDefinitionScript:
+	for base_point in get_effective_base_points():
+		if base_point != null and base_point.contains_cell(cell):
+			return base_point
+	return null
+
+
 ## Returns authored bases, or one transient compatibility base backed by
 ## base_cell. The fallback is cached per LevelResource and never serialized.
 func get_effective_base_points() -> Array[BasePointDefinitionScript]:
@@ -265,7 +278,7 @@ func resolve_path_target_base(path: PathDefinition) -> BasePointDefinitionScript
 		return path.target_base
 	var candidates: Array[BasePointDefinitionScript] = []
 	for base_point in get_effective_base_points():
-		if base_point != null and not path.cells.is_empty() and base_point.cell == path.get_end_cell():
+		if base_point != null and not path.cells.is_empty() and base_point.contains_cell(path.get_end_cell()):
 			candidates.append(base_point)
 	return candidates[0] if candidates.size() == 1 else null
 
@@ -306,6 +319,16 @@ func get_spawn_marker_label(spawn_point: SpawnPointDefinition) -> String:
 
 func get_base_marker_label(base_point: BasePointDefinitionScript) -> String:
 	return base_point.get_marker_label(get_base_display_number(base_point)) if base_point != null else "未配置据点"
+
+
+func get_base_point_model_asset(base_point: BasePointDefinitionScript) -> ModelAssetDefinition:
+	var point_asset := base_point.get_model_asset() if base_point != null else null
+	return point_asset if point_asset != null else base_model_asset
+
+
+func get_spawn_point_model_asset(spawn_point: SpawnPointDefinition) -> ModelAssetDefinition:
+	var point_asset := spawn_point.get_model_asset() if spawn_point != null else null
+	return point_asset if point_asset != null else spawn_point_model_asset
 
 ## Collects every plausible pair without mutating legacy data. More than one
 ## result is intentionally treated as ambiguous by get_spawn_point_for_path().
@@ -449,6 +472,10 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		ConfigValidator.append_prefixed(errors, "关卡地块模型", tile_model_asset.validate_configuration())
 	if lighting_profile != null:
 		ConfigValidator.append_prefixed(errors, "关卡灯光", lighting_profile.validate_configuration())
+	if base_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "关卡默认据点模型", base_model_asset.validate_configuration())
+	if spawn_point_model_asset != null:
+		ConfigValidator.append_prefixed(errors, "关卡默认出生点模型", spawn_point_model_asset.validate_configuration())
 
 func _validate_m4_content(errors: Array[String]) -> void:
 	if grid_shape != 0 and grid_shape != 1 or not is_finite(grid_cell_size) or grid_cell_size <= 0.0:
@@ -459,6 +486,25 @@ func _validate_m4_content(errors: Array[String]) -> void:
 	var base_ids: Dictionary = {}
 	var base_numbers: Dictionary = {}
 	var base_cells: Dictionary = {}
+	var snapshot := get_effective_content_snapshot()
+	var grid_cells_by_coordinate: Dictionary = {}
+	for raw_grid_cell in snapshot.get("grid_cells", []):
+		if raw_grid_cell is GridCellDataScript:
+			grid_cells_by_coordinate[raw_grid_cell.cell] = raw_grid_cell
+	var ramp_cells: Dictionary = {}
+	for raw_ramp in snapshot.get("ramp_placements", []):
+		if not raw_ramp is RampPlacementDataScript:
+			continue
+		for ramp_cell in raw_ramp.get_footprint_cells(shape):
+			ramp_cells[ramp_cell] = raw_ramp
+	var stuff_cells: Dictionary = {}
+	for raw_stuff in snapshot.get("stuff_placements", []):
+		if raw_stuff is StuffPlacementDataScript:
+			stuff_cells[raw_stuff.cell] = true
+	var initial_tile_building_cells: Dictionary = {}
+	for initial_building in initial_building_placements:
+		if initial_building != null and not initial_building.is_edge_placement():
+			initial_tile_building_cells[initial_building.cell] = true
 	for base_point in effective_bases:
 		if base_point == null:
 			errors.append("存在空据点")
@@ -470,11 +516,35 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		if base_number < 1 or base_numbers.has(base_number):
 			errors.append("据点编号无效或重复：%d" % base_number)
 		base_numbers[base_number] = true
-		if base_cells.has(base_point.cell):
-			errors.append("多个据点位于同一格：%s" % str(base_point.cell))
-		base_cells[base_point.cell] = true
-		if not _is_valid_cell_coordinate(base_point.cell) or not shape.is_in_bounds(base_point.cell, grid_size):
-			errors.append("据点 %s 位于地图外" % base_point.display_name)
+		if base_point.uses_multi_cell_footprint() and grid_shape != 1:
+			errors.append("据点 %s 的3×2占地只支持正方形关卡" % base_point.display_name)
+		var footprint := base_point.get_footprint_cells()
+		var footprint_layer: int = -1
+		for footprint_cell in footprint:
+			if base_cells.has(footprint_cell):
+				var other_base: BasePointDefinitionScript = base_cells[footprint_cell]
+				errors.append("据点 %s 与 %s 占地重叠：%s" % [
+					base_point.display_name,
+					other_base.display_name,
+					str(footprint_cell),
+				])
+			else:
+				base_cells[footprint_cell] = base_point
+			if not _is_valid_cell_coordinate(footprint_cell) or not shape.is_in_bounds(footprint_cell, grid_size):
+				errors.append("据点 %s 的占地 %s 位于地图外" % [base_point.display_name, str(footprint_cell)])
+				continue
+			var grid_cell: GridCellDataScript = grid_cells_by_coordinate.get(footprint_cell) as GridCellDataScript
+			var layer_count := grid_cell.layer_count if grid_cell != null else 1
+			if footprint_layer < 0:
+				footprint_layer = layer_count
+			elif layer_count != footprint_layer:
+				errors.append("据点 %s 的六格必须处于同一层高" % base_point.display_name)
+			if ramp_cells.has(footprint_cell):
+				errors.append("据点 %s 的占地 %s 不能包含斜坡" % [base_point.display_name, str(footprint_cell)])
+			if stuff_cells.has(footprint_cell):
+				errors.append("据点 %s 的占地 %s 不能包含关卡元素" % [base_point.display_name, str(footprint_cell)])
+			if initial_tile_building_cells.has(footprint_cell):
+				errors.append("据点 %s 的占地 %s 不能包含初始块建筑" % [base_point.display_name, str(footprint_cell)])
 		ConfigValidator.append_prefixed(
 			errors,
 			"据点 %s" % base_point.display_name,
@@ -503,12 +573,12 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		else:
 			if path_spawn != null and path.get_start_cell() != path_spawn.cell:
 				errors.append("路径 %s 的起点 %s 不是出生点 %s" % [path.display_name, str(path.get_start_cell()), str(path_spawn.cell)])
-			if path_base != null and path.get_end_cell() != path_base.cell:
-				errors.append("路径 %s 的终点 %s 不是目标据点 %s" % [path.display_name, str(path.get_end_cell()), str(path_base.cell)])
+			if path_base != null and not path_base.contains_cell(path.get_end_cell()):
+				errors.append("路径 %s 的终点 %s 不属于目标据点占地" % [path.display_name, str(path.get_end_cell())])
 			for index in range(path.cells.size() - 1):
 				var route_cell: Vector3i = path.cells[index]
-				if base_cells.has(route_cell) and (path_base == null or route_cell != path_base.cell):
-					errors.append("路径 %s 在终点前经过了其他据点 %s" % [path.display_name, str(route_cell)])
+				if base_cells.has(route_cell):
+					errors.append("路径 %s 在终点前进入了据点占地 %s" % [path.display_name, str(route_cell)])
 					break
 		for index in range(path.cells.size()):
 			var cell := path.cells[index]

@@ -438,7 +438,24 @@ func _draw_m4_overlay() -> void:
 	for base_point in _overlay_base_points:
 		if base_point == null:
 			continue
-		var base_center := _cell_center_screen(base_point.cell)
+		var footprint: Array[Vector3i] = base_point.get_footprint_cells()
+		var base_center := Vector2.ZERO
+		var visible_cell_count := 0
+		for footprint_cell in footprint:
+			if not _shape.is_in_bounds(footprint_cell, level.grid_size):
+				continue
+			var footprint_polygon := _top_polygon(footprint_cell)
+			if not footprint_polygon.is_empty():
+				draw_colored_polygon(footprint_polygon, Color(BASE_COLOR, 0.20))
+				var footprint_outline := PackedVector2Array(footprint_polygon)
+				footprint_outline.append(footprint_polygon[0])
+				draw_polyline(footprint_outline, Color(BASE_COLOR, 0.90), 2.0, true)
+			base_center += _cell_center_screen(footprint_cell)
+			visible_cell_count += 1
+		if visible_cell_count > 0:
+			base_center /= float(visible_cell_count)
+		else:
+			base_center = _cell_center_screen(base_point.cell)
 		draw_circle(base_center, clampf(_view_zoom * 0.16, 8.0, 17.0), BASE_COLOR)
 		_draw_marker_number(base_center, level.get_base_display_number(base_point), BASE_COLOR)
 

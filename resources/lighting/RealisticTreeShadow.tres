@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RealisticTreeShadowDefinition" format=3 uid="uid://c2jkjyn0qqww7"]
+
+[ext_resource type="Script" uid="uid://d1lbtv3k6j2s3" path="res://scripts/lighting/RealisticTreeShadowDefinition.gd" id="1_definition"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_model_asset"]
+[ext_resource type="PackedScene" uid="uid://dqxqxab42btx8" path="res://assets/greattree/realistic_tree_gltf/sketchfab_scene.tscn" id="3_tree_scene"]
+
+[sub_resource type="Resource" id="ModelAsset_tree"]
+script = ExtResource("2_model_asset")
+scene = ExtResource("3_tree_scene")
+
+[resource]
+script = ExtResource("1_definition")
+model_asset = SubResource("ModelAsset_tree")
+position_normalized = Vector2(1, 1)
+target_height_cells = 30.0
+cast_shadow = false
+leaf_shadow_strength = 2.0
+leaf_shadow_breakup_scale = 20.0
+leaf_shadow_gap_threshold = 0.8
+leaf_shadow_pattern_seed = 11.7

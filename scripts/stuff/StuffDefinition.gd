@@ -54,6 +54,7 @@ enum DurabilityMode {
 @export var exclusive_with_other_stuff: bool = true
 @export var blocks_tile_building: bool = true
 @export var blocks_edge_building: bool = false
+@export var blocks_ballistics: bool = false
 
 @export_group("Navigation")
 @export_enum("兼容旧效果", "不堵路", "堵路") var enemy_navigation: int = EnemyNavigation.FOLLOW_EFFECT

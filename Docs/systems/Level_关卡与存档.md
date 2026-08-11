@@ -1,6 +1,8 @@
 # 关卡与存档 · Level
 
 > 实现状态：已实现 LevelResource、编辑器/运行时原子加载、六机位、持久 AppFlow 与基础六槽分页选关。尚未实现关卡解锁、星级、通关进度、选关状态存档、局内读档或云存档。
+>
+> 正式内容范围（2026-08-10 起）：唯一正式关卡目录是 `res://resources/levels/`，目录内全部关卡均要求随新系统持续迁移、校验和验收；目录外关卡资源全部废弃，不作为后续功能兼容目标。正式产品只维护 SQUARE，HEX 已废弃。
 
 ## 职责
 
@@ -13,6 +15,8 @@
 ## 分类 / 做法
 
 - **LevelResource**：统一保存关卡静态配置。`validate_runtime()` 只读校验网格、地块、初始建筑/镜子结构与占用、经济、据点、路径、出生点、波次、敌人、HUD 卡槽、镜头预设和可选 `lighting_profile`，不保存、不修复资源。
+- **作者数据事实源**：Terrain 编辑器与运行时加载统一读取 `terrain_content_version >= 2` 的 `default_terrain`、`grid_cells`、`ramp_placements` 和 `stuff_placements`。旧 `tiles` 只作为历史资源的单向迁移输入，迁移后的 `.tres` 不再允许两套数组并行编辑。
+- **编辑器资源同步**：地块页修改会延迟保存完整 `LevelResource`；直接保存当前 `.tres` 后，地块编辑器按文件变化刷新全部分页。外部变化与本地脏数据同时存在时保留本地编辑并提示冲突，不静默覆盖。
 - **初始陈列**：`initial_building_placements` 保存真实建筑 Definition、格/边、逻辑朝向和等级；`initial_mirror_placements` 保存镜子种类（复制/投射物反射）、真实边与生效侧。Main 成功加载关卡后先恢复建筑、再按数组顺序恢复镜子；初始对象不扣资源但计入共享镜子 cap。
 - **运行时原子加载**：`LevelLoader.load_level()` 在改动 Grid/Tile 前完成预检；TileManager 若意外拒绝，恢复旧 Grid，并保留旧 Tile/current level。成功后才广播 `level_loaded`，由 Main 重建其余 Manager。
 - **正式目录**：`LevelSelectCatalog.pages` 是页面作者顺序；每项是 `LevelSelectPageDefinition`。目录校验只报告空页、重复页、跨页重复关卡和页面错误，不改写数组。
@@ -26,7 +30,7 @@
 - **局内重启**：右侧按钮或暂停菜单只发高层请求；Main 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新深加载 `.tres`，内存关卡深复制后再走同一加载事务。
 - **退出当前关卡**：右侧叉号和暂停菜单退出按钮语义一致。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。不会调用 SceneTree 退出。
 - **调试入口**：Main 内 `LevelDebugPanel` 与 F1 `load` 继续复用 LevelLoader，但不修改正式 Catalog，也不代表正式解锁/选关流程。
-- **当前上架范围**：默认 `LevelSelectCatalog.tres` 只有一页；`LevelSelectPage01.tres` 第一槽显式引用 `M4DemoLevel.tres`，其余五槽为空。Demo/Test/测试夹具不会因位于 `resources/levels` 或 `tests` 而自动上架。
+- **当前上架范围**：`LevelSelectPage01.tres` 前两槽显式引用正式目录中的 `Level1.tres`、`Level2.tres`；其它页面当前为空。正式维护范围由 `res://resources/levels/` 决定，但选关顺序仍由 Catalog/Page 显式配置，不依赖目录扫描。
 
 ## 关键参数
 
@@ -38,13 +42,16 @@
 | LevelResource.`grid_size` | `(6,6)` | HEX 取 x 为半径；SQUARE 取列/行。 |
 | LevelResource.`height_levels/height_step` | `3 / 0.45` | 离散高度档数与世界高度步长。 |
 | LevelResource.`tiles` | `[]` | 按每项 `cell` 唯一的序列化地块数组。 |
+| LevelResource.`terrain_content_version` | `0/2` | 0/1 表示旧 Tile 兼容数据；2 表示规范 Terrain/Grid/Ramp/Stuff 数组。 |
+| LevelResource.`default_terrain/grid_cells` | Grass / `[]` | 规范地形默认值与逐格 Terrain、层数和 Grid 建造权限。 |
+| LevelResource.`ramp_placements/stuff_placements` | `[] / []` | 规范斜坡形状与独立关卡元素；是编辑器和运行时的唯一作者数据。 |
 | LevelResource.`initial_resource` | 200 | 切入关卡时主资源。 |
 | LevelResource.`building_cap/mirror_cap` | `20 / 6` | 实体建筑与实体镜子上限。 |
 | LevelResource.`initial_building_placements` | `[]` | 开局真实建筑的 Definition、格/边、逻辑朝向和等级。 |
 | LevelResource.`initial_mirror_placements` | `[]` | 开局实体镜子的 `mirror_kind`、边与生效侧；数组顺序同时保持复制镜链装配顺序。 |
 | LevelResource.`base_resource_per_second` | 0.5 | 关卡基础每秒资源。 |
-| LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；复制镜独立。 |
-| LevelResource.`base_points/base_max_hp` | `[] / 100` | 多个据点位置共享一份生命。 |
+| LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；Level1 显式配置为5，Level2 显式配置为6；复制镜与反射镜独立。 |
+| LevelResource.`base_points/base_max_hp` | `[] / 100` | 多个据点位置共享一份生命；正式据点是有朝向的3×2占地。 |
 | LevelResource.`base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 空时只读映射为据点 1。 |
 | LevelResource.`paths/spawn_points/waves` | `[]` | 本关路径、独立出生点和作者顺序波次。 |
 | LevelResource.`camera_presets` | `[]` | 最多六个可空机位；索引 0～5 对应数字键 1～6。 |
@@ -84,8 +91,9 @@
 | `scenes/ui/LevelSelectView.tscn` | 无 class_name / `Control` 场景 | 全屏选关、三列 Grid、页名/页码与左右按钮。 |
 | `scenes/Main.tscn` | 无 class_name / `Node3D` 场景 | 单局运行时；包含 LevelLoader 与 RuntimeHud。 |
 | `resources/level_select/LevelSelectCatalog.tres` | `LevelSelectCatalog` / `Resource` | 默认正式目录。 |
-| `resources/level_select/LevelSelectPage01.tres` | `LevelSelectPageDefinition` / `Resource` | 默认第一页：M4DemoLevel + 五个空槽。 |
-| `resources/levels/M4DemoLevel.tres` | `LevelResource` / `Resource` | 当前默认目录唯一上架正式关卡。 |
+| `resources/level_select/LevelSelectPage01.tres` | `LevelSelectPageDefinition` / `Resource` | 默认第一页：Level1、Level2 + 四个空槽。 |
+| `resources/levels/Level1.tres` | `LevelResource` / `Resource` | 正式关卡目录中的第一关，必须持续迁移和验收。 |
+| `resources/levels/Level2.tres` | `LevelResource` / `Resource` | 正式关卡目录中的第二关，必须持续迁移和验收。 |
 | `addons/mirror_tile_editor/tile_editor_panel.gd` | 无 class_name / `Control` | 地块、路径、波次、镜头四页编辑和保存。 |
 | `addons/mirror_tile_editor/camera_preset_editor.gd` | `CameraPresetEditor` / `VBoxContainer` | 六镜头槽写入、预览和清空。 |
 | `tests/level_select_test.gd` | 无 class_name / `SceneTree` | Catalog/Page 校验、页面/槽位顺序、空槽、翻页、信号与只读缩略图回归。 |
@@ -241,7 +249,7 @@ RuntimeStuffEditorPanel 全量保存
 
 - LevelLoader 是局内关卡装配唯一事实源；AppFlow 选择、F1 load、LevelDebugPanel、重启都必须最终经过它。
 - `LevelSelectCatalog.pages` 的数组索引是页面顺序；`LevelSelectPageDefinition.levels` 的 0～5 索引是槽位顺序。任何 null 都保留，不压缩、不排序。
-- 目录是显式白名单，不扫描 `resources/levels`。测试关卡、DemoLevel1/2 或测试夹具不会自动上架；当前只显式上架 M4DemoLevel。
+- 正式维护白名单是 `res://resources/levels/`；选关 Catalog 不自动扫描目录，仍按 Page 中的显式引用决定展示顺序。目录外关卡与测试夹具不会上架；当前显式上架 Level1、Level2。
 - 程序启动场景是 AppRoot，不是 Main。AppFlow 跨单局持久；选关页和 Main 都是可替换 Content 子节点。
 - 选关到局内是两阶段事务：候选 Main 先完成 LevelLoader 首载，成功才释放旧选关页；失败不得留下半活动 Main。
 - 重启不离开 Main；退出当前关卡必须释放 Main 并重建选关。退出不终止 SceneTree。
@@ -262,5 +270,5 @@ RuntimeStuffEditorPanel 全量保存
 - 不做局内保存/读取、多存档槽、云存档和外部关卡包导入。
 - 退出当前关卡固定返回第一页；当前不保存上次页面索引或焦点槽位。
 - 程序化缩略图不显示运行时建筑、敌人、镜像、动态效果或相机截图。
-- 默认目录只含一个正式关卡；增加页面/关卡必须显式编辑 Catalog/Page 资源并通过只读校验。
+- 当前正式目录包含 Level1、Level2；新增正式关卡必须放入 `res://resources/levels/`，并显式编辑 Catalog/Page 资源后通过只读校验。
 - 本轮新增测试已登记，本次文档同步按要求未运行测试。

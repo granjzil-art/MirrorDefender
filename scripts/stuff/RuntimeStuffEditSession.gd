@@ -519,7 +519,14 @@ func _duplicate_grid_cells(source: Array) -> Array[GridCellData]:
 		if not raw_cell is GridCellDataScript:
 			continue
 		var clone := GridCellDataScript.new()
-		clone.configure(raw_cell.cell, raw_cell.terrain, raw_cell.layer_count, raw_cell.allows_tile_building, raw_cell.allows_edge_building)
+		clone.configure(
+			raw_cell.cell,
+			raw_cell.terrain,
+			raw_cell.layer_count,
+			raw_cell.allows_tile_building,
+			raw_cell.allows_edge_building,
+			raw_cell.edge_building_mask
+		)
 		result.append(clone)
 	return result
 
@@ -585,7 +592,7 @@ func _grid_cell_keys(source: Array) -> Array[String]:
 	var keys: Array[String] = []
 	for raw_cell in source:
 		if raw_cell is GridCellDataScript:
-			keys.append("%s|%s|%d|%s|%s" % [str(raw_cell.cell), raw_cell.terrain.resource_path if raw_cell.terrain != null else "", raw_cell.layer_count, raw_cell.allows_tile_building, raw_cell.allows_edge_building])
+			keys.append("%s|%s|%d|%s|%s|%d" % [str(raw_cell.cell), raw_cell.terrain.resource_path if raw_cell.terrain != null else "", raw_cell.layer_count, raw_cell.allows_tile_building, raw_cell.allows_edge_building, raw_cell.edge_building_mask])
 	keys.sort()
 	return keys
 

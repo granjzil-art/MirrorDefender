@@ -172,21 +172,62 @@ static func paint_permissions(
 	level: Resource,
 	cell: Vector3i,
 	allows_tile_building: bool,
-	allows_edge_building: bool
+	allows_edge_building: bool,
+	shape: IGridShape = null
 ) -> bool:
 	var grid_cell := get_or_create_grid_cell(level, cell)
 	if grid_cell == null:
 		return false
-	if (
-		grid_cell.allows_tile_building == allows_tile_building
-		and grid_cell.allows_edge_building == allows_edge_building
-	):
-		return false
+	var next_mask := GridCellDataScript.ALL_SQUARE_EDGES_MASK if allows_edge_building else 0
+	var changed := (
+		grid_cell.allows_tile_building != allows_tile_building
+		or not grid_cell.allows_edge_building
+		or grid_cell.edge_building_mask != next_mask
+	)
 	grid_cell.allows_tile_building = allows_tile_building
-	grid_cell.allows_edge_building = allows_edge_building
-	grid_cell.emit_changed()
-	level.emit_changed()
-	return true
+	# Canonical square authoring stores the four physical permissions in the
+	# mask. The legacy cell-wide gate remains open unless loading old content.
+	grid_cell.allows_edge_building = true
+	grid_cell.edge_building_mask = next_mask
+	if changed:
+		grid_cell.emit_changed()
+	if shape != null:
+		for edge_index in range(mini(shape.edge_count(), GridCellDataScript.SQUARE_EDGE_COUNT)):
+			changed = set_grid_edge_permission(level, shape, cell, edge_index, allows_edge_building) or changed
+	if changed:
+		level.emit_changed()
+	return changed
+
+
+static func set_grid_edge_permission(
+	level: Resource,
+	shape: IGridShape,
+	cell: Vector3i,
+	edge_index: int,
+	allowed: bool
+) -> bool:
+	if level == null or shape == null or edge_index < 0 or edge_index >= shape.edge_count():
+		return false
+	var neighbor := shape.neighbor_across_edge(cell, edge_index)
+	var grid_size: Vector2i = level.get("grid_size")
+	if not shape.is_in_bounds(cell, grid_size) or not shape.is_in_bounds(neighbor, grid_size):
+		return false
+	var opposite_edge := -1
+	for candidate in range(shape.edge_count()):
+		if shape.neighbor_across_edge(neighbor, candidate) == cell:
+			opposite_edge = candidate
+			break
+	if opposite_edge < 0:
+		return false
+	var from_data := get_or_create_grid_cell(level, cell)
+	var to_data := get_or_create_grid_cell(level, neighbor)
+	if from_data == null or to_data == null:
+		return false
+	var changed := from_data.set_edge_allowed(edge_index, allowed)
+	changed = to_data.set_edge_allowed(opposite_edge, allowed) or changed
+	if changed:
+		level.emit_changed()
+	return changed
 
 
 static func get_stuff_at(level: Resource, cell: Vector3i) -> Array[StuffPlacementDataScript]:
@@ -211,6 +252,8 @@ static func add_stuff(
 ) -> Dictionary:
 	if level == null or not definition is StuffDefinition:
 		return {"success": false, "message": "关卡元素定义无效", "placement": null}
+	if level.has_method("get_base_point_at_cell") and level.call("get_base_point_at_cell", cell) != null:
+		return {"success": false, "message": "据点占地不允许放置关卡元素", "placement": null}
 	for existing in get_stuff_at(level, cell):
 		if (
 			existing.definition == null

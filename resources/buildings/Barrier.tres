@@ -19,7 +19,6 @@ show_producing_mirror = false
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
 cost = 60.0
-refund_amount = 30.0
 base_damage = 0.0
 max_durability = 240.0
 regeneration_per_second = 12.0
@@ -29,7 +28,6 @@ attack_color = Color(0.55, 0.88, 1, 1)
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
 cost = 90.0
-refund_amount = 75.0
 base_damage = 0.0
 max_durability = 380.0
 regeneration_delay = 2.5
@@ -40,7 +38,6 @@ attack_color = Color(0.62, 0.94, 1, 1)
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
 cost = 140.0
-refund_amount = 145.0
 base_damage = 0.0
 max_durability = 600.0
 regeneration_delay = 2.0

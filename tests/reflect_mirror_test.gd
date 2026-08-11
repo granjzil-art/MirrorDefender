@@ -5,6 +5,7 @@ const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFacto
 var _failures: int = 0
 var _checks: int = 0
 var _reflection_count: int = 0
+var _external_reflection_fraction: float = 0.25
 
 
 func _initialize() -> void:
@@ -16,6 +17,8 @@ func _run() -> void:
 	var fixture := await _make_fixture()
 	_test_definition_and_preview(fixture)
 	_test_reflection_geometry(fixture)
+	_test_pulse_laser_reflection(fixture)
+	_test_external_reflector_composition(fixture)
 	_test_projectile_distance_and_multiple_reflections(fixture)
 	_test_projection_projectile_reflection(fixture)
 	_test_initial_placement_round_trip(fixture)
@@ -64,6 +67,61 @@ func _test_reflection_geometry(fixture: Dictionary) -> void:
 	_expect(is_equal_approx(reflected_direction.dot(edge_direction), incoming.dot(edge_direction)), "tangent component is preserved at equal angle")
 	var back_hit := mirror_manager.trace_projectile_reflection(end, start)
 	_expect(not bool(back_hit.hit), "reflector back face passes projectiles through")
+
+
+func _test_pulse_laser_reflection(fixture: Dictionary) -> void:
+	var combat: CombatManager = fixture.combat
+	var right: ReflectMirror = fixture.right_mirror
+	var normal := right.get_active_normal()
+	var plane := right.global_position + Vector3.UP
+	var colors: Array[Color] = [Color.RED, Color.ORANGE]
+	var beam := combat.spawn_pulse_laser(
+		plane + normal,
+		-normal,
+		0.0,
+		2.0,
+		0.1,
+		2.0,
+		0.01,
+		0.01,
+		0.01,
+		colors,
+		1
+	)
+	var segments := beam.debug_get_segments() if beam != null else []
+	_expect(segments.size() == 2, "pulse laser reflects from the physical mirror's active face")
+	if segments.size() == 2:
+		_expect(
+			(segments[0].get("color") as Color).is_equal_approx(Color.RED)
+			and (segments[1].get("color") as Color).is_equal_approx(Color.ORANGE),
+			"physical mirror reflection advances the pulse segment color"
+		)
+		_expect(
+			float(segments[0].get("length", 0.0)) + float(segments[1].get("length", 0.0)) <= 2.0001,
+			"physical-mirror pulse segments share one total range budget"
+		)
+
+
+func _test_external_reflector_composition(fixture: Dictionary) -> void:
+	var mirror_manager: MirrorManager = fixture.mirror
+	var right: ReflectMirror = fixture.right_mirror
+	var normal := right.get_active_normal()
+	var plane := right.global_position + Vector3.UP
+	var start := plane + normal
+	var end := plane - normal
+	_external_reflection_fraction = 0.25
+	_expect(
+		mirror_manager.register_projectile_reflection_provider(self, Callable(self, "_trace_external_reflector")),
+		"MirrorManager accepts a module-owned finite reflection provider"
+	)
+	_expect(mirror_manager.get_projectile_reflection_provider_count() == 1, "external reflector registration is queryable")
+	var external_first := mirror_manager.trace_projectile_reflection(start, end)
+	_expect(external_first.get("reflector") == self and external_first.get("mirror") == null, "nearest external surface wins before a physical reflect mirror")
+	_external_reflection_fraction = 0.75
+	var mirror_first := mirror_manager.trace_projectile_reflection(start, end)
+	_expect(mirror_first.get("mirror") == right, "nearer physical reflect mirror wins before a farther external surface")
+	mirror_manager.unregister_projectile_reflection_provider(self)
+	_expect(mirror_manager.get_projectile_reflection_provider_count() == 0, "external reflector can unregister without changing mirrors")
 
 
 func _test_projectile_distance_and_multiple_reflections(fixture: Dictionary) -> void:
@@ -181,6 +239,7 @@ func _make_fixture() -> Dictionary:
 	host.add_child(building)
 	building.arrow_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.ARROW_TOWER)
 	building.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
+	building.pulse_laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.PULSE_LASER_TOWER)
 	building.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
 	building.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	var registry := EdgeOccupancyRegistry.new()
@@ -218,6 +277,21 @@ func _make_fixture() -> Dictionary:
 
 func _on_projectile_reflected(_mirror: CopyMirror, _position: Vector3, _direction: Vector3) -> void:
 	_reflection_count += 1
+
+
+func _trace_external_reflector(start: Vector3, end: Vector3) -> Dictionary:
+	var segment := end - start
+	return {
+		"hit": true,
+		"position": start.lerp(end, _external_reflection_fraction),
+		"normal": Vector3.UP,
+		"distance": segment.length() * _external_reflection_fraction,
+		"mirror": null,
+		"reflector": self,
+		"surface_id": &"test_external",
+		"epsilon": 0.0001,
+		"max_reflections_per_frame": 8,
+	}
 
 
 func _expect(condition: bool, message: String) -> void:

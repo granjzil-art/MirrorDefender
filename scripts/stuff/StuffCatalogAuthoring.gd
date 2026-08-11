@@ -32,6 +32,7 @@ func create_definition(
 	definition.exclusive_with_other_stuff = true
 	definition.blocks_tile_building = true
 	definition.blocks_edge_building = false
+	definition.blocks_ballistics = false
 	definition.enemy_navigation = StuffDefinitionScript.EnemyNavigation.PASSABLE
 	definition.navigation_affects_airborne = false
 	definition.durability_mode = StuffDefinitionScript.DurabilityMode.INDESTRUCTIBLE

@@ -6,6 +6,7 @@ extends Node3D
 static var _shared_rim_shader: Shader
 
 const PathBlockerPolicyScript := preload("res://scripts/path/PathBlockerPolicy.gd")
+const ContinuousLaserVisualScript := preload("res://scripts/combat/ContinuousLaserVisual.gd")
 const PROJECTION_PRIORITY_BASE := 8
 const PROJECTION_PRIORITY_STRIDE := 2
 const PREVIEW_PRIORITY_OFFSET := 64
@@ -21,8 +22,14 @@ var _tile_visual_snapshot_resolver: Callable
 var _stack_index: int = 0
 var _accent_color: Color = Color.WHITE
 var _visual_snapshot: Node3D
-var _laser_line: MeshInstance3D
-var _laser_material: StandardMaterial3D
+var _laser_visual: Node3D
+var _laser_propagation_distance: float = 0.0
+var _laser_origin: Vector3 = Vector3.ZERO
+var _laser_direction: Vector3 = Vector3.ZERO
+var _laser_endpoint_position: Vector3 = Vector3.ZERO
+var _laser_segments: Array = []
+var _laser_has_basis: bool = false
+var _laser_has_endpoint: bool = false
 var _inspection_label: Label3D
 
 func _process(_delta: float) -> void:
@@ -52,7 +59,39 @@ func configure(
 	_build_visual()
 
 func is_structure_alive() -> bool:
-	return payload != null and payload.copy_kind in [&"barrier", &"rock"] and payload.is_source_valid()
+	return payload != null and payload.is_source_valid()
+
+
+func is_destructible() -> bool:
+	if payload == null or not payload.is_source_valid() or payload.root_source == null:
+		return false
+	if payload.root_source.has_method("is_destructible"):
+		return bool(payload.root_source.call("is_destructible"))
+	# Legacy TileObstacleRuntime predates the generic durability query. Its
+	# obstacle-producing effect still identifies a concrete damageable source.
+	return (
+		payload.tile_effect != null
+		and payload.tile_effect.creates_runtime_obstacle()
+		and payload.root_source.has_method("take_structure_damage")
+	)
+
+
+func blocks_enemy_navigation(target: Node = null) -> bool:
+	if payload == null or not payload.is_source_valid():
+		return false
+	if payload.root_source != null and payload.root_source.has_method("blocks_enemy_navigation"):
+		return bool(payload.root_source.call("blocks_enemy_navigation", target))
+	return payload.tile_effect != null and payload.tile_effect.blocks_enemy_navigation(target)
+
+
+func blocks_ballistics() -> bool:
+	return (
+		payload != null
+		and payload.is_source_valid()
+		and payload.root_source != null
+		and payload.root_source.has_method("blocks_ballistics")
+		and bool(payload.root_source.call("blocks_ballistics"))
+	)
 
 func get_structure_target_position() -> Vector3:
 	if payload != null and payload.root_source != null and payload.root_source.has_method("get_structure_target_position"):
@@ -100,14 +139,96 @@ func set_inspection_active(active: bool) -> void:
 		_inspection_label.visible = active or preview_mode
 
 func show_laser(world_start: Vector3, world_end: Vector3) -> void:
-	if _laser_line == null:
+	show_laser_path([{"start": world_start, "end": world_end}], world_end)
+
+
+func show_laser_path(segments: Array, world_endpoint: Vector3) -> void:
+	if _laser_visual == null:
 		return
-	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES, _laser_material)
-	mesh.surface_add_vertex(world_start)
-	mesh.surface_add_vertex(world_end)
-	mesh.surface_end()
-	_laser_line.mesh = mesh
+	_laser_visual.show_path(segments, world_endpoint)
+	_laser_segments = segments.duplicate(true)
+	_laser_endpoint_position = world_endpoint
+	_laser_has_endpoint = true
+
+
+func advance_laser_propagation(
+	world_start: Vector3,
+	direction_value: Vector3,
+	delta: float,
+	maximum_distance: float,
+	propagation_speed: float
+) -> float:
+	if direction_value.length_squared() <= 0.000001:
+		reset_laser_propagation()
+		return 0.0
+	var direction := direction_value.normalized()
+	if (
+		_laser_has_basis
+		and (
+			world_start.distance_squared_to(_laser_origin) > 0.000001
+			or direction.dot(_laser_direction) < 0.99999
+		)
+	):
+		reset_laser_propagation()
+	_laser_origin = world_start
+	_laser_direction = direction
+	_laser_has_basis = true
+	_laser_propagation_distance = minf(
+		maxf(0.0, maximum_distance),
+		_laser_propagation_distance + maxf(0.0, propagation_speed) * maxf(0.0, delta)
+	)
+	return _laser_propagation_distance
+
+
+func clamp_laser_propagation(maximum_distance: float) -> void:
+	_laser_propagation_distance = minf(
+		_laser_propagation_distance,
+		maxf(0.0, maximum_distance)
+	)
+
+
+func get_laser_endpoint(fallback: Vector3) -> Vector3:
+	return _laser_endpoint_position if _laser_has_endpoint else fallback
+
+
+func get_laser_propagation_distance() -> float:
+	return _laser_propagation_distance
+
+
+func get_laser_propagation_state() -> Dictionary:
+	return {
+		"distance": _laser_propagation_distance,
+		"origin": _laser_origin,
+		"direction": _laser_direction,
+		"endpoint": _laser_endpoint_position,
+		"segments": _laser_segments.duplicate(true),
+		"has_basis": _laser_has_basis,
+		"has_endpoint": _laser_has_endpoint,
+	}
+
+
+func restore_laser_propagation_state(state: Dictionary) -> void:
+	_laser_propagation_distance = maxf(0.0, float(state.get("distance", 0.0)))
+	_laser_origin = state.get("origin", Vector3.ZERO)
+	_laser_direction = state.get("direction", Vector3.ZERO)
+	_laser_endpoint_position = state.get("endpoint", Vector3.ZERO)
+	_laser_segments = state.get("segments", []).duplicate(true)
+	_laser_has_basis = bool(state.get("has_basis", false))
+	_laser_has_endpoint = bool(state.get("has_endpoint", false))
+	if _laser_has_endpoint and _laser_visual != null:
+		_laser_visual.show_path(_laser_segments, _laser_endpoint_position)
+
+
+func reset_laser_propagation() -> void:
+	_laser_propagation_distance = 0.0
+	_laser_origin = Vector3.ZERO
+	_laser_direction = Vector3.ZERO
+	_laser_endpoint_position = Vector3.ZERO
+	_laser_segments.clear()
+	_laser_has_basis = false
+	_laser_has_endpoint = false
+	if _laser_visual != null:
+		_laser_visual.clear_path()
 
 func _build_visual() -> void:
 	if payload == null or _grid == null or _definition == null:
@@ -121,12 +242,20 @@ func _build_visual() -> void:
 	_build_stack_indicator()
 	_build_inspection_label()
 	if payload.copy_kind == &"laser_tower":
-		_laser_line = MeshInstance3D.new()
-		_laser_line.top_level = true
-		_laser_line.global_transform = Transform3D.IDENTITY
-		_laser_material = _make_line_material(_accent_color)
-		_laser_line.material_override = _laser_material
-		add_child(_laser_line)
+		_laser_visual = ContinuousLaserVisualScript.new()
+		_laser_visual.name = &"ProjectedContinuousLaserVisual"
+		add_child(_laser_visual)
+		var beam_color := Color(0.88, 0.96, 1.0, 0.96)
+		var beam_width := _grid.cell_size * 0.08
+		var beam_emission := 3.0
+		if payload.root_source != null:
+			if payload.root_source.has_method("get_laser_beam_color"):
+				beam_color = payload.root_source.call("get_laser_beam_color")
+			if payload.root_source.has_method("get_laser_beam_width_world"):
+				beam_width = float(payload.root_source.call("get_laser_beam_width_world"))
+			if payload.root_source.has_method("get_laser_beam_emission_energy"):
+				beam_emission = float(payload.root_source.call("get_laser_beam_emission_energy"))
+		_laser_visual.configure(beam_color, beam_width, beam_emission)
 
 func _create_source_snapshot() -> Node3D:
 	if payload.root_source != null and payload.root_source.has_method("create_copy_visual_snapshot"):

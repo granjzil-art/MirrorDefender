@@ -14,6 +14,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 script = ExtResource("1_stuff")
 stuff_id = &"rock"
 display_name = "石头"
+blocks_ballistics = true
 enemy_navigation = 2
 effect = ExtResource("2_effect")
 durability_mode = 2

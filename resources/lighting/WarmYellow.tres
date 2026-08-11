@@ -16,7 +16,7 @@ edge_emission_energy = 0.1
 
 [sub_resource type="Environment" id="Environment_warm"]
 background_mode = 1
-background_color = Color(0.09, 0.067, 0.047, 1)
+background_color = Color(0.1254902, 0.29411766, 0.79607844, 1)
 ambient_light_source = 2
 ambient_light_color = Color(1, 0.79, 0.56, 1)
 ambient_light_sky_contribution = 0.0

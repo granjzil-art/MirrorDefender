@@ -12,19 +12,20 @@
 [ext_resource type="Script" uid="uid://v3ocbrr2xs3k" path="res://scripts/combat/CombatManager.gd" id="11_combat_manager"]
 [ext_resource type="Script" uid="uid://65iq16m5xrrs" path="res://scripts/building/BuildingManager.gd" id="12_building_manager"]
 [ext_resource type="Resource" uid="uid://ckviv6nbdg0nv" path="res://resources/buildings/ArrowTower.tres" id="13_arrow_tower"]
+[ext_resource type="Resource" uid="uid://cuo6or243a1ic" path="res://resources/buildings/CrossbowTower.tres" id="14_crossbow_tower"]
 [ext_resource type="Resource" uid="uid://cdehjwm442vgl" path="res://resources/buildings/LaserTower.tres" id="14_laser_tower"]
-[ext_resource type="Resource" path="res://resources/buildings/CrossbowTower.tres" id="14_crossbow_tower"]
+[ext_resource type="Resource" path="res://resources/buildings/MaceTower.tres" id="15_mace_tower"]
 [ext_resource type="Script" uid="uid://dckm0cnlvh6k3" path="res://scripts/ui/M3DebugPanel.gd" id="15_m3_debug_panel"]
-[ext_resource type="Resource" uid="uid://c2jwklxxgif82" path="res://resources/levels/M4DemoLevel.tres" id="16_m4_level"]
+[ext_resource type="Resource" uid="uid://c2jwklxxgif82" path="res://resources/trashLevels/M4DemoLevel.tres" id="16_m4_level"]
 [ext_resource type="Script" uid="uid://c533vlpic7u1h" path="res://scripts/ui/RuntimeInteractionController.gd" id="17_runtime_interaction"]
 [ext_resource type="Script" uid="uid://dafc5x30jk6fv" path="res://scripts/ui/GameTimeController.gd" id="18_game_time"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RuntimeHud.tscn" id="19_runtime_hud"]
-[ext_resource type="Script" path="res://scripts/terrain/TerrainManager.gd" id="20_terrain_manager"]
-[ext_resource type="Script" path="res://scripts/terrain/TerrainRenderer.gd" id="21_terrain_renderer"]
-[ext_resource type="Script" path="res://scripts/stuff/StuffManager.gd" id="22_stuff_manager"]
-[ext_resource type="Script" path="res://scripts/stuff/StuffRenderer.gd" id="23_stuff_renderer"]
-[ext_resource type="Resource" path="res://resources/stuffs/StuffCatalog.tres" id="24_stuff_catalog"]
-[ext_resource type="Script" path="res://scripts/building/BuildingSelectionVisualizer.gd" id="25_building_selection_visualizer"]
+[ext_resource type="Script" uid="uid://d1elrfnrujsjk" path="res://scripts/terrain/TerrainManager.gd" id="20_terrain_manager"]
+[ext_resource type="Script" uid="uid://con2dgpehn4gm" path="res://scripts/terrain/TerrainRenderer.gd" id="21_terrain_renderer"]
+[ext_resource type="Script" uid="uid://cndd35bwkawml" path="res://scripts/stuff/StuffManager.gd" id="22_stuff_manager"]
+[ext_resource type="Script" uid="uid://bw36kk67ict7n" path="res://scripts/stuff/StuffRenderer.gd" id="23_stuff_renderer"]
+[ext_resource type="Resource" uid="uid://dwt57apte68h8" path="res://resources/stuffs/StuffCatalog.tres" id="24_stuff_catalog"]
+[ext_resource type="Script" uid="uid://dbptp4iqcvjl7" path="res://scripts/building/BuildingSelectionVisualizer.gd" id="25_building_selection_visualizer"]
 
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 1
@@ -50,17 +51,17 @@ script = ExtResource("2_grid")
 [node name="GridRenderer" type="Node3D" parent="." unique_id=265656116]
 script = ExtResource("3_render")
 
-[node name="TerrainManager" type="Node3D" parent="."]
+[node name="TerrainManager" type="Node3D" parent="." unique_id=541570012]
 script = ExtResource("20_terrain_manager")
 
-[node name="TerrainRenderer" type="Node3D" parent="."]
+[node name="TerrainRenderer" type="Node3D" parent="." unique_id=2100414601]
 script = ExtResource("21_terrain_renderer")
 
-[node name="StuffManager" type="Node3D" parent="."]
+[node name="StuffManager" type="Node3D" parent="." unique_id=497712596]
 script = ExtResource("22_stuff_manager")
 stuff_catalog = ExtResource("24_stuff_catalog")
 
-[node name="StuffRenderer" type="Node3D" parent="."]
+[node name="StuffRenderer" type="Node3D" parent="." unique_id=1871878503]
 script = ExtResource("23_stuff_renderer")
 
 [node name="TileManager" type="Node3D" parent="." unique_id=1417949125]
@@ -82,8 +83,9 @@ script = ExtResource("12_building_manager")
 arrow_tower = ExtResource("13_arrow_tower")
 laser_tower = ExtResource("14_laser_tower")
 crossbow_tower = ExtResource("14_crossbow_tower")
+mace_tower = ExtResource("15_mace_tower")
 
-[node name="BuildingSelectionVisualizer" type="Node3D" parent="."]
+[node name="BuildingSelectionVisualizer" type="Node3D" parent="." unique_id=402599224]
 script = ExtResource("25_building_selection_visualizer")
 
 [node name="LevelLoader" type="Node" parent="." unique_id=608669261]

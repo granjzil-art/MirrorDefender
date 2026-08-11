@@ -28,7 +28,8 @@ func rebuild_level_cache(level_resource: LevelResource) -> void:
 		return
 	for base_point in level_resource.get_effective_base_points():
 		if base_point != null:
-			_protected_path_cells[base_point.cell] = true
+			for footprint_cell in base_point.get_footprint_cells():
+				_protected_path_cells[footprint_cell] = true
 	for spawn_point in level_resource.spawn_points:
 		if spawn_point != null:
 			_protected_path_cells[spawn_point.cell] = true
@@ -97,8 +98,8 @@ func validate_edge(
 	if not _grid.is_in_bounds(to_cell):
 		result["failure"] = "边屏障只能放在两个有效地块之间"
 		return result
-	if not _tile_manager.allows_edge_building(from_cell) or not _tile_manager.allows_edge_building(to_cell):
-		result["failure"] = "该边两侧的地块未同时允许边建筑"
+	if not _tile_manager.allows_edge_building(from_cell, placement_edge_index):
+		result["failure"] = "该物理边不允许放置边建筑"
 		return result
 	var canonical_id := _grid.canonical_edge_id(from_cell, placement_edge_index)
 	result["edge_id"] = canonical_id

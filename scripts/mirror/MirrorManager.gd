@@ -5,6 +5,8 @@ extends Node3D
 
 const MirrorProjectionProjectileScript := preload("res://scripts/mirror/MirrorProjectionProjectile.gd")
 const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
+const BallisticGeometryScript := preload("res://scripts/combat/BallisticGeometry.gd")
+const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -18,7 +20,14 @@ signal mirror_removed(mirror: CopyMirror)
 signal mirror_selected(mirror: CopyMirror)
 signal mirror_changed(mirror: CopyMirror)
 signal placement_failed(cell: Vector3i, reason: String)
+signal placement_cooldown_changed(
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	remaining: float,
+	duration: float,
+	ready_ratio: float
+)
 signal projections_rebuilt(count: int)
+signal building_preview_projections_rebuilt(count: int)
 signal attack_mirrored(projection: MirrorProjection, attack_kind: StringName)
 signal preview_updated(info: Dictionary)
 signal preview_cleared
@@ -34,6 +43,12 @@ var _tile_visual_snapshot_resolver: Callable
 var _path_connectivity_validator: Callable
 var _reflection_camera: Camera3D
 var _reflection_cursor: int = 0
+var _projectile_reflection_providers: Dictionary = {}
+var _cooldown_time_scale_resolver: Callable
+var _copy_available_placements: int = 1
+var _reflect_available_placements: int = 1
+var _copy_placement_cooldown_remaining: float = 0.0
+var _reflect_placement_cooldown_remaining: float = 0.0
 
 var _mirrors: Dictionary = {}
 var _projections: Array[MirrorProjection] = []
@@ -43,14 +58,17 @@ var _next_placement_order: int = 0
 var _rebuild_queued: bool = false
 var _mirror_exit_callbacks: Dictionary = {}
 var _attack_sources: Dictionary = {}
+var _laser_projection_states: Dictionary = {}
 
 var _preview_mirror: CopyMirror
 var _preview_projections: Array[MirrorProjection] = []
+var _building_preview_projections: Array[MirrorProjection] = []
 var _preview_info: Dictionary = {}
 var _preview_active_from_side: bool = true
 var _preview_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	advance_placement_cooldowns(delta)
 	_update_reflection_views()
 
 func _exit_tree() -> void:
@@ -77,10 +95,13 @@ func configure(
 		reflect_mirror_definition.changed.connect(_on_definition_changed)
 	if _combat_manager != null:
 		_combat_manager.set_projectile_reflection_resolver(Callable(self, "trace_projectile_reflection"))
+		_combat_manager.set_projectile_blocker_resolver(Callable(self, "trace_ballistic_blocker"))
 	if _building_manager != null:
 		_building_manager.building_placed.connect(_on_building_placed)
 		_building_manager.building_removed.connect(_on_building_removed)
 		_building_manager.building_upgraded.connect(_on_building_upgraded)
+		_building_manager.preview_updated.connect(_on_building_preview_updated)
+		_building_manager.preview_cleared.connect(_on_building_preview_cleared)
 		for building in _building_manager.get_buildings():
 			_connect_attack_source(building)
 	if _tile_manager != null:
@@ -104,6 +125,28 @@ func set_stuff_manager(value: Node) -> void:
 			_stuff_manager.connect(&"stuff_changed", _on_stuff_changed)
 	queue_rebuild()
 
+
+## Adds a non-mirror finite-surface query without coupling Combat to its module.
+func register_projectile_reflection_provider(owner: Object, resolver: Callable) -> bool:
+	if owner == null or not is_instance_valid(owner) or not resolver.is_valid():
+		return false
+	_projectile_reflection_providers[owner.get_instance_id()] = {
+		"owner": weakref(owner),
+		"resolver": resolver,
+	}
+	return true
+
+
+func unregister_projectile_reflection_provider(owner: Object) -> void:
+	if owner != null:
+		_projectile_reflection_providers.erase(owner.get_instance_id())
+	return
+
+
+func get_projectile_reflection_provider_count() -> int:
+	_purge_projectile_reflection_providers()
+	return _projectile_reflection_providers.size()
+
 func set_reflection_camera(camera: Camera3D) -> void:
 	_reflection_camera = camera
 	for mirror in get_mirrors():
@@ -114,6 +157,169 @@ func set_reflection_camera(camera: Camera3D) -> void:
 
 func set_path_connectivity_validator(value: Callable) -> void:
 	_path_connectivity_validator = value
+
+
+## Injects the battle/preparation phase scale without coupling this module to WaveManager.
+func set_cooldown_time_scale_resolver(value: Callable) -> void:
+	_cooldown_time_scale_resolver = value
+
+
+## Resets both independently configured mirror kinds to one available placement
+## and starts the next accumulation cycle.
+func reset_placement_cooldowns() -> void:
+	_copy_available_placements = 1
+	_reflect_available_placements = 1
+	_copy_placement_cooldown_remaining = get_placement_cooldown_duration(
+		MirrorPlacementData.MirrorKind.COPY
+	)
+	_reflect_placement_cooldown_remaining = get_placement_cooldown_duration(
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+	)
+	_emit_placement_cooldown_changed(MirrorPlacementData.MirrorKind.COPY)
+	_emit_placement_cooldown_changed(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT)
+
+
+## Advances cooldowns using already game-scaled delta and the injected wave-phase multiplier.
+func advance_placement_cooldowns(delta: float) -> void:
+	if not is_finite(delta) or delta <= 0.0:
+		return
+	var phase_scale := 1.0
+	if _cooldown_time_scale_resolver.is_valid():
+		var resolved_scale: Variant = _cooldown_time_scale_resolver.call()
+		if not (resolved_scale is float or resolved_scale is int):
+			return
+		phase_scale = float(resolved_scale)
+	if not is_finite(phase_scale) or phase_scale <= 0.0:
+		return
+	var scaled_delta := delta * phase_scale
+	if not is_finite(scaled_delta):
+		return
+	_advance_placement_cooldown(MirrorPlacementData.MirrorKind.COPY, scaled_delta)
+	_advance_placement_cooldown(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT, scaled_delta)
+
+
+func is_mirror_kind_ready(mirror_kind: MirrorPlacementData.MirrorKind) -> bool:
+	return (
+		get_placement_cooldown_duration(mirror_kind) <= 0.000001
+		or get_available_mirror_count(mirror_kind) > 0
+	)
+
+
+func get_available_mirror_count(
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> int:
+	if get_placement_cooldown_duration(mirror_kind) <= 0.000001:
+		return 1
+	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
+		return maxi(0, _reflect_available_placements)
+	return maxi(0, _copy_available_placements)
+
+
+func get_placement_cooldown_remaining(
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> float:
+	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
+		return maxf(0.0, _reflect_placement_cooldown_remaining)
+	return maxf(0.0, _copy_placement_cooldown_remaining)
+
+
+func get_placement_cooldown_duration(
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> float:
+	var definition := _get_definition(mirror_kind)
+	if definition == null or not is_finite(definition.placement_cooldown_seconds):
+		return 0.0
+	return maxf(0.0, definition.placement_cooldown_seconds)
+
+
+func get_placement_cooldown_ready_ratio(
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> float:
+	if is_mirror_kind_ready(mirror_kind):
+		return 1.0
+	var duration := get_placement_cooldown_duration(mirror_kind)
+	if duration <= 0.000001:
+		return 1.0
+	return clampf(1.0 - get_placement_cooldown_remaining(mirror_kind) / duration, 0.0, 1.0)
+
+
+func _advance_placement_cooldown(
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	delta: float
+) -> void:
+	var duration := get_placement_cooldown_duration(mirror_kind)
+	if duration <= 0.000001:
+		return
+	var previous := get_placement_cooldown_remaining(mirror_kind)
+	if previous <= 0.000001:
+		previous = duration
+	if delta < previous:
+		_set_placement_cooldown_remaining(mirror_kind, previous - delta)
+		if get_available_mirror_count(mirror_kind) == 0:
+			_emit_placement_cooldown_changed(mirror_kind)
+		return
+	var elapsed_after_first := delta - previous
+	var completed_cycles := 1 + floori(elapsed_after_first / duration)
+	_set_available_mirror_count(
+		mirror_kind,
+		get_available_mirror_count(mirror_kind) + completed_cycles
+	)
+	var elapsed_in_current_cycle := fmod(elapsed_after_first, duration)
+	_set_placement_cooldown_remaining(mirror_kind, duration - elapsed_in_current_cycle)
+	_emit_placement_cooldown_changed(mirror_kind)
+
+
+func _consume_available_mirror(mirror_kind: MirrorPlacementData.MirrorKind) -> bool:
+	if get_placement_cooldown_duration(mirror_kind) <= 0.000001:
+		return true
+	var available := get_available_mirror_count(mirror_kind)
+	if available <= 0:
+		return false
+	_set_available_mirror_count(mirror_kind, available - 1)
+	_emit_placement_cooldown_changed(mirror_kind)
+	return true
+
+
+func _grant_available_mirror(mirror_kind: MirrorPlacementData.MirrorKind) -> void:
+	if get_placement_cooldown_duration(mirror_kind) > 0.000001:
+		_set_available_mirror_count(
+			mirror_kind,
+			get_available_mirror_count(mirror_kind) + 1
+		)
+	_emit_placement_cooldown_changed(mirror_kind)
+
+
+func _set_available_mirror_count(
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	value: int
+) -> void:
+	var resolved := maxi(0, value)
+	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
+		_reflect_available_placements = resolved
+	else:
+		_copy_available_placements = resolved
+
+
+func _set_placement_cooldown_remaining(
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	value: float
+) -> void:
+	var resolved := maxf(0.0, value) if is_finite(value) else 0.0
+	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
+		_reflect_placement_cooldown_remaining = resolved
+	else:
+		_copy_placement_cooldown_remaining = resolved
+
+
+func _emit_placement_cooldown_changed(
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> void:
+	placement_cooldown_changed.emit(
+		mirror_kind,
+		get_placement_cooldown_remaining(mirror_kind),
+		get_placement_cooldown_duration(mirror_kind),
+		get_placement_cooldown_ready_ratio(mirror_kind)
+	)
 
 func place_copy_mirror(
 	from_cell: Vector3i,
@@ -176,6 +382,7 @@ func refresh_world_transforms() -> void:
 ## Rebuilds authored initial mirrors without charging initial_resource.
 ## Array order is the authoritative recursive-copy order.
 func load_initial_placements(placements: Array) -> Array[String]:
+	reset_placement_cooldowns()
 	clear_mirrors(false)
 	var errors: Array[String] = []
 	for index in range(placements.size()):
@@ -209,12 +416,12 @@ func _place_mirror(
 	edge_index: int,
 	active_from_side: Variant,
 	mirror_kind: MirrorPlacementData.MirrorKind,
-	charge_cost: bool,
+	runtime_placement: bool,
 	check_connectivity: bool,
 	select_after_placement: bool,
 	rebuild_after_placement: bool
 ) -> CopyMirror:
-	var validation := validate_placement(from_cell, edge_index, charge_cost, mirror_kind)
+	var validation := validate_placement(from_cell, edge_index, runtime_placement, mirror_kind)
 	if not validation.failure.is_empty():
 		placement_failed.emit(from_cell, validation.failure)
 		return null
@@ -244,16 +451,16 @@ func _place_mirror(
 		placement_failed.emit(from_cell, connectivity_failure)
 		return null
 	var registered := (
-		_resource_manager.try_register_mirror(definition.cost)
-		if charge_cost
+		_resource_manager.try_register_mirror()
+		if runtime_placement
 		else _resource_manager.try_register_initial_mirror()
 	)
 	if not registered:
 		mirror.queue_free()
-		placement_failed.emit(from_cell, "资源不足或达到镜子上限" if charge_cost else "初始镜子超过镜子上限")
+		placement_failed.emit(from_cell, "已达到镜子上限" if runtime_placement else "初始镜子超过镜子上限")
 		return null
 	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(validation.edge_id, mirror):
-		_resource_manager.unregister_mirror(definition.cost if charge_cost else 0.0)
+		_resource_manager.unregister_mirror()
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
@@ -263,6 +470,8 @@ func _place_mirror(
 	mirror.tree_exited.connect(exit_callback)
 	_mirror_exit_callbacks[mirror] = exit_callback
 	_mirrors[validation.edge_id] = mirror
+	if runtime_placement:
+		_consume_available_mirror(mirror_kind)
 	if select_after_placement:
 		select_mirror(mirror)
 	if rebuild_after_placement:
@@ -273,7 +482,7 @@ func _place_mirror(
 func validate_placement(
 	from_cell: Vector3i,
 	edge_index: int,
-	check_economy: bool = true,
+	check_runtime_availability: bool = true,
 	mirror_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
 ) -> Dictionary:
 	var result := {"failure": "", "to_cell": Vector3i.ZERO, "edge_id": ""}
@@ -296,8 +505,8 @@ func validate_placement(
 	if not _grid.is_in_bounds(to_cell):
 		result.failure = "镜子只能放在两个有效地块之间"
 		return result
-	if not _tile_manager.allows_edge_building(from_cell) or not _tile_manager.allows_edge_building(to_cell):
-		result.failure = "该边两侧的地块未同时允许边建筑"
+	if not _tile_manager.allows_edge_building(from_cell, edge_index):
+		result.failure = "该物理边不允许放置镜子"
 		return result
 	var edge_id := _grid.canonical_edge_id(from_cell, edge_index)
 	result.edge_id = edge_id
@@ -307,32 +516,34 @@ func validate_placement(
 	if _has_enemy_on_adjacent_cell(from_cell, to_cell):
 		result.failure = "敌人当前占据该边的相邻格"
 		return result
-	if check_economy:
+	if check_runtime_availability:
 		if not _resource_manager.can_add_mirror():
 			result.failure = "已达到镜子上限"
-		elif not _resource_manager.can_afford(definition.cost):
-			result.failure = "主资源不足"
+		elif not is_mirror_kind_ready(mirror_kind):
+			result.failure = "%s冷却中（%.1f 秒）" % [
+				definition.display_name,
+				get_placement_cooldown_remaining(mirror_kind),
+			]
 	return result
 
 func remove_selected_mirror() -> bool:
 	return remove_mirror(get_selected_mirror())
 
-func remove_mirror(mirror: CopyMirror, refund: float = -1.0) -> bool:
+func remove_mirror(mirror: CopyMirror) -> bool:
 	if mirror == null or not is_instance_valid(mirror) or not _mirrors.has(mirror.edge_id):
 		return false
-	var resolved_refund := refund
-	if resolved_refund < 0.0:
-		resolved_refund = mirror.definition.refund if mirror.definition != null else 0.0
+	var mirror_kind := _get_mirror_kind(mirror)
 	_mirrors.erase(mirror.edge_id)
 	if _edge_occupancy_registry != null:
 		_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 	if _resource_manager != null:
-		_resource_manager.unregister_mirror(resolved_refund)
+		_resource_manager.unregister_mirror()
 	if _selected_mirror == mirror:
 		select_mirror(null)
 	if mirror.side_changed.is_connected(_on_mirror_side_changed):
 		mirror.side_changed.disconnect(_on_mirror_side_changed)
 	_disconnect_mirror_exit(mirror)
+	_grant_available_mirror(mirror_kind)
 	mirror_removed.emit(mirror)
 	mirror.queue_free()
 	rebuild_now()
@@ -345,7 +556,7 @@ func clear_mirrors(update_resource_count: bool = true) -> void:
 		if _edge_occupancy_registry != null:
 			_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 		if update_resource_count and _resource_manager != null:
-			_resource_manager.unregister_mirror(0.0)
+			_resource_manager.unregister_mirror()
 		_disconnect_mirror_exit(mirror)
 		mirror.queue_free()
 	_mirror_exit_callbacks.clear()
@@ -431,9 +642,10 @@ func get_reflect_mirrors() -> Array[ReflectMirror]:
 	return result
 
 
-## Returns the first active-face intersection on the finite mirror rectangle.
-## Result keys: hit, position, normal, distance, mirror, epsilon,
-## max_reflections_per_frame.
+## Returns the nearest active-face intersection across physical reflect mirrors
+## and registered external finite-surface providers such as the acrylic case.
+## Result keys: hit, position, normal, distance, mirror, reflector, surface_id,
+## epsilon, max_reflections_per_frame.
 func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 	var result := {
 		"hit": false,
@@ -441,6 +653,8 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		"normal": Vector3.ZERO,
 		"distance": start.distance_to(end),
 		"mirror": null,
+		"reflector": null,
+		"surface_id": StringName(),
 		"epsilon": 0.0001,
 		"max_reflections_per_frame": 1,
 	}
@@ -484,9 +698,127 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		result.normal = normal
 		result.distance = segment_length * fraction
 		result.mirror = mirror
+		result.reflector = mirror
+		result.surface_id = StringName(mirror.edge_id)
 		result.epsilon = maxf(0.0001, _grid.cell_size * definition.collision_epsilon_ratio)
 		result.max_reflections_per_frame = definition.max_reflections_per_frame
+	var stale_provider_ids: Array[int] = []
+	for raw_provider_id in _projectile_reflection_providers.keys():
+		var provider_id := int(raw_provider_id)
+		var entry: Dictionary = _projectile_reflection_providers.get(provider_id, {})
+		var owner_reference: WeakRef = entry.get("owner") as WeakRef
+		var owner: Object = owner_reference.get_ref() if owner_reference != null else null
+		var resolver: Callable = entry.get("resolver", Callable())
+		if owner == null or not is_instance_valid(owner) or not resolver.is_valid():
+			stale_provider_ids.append(provider_id)
+			continue
+		var candidate_value: Variant = resolver.call(start, end)
+		if not candidate_value is Dictionary:
+			continue
+		var candidate: Dictionary = candidate_value
+		if not bool(candidate.get("hit", false)):
+			continue
+		var candidate_distance := float(candidate.get("distance", INF))
+		if (
+			not is_finite(candidate_distance)
+			or candidate_distance < 0.0
+			or candidate_distance > segment_length + 0.0001
+			or bool(result.hit) and candidate_distance >= float(result.distance) - 0.000001
+		):
+			continue
+		result = candidate.duplicate()
+		result["distance"] = candidate_distance
+		if not result.has("mirror"):
+			result["mirror"] = null
+		if not result.has("reflector"):
+			result["reflector"] = owner
+		if not result.has("surface_id"):
+			result["surface_id"] = StringName()
+		if not result.has("epsilon"):
+			result["epsilon"] = 0.0001
+		if not result.has("max_reflections_per_frame"):
+			result["max_reflections_per_frame"] = 1
+	for provider_id in stale_provider_ids:
+		_projectile_reflection_providers.erase(provider_id)
 	return result
+
+
+## Returns the nearest live real/projected Stuff sphere that blocks ballistics.
+func trace_ballistic_blocker(
+	start: Vector3,
+	end: Vector3,
+	excluded: Object = null
+) -> Dictionary:
+	var result := {
+		"hit": false,
+		"position": end,
+		"distance": start.distance_to(end),
+		"blocker": null,
+	}
+	var best_distance := INF
+	if _stuff_manager != null and _stuff_manager.has_method("trace_ballistic_blocker"):
+		var raw_real_hit: Variant = _stuff_manager.call(
+			"trace_ballistic_blocker",
+			start,
+			end,
+			excluded
+		)
+		if raw_real_hit is Dictionary:
+			var real_hit: Dictionary = raw_real_hit
+			if bool(real_hit.get("hit", false)):
+				best_distance = float(real_hit.get("distance", INF))
+				result = real_hit.duplicate()
+	if (
+		_stuff_manager == null
+		or not _stuff_manager.has_method("get_ballistic_blocker_center")
+		or not _stuff_manager.has_method("get_ballistic_blocker_radius")
+	):
+		return result
+	var blocker_radius := float(_stuff_manager.call("get_ballistic_blocker_radius"))
+	for projection in _projections:
+		if (
+			projection == excluded
+			or not is_instance_valid(projection)
+			or not projection.blocks_ballistics()
+			or projection.payload == null
+			or not projection.payload.root_source is StuffRuntime
+		):
+			continue
+		var source_runtime := projection.payload.root_source as StuffRuntime
+		var source_center: Vector3 = _stuff_manager.call(
+			"get_ballistic_blocker_center",
+			source_runtime
+		)
+		var center := projection.payload.transform_point(source_center)
+		var distance := BallisticGeometryScript.ray_sphere_entry_distance(
+			start,
+			end,
+			center,
+			blocker_radius
+		)
+		if distance < 0.0 or distance >= best_distance:
+			continue
+		best_distance = distance
+		var direction := (end - start).normalized()
+		result.hit = true
+		result.position = start + direction * distance
+		result.distance = distance
+		result.blocker = projection
+	return result
+
+
+func _purge_projectile_reflection_providers() -> void:
+	var stale_provider_ids: Array[int] = []
+	for raw_provider_id in _projectile_reflection_providers.keys():
+		var provider_id := int(raw_provider_id)
+		var entry: Dictionary = _projectile_reflection_providers.get(provider_id, {})
+		var owner_reference: WeakRef = entry.get("owner") as WeakRef
+		var resolver: Callable = entry.get("resolver", Callable())
+		if owner_reference == null or owner_reference.get_ref() == null or not resolver.is_valid():
+			stale_provider_ids.append(provider_id)
+	for provider_id in stale_provider_ids:
+		_projectile_reflection_providers.erase(provider_id)
+	return
 
 func get_projections(cell: Variant = null) -> Array[MirrorProjection]:
 	if cell is Vector3i:
@@ -512,9 +844,7 @@ func get_prospective_blocked_cells(
 		mirrors.sort_custom(func(a: CopyMirror, b: CopyMirror) -> bool: return a.placement_order < b.placement_order)
 	var blocked: Dictionary = {}
 	for payload in _calculate_projection_payloads(mirrors, extra_source):
-		if payload.copy_kind not in [&"barrier", &"rock"] or not payload.is_source_valid():
-			continue
-		if not _payload_affects_target(payload, target):
+		if not _payload_blocks_enemy_navigation(payload, target):
 			continue
 		blocked[payload.projected_cell] = true
 	return blocked
@@ -559,8 +889,8 @@ func get_projected_effect_bindings(cell: Vector3i) -> Array[Dictionary]:
 	return bindings
 
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
-	for effect in get_projected_effects(cell):
-		if effect.blocks_enemy_navigation(target):
+	for projection in get_projections(cell):
+		if projection.blocks_enemy_navigation(target):
 			return true
 	return false
 
@@ -574,7 +904,12 @@ func resolve_projected_blocker(cell: Vector3i, target: Node = null) -> Node:
 ## blockers so EnemyUnit can run authored-path rerouting before attacking them.
 func resolve_projected_navigation_blocker(cell: Vector3i, target: Node = null) -> Node:
 	for projection in get_projections(cell):
-		if projection.payload.copy_kind == &"rock" and projection.is_structure_alive() and projection.affects_target(target):
+		if (
+			projection.blocks_enemy_navigation(target)
+			and projection.is_destructible()
+			and projection.is_structure_alive()
+			and projection.affects_target(target)
+		):
 			return projection
 	return null
 
@@ -662,6 +997,35 @@ func get_preview_projections() -> Array[MirrorProjection]:
 			result.append(projection)
 	return result
 
+
+func get_building_preview_projections() -> Array[MirrorProjection]:
+	var result: Array[MirrorProjection] = []
+	for projection in _building_preview_projections:
+		if projection != null and is_instance_valid(projection):
+			result.append(projection)
+	return result
+
+
+## Returns only the copy transforms belonging to this real or placement-preview
+## source. The selection visualizer uses them without taking mirror ownership.
+func get_projectile_trajectory_copy_payloads(building: Building) -> Array[MirrorCopyPayload]:
+	var result: Array[MirrorCopyPayload] = []
+	if building == null or not is_instance_valid(building):
+		return result
+	var candidates: Array[MirrorProjection] = (
+		get_building_preview_projections()
+		if _building_manager != null and building == _building_manager.get_preview_building()
+		else get_projections()
+	)
+	for projection in candidates:
+		if (
+			projection.payload != null
+			and projection.payload.is_source_valid()
+			and projection.payload.root_source == building
+		):
+			result.append(projection.payload)
+	return result
+
 func queue_rebuild() -> void:
 	if _rebuild_queued:
 		return
@@ -672,10 +1036,14 @@ func rebuild_now() -> void:
 	_rebuild_queued = false
 	_clear_projection_nodes()
 	if not feature_enabled or copy_mirror_definition == null or _grid == null or _tile_manager == null:
+		_laser_projection_states.clear()
 		projections_rebuilt.emit(0)
+		_clear_building_preview_projections()
+		building_preview_projections_rebuilt.emit(0)
 		return
 	var payloads := _calculate_projection_payloads(get_copy_mirrors())
 	var stack_counts: Dictionary = {}
+	var active_laser_state_keys: Dictionary = {}
 	for payload in payloads:
 		if not payload.is_source_valid():
 			continue
@@ -692,13 +1060,25 @@ func rebuild_now() -> void:
 			false,
 			_tile_visual_snapshot_resolver
 		)
+		if payload.copy_kind == &"laser_tower":
+			active_laser_state_keys[payload.stable_key] = true
+			if _laser_projection_states.has(payload.stable_key):
+				projection.restore_laser_propagation_state(
+					_laser_projection_states[payload.stable_key]
+				)
 		_projections.append(projection)
 		if not _projections_by_cell.has(payload.projected_cell):
 			_projections_by_cell[payload.projected_cell] = []
 		_projections_by_cell[payload.projected_cell].append(projection)
+	for state_key in _laser_projection_states.keys():
+		if not active_laser_state_keys.has(state_key):
+			_laser_projection_states.erase(state_key)
 	projections_rebuilt.emit(_projections.size())
 	if _preview_mirror != null:
 		_refresh_preview_projection()
+	_refresh_building_preview_projections(
+		_building_manager.get_preview_building() if _building_manager != null else null
+	)
 
 func _calculate_projection_payloads(
 	mirrors: Array[CopyMirror],
@@ -769,22 +1149,7 @@ func _build_base_content_map(extra_source: Variant = null) -> Dictionary:
 		_append_building_content(content, extra_source as Building, "candidate")
 	if _stuff_manager != null:
 		for runtime in _stuff_manager.call("get_all_stuff"):
-			if runtime == null or not is_instance_valid(runtime):
-				continue
-			var kind: StringName = runtime.call("get_copy_kind")
-			if kind.is_empty():
-				continue
-			var payload := MirrorCopyPayload.new()
-			payload.stable_key = "stuff:%s" % String(runtime.get("placement_id"))
-			payload.copy_kind = kind
-			payload.display_name = runtime.call("get_copy_display_name")
-			payload.source_cell = runtime.get("cell")
-			payload.root_source_cell = runtime.get("cell")
-			payload.projected_cell = runtime.get("cell")
-			payload.root_source = runtime
-			payload.tile_effect = runtime.call("get_effect")
-			payload.primary_color = runtime.call("get_copy_color")
-			_append_content(content, payload.source_cell, payload)
+			_append_stuff_content(content, runtime)
 	elif _tile_manager != null:
 		for tile in _tile_manager.get_tiles():
 			var effect := tile.get_effect()
@@ -802,10 +1167,37 @@ func _build_base_content_map(extra_source: Variant = null) -> Dictionary:
 			payload.projected_cell = tile.cell
 			if effect.creates_runtime_obstacle():
 				payload.root_source = _tile_manager.get_runtime_obstacle(tile.cell)
+				payload.uses_structure_lifetime = true
 			payload.tile_effect = effect
 			payload.primary_color = effect.get_copy_color()
 			_append_content(content, tile.cell, payload)
+	if extra_source is StuffRuntime and is_instance_valid(extra_source):
+		_append_stuff_content(content, extra_source as StuffRuntime, "candidate_stuff")
 	return content
+
+
+func _append_stuff_content(
+	content: Dictionary,
+	runtime: StuffRuntime,
+	key_prefix: String = "stuff"
+) -> void:
+	if runtime == null or not is_instance_valid(runtime):
+		return
+	var kind := runtime.get_copy_kind()
+	if kind.is_empty():
+		return
+	var payload := MirrorCopyPayload.new()
+	payload.stable_key = "%s:%s" % [key_prefix, String(runtime.placement_id)]
+	payload.copy_kind = kind
+	payload.display_name = runtime.get_copy_display_name()
+	payload.source_cell = runtime.cell
+	payload.root_source_cell = runtime.cell
+	payload.projected_cell = runtime.cell
+	payload.root_source = runtime
+	payload.tile_effect = runtime.get_effect()
+	payload.uses_structure_lifetime = true
+	payload.primary_color = runtime.get_copy_color()
+	_append_content(content, payload.source_cell, payload)
 
 
 func _append_building_content(content: Dictionary, building: Building, key_prefix: String = "building") -> void:
@@ -822,6 +1214,7 @@ func _append_building_content(content: Dictionary, building: Building, key_prefi
 	payload.root_source_cell = building.cell
 	payload.projected_cell = building.cell
 	payload.root_source = building
+	payload.uses_structure_lifetime = building.is_path_blocker()
 	payload.primary_color = building.get_copy_color()
 	_append_content(content, building.cell, payload)
 
@@ -885,6 +1278,42 @@ func _refresh_preview_projection() -> void:
 	preview_updated.emit(_preview_info)
 
 
+func _refresh_building_preview_projections(building: Building) -> void:
+	_clear_building_preview_projections()
+	if (
+		building == null
+		or not is_instance_valid(building)
+		or not feature_enabled
+		or copy_mirror_definition == null
+		or _grid == null
+		or _tile_manager == null
+	):
+		building_preview_projections_rebuilt.emit(0)
+		return
+	var stack_counts: Dictionary = {}
+	for raw_cell in _projections_by_cell:
+		stack_counts[raw_cell] = (_projections_by_cell[raw_cell] as Array).size()
+	for payload in _calculate_projection_payloads(get_copy_mirrors(), building):
+		if not payload.is_source_valid() or payload.root_source != building:
+			continue
+		var stack_index := int(stack_counts.get(payload.projected_cell, 0))
+		stack_counts[payload.projected_cell] = stack_index + 1
+		var projection := MirrorProjection.new()
+		add_child(projection)
+		projection.configure(
+			payload,
+			_grid,
+			_tile_manager,
+			copy_mirror_definition,
+			stack_index,
+			true,
+			_tile_visual_snapshot_resolver,
+			building.is_preview_valid()
+		)
+		_building_preview_projections.append(projection)
+	building_preview_projections_rebuilt.emit(_building_preview_projections.size())
+
+
 func _validate_path_connectivity(change: Dictionary) -> String:
 	if not _path_connectivity_validator.is_valid():
 		return ""
@@ -898,9 +1327,31 @@ func _payload_affects_target(payload: MirrorCopyPayload, target: Node) -> bool:
 		return payload.tile_effect.affects_target(target)
 	return true
 
+
+func _payload_blocks_enemy_navigation(payload: MirrorCopyPayload, target: Node) -> bool:
+	if payload == null or not payload.is_source_valid():
+		return false
+	# Barrier buildings have no TileEffect/Stuff definition; their copy kind is
+	# itself the navigation contract.
+	if payload.copy_kind == &"barrier":
+		return _payload_affects_target(payload, target)
+	if payload.root_source != null and payload.root_source.has_method("blocks_enemy_navigation"):
+		return bool(payload.root_source.call("blocks_enemy_navigation", target))
+	if payload.tile_effect != null:
+		return payload.tile_effect.blocks_enemy_navigation(target)
+	return false
+
 func _clear_projection_nodes() -> void:
 	for projection in _projections:
 		if is_instance_valid(projection):
+			if (
+				projection.payload != null
+				and projection.payload.copy_kind == &"laser_tower"
+				and not projection.payload.stable_key.is_empty()
+			):
+				_laser_projection_states[projection.payload.stable_key] = (
+					projection.get_laser_propagation_state()
+				)
 			projection.visible = false
 			projection.queue_free()
 	_projections.clear()
@@ -912,6 +1363,14 @@ func _clear_preview_projections() -> void:
 			projection.visible = false
 			projection.queue_free()
 	_preview_projections.clear()
+
+
+func _clear_building_preview_projections() -> void:
+	for projection in _building_preview_projections:
+		if is_instance_valid(projection):
+			projection.visible = false
+			projection.queue_free()
+	_building_preview_projections.clear()
 
 func _update_reflection_views() -> void:
 	if not feature_enabled:
@@ -1009,8 +1468,30 @@ func _on_copy_attack_triggered(
 		var start := projection.payload.transform_point(world_start)
 		var end := projection.payload.transform_point(world_end)
 		if (
+			attack_kind in [&"missile", &"directional_missile"]
+			and projection.payload.copy_kind == &"crossbow_tower"
+		):
+			var missile_direction := end - start
+			if missile_direction.length_squared() <= 0.000001:
+				continue
+			var copied_missile := _combat_manager.spawn_directional_missile(
+				start,
+				missile_direction.normalized(),
+				building.get_projectile_speed_world(),
+				damage,
+				building.get_attack_range_world(),
+				building.get_projectile_length_world(),
+				building.get_projectile_width_world(),
+				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
+				building.get_projectile_model_asset(),
+				building,
+				building.get_missile_configuration()
+			)
+			if copied_missile != null:
+				attack_mirrored.emit(projection, attack_kind)
+		elif (
 			attack_kind == &"projectile"
-			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower"]
+			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower", &"mace_tower"]
 		):
 			var projectile := MirrorProjectionProjectileScript.new()
 			_combat_manager.add_child(projectile)
@@ -1026,12 +1507,15 @@ func _on_copy_attack_triggered(
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
 				building.get_projectile_model_asset(),
 				building.get_attack_range_world(),
-				Callable(self, "trace_projectile_reflection")
+				Callable(self, "trace_projectile_reflection"),
+				false,
+				building.get_projectile_penetration_count(),
+				Callable(self, "trace_ballistic_blocker")
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif (
 			attack_kind == &"directional_projectile"
-			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower"]
+			and projection.payload.copy_kind in [&"arrow_tower", &"crossbow_tower", &"mace_tower"]
 		):
 			var directional_projectile := MirrorProjectionProjectileScript.new()
 			_combat_manager.add_child(directional_projectile)
@@ -1048,14 +1532,74 @@ func _on_copy_attack_triggered(
 				building.get_projectile_model_asset(),
 				building.get_attack_range_world(),
 				Callable(self, "trace_projectile_reflection"),
-				true
+				true,
+				building.get_projectile_penetration_count(),
+				Callable(self, "trace_ballistic_blocker")
 			)
 			attack_mirrored.emit(projection, attack_kind)
+		elif attack_kind == &"pulse_laser" and projection.payload.copy_kind == &"pulse_laser_tower":
+			var direction := end - start
+			if direction.length_squared() <= 0.000001:
+				continue
+			var pulse_beam := _combat_manager.spawn_pulse_laser(
+				start,
+				direction.normalized(),
+				damage,
+				building.get_attack_range_world(),
+				building.get_pulse_laser_width_world(),
+				building.get_pulse_laser_emission_energy(),
+				building.get_pulse_laser_fade_in_time(),
+				building.get_pulse_laser_hold_time(),
+				building.get_pulse_laser_fade_out_time(),
+				building.get_pulse_laser_reflection_colors(),
+				building.get_pulse_laser_reflect_max(),
+				building
+			)
+			if pulse_beam != null:
+				attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"laser" and projection.payload.copy_kind == &"laser_tower":
-			projection.show_laser(start, end)
-			for target in _combat_manager.get_targets_on_segment(start, end):
-				if building.affects_target(target):
-					target.take_damage(damage)
+			var projected_laser_direction := end - start
+			if projected_laser_direction.length_squared() <= 0.000001:
+				continue
+			var damage_per_second := building.get_laser_damage_per_second()
+			var duration := damage / damage_per_second if damage_per_second > 0.0 else 0.0
+			var propagation_distance := projection.advance_laser_propagation(
+				start,
+				projected_laser_direction,
+				duration,
+				building.get_attack_range_world(),
+				building.get_laser_propagation_speed_world()
+			)
+			var path: Dictionary = LaserAttackStrategyScript.trace_laser_path(
+				building,
+				_combat_manager,
+				start,
+				projected_laser_direction,
+				propagation_distance
+			)
+			if path.get("termination", &"none") in [&"enemy", &"stuff"]:
+				projection.clamp_laser_propagation(
+					LaserAttackStrategyScript.get_path_length(path)
+				)
+			projection.show_laser_path(
+				path.get("segments", []),
+				path.get("endpoint", start)
+			)
+			LaserAttackStrategyScript.apply_continuous_hits(
+				building,
+				path,
+				damage_per_second,
+				duration,
+				false
+			)
+			attack_mirrored.emit(projection, attack_kind)
+		elif attack_kind == &"laser_burst" and projection.payload.copy_kind == &"laser_tower":
+			LaserAttackStrategyScript.apply_endpoint_burst(
+				building,
+				_combat_manager,
+				projection.get_laser_endpoint(start),
+				false
+			)
 			attack_mirrored.emit(projection, attack_kind)
 
 func _on_building_placed(building: Building) -> void:
@@ -1069,6 +1613,15 @@ func _on_building_removed(building: Building) -> void:
 func _on_building_upgraded(_building: Building, _previous_level: int, _new_level: int) -> void:
 	rebuild_now()
 
+
+func _on_building_preview_updated(building: Building) -> void:
+	_refresh_building_preview_projections(building)
+
+
+func _on_building_preview_cleared() -> void:
+	_clear_building_preview_projections()
+	building_preview_projections_rebuilt.emit(0)
+
 func _on_tile_changed(_cell: Vector3i, _tile: TileCellData) -> void:
 	rebuild_now()
 
@@ -1076,6 +1629,24 @@ func _on_obstacle_destroyed(_cell: Vector3i) -> void:
 	queue_rebuild()
 
 func _on_definition_changed() -> void:
+	var copy_duration := get_placement_cooldown_duration(MirrorPlacementData.MirrorKind.COPY)
+	_set_placement_cooldown_remaining(
+		MirrorPlacementData.MirrorKind.COPY,
+		copy_duration if get_placement_cooldown_remaining(MirrorPlacementData.MirrorKind.COPY) <= 0.000001 else minf(
+			get_placement_cooldown_remaining(MirrorPlacementData.MirrorKind.COPY),
+			copy_duration
+		)
+	)
+	var reflect_duration := get_placement_cooldown_duration(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT)
+	_set_placement_cooldown_remaining(
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT,
+		reflect_duration if get_placement_cooldown_remaining(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT) <= 0.000001 else minf(
+			get_placement_cooldown_remaining(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT),
+			reflect_duration
+		)
+	)
+	_emit_placement_cooldown_changed(MirrorPlacementData.MirrorKind.COPY)
+	_emit_placement_cooldown_changed(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT)
 	for mirror in get_mirrors():
 		mirror.refresh_visual()
 	if _preview_mirror != null and is_instance_valid(_preview_mirror):
@@ -1094,7 +1665,7 @@ func _on_mirror_tree_exited(mirror: CopyMirror) -> void:
 	if _edge_occupancy_registry != null:
 		_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 	if _resource_manager != null:
-		_resource_manager.unregister_mirror(0.0)
+		_resource_manager.unregister_mirror()
 	if _selected_mirror == mirror:
 		select_mirror(null)
 	_mirror_exit_callbacks.erase(mirror)
@@ -1112,6 +1683,7 @@ func _disconnect_mirror_exit(mirror: CopyMirror) -> void:
 	_mirror_exit_callbacks.erase(mirror)
 
 func _on_level_loaded(_level_resource: LevelResource) -> void:
+	reset_placement_cooldowns()
 	clear_mirrors(true)
 
 
@@ -1131,6 +1703,7 @@ func _disconnect_dependencies() -> void:
 		reflect_mirror_definition.changed.disconnect(_on_definition_changed)
 	if _combat_manager != null:
 		_combat_manager.clear_projectile_reflection_resolver(self)
+		_combat_manager.clear_projectile_blocker_resolver(self)
 	if _building_manager != null:
 		if _building_manager.building_placed.is_connected(_on_building_placed):
 			_building_manager.building_placed.disconnect(_on_building_placed)
@@ -1138,6 +1711,10 @@ func _disconnect_dependencies() -> void:
 			_building_manager.building_removed.disconnect(_on_building_removed)
 		if _building_manager.building_upgraded.is_connected(_on_building_upgraded):
 			_building_manager.building_upgraded.disconnect(_on_building_upgraded)
+		if _building_manager.preview_updated.is_connected(_on_building_preview_updated):
+			_building_manager.preview_updated.disconnect(_on_building_preview_updated)
+		if _building_manager.preview_cleared.is_connected(_on_building_preview_cleared):
+			_building_manager.preview_cleared.disconnect(_on_building_preview_cleared)
 	if _tile_manager != null:
 		if _tile_manager.level_loaded.is_connected(_on_level_loaded):
 			_tile_manager.level_loaded.disconnect(_on_level_loaded)

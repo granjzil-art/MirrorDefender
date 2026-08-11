@@ -210,6 +210,9 @@ func _test_editor_panel_integration() -> void:
 	_expect(camera_canvas != panel.get("_canvas"), "camera authoring does not reuse or mutate the terrain page canvas")
 	var level := panel.get("_level") as LevelResource
 	_expect(level != null and level.camera_presets.is_empty(), "new level starts with six logically empty camera slots")
+	_expect(panel.has_method("_queue_resource_auto_sync"), "level editor exposes deferred full-resource auto-sync")
+	_expect(panel.has_method("_poll_active_resource_file"), "level editor exposes external resource change polling")
+	_expect(panel.has_method("_reload_active_resource_from_disk"), "level editor exposes conflict-safe resource reload")
 	var undo_redo := panel.get("_undo_redo") as UndoRedo
 	panel.free()
 	undo_redo.free()

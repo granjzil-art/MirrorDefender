@@ -1,0 +1,99 @@
+[gd_resource type="Resource" script_class="LightingProfile" format=3 uid="uid://bd6gmfg3b3j0n"]
+
+[ext_resource type="Script" uid="uid://bs32qt02vd1s0" path="res://scripts/lighting/LightingProfile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://lqhxsku87exn" path="res://scripts/lighting/LightDefinition.gd" id="2_light"]
+[ext_resource type="Script" uid="uid://dy7rri21tg83j" path="res://scripts/lighting/DisplayCaseLightingDefinition.gd" id="3_case"]
+[ext_resource type="Script" uid="uid://bar63sbfvggh8" path="res://scripts/lighting/ReflectionProbeDefinition.gd" id="4_probe"]
+
+[sub_resource type="Resource" id="Case_night"]
+script = ExtResource("3_case")
+glass_tint = Color(0.38, 0.55, 0.72, 1)
+base_alpha = 0.006
+fresnel_alpha = 0.055
+border_alpha = 0.055
+stripe_color = Color(0.45, 0.68, 0.92, 1)
+stripe_strength = 0.015
+edge_color = Color(0.5, 0.7, 0.96, 1)
+edge_alpha = 0.075
+edge_emission_energy = 0.03
+
+[sub_resource type="Environment" id="Environment_night"]
+background_mode = 1
+background_color = Color(0.006, 0.012, 0.035, 1)
+background_energy_multiplier = 0.7
+ambient_light_source = 2
+ambient_light_color = Color(0.2, 0.26, 0.38, 1)
+ambient_light_sky_contribution = 0.0
+ambient_light_energy = 0.46
+tonemap_mode = 3
+tonemap_white = 5.0
+ssao_enabled = true
+ssao_radius = 1.8
+ssao_intensity = 1.85
+ssao_power = 1.45
+ssil_enabled = true
+ssil_radius = 4.0
+ssil_intensity = 0.7
+ssil_sharpness = 0.88
+glow_enabled = true
+glow_intensity = 0.1
+glow_hdr_threshold = 1.05
+glow_hdr_scale = 1.5
+adjustment_enabled = true
+adjustment_contrast = 1.1
+adjustment_saturation = 0.9
+
+[sub_resource type="Resource" id="Light_night_spot"]
+script = ExtResource("2_light")
+light_id = &"night_spot"
+kind = 2
+position = Vector3(-0.12, 3, 0.32)
+color = Color(1, 0.94, 0.82, 1)
+energy = 1.3
+indirect_energy = 0.32
+specular = 0.72
+range = 150.0
+attenuation = 0.5
+spot_angle = 15.0
+spot_angle_attenuation = 0.65
+shadow_enabled = true
+shadow_bias = 0.045
+shadow_normal_bias = 0.18
+shadow_blur = 0.5
+
+[sub_resource type="Resource" id="Light_night_cool_fill"]
+script = ExtResource("2_light")
+light_id = &"night_cool_fill"
+kind = 3
+position = Vector3(-0.85, 0.28, -0.28)
+color = Color(0.18, 0.38, 0.72, 1)
+energy = 3.4
+indirect_energy = 0.35
+specular = 0.65
+range = 22.0
+attenuation = 1.2
+area_size = Vector2(0.65, 0.75)
+
+[sub_resource type="Resource" id="Light_night_rim"]
+script = ExtResource("2_light")
+light_id = &"night_rim"
+position = Vector3(0.58, 0.56, -0.42)
+color = Color(0.32, 0.53, 0.88, 1)
+energy = 0.45
+indirect_energy = 0.2
+specular = 0.52
+angular_distance = 5.0
+
+[sub_resource type="Resource" id="Probe_night"]
+script = ExtResource("4_probe")
+intensity = 0.72
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"night_spotlight"
+display_name = "夜晚聚光"
+environment_template = SubResource("Environment_night")
+lights = Array[ExtResource("2_light")]([SubResource("Light_night_spot"), SubResource("Light_night_cool_fill"), SubResource("Light_night_rim")])
+display_case_lighting = SubResource("Case_night")
+reflection_probe = SubResource("Probe_night")
+default_transition_duration = 0.8

@@ -129,6 +129,10 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 		fixture["mirror"],
 		6
 	)
+	_expect(
+		hud.build_card_bar.get_building_definition_at(2) == fixture["building"].pulse_laser_tower,
+		"runtime HUD third building slot is the new pulse-laser tower"
+	)
 	hud.configure_inspection(
 		fixture["grid"],
 		fixture["tile"],
@@ -228,6 +232,7 @@ func _make_fixture() -> Dictionary:
 	arrow_inspection.function_description = "测试箭塔自定义说明。"
 	building_manager.arrow_tower.inspection_display = arrow_inspection
 	building_manager.laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.LASER_TOWER)
+	building_manager.pulse_laser_tower = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.PULSE_LASER_TOWER)
 	building_manager.barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.BARRIER)
 	building_manager.edge_barrier = TestDefinitionFactory.make_building_definition(BuildingDefinition.Kind.EDGE_BARRIER)
 	building_manager.set_edge_occupancy_registry(registry)

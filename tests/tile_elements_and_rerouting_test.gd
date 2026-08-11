@@ -632,7 +632,9 @@ func _make_level(shape: GridManager.Shape) -> LevelResource:
 	level.grid_shape = shape
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(4, 4)
-	level.base_cell = Vector3i.ZERO
+	# Keep the compatibility base away from terrain-element fixtures. A base
+	# footprint may not contain Stuff under the production contract.
+	level.base_cell = Vector3i(3, 3, 0) if shape == GridManager.Shape.SQUARE else Vector3i.ZERO
 	return level
 
 func _make_detour_level(shape: GridManager.Shape) -> LevelResource:

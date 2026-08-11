@@ -123,8 +123,11 @@ func _is_requirement_reachable(
 		return false
 	var allowed_cells := _build_target_network(target_base.base_id)
 	var start := path.get_start_cell()
-	var goal := target_base.cell
-	if not allowed_cells.has(start) or not allowed_cells.has(goal):
+	var goals: Dictionary = {}
+	for footprint_cell in target_base.get_footprint_cells():
+		goals[footprint_cell] = true
+		allowed_cells[footprint_cell] = true
+	if not allowed_cells.has(start) or goals.is_empty():
 		return false
 	if not _cell_is_usable(start, profile, projected_blocked_cells, change):
 		return false
@@ -132,7 +135,7 @@ func _is_requirement_reachable(
 	var visited: Dictionary = {start: true}
 	while not frontier.is_empty():
 		var current: Vector3i = frontier.pop_front()
-		if current == goal:
+		if goals.has(current):
 			return true
 		for neighbor in _grid.get_neighbors(current):
 			if visited.has(neighbor) or not allowed_cells.has(neighbor):
@@ -156,6 +159,10 @@ func _build_target_network(target_base_id: StringName) -> Dictionary:
 			continue
 		for cell in path.cells:
 			allowed_cells[cell] = true
+	var target_base := _level.get_base_point(target_base_id)
+	if target_base != null:
+		for footprint_cell in target_base.get_footprint_cells():
+			allowed_cells[footprint_cell] = true
 	return allowed_cells
 
 

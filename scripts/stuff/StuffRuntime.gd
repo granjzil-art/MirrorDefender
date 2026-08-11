@@ -125,6 +125,10 @@ func can_use_for_reroute(target: Node = null) -> bool:
 	)
 
 
+func blocks_ballistics() -> bool:
+	return is_structure_alive() and definition != null and definition.blocks_ballistics
+
+
 func affects_target(target: Node) -> bool:
 	if definition != null and definition.enemy_navigation != StuffDefinition.EnemyNavigation.PASSABLE:
 		return definition.navigation_affects_target(target)

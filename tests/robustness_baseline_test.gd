@@ -331,14 +331,14 @@ func _test_wave_spawn_failure_is_not_victory() -> void:
 	await process_frame
 
 func _test_production_level_smoke() -> void:
-	var resource := ResourceLoader.load("res://resources/levels/M4DemoLevel.tres", "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
-	_expect(resource is LevelResource, "M4DemoLevel is a LevelResource")
+	var resource := ResourceLoader.load("res://resources/levels/Level2.tres", "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
+	_expect(resource is LevelResource, "Level2 is a LevelResource")
 	if not resource is LevelResource:
 		return
 	var level: LevelResource = resource
-	_expect(level.validate_runtime().is_empty(), "M4DemoLevel passes runtime validation")
-	_expect(not level.paths.is_empty(), "M4DemoLevel keeps at least one playable path")
-	_expect(not level.waves.is_empty(), "M4DemoLevel keeps at least one configured wave")
+	_expect(level.validate_runtime().is_empty(), "Level2 passes runtime validation")
+	_expect(not level.paths.is_empty(), "Level2 keeps at least one playable path")
+	_expect(not level.waves.is_empty(), "Level2 keeps at least one configured wave")
 
 func _make_runtime_fixture() -> Dictionary:
 	var host := Node3D.new()

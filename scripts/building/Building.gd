@@ -4,6 +4,9 @@ extends Node3D
 
 const ArrowAttackStrategyScript := preload("res://scripts/combat/ArrowAttackStrategy.gd")
 const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
+const ContinuousLaserVisualScript := preload("res://scripts/combat/ContinuousLaserVisual.gd")
+const PulseLaserAttackStrategyScript := preload("res://scripts/combat/PulseLaserAttackStrategy.gd")
+const MaceAttackStrategyScript := preload("res://scripts/combat/MaceAttackStrategy.gd")
 const BarrierDurabilityScript := preload("res://scripts/building/BarrierDurability.gd")
 const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 const FREE_FACING_SLOT_COUNT := 36
@@ -50,8 +53,7 @@ var _locked_target: CombatTarget
 var _preview_mode: bool = false
 var _preview_valid: bool = true
 var _visual_root: Node3D
-var _attack_line_instance: MeshInstance3D
-var _attack_line_material: StandardMaterial3D
+var _continuous_laser_visual: Node3D
 var _durability_label: Label3D
 var _durability: BarrierDurability
 
@@ -209,7 +211,7 @@ func get_resource_per_second() -> float:
 	return _stats.resource_per_second if _stats != null else 0.0
 
 func get_refund_amount() -> float:
-	return _stats.refund_amount if _stats != null else 0.0
+	return definition.get_cumulative_cost(level) if definition != null else 0.0
 
 func is_path_blocker() -> bool:
 	return definition != null and definition.is_defensive_structure()
@@ -272,11 +274,25 @@ func acquire_target() -> CombatTarget:
 	if not is_instance_valid(_locked_target):
 		_locked_target = null
 	var candidates: Array[CombatTarget] = []
+	var airborne_candidates: Array[CombatTarget] = []
 	for target in _combat_manager.get_targets_in_range(get_attack_origin(), get_targeting_range_world()):
 		if affects_target(target):
 			candidates.append(target)
+			if target.is_airborne_unit():
+				airborne_candidates.append(target)
+	if _stats.prioritizes_airborne and not airborne_candidates.is_empty():
+		candidates = airborne_candidates
 	_locked_target = _targeting_strategy.select_target(candidates, get_attack_origin(), _locked_target)
 	return _locked_target
+
+
+func has_target_in_range() -> bool:
+	if _combat_manager == null or _stats == null:
+		return false
+	for target in _combat_manager.get_targets_in_range(get_attack_origin(), get_targeting_range_world()):
+		if affects_target(target):
+			return true
+	return false
 
 func is_target_in_attack_range(target: CombatTarget) -> bool:
 	if target == null or not is_instance_valid(target) or not affects_target(target):
@@ -360,7 +376,10 @@ func uses_targeting_range() -> bool:
 	return (
 		definition != null
 		and not definition.is_defensive_structure()
-		and definition.aim_mode == BuildingDefinition.AimMode.TRACK_TARGET
+		and (
+			definition.aim_mode == BuildingDefinition.AimMode.TRACK_TARGET
+			or definition.kind == BuildingDefinition.Kind.MACE_TOWER
+		)
 	)
 
 func get_attack_range_world() -> float:
@@ -376,11 +395,82 @@ func fires_along_facing_without_target() -> bool:
 		and _stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
 	)
 
+
+func get_projectile_direction_count() -> int:
+	return _stats.projectile_direction_count if _stats != null else 1
+
+
+func get_projectile_penetration_count() -> int:
+	return _stats.projectile_penetration_count if _stats != null else 0
+
+
+## Returns the horizontal launch directions used by a facing-based projectile
+## or laser attack at the current level. Target-tracking towers expose their
+## logical facing so read-only placement/rotation previews do not need a fake
+## target.
+func get_projectile_launch_directions() -> Array[Vector3]:
+	var directions: Array[Vector3] = []
+	if definition == null or _stats == null or definition.is_defensive_structure():
+		return directions
+	var direction_count := 1
+	if definition.kind == BuildingDefinition.Kind.MACE_TOWER:
+		direction_count = clampi(_stats.projectile_direction_count, 1, 8)
+	var base_direction := get_facing_direction()
+	var base_angle := atan2(base_direction.z, base_direction.x)
+	for index in range(direction_count):
+		var direction_angle := base_angle + TAU * float(index) / float(direction_count)
+		directions.append(Vector3(cos(direction_angle), 0.0, sin(direction_angle)).normalized())
+	return directions
+
 func get_instant_damage() -> float:
 	return DamageCalculator.compute(_stats.base_damage, _stats.level_factor, _stats.extra_factor)
 
 func get_laser_damage_per_second() -> float:
 	return DamageCalculator.compute(_stats.laser_dps, _stats.level_factor, _stats.extra_factor)
+
+
+func get_laser_beam_color() -> Color:
+	return _stats.laser_beam_color if _stats != null else Color(0.88, 0.96, 1.0, 0.96)
+
+
+func get_laser_beam_width_world() -> float:
+	return _stats.laser_beam_width * _grid.cell_size if _stats != null and _grid != null else 0.08
+
+
+func get_laser_beam_emission_energy() -> float:
+	return _stats.laser_beam_emission_energy if _stats != null else 0.0
+
+
+func get_laser_propagation_speed_world() -> float:
+	return _stats.laser_propagation_speed * _grid.cell_size if _stats != null and _grid != null else 1.0
+
+
+func get_laser_slow_multiplier() -> float:
+	return _stats.laser_slow_multiplier if _stats != null else 1.0
+
+
+func get_laser_slow_duration() -> float:
+	return _stats.laser_slow_duration if _stats != null else 0.0
+
+
+func get_laser_burst_interval() -> float:
+	return _stats.laser_burst_interval if _stats != null else 0.0
+
+
+func get_laser_burst_radius_world() -> float:
+	return _stats.laser_burst_radius * _grid.cell_size if _stats != null and _grid != null else 0.0
+
+
+func get_laser_burst_radius_cells() -> float:
+	return _stats.laser_burst_radius if _stats != null else 0.0
+
+
+func get_laser_burst_damage() -> float:
+	return get_instant_damage()
+
+
+func get_laser_freeze_duration() -> float:
+	return _stats.laser_freeze_duration if _stats != null else 0.0
 
 func get_combat_manager() -> CombatManager:
 	return _combat_manager
@@ -396,6 +486,10 @@ func get_copy_kind() -> StringName:
 		return &"arrow_tower"
 	if definition.kind == BuildingDefinition.Kind.CROSSBOW_TOWER:
 		return &"crossbow_tower"
+	if definition.kind == BuildingDefinition.Kind.MACE_TOWER:
+		return &"mace_tower"
+	if definition.kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
+		return &"pulse_laser_tower"
 	return &""
 
 func get_copy_display_name() -> String:
@@ -411,6 +505,11 @@ func get_projectile_length_world() -> float:
 	return _stats.projectile_length * _grid.cell_size if _stats != null and _grid != null else 0.2
 
 func get_projectile_width_world() -> float:
+	if definition != null:
+		if definition.kind == BuildingDefinition.Kind.LASER_TOWER:
+			return get_laser_beam_width_world()
+		if definition.kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
+			return get_pulse_laser_width_world()
 	return _stats.projectile_width * _grid.cell_size if _stats != null and _grid != null else 0.05
 
 func get_attack_color() -> Color:
@@ -419,56 +518,192 @@ func get_attack_color() -> Color:
 func get_projectile_model_asset() -> ModelAssetDefinition:
 	return _stats.projectile_model_asset if _stats != null else null
 
+
+func uses_missile_projectiles() -> bool:
+	return _stats != null and _stats.projectile_is_missile
+
+
+func get_missile_configuration() -> Dictionary:
+	if _stats == null:
+		return {}
+	var cell_size := _grid.cell_size if _grid != null else 1.0
+	return {
+		"explosion_radius": _stats.missile_explosion_radius * cell_size,
+		"orbit_duration": _stats.missile_orbit_duration,
+		"orbit_radius_x": _stats.missile_orbit_radius_x * cell_size,
+		"orbit_radius_z": _stats.missile_orbit_radius_z * cell_size,
+		"orbit_vertical_amplitude": _stats.missile_orbit_vertical_amplitude * cell_size,
+		"homing_turn_speed_degrees": _stats.missile_homing_turn_speed_degrees,
+		"speed_variation_ratio": _stats.missile_speed_variation_ratio,
+		"speed_variation_frequency": _stats.missile_speed_variation_frequency,
+		"visual_wobble": _stats.missile_visual_wobble * cell_size,
+		"visual_roll_degrees": _stats.missile_visual_roll_degrees,
+		"trail_lifetime": _stats.missile_trail_lifetime,
+		"trail_width": _stats.missile_trail_width * cell_size,
+		"target_marker_size": _stats.missile_target_marker_size * cell_size,
+		"explosion_duration": _stats.missile_explosion_duration,
+	}
+
+
 func notify_copy_attack(attack_kind: StringName, world_start: Vector3, world_end: Vector3, damage: float) -> void:
 	copy_attack_triggered.emit(self, attack_kind, world_start, world_end, maxf(0.0, damage))
+
+
+func get_pulse_laser_width_world() -> float:
+	return _stats.pulse_laser_width * _grid.cell_size if _stats != null and _grid != null else 0.1
+
+
+func get_pulse_laser_emission_energy() -> float:
+	return _stats.pulse_laser_emission_energy if _stats != null else 0.0
+
+
+func get_pulse_laser_fade_in_time() -> float:
+	return _stats.pulse_laser_fade_in_time if _stats != null else 0.0
+
+
+func get_pulse_laser_hold_time() -> float:
+	return _stats.pulse_laser_hold_time if _stats != null else 0.0
+
+
+func get_pulse_laser_fade_out_time() -> float:
+	return _stats.pulse_laser_fade_out_time if _stats != null else 0.0
+
+
+func get_pulse_laser_reflection_colors() -> Array[Color]:
+	return definition.pulse_laser_reflection_colors.duplicate() if definition != null else []
+
+
+func get_pulse_laser_reflect_max() -> int:
+	return definition.pulse_laser_reflect_max if definition != null else 0
+
+
+func launch_pulse_laser() -> PulseLaserBeam:
+	if _combat_manager == null or _stats == null or definition == null:
+		return null
+	var start := get_attack_origin()
+	var direction := get_facing_direction()
+	var damage := get_instant_damage()
+	var beam := _combat_manager.spawn_pulse_laser(
+		start,
+		direction,
+		damage,
+		get_attack_range_world(),
+		get_pulse_laser_width_world(),
+		get_pulse_laser_emission_energy(),
+		get_pulse_laser_fade_in_time(),
+		get_pulse_laser_hold_time(),
+		get_pulse_laser_fade_out_time(),
+		get_pulse_laser_reflection_colors(),
+		get_pulse_laser_reflect_max(),
+		self
+	)
+	if beam != null:
+		beam.impacted.connect(_on_pulse_laser_impacted)
+		notify_copy_attack(
+			&"pulse_laser",
+			start,
+			start + direction * get_attack_range_world(),
+			damage
+		)
+	return beam
 
 func launch_projectile(target: CombatTarget, damage: float) -> Projectile:
 	if _combat_manager == null or _stats == null:
 		return null
-	var projectile := _combat_manager.spawn_projectile(
-		get_attack_origin(),
-		target,
-		_stats.projectile_speed * _grid.cell_size,
-		damage,
-		get_attack_range_world(),
-		_stats.projectile_length * _grid.cell_size,
-		_stats.projectile_width * _grid.cell_size,
-		_stats.attack_color,
-		_stats.projectile_model_asset,
-		self
-	)
-	if projectile != null:
-		projectile.impacted.connect(_on_projectile_impacted)
-		notify_copy_attack(&"projectile", get_attack_origin(), target.get_target_position(), damage)
-	return projectile
-
-
-func launch_directional_projectile(damage: float) -> Projectile:
-	if _combat_manager == null or _stats == null or _grid == null:
-		return null
-	var start := get_attack_origin()
-	var direction := get_facing_direction()
-	var projectile := _combat_manager.spawn_directional_projectile(
-		start,
-		direction,
-		_stats.projectile_speed * _grid.cell_size,
-		damage,
-		get_attack_range_world(),
-		_stats.projectile_length * _grid.cell_size,
-		_stats.projectile_width * _grid.cell_size,
-		_stats.attack_color,
-		_stats.projectile_model_asset,
-		self
-	)
+	var projectile: Projectile
+	if uses_missile_projectiles():
+		projectile = _combat_manager.spawn_targeted_missile(
+			get_attack_origin(),
+			target,
+			_stats.projectile_speed * _grid.cell_size,
+			damage,
+			get_attack_range_world(),
+			_stats.projectile_length * _grid.cell_size,
+			_stats.projectile_width * _grid.cell_size,
+			_stats.attack_color,
+			_stats.projectile_model_asset,
+			self,
+			get_missile_configuration()
+		)
+	else:
+		projectile = _combat_manager.spawn_projectile(
+			get_attack_origin(),
+			target,
+			_stats.projectile_speed * _grid.cell_size,
+			damage,
+			get_attack_range_world(),
+			_stats.projectile_length * _grid.cell_size,
+			_stats.projectile_width * _grid.cell_size,
+			_stats.attack_color,
+			_stats.projectile_model_asset,
+			self,
+			_stats.projectile_penetration_count
+		)
 	if projectile != null:
 		projectile.impacted.connect(_on_projectile_impacted)
 		notify_copy_attack(
-			&"directional_projectile",
+			&"missile" if uses_missile_projectiles() else &"projectile",
+			get_attack_origin(),
+			target.get_target_position(),
+			damage
+		)
+	return projectile
+
+
+func launch_directional_projectile(damage: float, direction_override: Vector3 = Vector3.ZERO) -> Projectile:
+	if _combat_manager == null or _stats == null or _grid == null:
+		return null
+	var start := get_attack_origin()
+	var direction := direction_override if direction_override.length_squared() > 0.000001 else get_facing_direction()
+	var projectile: Projectile
+	if uses_missile_projectiles():
+		projectile = _combat_manager.spawn_directional_missile(
+			start,
+			direction,
+			_stats.projectile_speed * _grid.cell_size,
+			damage,
+			get_attack_range_world(),
+			_stats.projectile_length * _grid.cell_size,
+			_stats.projectile_width * _grid.cell_size,
+			_stats.attack_color,
+			_stats.projectile_model_asset,
+			self,
+			get_missile_configuration()
+		)
+	else:
+		projectile = _combat_manager.spawn_directional_projectile(
+			start,
+			direction,
+			_stats.projectile_speed * _grid.cell_size,
+			damage,
+			get_attack_range_world(),
+			_stats.projectile_length * _grid.cell_size,
+			_stats.projectile_width * _grid.cell_size,
+			_stats.attack_color,
+			_stats.projectile_model_asset,
+			self,
+			_stats.projectile_penetration_count
+		)
+	if projectile != null:
+		projectile.impacted.connect(_on_projectile_impacted)
+		notify_copy_attack(
+			&"directional_missile" if uses_missile_projectiles() else &"directional_projectile",
 			start,
 			start + direction * get_attack_range_world(),
 			damage
 		)
 	return projectile
+
+
+func launch_multi_direction_projectiles(damage: float) -> Array[Projectile]:
+	var projectiles: Array[Projectile] = []
+	if _stats == null:
+		return projectiles
+	for direction in get_projectile_launch_directions():
+		var projectile := launch_directional_projectile(damage, direction)
+		if projectile != null:
+			projectiles.append(projectile)
+	return projectiles
 
 
 ## Presentation-facing occupancy contract. Multi-cell placement can extend this
@@ -480,18 +715,17 @@ func get_occupied_cells() -> Array[Vector3i]:
 	return occupied
 
 func show_attack_line(world_end: Vector3, _persistent: bool) -> void:
-	if _attack_line_instance == null:
+	show_attack_path([{"start": get_attack_origin(), "end": world_end}], world_end)
+
+
+func show_attack_path(segments: Array, world_endpoint: Vector3) -> void:
+	if _continuous_laser_visual == null:
 		return
-	var line_mesh := ImmediateMesh.new()
-	line_mesh.surface_begin(Mesh.PRIMITIVE_LINES, _attack_line_material)
-	line_mesh.surface_add_vertex(_attack_line_instance.to_local(get_attack_origin()))
-	line_mesh.surface_add_vertex(_attack_line_instance.to_local(world_end))
-	line_mesh.surface_end()
-	_attack_line_instance.mesh = line_mesh
+	_continuous_laser_visual.show_path(segments, world_endpoint)
 
 func clear_attack_visual() -> void:
-	if _attack_line_instance != null:
-		_attack_line_instance.mesh = null
+	if _continuous_laser_visual != null:
+		_continuous_laser_visual.clear_path()
 
 func create_copy_visual_snapshot() -> Node3D:
 	if _visual_root == null or not is_instance_valid(_visual_root):
@@ -534,6 +768,10 @@ func _configure_attack_strategy() -> void:
 		_attack_strategy = null
 	elif definition.kind == BuildingDefinition.Kind.LASER_TOWER:
 		_attack_strategy = LaserAttackStrategyScript.new()
+	elif definition.kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
+		_attack_strategy = PulseLaserAttackStrategyScript.new()
+	elif definition.kind == BuildingDefinition.Kind.MACE_TOWER:
+		_attack_strategy = MaceAttackStrategyScript.new()
 	else:
 		_attack_strategy = ArrowAttackStrategyScript.new()
 
@@ -541,8 +779,7 @@ func _build_visual() -> void:
 	if _visual_root != null:
 		remove_child(_visual_root)
 		_visual_root.queue_free()
-	_attack_line_instance = null
-	_attack_line_material = null
+	_continuous_laser_visual = null
 	_durability_label = null
 	_visual_root = Node3D.new()
 	add_child(_visual_root)
@@ -609,11 +846,16 @@ func _build_direction_marker(reverse_direction: bool = false) -> void:
 	_visual_root.add_child(direction_instance)
 
 func _build_attack_line() -> void:
-	_attack_line_instance = MeshInstance3D.new()
-	_attack_line_material = _make_material(_stats.attack_color, true)
-	_attack_line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_attack_line_instance.material_override = _attack_line_material
-	_visual_root.add_child(_attack_line_instance)
+	if definition == null or definition.kind != BuildingDefinition.Kind.LASER_TOWER:
+		return
+	_continuous_laser_visual = ContinuousLaserVisualScript.new()
+	_continuous_laser_visual.name = &"ContinuousLaserVisual"
+	_visual_root.add_child(_continuous_laser_visual)
+	_continuous_laser_visual.configure(
+		get_laser_beam_color(),
+		get_laser_beam_width_world(),
+		get_laser_beam_emission_energy()
+	)
 
 func _apply_preview_materials(node: Node) -> void:
 	if node is MeshInstance3D:
@@ -624,7 +866,13 @@ func _apply_preview_materials(node: Node) -> void:
 
 func _sanitize_copy_visual_snapshot(node: Node) -> void:
 	for child in node.get_children():
-		if child is Label3D or child is Control or child is AnimationPlayer or child is AudioStreamPlayer3D:
+		if (
+			child.name == &"ContinuousLaserVisual"
+			or child is Label3D
+			or child is Control
+			or child is AnimationPlayer
+			or child is AudioStreamPlayer3D
+		):
 			child.free()
 		else:
 			_sanitize_copy_visual_snapshot(child)
@@ -693,4 +941,12 @@ func _make_material(color: Color, emissive: bool) -> StandardMaterial3D:
 	return material
 
 func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> void:
+	notify_attack(target, applied_damage, false)
+
+
+func _on_pulse_laser_impacted(
+	target: CombatTarget,
+	applied_damage: float,
+	_segment_index: int
+) -> void:
 	notify_attack(target, applied_damage, false)

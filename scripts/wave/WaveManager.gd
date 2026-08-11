@@ -373,7 +373,8 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 		_cell_world_resolver,
 		_tile_enter_resolver,
 		_tile_stay_resolver,
-		_navigation_blocker_resolver
+		_navigation_blocker_resolver,
+		_combat_manager.get_projectile_blocker_resolver() if _combat_manager != null else Callable()
 	)
 	add_child(unit)
 	if _combat_manager == null or not _combat_manager.register_target(unit):

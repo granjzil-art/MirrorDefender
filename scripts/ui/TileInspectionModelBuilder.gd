@@ -189,9 +189,10 @@ func _make_stuff_entry(runtime: Object) -> Dictionary:
 	if _shows(config, &"show_orientation"):
 		lines.append("朝向：%d" % (int(runtime.get("facing_index")) + 1))
 	if _shows(config, &"show_build_permissions"):
-		lines.append("块建筑：%s · 边建筑：%s" % [
+		lines.append("块建筑：%s · 边建筑：%s · 弹道：%s" % [
 			"禁止" if definition.blocks_tile_building else "不限制",
 			"禁止" if definition.blocks_edge_building else "不限制",
+			"阻挡" if definition.blocks_ballistics else "穿过",
 		])
 	_append_tile_effect_lines(
 		lines,
@@ -341,9 +342,40 @@ func _append_building_gameplay_lines(
 	elif stats != null:
 		if _shows(config, &"show_combat"):
 			lines.append("索敌 %.1f · 射程 %.1f" % [stats.targeting_range, stats.attack_range])
+		if (
+			building.definition != null
+			and building.definition.kind == BuildingDefinition.Kind.MACE_TOWER
+			and _shows(config, &"show_combat")
+		):
+			lines.append("齐射 %d 向 · 穿透 %d" % [stats.projectile_direction_count, stats.projectile_penetration_count])
 		var attack_rate_text: String
 		if building.definition != null and building.definition.kind == BuildingDefinition.Kind.LASER_TOWER:
 			attack_rate_text = "DPS %.1f" % building.get_laser_damage_per_second()
+			if _shows(config, &"show_combat"):
+				lines.append(
+					"射线 宽 %.2f格 · 发光 %.1f · 传播 %.1f格/s" % [
+						stats.laser_beam_width,
+						building.get_laser_beam_emission_energy(),
+						stats.laser_propagation_speed,
+					]
+				)
+				lines.append(
+					"寒冷 移速×%.2f · %.1fs · 额外穿透 %d" % [
+						building.get_laser_slow_multiplier(),
+						building.get_laser_slow_duration(),
+						building.get_projectile_penetration_count(),
+					]
+				)
+				if building.level >= 2:
+					lines.append(
+						"终点爆发 %.1fs · 半径 %.1f格 · 伤害 %.1f" % [
+							building.get_laser_burst_interval(),
+							building.get_laser_burst_radius_cells(),
+							building.get_laser_burst_damage(),
+						]
+					)
+				if building.level >= 3:
+					lines.append("冻结 %.1fs，解冻后继续剩余寒冷" % building.get_laser_freeze_duration())
 		else:
 			attack_rate_text = "攻速 %.2f/s" % stats.attacks_per_second
 		if (
@@ -404,11 +436,15 @@ func _building_description(definition: BuildingDefinition) -> String:
 		return "可由玩家放置、升级、旋转或删除的建筑。"
 	match definition.kind:
 		BuildingDefinition.Kind.CROSSBOW_TOWER:
-			return "索敌范围内按普通箭塔逻辑攻击；无目标时沿建筑逻辑朝向持续发射直线弩箭。"
+			return "优先锁定空中敌人并发射追踪导弹；无目标时沿建筑朝向发射。导弹绕塔后在敌人、Stuff 或射程终点爆炸。"
+		BuildingDefinition.Kind.MACE_TOWER:
+			return "沿建筑逻辑朝向向四方或八方齐射；三级解锁无目标持续开火与投射物穿透。"
 		BuildingDefinition.Kind.ARROW_TOWER:
 			return "自动索敌并发射投射物，攻击索敌范围和射程内的敌人。"
 		BuildingDefinition.Kind.LASER_TOWER:
-			return "沿建筑当前朝向持续发射激光，对光路上的敌人造成持续伤害。"
+			return "沿建筑当前朝向持续发射激光；逻辑终点随光束传播，对已到达光路上的敌人造成持续伤害。"
+		BuildingDefinition.Kind.PULSE_LASER_TOWER:
+			return "沿固定朝向周期发射可反射的脉冲镭射，各光段在保持阶段开始时独立结算一次伤害。"
 		BuildingDefinition.Kind.BARRIER:
 			return "放置在敌人路径格上阻挡敌人，承受攻击并在脱战后恢复耐久。"
 		BuildingDefinition.Kind.EDGE_BARRIER:

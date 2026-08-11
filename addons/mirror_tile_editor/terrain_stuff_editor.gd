@@ -32,6 +32,7 @@ var _terrain_select: OptionButton
 var _layer_select: SpinBox
 var _allows_tile: CheckButton
 var _allows_edge: CheckButton
+var _edge_permission_checks: Array[CheckButton] = []
 var _stuff_list: OptionButton
 var _stuff_facing: SpinBox
 var _remove_stuff_button: Button
@@ -316,9 +317,17 @@ func _build_inspector(inspector: VBoxContainer) -> void:
 	_allows_tile.toggled.connect(_on_selected_permissions_changed)
 	inspector.add_child(_allows_tile)
 	_allows_edge = CheckButton.new()
-	_allows_edge.text = "Grid 允许边建筑"
+	_allows_edge.text = "Grid 允许全部边建筑"
 	_allows_edge.toggled.connect(_on_selected_permissions_changed)
 	inspector.add_child(_allows_edge)
+	var edge_names: Array[String] = ["右边", "上边", "左边", "下边"]
+	for edge_index in range(edge_names.size()):
+		var edge_check := CheckButton.new()
+		edge_check.name = "EdgePermission%d" % edge_index
+		edge_check.text = "允许%s放置边建筑" % edge_names[edge_index]
+		edge_check.toggled.connect(_on_selected_edge_permission_changed.bind(edge_index))
+		inspector.add_child(edge_check)
+		_edge_permission_checks.append(edge_check)
 
 	_add_heading(inspector, "同格 Stuff")
 	_stuff_list = OptionButton.new()
@@ -463,11 +472,12 @@ func _rebuild_stuff_palette() -> void:
 		button.text = definition.display_name
 		button.toggle_mode = true
 		button.button_group = _stuff_button_group
-		button.tooltip_text = "%s\n互斥=%s，阻止块=%s，阻止边=%s，堵路=%s" % [
+		button.tooltip_text = "%s\n互斥=%s，阻止块=%s，阻止边=%s，阻挡弹道=%s，堵路=%s" % [
 			str(definition.resource_path),
 			str(definition.exclusive_with_other_stuff),
 			str(definition.blocks_tile_building),
 			str(definition.blocks_edge_building),
+			str(definition.blocks_ballistics),
 			str(definition.blocks_enemy_navigation()),
 		]
 		button.pressed.connect(_select_stuff_brush.bind(definition))
@@ -523,7 +533,17 @@ func _refresh_selected_inspector() -> void:
 	_terrain_select.select(_terrain_index(data.get_effective_terrain(_level.default_terrain) if data != null else _level.default_terrain))
 	_layer_select.value = data.layer_count if data != null else 1
 	_allows_tile.button_pressed = data.allows_tile_building if data != null else true
-	_allows_edge.button_pressed = data.allows_edge_building if data != null else true
+	_allows_edge.button_pressed = (
+		data.allows_edge_building
+		and data.edge_building_mask == GridCellDataScript.ALL_SQUARE_EDGES_MASK
+		if data != null
+		else true
+	)
+	for edge_index in range(_edge_permission_checks.size()):
+		var edge_check := _edge_permission_checks[edge_index]
+		edge_check.set_block_signals(true)
+		edge_check.button_pressed = data.allows_edge(edge_index) if data != null else true
+		edge_check.set_block_signals(false)
 	_stuff_facing.max_value = 5 if _level.grid_shape == HEX_SHAPE else 7
 	_stuff_list.clear()
 	for placement in Authoring.get_stuff_at(_level, cell):
@@ -616,9 +636,25 @@ func _on_selected_permissions_changed(_value: bool) -> void:
 		_level,
 		_canvas.selected_cell,
 		_allows_tile.button_pressed,
-		_allows_edge.button_pressed
+		_allows_edge.button_pressed,
+		_shape
 	):
 		_canvas.refresh()
+		level_changed.emit()
+
+
+func _on_selected_edge_permission_changed(value: bool, edge_index: int) -> void:
+	if _controls_blocked or not _has_selection():
+		return
+	if Authoring.set_grid_edge_permission(
+		_level,
+		_shape,
+		_canvas.selected_cell,
+		edge_index,
+		value
+	):
+		_canvas.refresh()
+		_refresh_selected_inspector()
 		level_changed.emit()
 
 
@@ -689,6 +725,9 @@ func _set_inspector_enabled(enabled: bool) -> void:
 	_layer_select.editable = enabled
 	_allows_tile.disabled = not enabled
 	_allows_edge.disabled = not enabled
+	for edge_check in _edge_permission_checks:
+		if edge_check != null and is_instance_valid(edge_check):
+			edge_check.disabled = not enabled
 	_stuff_list.disabled = not enabled
 	_stuff_facing.editable = enabled
 	_remove_stuff_button.disabled = not enabled

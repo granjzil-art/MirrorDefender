@@ -9,6 +9,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[AirborneEffects] running")
 	_test_flying_definition_and_height()
+	await _test_flyer_model_animation()
 	await _test_tile_effect_filtering_and_navigation()
 	await _test_building_effect_filtering()
 	if _failures == 0:
@@ -33,6 +34,50 @@ func _test_flying_definition_and_height() -> void:
 	_expect(unit.is_airborne_unit(), "EnemyUnit copies the airborne classification from EnemyDefinition")
 	_expect(is_equal_approx(unit.position.y, definition.flight_height), "airborne path points receive the configured flight height")
 	unit.free()
+
+
+func _test_flyer_model_animation() -> void:
+	var definition := ResourceLoader.load("res://resources/enemies/Flyer.tres") as EnemyDefinition
+	_expect(
+		definition != null and definition.get_model_asset() != null,
+		"Flyer definition references its griffin model asset"
+	)
+	if definition == null or definition.get_model_asset() == null:
+		return
+	var unit := EnemyUnit.new()
+	unit.debug_visual_enabled = false
+	unit.configure_unit(
+		definition,
+		PackedVector3Array([Vector3.ZERO, Vector3.RIGHT]),
+		[Vector3i.ZERO, Vector3i(1, 0, 0)]
+	)
+	root.add_child(unit)
+	await process_frame
+	var animation_player := _find_animation_player(unit)
+	_expect(animation_player != null, "Flyer runtime model contains an AnimationPlayer")
+	if animation_player != null:
+		_expect(animation_player.has_animation(&"Action"), "Flyer runtime model exposes the imported Action animation")
+		var action := animation_player.get_animation(&"Action")
+		_expect(
+			action != null and action.loop_mode == Animation.LOOP_LINEAR,
+			"Flyer Action animation is configured to loop"
+		)
+		_expect(
+			animation_player.is_playing() and animation_player.current_animation == &"Action",
+			"Flyer Action animation starts automatically when the enemy model enters the scene"
+		)
+	unit.queue_free()
+	await process_frame
+
+
+func _find_animation_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node as AnimationPlayer
+	for child in node.get_children():
+		var result := _find_animation_player(child)
+		if result != null:
+			return result
+	return null
 
 func _test_tile_effect_filtering_and_navigation() -> void:
 	var level := _make_level()

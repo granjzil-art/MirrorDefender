@@ -2,6 +2,10 @@
 class_name CombatManager
 extends Node3D
 
+const PulseLaserBeamScript := preload("res://scripts/combat/PulseLaserBeam.gd")
+const LaserBurstEffectScript := preload("res://scripts/combat/LaserBurstEffect.gd")
+const MissileProjectileScript := preload("res://scripts/combat/MissileProjectile.gd")
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -18,13 +22,18 @@ signal target_removed(target: CombatTarget)
 signal target_killed(reward_amount: float)
 signal projectile_spawned(projectile: Projectile)
 signal projectile_hit(target: CombatTarget, applied_damage: float)
+signal pulse_laser_spawned(beam: PulseLaserBeam)
+signal pulse_laser_hit(target: CombatTarget, applied_damage: float, segment_index: int)
 
 var _targets: Array[CombatTarget] = []
 var _projectiles: Array[Projectile] = []
+var _pulse_lasers: Array[PulseLaserBeam] = []
 var _next_entry_order: int = 0
 var _target_exit_callbacks: Dictionary = {}
 var _projectile_reflection_resolver: Callable
 var _projectile_reflection_owner: Object
+var _projectile_blocker_resolver: Callable
+var _projectile_blocker_owner: Object
 
 
 func set_projectile_reflection_resolver(resolver: Callable) -> void:
@@ -37,6 +46,48 @@ func clear_projectile_reflection_resolver(expected_owner: Object = null) -> void
 		return
 	_projectile_reflection_resolver = Callable()
 	_projectile_reflection_owner = null
+
+
+func get_projectile_reflection_resolver() -> Callable:
+	return Callable(self, "trace_projectile_reflection")
+
+
+func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
+	if not _projectile_reflection_resolver.is_valid():
+		return {"hit": false}
+	var result: Variant = _projectile_reflection_resolver.call(start, end)
+	return result if result is Dictionary else {"hit": false}
+
+
+func set_projectile_blocker_resolver(resolver: Callable) -> void:
+	_projectile_blocker_resolver = resolver
+	_projectile_blocker_owner = resolver.get_object() if resolver.is_valid() else null
+
+
+func clear_projectile_blocker_resolver(expected_owner: Object = null) -> void:
+	if expected_owner != null and _projectile_blocker_owner != expected_owner:
+		return
+	_projectile_blocker_resolver = Callable()
+	_projectile_blocker_owner = null
+
+
+func get_projectile_blocker_resolver() -> Callable:
+	return Callable(self, "trace_projectile_blocker")
+
+
+func trace_projectile_blocker(
+	start: Vector3,
+	end: Vector3,
+	excluded: Object = null
+) -> Dictionary:
+	if not _projectile_blocker_resolver.is_valid():
+		return {"hit": false}
+	var result: Variant = (
+		_projectile_blocker_resolver.call(start, end, excluded)
+		if excluded != null
+		else _projectile_blocker_resolver.call(start, end)
+	)
+	return result if result is Dictionary else {"hit": false}
 
 func register_target(target: CombatTarget) -> bool:
 	if not feature_enabled or target == null or _targets.has(target):
@@ -72,7 +123,11 @@ func get_targets_in_range(origin: Vector3, range_world: float) -> Array[CombatTa
 			out.append(target)
 	return out
 
-func get_targets_on_segment(start: Vector3, end: Vector3) -> Array[CombatTarget]:
+func get_targets_on_segment(
+	start: Vector3,
+	end: Vector3,
+	include_end_caps: bool = true
+) -> Array[CombatTarget]:
 	var out: Array[CombatTarget] = []
 	var segment_start := Vector2(start.x, start.z)
 	var segment_end := Vector2(end.x, end.z)
@@ -82,7 +137,10 @@ func get_targets_on_segment(start: Vector3, end: Vector3) -> Array[CombatTarget]
 		return out
 	for target in get_targets():
 		var point := Vector2(target.global_position.x, target.global_position.z)
-		var along := clampf((point - segment_start).dot(segment) / segment_length_squared, 0.0, 1.0)
+		var raw_along := (point - segment_start).dot(segment) / segment_length_squared
+		if not include_end_caps and (raw_along < 0.0 or raw_along > 1.0):
+			continue
+		var along := clampf(raw_along, 0.0, 1.0)
 		var closest := segment_start + segment * along
 		var allowed_radius := target.hit_radius + laser_hit_radius
 		if point.distance_squared_to(closest) <= allowed_radius * allowed_radius:
@@ -113,7 +171,8 @@ func spawn_projectile(
 	visual_width: float,
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
-	source_building: Building = null
+	source_building: Building = null,
+	penetration_count: int = 0
 ) -> Projectile:
 	if not feature_enabled or target == null or not target.is_alive():
 		return null
@@ -131,7 +190,9 @@ func spawn_projectile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver
+		_projectile_reflection_resolver,
+		penetration_count,
+		_projectile_blocker_resolver
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
@@ -151,7 +212,8 @@ func spawn_directional_projectile(
 	visual_width: float,
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
-	source_building: Building = null
+	source_building: Building = null,
+	penetration_count: int = 0
 ) -> Projectile:
 	if not feature_enabled or direction.length_squared() <= 0.000001:
 		return null
@@ -169,13 +231,152 @@ func spawn_directional_projectile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver
+		_projectile_reflection_resolver,
+		penetration_count,
+		_projectile_blocker_resolver
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
 	_projectiles.append(projectile)
 	projectile_spawned.emit(projectile)
 	return projectile
+
+
+func spawn_targeted_missile(
+	start: Vector3,
+	target: CombatTarget,
+	speed: float,
+	damage: float,
+	maximum_distance: float,
+	visual_length: float,
+	visual_width: float,
+	color: Color,
+	model_asset: ModelAssetDefinition = null,
+	source_building: Building = null,
+	configuration: Dictionary = {}
+) -> MissileProjectile:
+	if not feature_enabled or target == null or not target.is_alive():
+		return null
+	var missile := MissileProjectileScript.new() as MissileProjectile
+	add_child(missile)
+	missile.configure_targeted_missile(
+		start,
+		target,
+		speed,
+		damage,
+		maximum_distance,
+		visual_length,
+		visual_width,
+		color,
+		model_asset,
+		source_building,
+		Callable(self, "get_targets"),
+		_projectile_reflection_resolver,
+		_projectile_blocker_resolver,
+		configuration
+	)
+	missile.impacted.connect(_on_projectile_impacted)
+	missile.tree_exited.connect(_on_projectile_tree_exited.bind(missile))
+	_projectiles.append(missile)
+	projectile_spawned.emit(missile)
+	return missile
+
+
+func spawn_directional_missile(
+	start: Vector3,
+	direction: Vector3,
+	speed: float,
+	damage: float,
+	maximum_distance: float,
+	visual_length: float,
+	visual_width: float,
+	color: Color,
+	model_asset: ModelAssetDefinition = null,
+	source_building: Building = null,
+	configuration: Dictionary = {}
+) -> MissileProjectile:
+	if not feature_enabled or direction.length_squared() <= 0.000001:
+		return null
+	var missile := MissileProjectileScript.new() as MissileProjectile
+	add_child(missile)
+	missile.configure_directional_missile(
+		start,
+		direction,
+		speed,
+		damage,
+		maximum_distance,
+		visual_length,
+		visual_width,
+		color,
+		model_asset,
+		source_building,
+		Callable(self, "get_targets"),
+		_projectile_reflection_resolver,
+		_projectile_blocker_resolver,
+		configuration
+	)
+	missile.impacted.connect(_on_projectile_impacted)
+	missile.tree_exited.connect(_on_projectile_tree_exited.bind(missile))
+	_projectiles.append(missile)
+	projectile_spawned.emit(missile)
+	return missile
+
+
+func spawn_pulse_laser(
+	start: Vector3,
+	direction: Vector3,
+	damage: float,
+	maximum_distance: float,
+	maximum_width: float,
+	emission_energy: float,
+	fade_in_time: float,
+	hold_time: float,
+	fade_out_time: float,
+	colors: Array[Color],
+	maximum_reflections: int,
+	source_building: Building = null
+) -> PulseLaserBeam:
+	if not feature_enabled:
+		return null
+	var beam := PulseLaserBeamScript.new() as PulseLaserBeam
+	add_child(beam)
+	if not beam.configure(
+		self,
+		source_building,
+		start,
+		direction,
+		damage,
+		maximum_distance,
+		maximum_width,
+		emission_energy,
+		fade_in_time,
+		hold_time,
+		fade_out_time,
+		colors,
+		maximum_reflections,
+		_projectile_reflection_resolver,
+		_projectile_blocker_resolver
+	):
+		beam.free()
+		return null
+	beam.impacted.connect(_on_pulse_laser_impacted)
+	beam.tree_exited.connect(_on_pulse_laser_tree_exited.bind(beam))
+	_pulse_lasers.append(beam)
+	pulse_laser_spawned.emit(beam)
+	return beam
+
+
+func spawn_laser_burst_visual(
+	world_position: Vector3,
+	radius: float,
+	color: Color
+) -> LaserBurstEffect:
+	if not feature_enabled or radius <= 0.0:
+		return null
+	var effect := LaserBurstEffectScript.new() as LaserBurstEffect
+	add_child(effect)
+	effect.configure(world_position, radius, color)
+	return effect
 
 func clear_targets() -> void:
 	var targets := _targets.duplicate()
@@ -194,6 +395,11 @@ func clear_projectiles() -> void:
 	for projectile in projectiles:
 		if is_instance_valid(projectile):
 			projectile.queue_free()
+	var pulse_lasers := _pulse_lasers.duplicate()
+	_pulse_lasers.clear()
+	for beam in pulse_lasers:
+		if is_instance_valid(beam):
+			beam.queue_free()
 
 func _cleanup_targets() -> void:
 	# unregister_target emits synchronously. Listeners such as M3DebugPanel may
@@ -222,6 +428,18 @@ func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> voi
 
 func _on_projectile_tree_exited(projectile: Projectile) -> void:
 	_projectiles.erase(projectile)
+
+
+func _on_pulse_laser_impacted(
+	target: CombatTarget,
+	applied_damage: float,
+	segment_index: int
+) -> void:
+	pulse_laser_hit.emit(target, applied_damage, segment_index)
+
+
+func _on_pulse_laser_tree_exited(beam: PulseLaserBeam) -> void:
+	_pulse_lasers.erase(beam)
 
 func _disconnect_target(target: CombatTarget) -> void:
 	if target == null or not is_instance_valid(target):

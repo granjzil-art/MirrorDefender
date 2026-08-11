@@ -89,6 +89,104 @@ func get_base_mesh() -> MeshInstance3D:
 	return _base_root.get_node_or_null("WoodenBase") as MeshInstance3D
 
 
+func get_projectile_reflection_surface_count() -> int:
+	if (
+		_definition == null
+		or not _definition.feature_enabled
+		or not _definition.projectile_reflection_enabled
+		or _case_size.x <= 0.0
+		or _case_size.y <= 0.0
+		or _case_size.z <= 0.0
+	):
+		return 0
+	return 4
+
+
+## Returns the nearest inward-facing intersection on the four finite side panels.
+## The top panel is presentation-only and deliberately excluded from gameplay.
+## Result keys match MirrorManager.trace_projectile_reflection().
+func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
+	var segment_length := start.distance_to(end)
+	var result := {
+		"hit": false,
+		"position": end,
+		"normal": Vector3.ZERO,
+		"distance": segment_length,
+		"mirror": null,
+		"reflector": self,
+		"surface_id": StringName(),
+		"epsilon": 0.0001,
+		"max_reflections_per_frame": 1,
+	}
+	if get_projectile_reflection_surface_count() == 0 or segment_length <= 0.000001:
+		return result
+	var local_start := to_local(start)
+	var local_end := to_local(end)
+	var local_segment := local_end - local_start
+	if local_segment.length_squared() <= 0.000001:
+		return result
+	var center_x := _content_bounds.position.x + _content_bounds.size.x * 0.5
+	var center_z := _content_bounds.position.z + _content_bounds.size.z * 0.5
+	var minimum_x := center_x - _case_size.x * 0.5
+	var maximum_x := center_x + _case_size.x * 0.5
+	var minimum_z := center_z - _case_size.z * 0.5
+	var maximum_z := center_z + _case_size.z * 0.5
+	var minimum_y := _content_bounds.position.y
+	var maximum_y := minimum_y + _case_size.y
+	var surfaces: Array[Dictionary] = [
+		{"id": &"front", "point": Vector3(center_x, minimum_y, maximum_z), "normal": Vector3.FORWARD},
+		{"id": &"back", "point": Vector3(center_x, minimum_y, minimum_z), "normal": Vector3.BACK},
+		{"id": &"left", "point": Vector3(minimum_x, minimum_y, center_z), "normal": Vector3.RIGHT},
+		{"id": &"right", "point": Vector3(maximum_x, minimum_y, center_z), "normal": Vector3.LEFT},
+	]
+	var best_fraction := INF
+	var best_local_normal := Vector3.ZERO
+	var best_surface_ids: Array[StringName] = []
+	for surface in surfaces:
+		var normal: Vector3 = surface.get("normal", Vector3.ZERO)
+		var denominator := local_segment.dot(normal)
+		# Each active face points inward. Travel from outside to inside passes through.
+		if denominator >= -0.000001:
+			continue
+		var plane_point: Vector3 = surface.get("point", Vector3.ZERO)
+		var signed_start := (local_start - plane_point).dot(normal)
+		if signed_start < -0.000001:
+			continue
+		var fraction := -signed_start / denominator
+		if fraction <= 0.000001 or fraction > 1.0:
+			continue
+		var local_hit := local_start + local_segment * fraction
+		if local_hit.y < minimum_y - 0.0001 or local_hit.y > maximum_y + 0.0001:
+			continue
+		var surface_id: StringName = surface.get("id", StringName())
+		var inside_panel := (
+			local_hit.x >= minimum_x - 0.0001 and local_hit.x <= maximum_x + 0.0001
+			if surface_id == &"front" or surface_id == &"back"
+			else local_hit.z >= minimum_z - 0.0001 and local_hit.z <= maximum_z + 0.0001
+		)
+		if not inside_panel:
+			continue
+		if fraction < best_fraction - 0.000001:
+			best_fraction = fraction
+			best_local_normal = normal
+			best_surface_ids.assign([surface_id])
+		elif absf(fraction - best_fraction) <= 0.000001:
+			# Exact corner impacts reflect both outward components instead of leaking.
+			best_local_normal = (best_local_normal + normal).normalized()
+			best_surface_ids.append(surface_id)
+	if not is_finite(best_fraction):
+		return result
+	var world_normal := (global_basis * best_local_normal).normalized()
+	result.hit = true
+	result.position = start.lerp(end, best_fraction)
+	result.normal = world_normal
+	result.distance = segment_length * best_fraction
+	result.surface_id = StringName("+".join(PackedStringArray(best_surface_ids)))
+	result.epsilon = maxf(0.0001, _grid.cell_size * _definition.collision_epsilon_ratio)
+	result.max_reflections_per_frame = _definition.max_reflections_per_frame
+	return result
+
+
 func _ensure_roots() -> void:
 	if _base_root == null:
 		_base_root = Node3D.new()

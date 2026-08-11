@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MainScene := preload("res://scenes/Main.tscn")
-const DemoLevel1 := preload("res://resources/levels/DemoLevel1.tres")
+const FormalLevel := preload("res://resources/levels/Level2.tres")
 const DofDefinition := preload("res://resources/camera/MiniatureDofDefault.tres")
 
 var _checks: int = 0
@@ -15,7 +15,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[MiniatureDof] running")
 	_test_definition()
-	await _test_demo_level_runtime()
+	await _test_formal_level_runtime()
 	await _test_dynamic_focus_scaling()
 	if _failures == 0:
 		print("[MiniatureDof] PASS: %d checks" % _checks)
@@ -31,9 +31,9 @@ func _test_definition() -> void:
 	_expect(DofDefinition.near_blur_enabled and DofDefinition.far_blur_enabled, "near and far depth blur are enabled")
 
 
-func _test_demo_level_runtime() -> void:
+func _test_formal_level_runtime() -> void:
 	var main := MainScene.instantiate() as MainController
-	_expect(main != null and main.configure_startup_level(DemoLevel1), "DemoLevel1 configures for DOF test")
+	_expect(main != null and main.configure_startup_level(FormalLevel), "Level2 configures for DOF test")
 	root.add_child(main)
 	await process_frame
 	await process_frame
@@ -78,8 +78,8 @@ func _test_dynamic_focus_scaling() -> void:
 	camera.look_at(Vector3.ZERO)
 	_expect(controller.refresh_now(true), "focus refreshes after camera zoom changes")
 	_expect(controller.get_focus_depth() > first_focus, "focus plane follows camera distance")
-	grid.apply_configuration(GridManager.Shape.HEX, 2.0, Vector2i(3, 3))
-	_expect(controller.refresh_now(true), "DOF refreshes for HEX grid and different cell size")
+	grid.apply_configuration(GridManager.Shape.SQUARE, 2.0, Vector2i(3, 3))
+	_expect(controller.refresh_now(true), "DOF refreshes for a square grid with different cell size")
 	var second_band := controller.get_far_distance() - controller.get_near_distance()
 	_expect(second_band > first_band, "clear focus band scales with grid cell size")
 	definition.blur_amount = 0.06

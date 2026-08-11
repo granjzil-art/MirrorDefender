@@ -25,6 +25,7 @@ var _grid_cells: Dictionary = {}
 var _ramps: Array[RampPlacementDataScript] = []
 var _ramp_bindings: Dictionary = {}
 var _path_cells: Dictionary = {}
+var _base_footprint_owners: Dictionary = {}
 var _uses_legacy_snapshot: bool = false
 
 
@@ -85,6 +86,12 @@ func load_level(level_resource: LevelResource) -> bool:
 			continue
 		for path_cell in path.cells:
 			next_paths[path_cell] = true
+	var next_base_owners: Dictionary = {}
+	for base_point in level_resource.get_effective_base_points():
+		if base_point == null:
+			continue
+		for footprint_cell in base_point.get_footprint_cells():
+			next_base_owners[footprint_cell] = base_point.base_id
 	_level = level_resource
 	_default_terrain = next_default
 	_layer_height = next_layer_height
@@ -92,6 +99,7 @@ func load_level(level_resource: LevelResource) -> bool:
 	_ramps = next_ramps
 	_ramp_bindings = next_bindings
 	_path_cells = next_paths
+	_base_footprint_owners = next_base_owners
 	_uses_legacy_snapshot = bool(snapshot.get("migrated", false))
 	terrain_loaded.emit(level_resource)
 	return true
@@ -104,6 +112,7 @@ func clear_level() -> void:
 	_ramps.clear()
 	_ramp_bindings.clear()
 	_path_cells.clear()
+	_base_footprint_owners.clear()
 	_uses_legacy_snapshot = false
 	terrain_cleared.emit()
 
@@ -231,9 +240,19 @@ func allows_tile_building(cell: Vector3i) -> bool:
 	return grid_cell != null and grid_cell.allows_tile_building
 
 
-func allows_edge_building(cell: Vector3i) -> bool:
+func allows_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
 	var grid_cell := get_grid_cell(cell)
-	return grid_cell != null and grid_cell.allows_edge_building
+	if grid_cell == null:
+		return false
+	if edge_index < 0:
+		return grid_cell.allows_edge_building
+	if not grid_cell.allows_edge(edge_index):
+		return false
+	if _grid == null or edge_index >= _grid.edge_count():
+		return false
+	var neighbor := _grid.neighbor_across_edge(cell, edge_index)
+	var owner: Variant = _base_footprint_owners.get(cell)
+	return owner == null or _base_footprint_owners.get(neighbor) != owner
 
 
 func get_terrain(cell: Vector3i) -> TerrainDefinitionScript:
@@ -352,7 +371,8 @@ func _clone_grid_cell(source: GridCellDataScript) -> GridCellDataScript:
 		source.terrain,
 		source.layer_count,
 		source.allows_tile_building,
-		source.allows_edge_building
+		source.allows_edge_building,
+		source.edge_building_mask
 	)
 	return runtime_cell
 

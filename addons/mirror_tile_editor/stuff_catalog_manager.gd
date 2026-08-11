@@ -26,6 +26,7 @@ var _enabled: CheckButton
 var _exclusive: CheckButton
 var _blocks_tile: CheckButton
 var _blocks_edge: CheckButton
+var _blocks_ballistics: CheckButton
 var _blocks_path: CheckButton
 var _navigation_airborne: CheckButton
 var _destructible: CheckButton
@@ -126,11 +127,13 @@ func _build_interface() -> void:
 	_exclusive = _make_check("与同格其他元素互斥", _on_form_changed)
 	_blocks_tile = _make_check("阻止块建筑", _on_form_changed)
 	_blocks_edge = _make_check("阻止边建筑", _on_form_changed)
+	_blocks_ballistics = _make_check("阻挡激光与投射物", _on_form_changed)
 	_blocks_path = _make_check("阻挡敌人路径", _on_form_changed)
 	_navigation_airborne = _make_check("路径阻挡对空中敌人有效", _on_form_changed)
 	form.add_child(_exclusive)
 	form.add_child(_blocks_tile)
 	form.add_child(_blocks_edge)
+	form.add_child(_blocks_ballistics)
 	form.add_child(_blocks_path)
 	form.add_child(_navigation_airborne)
 
@@ -236,7 +239,7 @@ func _select_definition(definition: StuffDefinition) -> void:
 	var has_value := definition != null
 	for control in [
 		_id_edit, _name_edit, _description_edit, _enabled, _exclusive,
-		_blocks_tile, _blocks_edge, _blocks_path, _navigation_airborne,
+		_blocks_tile, _blocks_edge, _blocks_ballistics, _blocks_path, _navigation_airborne,
 		_destructible, _durability, _model_picker, _icon_picker, _effect_picker,
 		_scale_x, _scale_y, _scale_z, _fallback_kind, _fallback_color,
 	]:
@@ -260,6 +263,7 @@ func _select_definition(definition: StuffDefinition) -> void:
 	_exclusive.button_pressed = definition.exclusive_with_other_stuff
 	_blocks_tile.button_pressed = definition.blocks_tile_building
 	_blocks_edge.button_pressed = definition.blocks_edge_building
+	_blocks_ballistics.button_pressed = definition.blocks_ballistics
 	_blocks_path.button_pressed = definition.enemy_navigation == StuffDefinition.EnemyNavigation.BLOCKED
 	_navigation_airborne.button_pressed = definition.navigation_affects_airborne
 	_destructible.button_pressed = definition.durability_mode == StuffDefinition.DurabilityMode.DESTRUCTIBLE
@@ -292,6 +296,7 @@ func _on_form_changed() -> void:
 	_selected.exclusive_with_other_stuff = _exclusive.button_pressed
 	_selected.blocks_tile_building = _blocks_tile.button_pressed
 	_selected.blocks_edge_building = _blocks_edge.button_pressed
+	_selected.blocks_ballistics = _blocks_ballistics.button_pressed
 	_selected.enemy_navigation = (
 		StuffDefinition.EnemyNavigation.BLOCKED
 		if _blocks_path.button_pressed

@@ -8,15 +8,15 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 
 @export_group("Identity")
 @export var display_name: String = "镜子"
-## Optional production-HUD artwork. The card bar provides a stable fallback.
+## Optional transparent mirror artwork. BuildCardBar generates the card surface,
+## frame, title and cooldown presentation around it.
 @export var card_icon: Texture2D
 
 @export_group("Runtime Inspector")
 @export var inspection_display: InspectionDisplayConfigScript
 
-@export_group("Economy")
-@export_range(0.0, 100000.0, 1.0, "or_greater") var cost: float = 120.0
-@export_range(0.0, 100000.0, 1.0, "or_greater") var refund: float = 60.0
+@export_group("Placement Cooldown")
+@export_range(0.0, 300.0, 0.1, "or_greater") var placement_cooldown_seconds: float = 15.0
 
 @export_group("Placement")
 @export var active_from_side_by_default: bool = true
@@ -42,8 +42,7 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	ConfigValidator.require_text(errors, "镜子显示名", display_name)
-	ConfigValidator.require_number(errors, "镜子造价", cost, 0.0)
-	ConfigValidator.require_number(errors, "镜子退款", refund, 0.0)
+	ConfigValidator.require_number(errors, "镜子放置冷却", placement_cooldown_seconds, 0.0)
 	ConfigValidator.require_color(errors, "镜体颜色", mirror_color)
 	ConfigValidator.require_number(errors, "镜体厚度比例", mirror_thickness_ratio, 0.02, 0.5)
 	ConfigValidator.require_number(errors, "镜体高度比例", mirror_height_ratio, 0.1, 2.0)

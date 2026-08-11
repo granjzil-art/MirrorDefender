@@ -66,6 +66,7 @@ var _base_id: LineEdit
 var _base_name: LineEdit
 var _base_number: SpinBox
 var _base_model_asset: EditorResourcePicker
+var _base_facing: OptionButton
 var _base_set_cell: Button
 var _base_remove: Button
 var _shared_base_hp: SpinBox
@@ -85,6 +86,15 @@ var _dirty_indicator: Label
 var _confirmation_dialog: ConfirmationDialog
 var _pending_confirmation: Callable = Callable()
 var _is_dirty: bool = false
+var _resource_changed_connection: Callable = Callable()
+var _watched_content_resources: Array[Resource] = []
+var _auto_sync_queued: bool = false
+var _resource_refresh_queued: bool = false
+var _resource_sync_in_progress: bool = false
+var _last_resource_file_signature: String = ""
+var _last_resource_file_path: String = ""
+var _next_resource_poll_msec: int = 0
+const RESOURCE_POLL_INTERVAL_MSEC: int = 250
 
 func _ready() -> void:
 	# EditorInterface.get_editor_main_screen() currently parents main-screen
@@ -95,6 +105,18 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_interface()
 	_create_new_level()
+	set_process(true)
+	_connect_resource_filesystem()
+
+
+func _process(_delta: float) -> void:
+	if not Engine.is_editor_hint() or _level == null:
+		return
+	var now_msec := Time.get_ticks_msec()
+	if now_msec < _next_resource_poll_msec:
+		return
+	_next_resource_poll_msec = now_msec + RESOURCE_POLL_INTERVAL_MSEC
+	_poll_active_resource_file()
 
 func _build_interface() -> void:
 	var root := VBoxContainer.new()
@@ -333,7 +355,7 @@ func _add_path_tab(tabs: TabContainer) -> void:
 		_spawn_model_asset = EditorResourcePicker.new()
 		_spawn_model_asset.base_type = "ModelAssetDefinition"
 		_spawn_model_asset.resource_changed.connect(_on_spawn_model_asset_changed)
-		_spawn_model_asset.tooltip_text = "与敌人、建筑和 Stuff 共用的模型资产；运行时自动底部中心接地。"
+		_spawn_model_asset.tooltip_text = "留空时继承 LevelResource.spawn_point_model_asset；单点配置优先。"
 		sidebar.add_child(_with_label("模型资产", _spawn_model_asset))
 	_spawn_set_cell = Button.new()
 	_spawn_set_cell.text = "将画布选中格设为出生点"
@@ -366,11 +388,18 @@ func _add_path_tab(tabs: TabContainer) -> void:
 	_base_number = _make_spin_box(1.0, 999.0, 1.0)
 	_base_number.value_changed.connect(_on_base_number_changed)
 	sidebar.add_child(_with_label("显示编号", _base_number))
+	_base_facing = OptionButton.new()
+	_base_facing.add_item("右（+X）", 0)
+	_base_facing.add_item("上（+Y / +Z）", 1)
+	_base_facing.add_item("左（-X）", 2)
+	_base_facing.add_item("下（-Y / -Z）", 3)
+	_base_facing.item_selected.connect(_on_base_facing_selected)
+	sidebar.add_child(_with_label("3×2据点朝向", _base_facing))
 	if Engine.is_editor_hint():
 		_base_model_asset = EditorResourcePicker.new()
 		_base_model_asset.base_type = "ModelAssetDefinition"
 		_base_model_asset.resource_changed.connect(_on_base_model_asset_changed)
-		_base_model_asset.tooltip_text = "与敌人、建筑和 Stuff 共用的模型资产；运行时自动底部中心接地。"
+		_base_model_asset.tooltip_text = "留空时继承 LevelResource.base_model_asset；单点配置优先。"
 		sidebar.add_child(_with_label("模型资产", _base_model_asset))
 	_base_set_cell = Button.new()
 	_base_set_cell.text = "将画布选中格设为据点"
@@ -594,7 +623,9 @@ func _request_new_level() -> void:
 
 func _create_new_level() -> void:
 	var level := LevelResource.new()
-	level.grid_shape = HEX_SHAPE
+	_last_resource_file_path = ""
+	_last_resource_file_signature = ""
+	level.grid_shape = SQUARE_SHAPE
 	level.grid_cell_size = 1.0
 	level.grid_size = Vector2i(6, 6)
 	level.terrain_content_version = 2
@@ -611,6 +642,7 @@ func _create_new_level() -> void:
 	_status.text = "新关卡已创建。请在地块页分别编辑 Terrain、层数、权限、斜坡与 Stuff。"
 
 func _set_level(value: LevelResource) -> void:
+	_disconnect_level_resource_signals()
 	_level = value
 	if _path_record != null:
 		_path_record.button_pressed = false
@@ -624,6 +656,184 @@ func _set_level(value: LevelResource) -> void:
 	call_deferred("_refresh_active_editor_tab")
 	_refresh_path_controls()
 	_refresh_wave_controls()
+	_connect_level_resource_signals()
+	_last_resource_file_path = _get_resource_sync_path()
+	_last_resource_file_signature = _get_resource_file_signature(_last_resource_file_path)
+	if bool(_last_content_prepare.get("changed", false)):
+		_queue_resource_auto_sync()
+
+
+func _disconnect_level_resource_signals() -> void:
+	if _level != null and _resource_changed_connection.is_valid():
+		if _level.changed.is_connected(_resource_changed_connection):
+			_level.changed.disconnect(_resource_changed_connection)
+	for resource in _watched_content_resources:
+		if resource != null and is_instance_valid(resource) and _resource_changed_connection.is_valid():
+			if resource.changed.is_connected(_resource_changed_connection):
+				resource.changed.disconnect(_resource_changed_connection)
+	_watched_content_resources.clear()
+
+
+func _connect_level_resource_signals() -> void:
+	_resource_changed_connection = Callable(self, "_on_active_level_resource_changed")
+	if _level == null:
+		return
+	if not _level.changed.is_connected(_resource_changed_connection):
+		_level.changed.connect(_resource_changed_connection)
+	var properties := [
+		"grid_cells",
+		"ramp_placements",
+		"stuff_placements",
+		"paths",
+		"spawn_points",
+		"waves",
+		"base_points",
+		"camera_presets",
+		"initial_building_placements",
+		"initial_mirror_placements",
+	]
+	for property_name in properties:
+		var values: Variant = _level.get(property_name)
+		if not values is Array:
+			continue
+		for raw_value in values:
+			if not raw_value is Resource:
+				continue
+			var resource := raw_value as Resource
+			if resource.changed.is_connected(_resource_changed_connection):
+				continue
+			resource.changed.connect(_resource_changed_connection)
+			_watched_content_resources.append(resource)
+
+
+func _on_active_level_resource_changed() -> void:
+	if _resource_sync_in_progress or _is_dirty:
+		return
+	_queue_resource_view_refresh()
+
+
+func _queue_resource_view_refresh() -> void:
+	if _resource_refresh_queued:
+		return
+	_resource_refresh_queued = true
+	call_deferred("_refresh_views_from_active_resource")
+
+
+func _refresh_views_from_active_resource() -> void:
+	_resource_refresh_queued = false
+	if _resource_sync_in_progress or _level == null:
+		return
+	_resource_sync_in_progress = true
+	_last_content_prepare = _terrain_stuff_editor.set_level(_level) if _terrain_stuff_editor != null else {}
+	if _path_canvas != null:
+		_path_canvas.call("set_level", _level)
+	if _camera_canvas != null:
+		_camera_canvas.call("set_level", _level)
+	if _camera_preset_editor != null:
+		_camera_preset_editor.configure(_level, _camera_canvas)
+	_refresh_path_controls()
+	_refresh_wave_controls()
+	call_deferred("_refresh_active_editor_tab")
+	_connect_level_resource_signals()
+	_resource_sync_in_progress = false
+	_set_dirty(true)
+	_status.text = "检测到当前关卡资源的内存修改，编辑器已同步；请保存资源。"
+
+
+func _connect_resource_filesystem() -> void:
+	if not Engine.is_editor_hint():
+		return
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if filesystem == null:
+		return
+	if not filesystem.filesystem_changed.is_connected(_on_editor_filesystem_changed):
+		filesystem.filesystem_changed.connect(_on_editor_filesystem_changed)
+
+
+func _on_editor_filesystem_changed() -> void:
+	_poll_active_resource_file()
+
+
+func _poll_active_resource_file() -> void:
+	var path := _get_resource_sync_path()
+	if path.is_empty() or not FileAccess.file_exists(ProjectSettings.globalize_path(path)):
+		return
+	var signature := _get_resource_file_signature(path)
+	if path == _last_resource_file_path and signature == _last_resource_file_signature:
+		return
+	if _resource_sync_in_progress or _auto_sync_queued:
+		return
+	if _is_dirty:
+		_status.text = "检测到 %s 被外部修改；当前有未保存编辑，保存或重新加载后才会同步。" % path
+		return
+	_reload_active_resource_from_disk(path)
+
+
+func _reload_active_resource_from_disk(path: String) -> void:
+	var resource := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP) as LevelResource
+	if resource == null:
+		_status.text = "外部资源同步失败：%s 不是有效的 LevelResource。" % path
+		return
+	_resource_sync_in_progress = true
+	_set_level(resource)
+	_save_path.text = path
+	_undo_redo.clear_history()
+	_update_history_buttons()
+	_resource_sync_in_progress = false
+	_set_dirty(bool(_last_content_prepare.get("changed", false)))
+	_last_resource_file_path = path
+	_last_resource_file_signature = _get_resource_file_signature(path)
+	if bool(_last_content_prepare.get("changed", false)):
+		_queue_resource_auto_sync()
+	_status.text = "已从 %s 同步关卡全部数据。" % path
+
+
+func _get_resource_sync_path() -> String:
+	if _level != null and _level.resource_path.begins_with("res://"):
+		return _level.resource_path
+	if _last_resource_file_path.begins_with("res://"):
+		return _last_resource_file_path
+	# A newly created in-memory level must not silently overwrite the path shown
+	# in the Save field. Auto-sync begins only after the resource has been saved
+	# or loaded from a concrete .tres path.
+	return ""
+
+
+func _get_resource_file_signature(path: String) -> String:
+	if path.is_empty():
+		return ""
+	var absolute_path := ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(absolute_path):
+		return ""
+	var file := FileAccess.open(absolute_path, FileAccess.READ)
+	if file == null:
+		return ""
+	return "%d:%d" % [FileAccess.get_modified_time(absolute_path), file.get_length()]
+
+
+func _queue_resource_auto_sync() -> void:
+	if _resource_sync_in_progress or _level == null or _get_resource_sync_path().is_empty():
+		return
+	if _auto_sync_queued:
+		return
+	_auto_sync_queued = true
+	call_deferred("_auto_sync_level_resource")
+
+
+func _auto_sync_level_resource() -> void:
+	_auto_sync_queued = false
+	if _resource_sync_in_progress or _level == null or not _is_dirty:
+		return
+	var path := _get_resource_sync_path()
+	if path.is_empty():
+		return
+	if _terrain_stuff_editor != null:
+		_terrain_stuff_editor.normalize_ramp_constraints()
+	var validation_errors := _level.validate_runtime()
+	if not validation_errors.is_empty():
+		_status.text = "自动同步暂停，关卡校验失败；修复后会继续写入：%s" % validation_errors[0]
+		return
+	_save_level_to_path(path, true)
 
 func _set_level_controls_blocked(blocked: bool) -> void:
 	_shape_select.set_block_signals(blocked)
@@ -713,6 +923,7 @@ func _on_height_levels_changed(value: float) -> void:
 	_level.height_levels = int(value)
 	_level.clamp_tile_heights()
 	_set_dirty(true)
+	_queue_resource_auto_sync()
 	_refresh_height_brush_options()
 	_canvas.call("set_height_brush", -1)
 	_canvas.call("refresh")
@@ -905,6 +1116,7 @@ func _mark_level_changed() -> void:
 	if _level != null:
 		_level.emit_changed()
 		_set_dirty(true)
+		_queue_resource_auto_sync()
 
 func _set_dirty(value: bool) -> void:
 	_is_dirty = value
@@ -1070,18 +1282,21 @@ func _refresh_base_controls() -> void:
 	_base_id.set_block_signals(true)
 	_base_name.set_block_signals(true)
 	_base_number.set_block_signals(true)
+	_base_facing.set_block_signals(true)
 	if _base_model_asset != null:
 		_base_model_asset.set_block_signals(true)
 	_shared_base_hp.set_block_signals(true)
 	_base_id.text = str(base_point.base_id) if base_point != null else ""
 	_base_name.text = base_point.display_name if base_point != null else ""
 	_base_number.value = _level.get_base_display_number(base_point) if _level != null and base_point != null else 1
+	_base_facing.select(base_point.facing_index if base_point != null else 3)
 	if _base_model_asset != null:
 		_base_model_asset.edited_resource = base_point.get_model_asset() if base_point != null else null
 	_shared_base_hp.value = _level.base_max_hp if _level != null else 100.0
 	_base_id.set_block_signals(false)
 	_base_name.set_block_signals(false)
 	_base_number.set_block_signals(false)
+	_base_facing.set_block_signals(false)
 	if _base_model_asset != null:
 		_base_model_asset.set_block_signals(false)
 	_shared_base_hp.set_block_signals(false)
@@ -1089,6 +1304,7 @@ func _refresh_base_controls() -> void:
 	_base_id.editable = enabled
 	_base_name.editable = enabled
 	_base_number.editable = enabled
+	_base_facing.disabled = not enabled
 	if _base_model_asset != null:
 		_base_model_asset.editable = enabled
 	_shared_base_hp.editable = _level != null
@@ -1217,6 +1433,8 @@ func _add_base_point() -> void:
 	base_point.display_name = "据点 %d" % number
 	base_point.display_number = number
 	base_point.cell = _path_canvas.selected_cell
+	base_point.footprint_mode = BasePointDefinitionScript.FootprintMode.RECTANGLE_3_X_2
+	base_point.facing_index = 3
 	_level.base_points.append(base_point)
 	_mark_level_changed()
 	_refresh_path_controls()
@@ -1286,6 +1504,17 @@ func _on_base_model_asset_changed(resource: Resource) -> void:
 	_refresh_path_controls()
 
 
+func _on_base_facing_selected(index: int) -> void:
+	var base_point := _materialize_selected_base()
+	if base_point == null:
+		return
+	base_point.footprint_mode = BasePointDefinitionScript.FootprintMode.RECTANGLE_3_X_2
+	base_point.facing_index = clampi(index, 0, 3)
+	base_point.emit_changed()
+	_mark_level_changed()
+	_refresh_path_controls()
+
+
 func _set_selected_base_cell() -> void:
 	var base_point := _materialize_selected_base()
 	if base_point == null or _path_canvas == null or not _path_canvas.has_selected_cell:
@@ -1312,6 +1541,8 @@ func _ensure_authored_base_points() -> void:
 	base_point.display_name = "据点 1"
 	base_point.display_number = 1
 	base_point.cell = _level.base_cell
+	base_point.footprint_mode = BasePointDefinitionScript.FootprintMode.RECTANGLE_3_X_2
+	base_point.facing_index = 3
 	_level.base_points.append(base_point)
 	for path in _level.paths:
 		if path != null and path.target_base == null and not path.cells.is_empty() and path.get_end_cell() == _level.base_cell:
@@ -1435,7 +1666,7 @@ func _on_path_base_selected(index: int) -> void:
 		selected = _find_authored_base(selected_id, selected_cell)
 	path.target_base = selected
 	_mark_level_changed()
-	if selected != null and not path.cells.is_empty() and path.get_end_cell() != selected.cell:
+	if selected != null and not path.cells.is_empty() and not selected.contains_cell(path.get_end_cell()):
 		_status.text = "路径末格与新目标据点不一致，请继续记录到据点或修正路径。"
 	_refresh_path_controls()
 
@@ -1487,8 +1718,13 @@ func _on_path_canvas_clicked(cell: Vector3i) -> void:
 		if cells_to_append.is_empty():
 			_status.text = "未添加：%s 与路径末格 %s 不相邻。" % [str(cell), str(previous_cell)]
 			return
-	path.cells.append_array(cells_to_append)
-	if path.cells.back() == path_base.cell:
+	var reached_base := false
+	for appended_cell in cells_to_append:
+		path.cells.append(appended_cell)
+		if path_base.contains_cell(appended_cell):
+			reached_base = true
+			break
+	if reached_base:
 		_path_record.button_pressed = false
 		_status.text = "路径已到达 %s，停止记录。" % _level.get_base_marker_label(path_base)
 	_mark_level_changed()
@@ -1869,12 +2105,16 @@ func _load_level_file(path: String) -> void:
 	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
 	if resource is LevelResource:
 		var inserted_path_cells := _normalize_square_path_gaps(resource)
+		_last_resource_file_path = path
+		_last_resource_file_signature = _get_resource_file_signature(path)
 		_set_level(resource)
 		_save_path.text = path
 		_undo_redo.clear_history()
 		_update_history_buttons()
 		var content_changed := bool(_last_content_prepare.get("changed", false))
 		_set_dirty(inserted_path_cells > 0 or content_changed)
+		if content_changed:
+			_queue_resource_auto_sync()
 		if bool(_last_content_prepare.get("migrated", false)):
 			_status.text = "已加载 %s，并将旧 Tile 单向导入 Terrain / Stuff；请保存关卡。" % path
 		elif inserted_path_cells > 0:
@@ -1911,16 +2151,20 @@ func _save_level() -> void:
 		return
 	_save_level_to_path(path)
 
-func _save_level_to_path(path: String) -> void:
+func _save_level_to_path(path: String, auto_sync: bool = false) -> void:
 	var directory := ProjectSettings.globalize_path(path.get_base_dir())
 	var directory_error := DirAccess.make_dir_recursive_absolute(directory)
 	if directory_error != OK:
 		_status.text = "无法创建保存目录"
 		return
+	_resource_sync_in_progress = true
 	var save_error := ResourceSaver.save(_level, path)
+	_resource_sync_in_progress = false
 	if save_error != OK:
 		_status.text = "保存失败：%s" % error_string(save_error)
 		return
 	EditorInterface.get_resource_filesystem().scan()
+	_last_resource_file_path = path
+	_last_resource_file_signature = _get_resource_file_signature(path)
 	_set_dirty(false)
-	_status.text = "已保存 %s" % path
+	_status.text = ("已自动同步 %s" if auto_sync else "已保存 %s") % path

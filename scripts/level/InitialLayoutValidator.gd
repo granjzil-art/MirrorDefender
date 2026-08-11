@@ -169,12 +169,11 @@ static func _validate_edge(
 		errors.append("%s必须位于两个有效地块之间" % label)
 		return
 	if (
-		not _base_allows(context, from_cell, false)
-		or not _base_allows(context, to_cell, false)
+		not _base_allows_edge(context, shape, from_cell, edge_index)
 		or _stuff_blocks(context, from_cell, false)
 		or _stuff_blocks(context, to_cell, false)
 	):
-		errors.append("%s所在边的两侧未同时允许边建筑" % label)
+		errors.append("%s所在物理边不允许放置边建筑" % label)
 	var edge_id := shape.canonical_edge_id(from_cell, edge_index)
 	if occupied_edges.has(edge_id):
 		errors.append("初始边建筑或镜子占用同一物理边：%s" % edge_id)
@@ -188,6 +187,7 @@ static func _build_context(level: Resource) -> Dictionary:
 		"stuff_by_cell": {},
 		"path_cells": {},
 		"protected_cells": {},
+		"base_footprint_owners": {},
 	}
 	var snapshot: Dictionary = level.call("get_effective_content_snapshot")
 	for raw_cell in snapshot.get("grid_cells", []):
@@ -209,7 +209,9 @@ static func _build_context(level: Resource) -> Dictionary:
 			context["protected_cells"][raw_spawn.cell] = true
 	for raw_base in level.call("get_effective_base_points"):
 		if raw_base != null:
-			context["protected_cells"][raw_base.cell] = true
+			for footprint_cell in raw_base.get_footprint_cells():
+				context["protected_cells"][footprint_cell] = true
+				context["base_footprint_owners"][footprint_cell] = raw_base.base_id
 	return context
 
 
@@ -218,6 +220,35 @@ static func _base_allows(context: Dictionary, cell: Vector3i, tile: bool) -> boo
 	if data == null:
 		return true
 	return data.allows_tile_building if tile else data.allows_edge_building
+
+
+static func _base_allows_edge(
+	context: Dictionary,
+	shape: IGridShape,
+	from_cell: Vector3i,
+	edge_index: int
+) -> bool:
+	var to_cell := shape.neighbor_across_edge(from_cell, edge_index)
+	var opposite_edge := _find_edge_index(shape, to_cell, from_cell)
+	if opposite_edge < 0:
+		return false
+	var from_data: GridCellData = context["grid_cells"].get(from_cell) as GridCellData
+	var to_data: GridCellData = context["grid_cells"].get(to_cell) as GridCellData
+	if from_data != null and not from_data.allows_edge(edge_index):
+		return false
+	if to_data != null and not to_data.allows_edge(opposite_edge):
+		return false
+	var owners: Dictionary = context["base_footprint_owners"]
+	var from_owner: Variant = owners.get(from_cell)
+	var to_owner: Variant = owners.get(to_cell)
+	return from_owner == null or to_owner == null or from_owner != to_owner
+
+
+static func _find_edge_index(shape: IGridShape, from_cell: Vector3i, to_cell: Vector3i) -> int:
+	for candidate in range(shape.edge_count()):
+		if shape.neighbor_across_edge(from_cell, candidate) == to_cell:
+			return candidate
+	return -1
 
 
 static func _stuff_blocks(context: Dictionary, cell: Vector3i, tile: bool) -> bool:

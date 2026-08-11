@@ -12,7 +12,6 @@ function_description = "沿地块边放置，阻挡穿越该边的近战敌人�
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
 cost = 50.0
-refund_amount = 25.0
 base_damage = 0.0
 max_durability = 180.0
 regeneration_per_second = 10.0
@@ -22,7 +21,6 @@ attack_color = Color(0.45, 0.85, 1, 1)
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
 cost = 80.0
-refund_amount = 65.0
 base_damage = 0.0
 max_durability = 300.0
 regeneration_delay = 2.5
@@ -33,7 +31,6 @@ attack_color = Color(0.55, 0.92, 1, 1)
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
 cost = 125.0
-refund_amount = 125.0
 base_damage = 0.0
 max_durability = 480.0
 regeneration_delay = 2.0

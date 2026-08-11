@@ -165,11 +165,35 @@ func can_place_path_occupant(cell: Vector3i) -> bool:
 		return false
 	return tile.can_place_path_occupant() if legacy_content_runtime_enabled else tile.occupant == null
 
-func allows_edge_building(cell: Vector3i) -> bool:
+func allows_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
 	var tile := get_tile(cell)
-	if tile == null or not _allows_base_edge_building(cell) or not _allows_stuff_edge_building(cell):
+	if tile == null:
 		return false
-	return tile.allows_edge_building() if legacy_content_runtime_enabled else true
+	if edge_index < 0:
+		if not _allows_base_edge_building(cell) or not _allows_stuff_edge_building(cell):
+			return false
+		return tile.allows_edge_building() if legacy_content_runtime_enabled else true
+	if _grid == null or edge_index >= _grid.edge_count():
+		return false
+	var to_cell := _grid.neighbor_across_edge(cell, edge_index)
+	if not _grid.is_in_bounds(to_cell):
+		return false
+	var opposite_edge := _grid.find_edge_index(to_cell, cell)
+	if opposite_edge < 0:
+		return false
+	if (
+		not _allows_base_edge_building(cell, edge_index)
+		or not _allows_base_edge_building(to_cell, opposite_edge)
+		or not _allows_stuff_edge_building(cell)
+		or not _allows_stuff_edge_building(to_cell)
+	):
+		return false
+	var other_tile := get_tile(to_cell)
+	if other_tile == null:
+		return false
+	if legacy_content_runtime_enabled:
+		return tile.allows_edge_building() and other_tile.allows_edge_building()
+	return true
 
 func blocks_enemy_navigation(cell: Vector3i, target: Node = null) -> bool:
 	var tile := get_tile(cell)
@@ -312,8 +336,12 @@ func _get_level() -> LevelResource:
 func _allows_base_tile_building(cell: Vector3i) -> bool:
 	return bool(_base_tile_building_resolver.call(cell)) if _base_tile_building_resolver.is_valid() else true
 
-func _allows_base_edge_building(cell: Vector3i) -> bool:
-	return bool(_base_edge_building_resolver.call(cell)) if _base_edge_building_resolver.is_valid() else true
+func _allows_base_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
+	return (
+		bool(_base_edge_building_resolver.call(cell, edge_index))
+		if _base_edge_building_resolver.is_valid()
+		else true
+	)
 
 
 func _allows_stuff_tile_building(cell: Vector3i) -> bool:

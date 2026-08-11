@@ -12,8 +12,9 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 [resource]
 script = ExtResource("3_8ivrf")
 display_name = "杉树"
+blocks_ballistics = true
 enemy_navigation = 2
 navigation_affects_airborne = true
-durability_mode = 2
+durability_mode = 1
 model_asset = SubResource("Resource_rasay")
 metadata/_custom_type_script = "uid://blu6reftyrrnp"
