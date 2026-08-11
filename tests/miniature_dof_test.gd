@@ -32,8 +32,16 @@ func _test_definition() -> void:
 
 
 func _test_formal_level_runtime() -> void:
+	var settings_path := "user://miniature_dof_runtime_test.cfg"
+	_cleanup_settings_file(settings_path)
+	var initial_settings := RuntimeSettings.new()
+	initial_settings.set_values(100.0, false, 1.0, true)
+	_expect(initial_settings.save_to_file(settings_path) == OK, "DOF runtime test creates isolated settings")
 	var main := MainScene.instantiate() as MainController
 	_expect(main != null and main.configure_startup_level(FormalLevel), "Level2 configures for DOF test")
+	var pause_menu := main.get_node("HUD/RuntimeHud/PauseMenu") as PauseMenu
+	pause_menu.settings_path = settings_path
+	pause_menu.apply_runtime_settings = false
 	root.add_child(main)
 	await process_frame
 	await process_frame
@@ -52,8 +60,18 @@ func _test_formal_level_runtime() -> void:
 	_expect(camera.attributes == null, "disabling DOF restores the original camera attributes")
 	controller.set_effect_enabled(true)
 	_expect(camera.attributes == attributes, "re-enabling DOF restores the runtime attributes")
+	pause_menu.depth_of_field_toggle.set_pressed_no_signal(false)
+	pause_menu.depth_of_field_toggle.toggled.emit(false)
+	_expect(not controller.is_effect_enabled() and camera.attributes == null, "runtime setting disables main-camera DOF immediately")
+	var persisted_settings := RuntimeSettings.new()
+	_expect(persisted_settings.load_from_file(settings_path) == OK, "DOF setting persists to the isolated config")
+	_expect(not persisted_settings.depth_of_field_enabled, "disabled DOF state round-trips through RuntimeSettings")
+	pause_menu.depth_of_field_toggle.set_pressed_no_signal(true)
+	pause_menu.depth_of_field_toggle.toggled.emit(true)
+	_expect(controller.is_effect_enabled() and camera.attributes == attributes, "runtime setting can re-enable main-camera DOF")
 	main.queue_free()
 	await process_frame
+	_cleanup_settings_file(settings_path)
 
 
 func _test_dynamic_focus_scaling() -> void:
@@ -102,3 +120,8 @@ func _expect(condition: bool, message: String) -> void:
 		return
 	_failures += 1
 	push_error("  FAIL: %s" % message)
+
+
+func _cleanup_settings_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

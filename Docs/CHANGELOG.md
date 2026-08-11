@@ -1,5 +1,13 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime UI / Camera · 关卡失败画面与景深开关 — 2026-08-11
+**模块**：Runtime UI / Wave / Camera / AppFlow / Tests / Docs。
+- `WaveManager.defeat` 现在打开正式失败模态层并暂停游戏；失败画面复用 `PauseMenu` 的设置、重启与退关信号，通用 Esc 关闭不会跳过结果。
+- “重新挑战”深重载当前关卡并恢复 1x；“返回选关”继续走 Main/AppFlow 的安全退关事务。
+- `RuntimeSettings` 新增默认开启的 `depth_of_field_enabled`；暂停和失败菜单共享同一设置对象，可即时关闭/重开主相机景深并持久化。
+- 扩展 UI、微缩景深与完整 AppFlow 回归，覆盖失败触发、时间/输入锁、设置同步、当关重启和返回选关。
+**影响面**：只扩展失败终态的正式 UI 与用户显示设置；波次判败、关卡加载、选关和景深参数资源契约不变。
+
 ## Building / Runtime UI · 索敌塔放置阶段蓝色范围预览 — 2026-08-11
 **模块**：Building / Runtime UI / Tests / Docs。
 - `BuildingSelectionVisualizer` 的索敌圆显示对象改为“有效放置虚影优先，否则已选建筑”；箭塔、导弹塔和钉锤悬停合法放置格时立即显示当前级蓝色 `targeting_range` 圆。

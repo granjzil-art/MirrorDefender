@@ -38,13 +38,14 @@ func _test_settings_persistence() -> void:
 	var path := _test_settings_path()
 	_cleanup_settings_file(path)
 	var settings := RuntimeSettings.new()
-	settings.set_values(37.0, true, 1.25)
+	settings.set_values(37.0, true, 1.25, false)
 	_expect(settings.save_to_file(path) == OK, "runtime settings save to an isolated user cfg")
 	var loaded := RuntimeSettings.new()
 	_expect(loaded.load_from_file(path) == OK, "runtime settings reload from user cfg")
 	_expect(is_equal_approx(loaded.main_volume_percent, 37.0), "saved main volume round-trips")
 	_expect(loaded.fullscreen, "saved fullscreen mode round-trips")
 	_expect(is_equal_approx(loaded.ui_scale, 1.25), "saved UI scale round-trips")
+	_expect(not loaded.depth_of_field_enabled, "saved depth-of-field setting round-trips")
 	loaded.set_values(-10.0, false, 9.0)
 	_expect(is_zero_approx(loaded.main_volume_percent) and is_equal_approx(loaded.ui_scale, 1.5), "runtime settings clamp editable ranges")
 
@@ -155,9 +156,12 @@ func _test_time_controls_and_pause_menu(fixture: Dictionary) -> void:
 	_expect(pause.settings_panel.visible, "settings button expands the first settings group")
 	pause.volume_slider.value = 62.0
 	pause.ui_scale_slider.value = 1.15
+	pause.depth_of_field_toggle.set_pressed_no_signal(false)
+	pause.depth_of_field_toggle.toggled.emit(false)
 	var persisted := RuntimeSettings.new()
 	_expect(persisted.load_from_file(_test_settings_path()) == OK, "pause settings save immediately")
 	_expect(is_equal_approx(persisted.main_volume_percent, 62.0) and is_equal_approx(persisted.ui_scale, 1.15), "pause menu persists volume and UI scale")
+	_expect(not persisted.depth_of_field_enabled, "pause menu persists the depth-of-field toggle")
 	pause.restart_button.pressed.emit()
 	pause.exit_button.pressed.emit()
 	_expect(_restart_requests == 1, "restart button emits one high-level request without reloading inside the UI")
@@ -187,11 +191,13 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 		6
 	)
 	hud.configure_global_info(fixture["resource"], fixture["wave"], fixture["base"])
+	hud.configure_wave_controls(fixture["wave"])
 	hud.apply_level_configuration(fixture["level"], "memory://runtime-ui-batch3")
 	_expect(hud.get_node_or_null("GlobalInfoPanel") != null, "runtime HUD owns the right-top global panel")
 	_expect(hud.get_node_or_null("EconomyPanel") != null, "runtime HUD owns the right-bottom economy panel")
 	_expect(hud.get_node_or_null("TimeControlPanel") != null, "runtime HUD owns formal time controls")
 	_expect(hud.get_node_or_null("PauseMenu") != null, "runtime HUD owns the pause modal")
+	_expect(hud.get_node_or_null("DefeatMenu") != null, "runtime HUD owns the defeat modal")
 	var modal_changes: Array[bool] = []
 	hud.modal_state_changed.connect(func(open: bool) -> void: modal_changes.append(open))
 	fixture["time"].set_paused(true)
@@ -206,6 +212,31 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	hud.close_pause_menu()
 	await process_frame
 	_expect(not hud.is_modal_open() and not fixture["time"].is_paused(), "closing the HUD modal resumes simulation")
+
+	var defeat_restart_requests: Array[bool] = []
+	var defeat_exit_requests: Array[bool] = []
+	hud.restart_level_requested.connect(func() -> void: defeat_restart_requests.append(true))
+	hud.exit_level_requested.connect(func() -> void: defeat_exit_requests.append(true))
+	var wave_manager: WaveManager = fixture["wave"]
+	wave_manager.defeat.emit()
+	await process_frame
+	_expect(hud.is_defeat_menu_open() and hud.is_modal_open(), "defeat opens the input-blocking result modal")
+	_expect(fixture["time"].is_paused() and is_zero_approx(Engine.time_scale), "defeat freezes gameplay time")
+	hud.close_top_modal()
+	_expect(hud.is_defeat_menu_open(), "generic modal cancellation cannot dismiss the defeat result")
+	var defeat_menu := hud.get_node("DefeatMenu") as PauseMenu
+	var pause_menu := hud.get_node("PauseMenu") as PauseMenu
+	defeat_menu.depth_of_field_toggle.set_pressed_no_signal(true)
+	defeat_menu.depth_of_field_toggle.toggled.emit(true)
+	_expect(pause_menu.depth_of_field_toggle.button_pressed, "defeat and pause menus share the same settings state")
+	defeat_menu.restart_button.pressed.emit()
+	_expect(defeat_restart_requests.size() == 1, "defeat restart reuses the high-level level reload request")
+	hud.prepare_for_level_transition()
+	_expect(not hud.is_defeat_menu_open() and not fixture["time"].is_paused(), "level transition closes defeat and restores gameplay time")
+	wave_manager.defeat.emit()
+	defeat_menu.exit_button.pressed.emit()
+	_expect(defeat_exit_requests.size() == 1, "defeat exit reuses the return-to-level-selection request")
+	hud.prepare_for_level_transition()
 
 	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	hud.position = Vector2.ZERO

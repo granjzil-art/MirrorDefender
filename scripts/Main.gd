@@ -338,6 +338,8 @@ func _ready() -> void:
 		6,
 		runtime_stuff_editor
 	)
+	runtime_hud.settings_changed.connect(_on_runtime_settings_changed)
+	_on_runtime_settings_changed(runtime_hud.get_settings_snapshot())
 	runtime_hud.restart_level_requested.connect(_on_restart_level_requested)
 	runtime_hud.exit_level_requested.connect(_on_exit_level_requested)
 	runtime_hud.modal_state_changed.connect(_on_runtime_modal_state_changed)
@@ -976,6 +978,14 @@ func _on_runtime_modal_state_changed(open: bool) -> void:
 	mirror_manager.clear_preview()
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
+
+
+func _on_runtime_settings_changed(settings: Dictionary) -> void:
+	if miniature_dof_controller == null:
+		return
+	miniature_dof_controller.set_effect_enabled(
+		bool(settings.get("depth_of_field_enabled", true))
+	)
 
 
 func _on_wave_paths_preview_requested(paths: Array) -> void:

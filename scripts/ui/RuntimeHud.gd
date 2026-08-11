@@ -23,6 +23,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
 @onready var pause_menu: PauseMenu = $PauseMenu
+@onready var defeat_menu: PauseMenu = $DefeatMenu
 @onready var wave_control_panel: WaveControlPanelScript = $WaveControlPanel
 @onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
 @onready var debug_console: DebugConsoleScript = $DebugConsole
@@ -30,6 +31,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 
 signal restart_level_requested
 signal exit_level_requested
+signal settings_changed(settings: Dictionary)
 signal modal_state_changed(open: bool)
 signal wave_paths_preview_requested(paths: Array)
 signal wave_paths_preview_cleared
@@ -38,6 +40,8 @@ var _interaction: RuntimeInteractionControllerScript
 var _time_controller: GameTimeControllerScript
 var _last_modal_state: bool = false
 var _stuff_editor_controller: Node
+var _wave_manager: WaveManager
+var _defeat_active: bool = false
 
 
 func _ready() -> void:
@@ -45,6 +49,10 @@ func _ready() -> void:
 	tile_inspection_service.inspection_changed.connect(tile_inspector_panel.display_model)
 	pause_menu.restart_requested.connect(_on_restart_requested)
 	pause_menu.exit_level_requested.connect(_on_exit_requested)
+	pause_menu.settings_changed.connect(_on_pause_settings_changed)
+	defeat_menu.restart_requested.connect(_on_restart_requested)
+	defeat_menu.exit_level_requested.connect(_on_exit_requested)
+	defeat_menu.settings_changed.connect(_on_defeat_settings_changed)
 	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
 	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
@@ -89,6 +97,9 @@ func configure(
 	economy_panel.configure(resource_manager)
 	time_control_panel.configure(_time_controller)
 	pause_menu.configure(get_window())
+	defeat_menu.settings_path = pause_menu.settings_path
+	defeat_menu.apply_runtime_settings = pause_menu.apply_runtime_settings
+	defeat_menu.configure(get_window(), pause_menu.get_runtime_settings())
 	_stuff_editor_controller = stuff_editor_controller
 	runtime_stuff_editor_panel.configure(_stuff_editor_controller)
 	if _stuff_editor_controller != null and _stuff_editor_controller.has_signal(&"active_changed"):
@@ -119,7 +130,12 @@ func configure_global_info(
 
 
 func configure_wave_controls(wave_manager: WaveManager) -> void:
+	if _wave_manager != null and _wave_manager.defeat.is_connected(_on_defeat):
+		_wave_manager.defeat.disconnect(_on_defeat)
+	_wave_manager = wave_manager
 	wave_control_panel.configure(wave_manager)
+	if _wave_manager != null:
+		_wave_manager.defeat.connect(_on_defeat)
 
 
 func configure_debug_console(
@@ -159,9 +175,19 @@ func apply_level_configuration(level: LevelResource, source_path: String = "") -
 
 
 func is_modal_open() -> bool:
-	return (pause_menu != null and pause_menu.is_open()) or (
+	return (defeat_menu != null and defeat_menu.is_open()) or (
+		pause_menu != null and pause_menu.is_open()
+	) or (
 		debug_console != null and debug_console.is_open()
 	)
+
+
+func is_defeat_menu_open() -> bool:
+	return defeat_menu != null and defeat_menu.is_open()
+
+
+func get_settings_snapshot() -> Dictionary:
+	return pause_menu.get_settings_snapshot() if pause_menu != null else {}
 
 
 func is_debug_console_open() -> bool:
@@ -169,6 +195,8 @@ func is_debug_console_open() -> bool:
 
 
 func close_top_modal() -> void:
+	if is_defeat_menu_open():
+		return
 	if debug_console != null and debug_console.is_open():
 		debug_console.close_console()
 		return
@@ -184,7 +212,10 @@ func close_pause_menu() -> void:
 
 
 func prepare_for_level_transition() -> void:
+	_defeat_active = false
 	wave_control_panel.clear_hover_preview()
+	if defeat_menu != null:
+		defeat_menu.close_menu()
 	if debug_console != null:
 		debug_console.close_console()
 	if _time_controller != null:
@@ -247,6 +278,11 @@ func _sync_world_selection() -> void:
 func _on_paused_changed(paused: bool) -> void:
 	if pause_menu == null:
 		return
+	if _defeat_active:
+		pause_menu.close_menu()
+		defeat_menu.open_menu()
+		_sync_modal_state()
+		return
 	if paused:
 		pause_menu.open_menu()
 	else:
@@ -304,6 +340,28 @@ func _on_exit_requested() -> void:
 	exit_level_requested.emit()
 
 
+func _on_defeat() -> void:
+	_defeat_active = true
+	defeat_menu.open_menu()
+	pause_menu.close_menu()
+	if debug_console != null:
+		debug_console.close_console()
+	wave_control_panel.clear_hover_preview()
+	_sync_modal_state()
+	if _time_controller != null:
+		_time_controller.set_paused(true)
+
+
+func _on_pause_settings_changed(settings: Dictionary) -> void:
+	defeat_menu.sync_settings_controls()
+	settings_changed.emit(settings)
+
+
+func _on_defeat_settings_changed(settings: Dictionary) -> void:
+	pause_menu.sync_settings_controls()
+	settings_changed.emit(settings)
+
+
 func _on_wave_paths_preview_requested(paths: Array) -> void:
 	wave_paths_preview_requested.emit(paths)
 
@@ -337,3 +395,6 @@ func _disconnect_sources() -> void:
 		if _stuff_editor_controller.is_connected(&"active_changed", callback):
 			_stuff_editor_controller.disconnect(&"active_changed", callback)
 	_stuff_editor_controller = null
+	if _wave_manager != null and _wave_manager.defeat.is_connected(_on_defeat):
+		_wave_manager.defeat.disconnect(_on_defeat)
+	_wave_manager = null

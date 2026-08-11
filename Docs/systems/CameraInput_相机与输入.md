@@ -17,10 +17,11 @@
   - 鼠标右键短点击：取消；超过拖动阈值后转为相机旋转且不取消
 - **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；HUD 上起手禁止相机旋转，但短点击仍保留全局取消。
 - **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
-- **模态输入边界**：M6 暂停菜单或调试控制台展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮及鼠标拖动，并清除未完成的中/右键手势；继续后统一解锁。
+- **模态输入边界**：M6 失败画面、暂停菜单或调试控制台展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮及鼠标拖动，并清除未完成的中/右键手势；继续或切关后统一解锁。
 - **六机位预设**：数字键 `1`～`6` 读取当前 `LevelResource` 的同号可选机位。已配置槽位按真实时间平滑过渡焦点、yaw、pitch 和缩放距离；空槽、无效槽或未加载关卡无动作。
 - **过渡输入边界**：过渡期间 `CameraController` 只抑制手动移动/旋转/俯仰/滚轮；结束或切关后恢复。暂停及后续控制台通过既有 `input_enabled` 总锁冻结过渡，避免模态层背后移动镜头。
 - **移轴 / 微缩景深**：`MiniatureDofController` 使用 Godot `CameraAttributesPractical` 同时开启近景与远景 DOF。焦平面跟随 CameraRig pivot（或显式目标），清晰带和过渡距离都以当前网格单格尺寸换算，因此镜头平移、缩放、预设切换及不同尺寸 SQUARE/HEX 关卡共用同一套参数。它是深度缓冲驱动的真实景深，不是固定屏幕上下遮罩。
+- **用户景深开关**：暂停和失败菜单共享 `RuntimeSettings.depth_of_field_enabled`，默认开启并持久化到 `user://settings.cfg`。`RuntimeHud.settings_changed` 把快照转给 Main，Main 只通过 `MiniatureDofController.set_effect_enabled()` 即时应用；关闭时恢复相机原 CameraAttributes。
 - **反射隔离**：地表与镜面 SubViewport 相机不继承最终视口 DOF，保持反射纹理清晰；主相机只在最后一次合成中虚化，避免反射先糊一次、主视口再糊一次。
 - **开发对比键**：原始键 `0` 可即时开关微缩景深，便于 A/B 调参；由 `miniature_dof_test_shortcut_enabled` 单独关闭，不写入 InputMap。
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
@@ -109,6 +110,11 @@ Main._ready
   -> MiniatureDofController.configure(main Camera3D, CameraRig, GridManager, definition)
   -> CameraAttributesPractical attached to main Camera3D
 
+RuntimeSettings.depth_of_field_enabled
+  -> RuntimeHud.settings_changed(settings)
+  -> Main._on_runtime_settings_changed(settings)
+  -> MiniatureDofController.set_effect_enabled(enabled)
+
 camera transform / CameraRig pivot / grid.cell_size / definition parameters change
   -> MiniatureDofController.refresh_now()
   -> focus depth = camera forward · (focus target - camera position)
@@ -121,6 +127,7 @@ LevelReflectionSurface / MirrorReflectionView
 ```
 
 - `resources/camera/MiniatureDofDefault.tres` 是默认参数事实源，可在运行中调整；控制器把资源参数也纳入变化快照，即使镜头静止也会实时刷新。
+- 用户设置只决定最终是否启用，不改写 `MiniatureDofDefinition`；Main 的 feature flag 或 Definition 关闭时，用户开关不能强制越过。
 - 默认目标是 CameraRig pivot 加高度偏移；`set_focus_target()` 可让未来的英雄、选中建筑或过场目标成为显式焦点，清除后恢复跟随 pivot。
 - 景深只挂主 Camera3D，因此 HUD、灯光测试按钮和其它 CanvasItem 始终保持清晰。
 
@@ -272,7 +279,7 @@ LevelReflectionSurface / MirrorReflectionView
 | `addons/mirror_tile_editor/tile_editor_plugin.gd` | `EditorPlugin`（tool） | 将关卡编辑器作为 Godot 主屏幕插件挂载并保证 Container 扩展布局。 |
 | `tests/camera_input_test.gd` | `SceneTree` | InputMap、中键屏幕平面平移、右键点击/旋转阈值、HUD边界、俯仰限位、输入锁与滚轮缩放回归。 |
 | `tests/building_rotation_repeat_test.gd` | `SceneTree` | 选中建筑按住 R 的初始等待、连续间隔、松键停止、卡帧上限、Inspector 默认值和慢放隔离回归。 |
-| `tests/miniature_dof_test.gd` | `SceneTree` | DemoLevel1 装配、近远焦带、开关恢复、缩放、HEX/单格尺寸、参数热调与反射隔离回归。 |
+| `tests/miniature_dof_test.gd` | `SceneTree` | 27 项景深资源、动态焦面、相机 Attributes 恢复、用户开关即时应用与持久化回归。 |
 | `tests/miniature_dof_visual_capture.gd` | `SceneTree` | 用真实 Forward+ 视口输出 DemoLevel1 景深开启/关闭 PNG。 |
 | `tests/runtime_ui_batch5_test.gd` | `SceneTree` | 六槽持久化、插值、输入锁、旧关卡兼容和编辑器集成回归。 |
 

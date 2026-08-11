@@ -5,13 +5,18 @@ extends Control
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Content")
+@export var menu_title: String = "已暂停"
+@export var restart_button_text: String = "重启关卡"
+@export var exit_button_text: String = "退出当前关卡"
+
 @export_group("Persistence")
 @export_file("*.cfg") var settings_path: String = "user://settings.cfg"
 @export var apply_runtime_settings: bool = true
 
 @export_group("Layout")
 @export_range(180.0, 360.0, 1.0) var collapsed_height: float = 230.0
-@export_range(320.0, 640.0, 1.0) var expanded_height: float = 410.0
+@export_range(320.0, 640.0, 1.0) var expanded_height: float = 450.0
 
 @export_group("Optional Icons")
 @export var settings_icon: Texture2D
@@ -22,6 +27,7 @@ signal restart_requested
 signal exit_level_requested
 signal settings_changed(settings: Dictionary)
 
+@onready var title_label: Label = $Shade/ModalPanel/Content/Title
 @onready var settings_button: Button = $Shade/ModalPanel/Content/ActionButtons/SettingsButton
 @onready var restart_button: Button = $Shade/ModalPanel/Content/ActionButtons/RestartButton
 @onready var exit_button: Button = $Shade/ModalPanel/Content/ActionButtons/ExitButton
@@ -31,6 +37,7 @@ signal settings_changed(settings: Dictionary)
 @onready var window_mode: OptionButton = $Shade/ModalPanel/Content/SettingsPanel/WindowRow/WindowMode
 @onready var ui_scale_slider: HSlider = $Shade/ModalPanel/Content/SettingsPanel/ScaleRow/UiScaleSlider
 @onready var ui_scale_value: Label = $Shade/ModalPanel/Content/SettingsPanel/ScaleRow/UiScaleValue
+@onready var depth_of_field_toggle: CheckButton = $Shade/ModalPanel/Content/SettingsPanel/DepthOfFieldRow/DepthOfFieldToggle
 @onready var status_label: Label = $Shade/ModalPanel/Content/SettingsPanel/Status
 @onready var modal_panel: PanelContainer = $Shade/ModalPanel
 
@@ -45,6 +52,9 @@ func _ready() -> void:
 	visible = false
 	settings_panel.visible = false
 	_update_panel_height()
+	title_label.text = menu_title
+	restart_button.text = restart_button_text
+	exit_button.text = exit_button_text
 	window_mode.clear()
 	window_mode.add_item("窗口", 0)
 	window_mode.add_item("全屏", 1)
@@ -54,12 +64,17 @@ func _ready() -> void:
 	volume_slider.value_changed.connect(_on_setting_control_changed)
 	window_mode.item_selected.connect(_on_window_mode_changed)
 	ui_scale_slider.value_changed.connect(_on_setting_control_changed)
+	depth_of_field_toggle.toggled.connect(_on_depth_of_field_toggled)
 	_apply_icons()
 
 
-func configure(root_window: Window) -> void:
+func configure(root_window: Window, shared_settings: RuntimeSettings = null) -> void:
 	_root_window = root_window
-	var error := _settings.load_from_file(settings_path)
+	var error := OK
+	if shared_settings != null:
+		_settings = shared_settings
+	else:
+		error = _settings.load_from_file(settings_path)
 	_sync_controls_from_settings()
 	if apply_runtime_settings:
 		_settings.apply_to_runtime(_root_window)
@@ -86,6 +101,14 @@ func get_settings_snapshot() -> Dictionary:
 	return _settings.to_dictionary()
 
 
+func get_runtime_settings() -> RuntimeSettings:
+	return _settings
+
+
+func sync_settings_controls() -> void:
+	_sync_controls_from_settings()
+
+
 func _on_settings_pressed() -> void:
 	settings_panel.visible = not settings_panel.visible
 	_update_panel_height()
@@ -103,10 +126,19 @@ func _on_window_mode_changed(_index: int) -> void:
 	_on_setting_control_changed(0.0)
 
 
+func _on_depth_of_field_toggled(_enabled: bool) -> void:
+	_on_setting_control_changed(0.0)
+
+
 func _on_setting_control_changed(_value: float) -> void:
 	if _syncing_controls:
 		return
-	_settings.set_values(volume_slider.value, window_mode.selected == 1, ui_scale_slider.value)
+	_settings.set_values(
+		volume_slider.value,
+		window_mode.selected == 1,
+		ui_scale_slider.value,
+		depth_of_field_toggle.button_pressed
+	)
 	var error := _settings.save_to_file(settings_path)
 	if error == OK and apply_runtime_settings:
 		_settings.apply_to_runtime(_root_window)
@@ -120,6 +152,7 @@ func _sync_controls_from_settings() -> void:
 	volume_slider.set_value_no_signal(_settings.main_volume_percent)
 	window_mode.select(1 if _settings.fullscreen else 0)
 	ui_scale_slider.set_value_no_signal(_settings.ui_scale)
+	depth_of_field_toggle.set_pressed_no_signal(_settings.depth_of_field_enabled)
 	_syncing_controls = false
 	_update_value_labels()
 
