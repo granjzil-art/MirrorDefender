@@ -150,18 +150,61 @@ func _test_time_controls_and_pause_menu(fixture: Dictionary) -> void:
 	root.add_child(controls)
 	await process_frame
 	var time_controller: GameTimeController = fixture["time"]
+	time_controller.reset_runtime_state()
 	controls.configure(time_controller)
-	controls.fast_button.set_pressed_no_signal(true)
+	var slow_style := controls.tactical_slow_button.get_theme_stylebox("normal") as StyleBoxFlat
+	var pause_style := controls.pause_button.get_theme_stylebox("normal") as StyleBoxFlat
+	var speed_style := controls.fast_button.get_theme_stylebox("normal") as StyleBoxFlat
+	_expect(
+		controls.fast_button.text == "1x"
+		and speed_style != null and speed_style.bg_color.is_equal_approx(controls.speed_1x_color),
+		"speed control starts at green 1x"
+	)
+	_expect(
+		slow_style != null and slow_style.bg_color.is_equal_approx(controls.tactical_slow_color)
+		and pause_style != null and pause_style.bg_color.is_equal_approx(controls.pause_color),
+		"slow and pause controls use the authored light purple and light gray"
+	)
 	controls.fast_button.pressed.emit()
-	_expect(time_controller.is_fast_enabled() and is_equal_approx(time_controller.get_effective_scale(), 2.0), "formal 2x button toggles fast time")
+	speed_style = controls.fast_button.get_theme_stylebox("normal") as StyleBoxFlat
+	_expect(
+		controls.fast_button.text == "2x"
+		and is_equal_approx(time_controller.get_playback_scale(), 2.0)
+		and is_equal_approx(time_controller.get_effective_scale(), 2.0)
+		and speed_style != null and speed_style.bg_color.is_equal_approx(controls.speed_2x_color),
+		"speed control advances to orange 2x"
+	)
+	controls.fast_button.pressed.emit()
+	speed_style = controls.fast_button.get_theme_stylebox("normal") as StyleBoxFlat
+	_expect(
+		controls.fast_button.text == "4x"
+		and is_equal_approx(time_controller.get_playback_scale(), 4.0)
+		and is_equal_approx(time_controller.get_effective_scale(), 4.0)
+		and speed_style != null and speed_style.bg_color.is_equal_approx(controls.speed_4x_color),
+		"speed control advances to red 4x"
+	)
 	controls.pause_button.pressed.emit()
 	_expect(time_controller.is_paused() and is_zero_approx(time_controller.get_effective_scale()), "formal pause button has highest priority")
 	_expect(controls.pause_button.text == "继续", "pause button exposes its resume action")
 	controls.pause_button.pressed.emit()
-	_expect(not time_controller.is_paused() and is_equal_approx(time_controller.get_effective_scale(), 2.0), "resume restores remembered fast time")
+	_expect(not time_controller.is_paused() and is_equal_approx(time_controller.get_effective_scale(), 4.0), "resume restores remembered 4x time")
+	controls.fast_button.pressed.emit()
+	speed_style = controls.fast_button.get_theme_stylebox("normal") as StyleBoxFlat
+	_expect(
+		controls.fast_button.text == "1x"
+		and is_equal_approx(time_controller.get_effective_scale(), 1.0)
+		and speed_style != null and speed_style.bg_color.is_equal_approx(controls.speed_1x_color),
+		"speed control cycles from 4x back to green 1x"
+	)
+	time_controller.set_playback_scale(4.0)
 	time_controller.set_paused(true)
 	time_controller.reset_runtime_state()
-	_expect(not time_controller.is_paused() and not time_controller.is_fast_enabled(), "runtime reset clears pause and fast state")
+	_expect(
+		not time_controller.is_paused()
+		and not time_controller.is_fast_enabled()
+		and is_equal_approx(time_controller.get_playback_scale(), 1.0),
+		"runtime reset clears pause and restores the 1x player speed"
+	)
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0) and is_equal_approx(Engine.time_scale, 1.0), "runtime reset restores normal engine time")
 	controls.queue_free()
 	await process_frame

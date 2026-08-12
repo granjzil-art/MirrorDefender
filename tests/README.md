@@ -91,7 +91,7 @@ M6 批次 2 的地块只读模型、实体/虚像/根源/耐久/朝向/元素动
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch2_test.gd
 ```
 
-M6 批次 3 的全局信息信号、资源滚动/独立弹字、时间优先级、暂停模态、设置持久化、关卡深重载和三档分辨率回归测试：
+M6 批次 3 的全局信息信号、资源滚动/独立弹字、1x/2x/4x 倍率循环与五类按钮颜色、时间优先级、暂停模态、设置持久化、关卡深重载和三档分辨率回归测试：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch3_test.gd

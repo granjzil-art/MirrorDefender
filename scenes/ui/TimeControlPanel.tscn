@@ -41,12 +41,10 @@ text = "慢放 开"
 custom_minimum_size = Vector2(60, 42)
 layout_mode = 2
 focus_mode = 0
-toggle_mode = true
-text = "2x"
+text = "1x"
 
 [node name="PauseButton" type="Button" parent="Controls"]
 custom_minimum_size = Vector2(74, 42)
 layout_mode = 2
 focus_mode = 0
-toggle_mode = true
 text = "暂停"

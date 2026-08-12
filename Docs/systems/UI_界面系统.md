@@ -8,7 +8,7 @@
 - **卡片状态**：建筑卡显示名称、可替换图标和建造费用；复制镜与反射镜使用各自的独立 cap。默认金币模式在卡底显示 Definition 费用，余额不足或该种镜子达 cap 时只置灰该卡。开启保留冷却开关后，有库存时改显示 `×数量`；库存为 0 时由 `CardCooldownSweep` 绘制下一枚从上向下的水平恢复扫描。选中卡继续使用金色镜框。
 - **单次放置**：`RuntimeInteractionController` 是正式交互事实源。每次选卡只允许一次世界点击；成功、资源不足、上限、非法地块、非法边或未命中都会取消卡片/预览/实体选择并回 `SELECT`，成功放置的实体不会保持自动选中。
 - **取消和输入消费**：左键执行肯定操作；右键短点击在释放时全局取消并回选择模式，右键拖动超过阈值后改为运行时相机旋转且不取消。中/右键通常仅从世界区域起手可导航相机；正式卡片和按钮消费左键，点击 UI 不会穿透到世界。选中建筑的悬浮操作区是右键旋转例外，可从图标上直接起手拖动视角。
-- **正式时间控制（批次 3 已实现）**：右下独立慢放、2x 和暂停/继续按钮，`GameTimeController` 固定按 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x` 求解。暂停前的 2x 请求会保留，继续后恢复。选卡或选中实体建筑/镜子时仍默认触发 0.1x。
+- **正式时间控制（2026-08-13 现役）**：右下独立慢放、倍率和暂停/继续按钮；倍率按钮按 `1x → 2x → 4x → 1x` 循环，当前档分别使用浅绿、浅橙、浅红背景，慢放固定浅紫、暂停固定浅灰。`GameTimeController` 按 `暂停/作者暂停 0x > 战术慢放 0.1x > 玩家 1x/2x/4x` 求解；暂停与慢放只覆盖有效倍率，不丢失玩家已选档位，解除后恢复。选卡或选中实体建筑/镜子时仍默认触发 0.1x。
 - **运行时关卡元素编辑**：左侧“关卡元素编辑”开启 Stuff-only 作者工作区。进入后隐藏建筑卡、冻结玩法时间但保留 UI/镜头输入；目录按钮选择元素，左键放置或选择，`R` 旋转，“删除选中元素”按钮或 `Delete` 删除，`Ctrl+Z/Ctrl+Y` 撤销/重做，右键取消当前工具。删除按钮只在选中已有 Stuff 时启用，同格多实例逐个删除。真实模型预览以绿/红叠色表示可放置/非法或断路警告。
 - **运行时保存边界**：工作区提供“保存元素”“全量保存”、保存并退出、放弃并退出。“保存元素”只更新 Stuff；“全量保存”额外把当前实体建筑与全部实体镜子种类写成开局陈列，明确排除虚像和战斗临时状态。编辑器运行时可写回当前 `res://` 关卡；导出游戏默认另存 `user://levels/`。脏会话不会被静默关闭，切关会终止旧会话且绝不把旧快照覆盖到新关卡。
 - **选中地块详情（已移出正式 HUD，2026-08-12）**：`RuntimeHud.tscn` 不再实例化 `TileInspectionService` 或 `TileInspectorPanel`，点击地块不再展开左侧详情 UI。世界选择事实仍保留，继续服务于建筑/镜子上下文操作、战术慢放与 `F` 清障。
@@ -73,13 +73,15 @@
 | BuildCardBar.`card_description_size/card_description_gap` | `(360,300) / 10` | `card_description_size.x` 是固定换行宽度，Y 为旧场景序列化兼容值且不再固定高度；实际高度按内容自适应。`gap` 是说明框与卡槽顶部间距。 |
 | GameTimeController.`tactical_slow_enabled` | true | 是否在选卡/选中实体时自动慢放。 |
 | GameTimeController.`tactical_slow_scale` | 0.1 | 战术慢放倍率。 |
-| GameTimeController.`fast_scale` | 2.0 | 批次 3 正式按钮使用的快速倍率。 |
+| GameTimeController.`fast_scale/very_fast_scale` | `2.0 / 4.0` | 倍率按钮的两档快速倍率；正常档固定为 1x。 |
 | EconomyPanel.`feature_enabled` | true | 右上金币单元显示总开关。 |
 | EconomyPanel.`number_roll_duration` / `popup_duration` / `popup_rise_distance` | 0.35 / 0.9 / 54 | 资源主数字滚动时长、增减弹字时长与上浮距离。 |
 | EconomyPanel.`resource_icon` / `gain_color` / `spend_color` | null / 金 / 橙 | 资源图标与正负反馈颜色美术接口。 |
 | GlobalInfoPanel.`feature_enabled` | true | 右上全局信息总开关。 |
-| TimeControlPanel.`feature_enabled` | true | 慢放、2x、暂停按钮总开关。 |
+| TimeControlPanel.`feature_enabled` | true | 慢放、1x/2x/4x 循环倍率、暂停按钮总开关。 |
 | TimeControlPanel.`*_icon` | null | 慢放、快速和暂停按钮的可选图标接口。 |
+| TimeControlPanel.`speed_1x/2x/4x_color` | 浅绿 / 浅橙 / 浅红 | 当前玩家倍率档位的按钮背景色。 |
+| TimeControlPanel.`tactical_slow_color/pause_color` | 浅紫 / 浅灰 | 慢放和暂停按钮的固定背景色。 |
 | PauseMenu.`feature_enabled` | true | 暂停模态层总开关。 |
 | PauseMenu.`settings_path` | `user://settings.cfg` | 局外设置持久化路径。 |
 | PauseMenu.`collapsed_height` / `expanded_height` | 230 / 450 | 设置折叠与展开时的模态板高度；失败实例覆盖为 250 / 470。 |
@@ -103,14 +105,14 @@
 | `scenes/AppRoot.tscn` | 无 class_name / `Node` 场景 | `project.godot` 主场景；装配 Catalog、LevelSelectView 场景和 Main 场景。 |
 | `scripts/Main.gd` | `MainController` / `Node3D` | 局内组合根；装配 Manager、正式 HUD、路径预览、调试绑定并把退出请求上送 AppFlow。 |
 | `scripts/ui/RuntimeInteractionController.gd` | `RuntimeInteractionController` / `Node` | 正式 SELECT/块放置/边放置/镜子放置状态机和单次尝试事务。 |
-| `scripts/ui/GameTimeController.gd` | `GameTimeController` / `Node` | 统一求解暂停、战术慢放、2x 与 1x 的时间优先级。 |
+| `scripts/ui/GameTimeController.gd` | `GameTimeController` / `Node` | 保存玩家 1x/2x/4x 档位，统一求解暂停、战术慢放与玩家倍率优先级。 |
 | `scripts/ui/RuntimeStuffEditorPanel.gd` | `RuntimeStuffEditorPanel` / `Control` | 运行时元素目录、选择、历史、保存与断路作者覆盖入口；标题固定，完整工具区随可用窗口高度纵向滚动。 |
 | `scripts/stuff/RuntimeStuffEditorController.gd` | `RuntimeStuffEditorController` / `Node3D` | HUD 与 Stuff-only 编辑事务之间的状态机和世界预览。 |
 | `scenes/ui/RuntimeStuffEditorPanel.tscn` | 无 / `Control` 场景 | RuntimeHud 内的运行时元素编辑面板实例。 |
 | `scripts/ui/RuntimeSettings.gd` | `RuntimeSettings` / `RefCounted` | 读写主音量、窗口模式、UI 缩放和景深开关；前三项可直接应用到运行时。 |
 | `scripts/ui/EconomyPanel.gd` / `scenes/ui/EconomyPanel.tscn` | `EconomyPanel` / `Control` | 真实时间资源数字滚动和多事件弹字。 |
 | `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的生命/波次/两种镜子/金币/建筑无框图标统计。 |
-| `scripts/ui/TimeControlPanel.gd` / `scenes/ui/TimeControlPanel.tscn` | `TimeControlPanel` / `Control` | 慢放、2x 和暂停的正式控件。 |
+| `scripts/ui/TimeControlPanel.gd` / `scenes/ui/TimeControlPanel.tscn` | `TimeControlPanel` / `Control` | 浅紫慢放、三色 1x/2x/4x 循环倍率和浅灰暂停的正式控件。 |
 | `scripts/ui/PauseMenu.gd` / `scenes/ui/PauseMenu.tscn` | `PauseMenu` / `Control` | 可参数化的输入阻断菜单；RuntimeHud 同时用于暂停和失败画面。 |
 | `scripts/ui/WaveTimelineModel.gd` | `WaveTimelineModel` / `RefCounted` | 把关卡波次资源只读投影为稳定摘要；现役供下一波详情复用。 |
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧释放下一波/重启/退出三按钮、下一波详情与路径预览信号。 |
@@ -137,14 +139,14 @@
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售，并保持自适应说明页底边稳定。 |
-| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 114 项底部卡槽、四关五槽配置、自适应建筑/两类镜子富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
+| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 115 项底部卡槽、四关五槽配置、自适应建筑/两类镜子富文本悬停说明、程序/原画模式、费用颜色、4x 优先级恢复、正式 HUD 布局和放置交互回归。 |
 | `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 27 项建筑说明/升级/售卖图标、经济数字、自适应富文本说明页和相机投影回归。 |
 | `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 41 项镜子三级战斗修正、升级/退款/持久化，以及与建筑一致的三操作布局和自适应说明页回归。 |
 | `tests/mirror_ui_visual_capture.gd` | 无 / `SceneTree` | 手工 Forward+ 截取镜子卡悬停说明与实体镜三操作布局。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 102 项默认兼容、两种正式镜子与建筑资源、Definition 纯文本/BBCode 入口、等级标签色、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
-| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 95 项图标统计/经济信号、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
+| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 99 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 55 项只读波次模型、单悬停窗、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 77 项 F1、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、胜利和 Debug 终态边界回归。 |
@@ -174,7 +176,7 @@ RuntimeHud (Main/HUD)
   ├─ GlobalInfoPanel: 右上生命/波次/双镜子/金币/建筑图标数字
   │    └─ EconomyPanel: 第三行金币数字滚动与增减浮字
   ├─ WaveControlPanel: 最右侧下一波/重启/退出三按钮
-  ├─ TimeControlPanel: 右下慢放/2x/暂停
+  ├─ TimeControlPanel: 右下慢放/1x→2x→4x/暂停
   ├─ PauseMenu + DefeatMenu: 共享 RuntimeSettings 的模态设置/重启/返回选关
   └─ DebugConsole + DebugOverlayPanel
 
@@ -283,13 +285,14 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeInteractionController.gd` | `has_world_selection() -> bool` / `get_world_selection_cell() -> Vector3i` / `get_world_selection_edge_id() -> String` | 返回正式选择模式当前锁定格/边；变化通过 `world_selection_changed(has_cell, cell, edge_id)` 广播。 |
 | `GameTimeController.gd` | `configure(interaction: RuntimeInteractionController, building_manager: BuildingManager, mirror_manager: MirrorManager) -> void` | 订阅交互与实体选择，建立战术上下文。 |
 | `GameTimeController.gd` | `set_tactical_slow_enabled(enabled: bool) -> void` | 开关自动战术慢放并立即重算倍率。 |
-| `GameTimeController.gd` | `set_fast_enabled(enabled: bool) -> void` / `set_paused(paused: bool) -> void` | 保存快速/暂停请求并按固定优先级重算。 |
+| `GameTimeController.gd` | `set_playback_scale(value: float) -> void` / `cycle_playback_scale() -> void` / `get_playback_scale() -> float` | 设置、循环和读取玩家 1x/2x/4x 档位；暂停/慢放期间仍保留。 |
+| `GameTimeController.gd` | `set_fast_enabled(enabled: bool) -> void` / `set_paused(paused: bool) -> void` | 兼容旧快速开关（开启映射 2x），并保存最高优先级的玩家暂停请求。 |
 | `GameTimeController.gd` | `set_authoring_paused(paused: bool) -> void` | 独立冻结玩法时间，不改写玩家暂停请求。 |
 | `GameTimeController.gd` | `reset_runtime_state() -> void` | 退关前清除快速、玩家暂停和作者暂停请求并恢复 `Engine.time_scale = 1.0`。 |
 | `EconomyPanel.gd` | `configure(resource_manager) -> void` | 订阅资源变化，不持有任何经济修改入口。 |
 | `EconomyPanel.gd` | `advance_ui_time(real_delta: float) -> void` | 以不受 `Engine.time_scale` 影响的 delta 推进滚动数字和弹字。 |
 | `GlobalInfoPanel.gd` | `configure(resource_manager, wave_manager, base_core) -> void` | 订阅容量、波次和据点生命信号并更新三行图标数字。 |
-| `TimeControlPanel.gd` | `configure(time_controller) -> void` | 将正式按钮与时间状态双向同步。 |
+| `TimeControlPanel.gd` | `configure(time_controller) -> void` | 将慢放、三档倍率、暂停按钮及其状态颜色与时间控制器双向同步。 |
 | `PauseMenu.gd` | `configure(root_window: Window, shared_settings: RuntimeSettings = null) -> void` | 读取、应用设置并绑定目标窗口；传入对象时与另一菜单共享状态。 |
 | `PauseMenu.gd` | `open_menu() -> void` / `close_menu() -> void` / `is_open() -> bool` | 管理模态可见性及设置折叠状态。 |
 | `PauseMenu.gd` | `get_runtime_settings() -> RuntimeSettings` / `sync_settings_controls() -> void` | 提供两个菜单共享设置对象并同步控件的入口。 |
