@@ -85,15 +85,18 @@ func get_formatted_inspection_description() -> String:
 	if inspection_display != null:
 		return inspection_display.format_level_description(DEFAULT_FUNCTION_DESCRIPTION)
 	return "\n".join([
-		"基础描述",
 		DEFAULT_FUNCTION_DESCRIPTION,
-		"",
-		"1级：",
-		"",
-		"2级：",
-		"",
-		"3级：",
+		"1级： ",
+		"2级： ",
+		"3级： ",
 	])
+
+
+func get_formatted_inspection_description_bbcode() -> String:
+	if inspection_display != null:
+		return inspection_display.format_level_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
+	var fallback_config := InspectionDisplayConfigScript.new()
+	return fallback_config.format_level_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
 
 
 func validate_configuration() -> Array[String]:

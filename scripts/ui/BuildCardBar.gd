@@ -60,7 +60,7 @@ var _cards_row: HBoxContainer
 var _status_label: Label
 var _card_description_panel: PanelContainer
 var _card_description_title: Label
-var _card_description_text: Label
+var _card_description_text: RichTextLabel
 var _hovered_card_button: Button
 var _selected_definition: BuildingDefinition
 var _mirror_selected: bool = false
@@ -243,27 +243,31 @@ func _build_card_description_panel() -> void:
 
 	var content := VBoxContainer.new()
 	content.name = "Content"
-	content.add_theme_constant_override("separation", 8)
+	content.add_theme_constant_override("separation", 3)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card_description_panel.add_child(content)
 
 	_card_description_title = Label.new()
 	_card_description_title.name = "Title"
-	_card_description_title.add_theme_font_size_override("font_size", 18)
-	_card_description_title.add_theme_color_override("font_color", Color(0.78, 0.9, 1.0))
+	_card_description_title.add_theme_font_size_override("font_size", 22)
+	_card_description_title.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
 	_card_description_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_card_description_title)
 
-	_card_description_text = Label.new()
+	_card_description_text = RichTextLabel.new()
 	_card_description_text.name = "Description"
 	_card_description_text.custom_minimum_size = Vector2(
 		card_description_size.x - 28.0,
-		card_description_size.y - 64.0
+		card_description_size.y - 58.0
 	)
+	_card_description_text.bbcode_enabled = true
+	_card_description_text.fit_content = false
+	_card_description_text.scroll_active = false
 	_card_description_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_card_description_text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_card_description_text.add_theme_font_size_override("font_size", 15)
-	_card_description_text.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
+	_card_description_text.add_theme_font_size_override("normal_font_size", 18)
+	_card_description_text.add_theme_font_size_override("bold_font_size", 18)
+	_card_description_text.add_theme_constant_override("line_separation", -2)
+	_card_description_text.add_theme_color_override("default_color", Color(0.94, 0.96, 1.0))
 	_card_description_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_card_description_text)
 
@@ -788,7 +792,7 @@ func _on_building_card_mouse_entered(
 	_show_card_description(
 		button,
 		definition.get_resolved_inspection_display_name(),
-		definition.get_formatted_inspection_description()
+		definition.get_formatted_inspection_description_bbcode()
 	)
 
 
@@ -801,7 +805,7 @@ func _on_mirror_card_mouse_entered(
 	_show_card_description(
 		button,
 		definition.get_resolved_inspection_display_name(),
-		definition.get_formatted_inspection_description()
+		definition.get_formatted_inspection_description_bbcode()
 	)
 
 
@@ -811,7 +815,7 @@ func _show_card_description(
 	formatted_description: String
 ) -> void:
 	_hovered_card_button = button
-	_card_description_title.text = "%s · 说明" % display_name
+	_card_description_title.text = display_name
 	_card_description_text.text = formatted_description
 	_card_description_panel.visible = true
 	_position_card_description()

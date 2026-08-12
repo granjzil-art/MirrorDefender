@@ -260,13 +260,15 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	panel._on_info_pressed()
 	var info_page := panel.get_node_or_null("InfoPage") as PanelContainer
 	var info_title := panel.find_child("InfoTitle", true, false) as Label
-	var info_description := panel.find_child("InfoDescription", true, false) as Label
+	var info_description := panel.find_child("InfoDescription", true, false) as RichTextLabel
 	_expect(
 		info_page != null and info_page.visible
-		and info_title != null and info_title.text == "测试复制镜 · 说明"
+		and info_title != null and info_title.text == "测试复制镜"
 		and info_description != null
-		and info_description.text == manager.copy_mirror_definition.get_formatted_inspection_description(),
-		"mirror explanation action uses the same formatted text as card hover"
+		and info_description.text == manager.copy_mirror_definition.get_formatted_inspection_description_bbcode()
+		and info_description.get_parsed_text()
+		== manager.copy_mirror_definition.get_formatted_inspection_description(),
+		"mirror explanation action uses the same compact rich text as card hover"
 	)
 	_expect(manager.upgrade_mirror(copy), "mirror manager accepts the selected copy upgrade")
 	_expect(

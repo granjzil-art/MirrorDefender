@@ -163,11 +163,13 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	await process_frame
 	var description_panel := card_bar.get_node("CardDescriptionPanel") as PanelContainer
 	var description_title := card_bar.get_node("CardDescriptionPanel/Content/Title") as Label
-	var description_text := card_bar.get_node("CardDescriptionPanel/Content/Description") as Label
+	var description_text := card_bar.get_node("CardDescriptionPanel/Content/Description") as RichTextLabel
 	_expect(
 		description_panel.visible
-		and description_title.text == "%s · 说明" % mirror_manager.copy_mirror_definition.get_resolved_inspection_display_name()
-		and description_text.text == mirror_manager.copy_mirror_definition.get_formatted_inspection_description(),
+		and description_title.text == mirror_manager.copy_mirror_definition.get_resolved_inspection_display_name()
+		and description_text.text == mirror_manager.copy_mirror_definition.get_formatted_inspection_description_bbcode()
+		and description_text.get_parsed_text()
+		== mirror_manager.copy_mirror_definition.get_formatted_inspection_description(),
 		"copy-mirror card hover uses the mirror definition's shared four-part description"
 	)
 	copy_mirror_card.mouse_exited.emit()
@@ -176,8 +178,10 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	await process_frame
 	_expect(
 		description_panel.visible
-		and description_title.text == "%s · 说明" % mirror_manager.reflect_mirror_definition.get_resolved_inspection_display_name()
-		and description_text.text == mirror_manager.reflect_mirror_definition.get_formatted_inspection_description(),
+		and description_title.text == mirror_manager.reflect_mirror_definition.get_resolved_inspection_display_name()
+		and description_text.text == mirror_manager.reflect_mirror_definition.get_formatted_inspection_description_bbcode()
+		and description_text.get_parsed_text()
+		== mirror_manager.reflect_mirror_definition.get_formatted_inspection_description(),
 		"reflect-mirror card hover uses its own editable four-part description"
 	)
 	reflect_mirror_card.mouse_exited.emit()
@@ -185,9 +189,17 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	await process_frame
 	_expect(description_panel.visible, "hovering a building card opens its description panel")
 	_expect(
-		description_title.text == "%s · 说明" % building_manager.arrow_tower.get_resolved_inspection_display_name()
-		and description_text.text == building_manager.arrow_tower.get_formatted_inspection_description(),
+		description_title.text == building_manager.arrow_tower.get_resolved_inspection_display_name()
+		and description_text.text == building_manager.arrow_tower.get_formatted_inspection_description_bbcode()
+		and description_text.get_parsed_text()
+		== building_manager.arrow_tower.get_formatted_inspection_description(),
 		"card hover and the selected-building info action share one formatted text source"
+	)
+	_expect(
+		description_title.get_theme_font_size("font_size") == 22
+		and description_text.get_theme_font_size("normal_font_size") == 18
+		and description_text.get_theme_constant("line_separation") == -2,
+		"card descriptions use larger text with compact line spacing"
 	)
 	var hovered_card_rect := arrow_card.get_global_rect()
 	var description_rect := description_panel.get_global_rect()
@@ -236,8 +248,8 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	description_panel = card_bar.get_node("CardDescriptionPanel") as PanelContainer
 	_expect(
 		description_panel.visible
-		and (card_bar.get_node("CardDescriptionPanel/Content/Description") as Label).text
-		== building_manager.arrow_tower.get_formatted_inspection_description(),
+		and (card_bar.get_node("CardDescriptionPanel/Content/Description") as RichTextLabel).text
+		== building_manager.arrow_tower.get_formatted_inspection_description_bbcode(),
 		"complete-artwork building cards use the same hover description"
 	)
 	full_art_card.mouse_exited.emit()

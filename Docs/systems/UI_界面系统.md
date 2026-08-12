@@ -13,7 +13,7 @@
 - **运行时保存边界**：工作区提供“保存元素”“全量保存”、保存并退出、放弃并退出。“保存元素”只更新 Stuff；“全量保存”额外把当前实体建筑与全部实体镜子种类写成开局陈列，明确排除虚像和战斗临时状态。编辑器运行时可写回当前 `res://` 关卡；导出游戏默认另存 `user://levels/`。脏会话不会被静默关闭，切关会终止旧会话且绝不把旧快照覆盖到新关卡。
 - **选中地块详情（已移出正式 HUD，2026-08-12）**：`RuntimeHud.tscn` 不再实例化 `TileInspectionService` 或 `TileInspectorPanel`，点击地块不再展开左侧详情 UI。世界选择事实仍保留，继续服务于建筑/镜子上下文操作、战术慢放与 `F` 清障。
 - **检视兼容件**：`TileInspectionService` / `TileInspectionModelBuilder` / `TileInspectorPanel` 源文件与直接回归保留，供历史工具或后续手工复用，但不由正式 `RuntimeHud` 配置或订阅。`InspectionDisplayConfig` 的基础说明和 1–3 级文本仍是卡片悬停与实体说明页的事实源；历史 `visible/show_*` 仅影响兼容检视模型。
-- **建筑/镜子卡悬停说明（2026-08-12）**：悬停建筑卡、复制镜卡或反射镜卡时，`BuildCardBar` 在该卡槽水平居中的正上方显示无输入拦截的说明框，移出即隐藏。内容固定按“基础描述 / 1级：/ 2级：/ 3级：”排版，并与对应实体选中后的说明按钮共用同一 Definition 格式化文本入口。程序镜面和完整卡面模式都支持；空槽不触发。
+- **建筑/镜子卡悬停说明（2026-08-12）**：悬停建筑卡、复制镜卡或反射镜卡时，`BuildCardBar` 在该卡槽水平居中的正上方显示无输入拦截的说明框，移出即隐藏。首行只显示对象名，随后直接显示基础正文；1/2/3 级标签与各自白色正文同处一行，并分别使用绿/黄/红色。`RichTextLabel` 使用 22/18 号标题/正文、紧凑行距，不渲染“基础描述”字段名或编辑占位括号。内容与对应实体选中后的说明按钮共用同一 Definition BBCode 格式化入口；程序镜面和完整卡面模式都支持，空槽不触发。
 - **复制建筑参数一致性**：实体建筑与建筑虚像共用同一详情行生成入口；虚像除来源/镜子/链深度外，继续展示源实体当前等级的索敌、射程、攻击速率、产出、对空或屏障耐久/恢复/反伤信息，并服从源定义的同一组 `show_*` 开关。单发塔与镭射塔展示攻速，持续激光塔展示 `laser_dps × level_factor × extra_factor` 的最终 DPS。
 - **右上图标统计（2026-08-11）**：`GlobalInfoPanel` 无底板、无边框，按三行两列展示透明图标和白色数字：第一行是剩余据点生命、当前/总波次，第二行是复制镜数/上限、反射镜数/上限，第三行是金币、建筑数/上限。数据只读来自 `BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
 - **右上经济反馈（批次 3 已实现）**：`EconomyPanel` 是 `GlobalInfoPanel` 第三行第一列的金币单元，保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
@@ -30,7 +30,7 @@
 - **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`：下一页时当前页左滑、目标页从右滑入，上一页反向，默认 0.25 秒 QUAD 缓出；双页面缓冲避免中间黑屏。动画期间槽位锁定，最多保存最后一次合法翻页请求，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 已从 Main 移除，不再显示关卡名或“加载关卡”按钮。F1 注册表仍提供开发用关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
-- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点，在左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明展开四段信息页。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
+- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点，在左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明展开与卡片悬停相同的紧凑富文本信息页。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
 - **旋转弹道参考**：选中实体投射物建筑或旋转放置虚影时，世界层显示当前逻辑朝向的粗红色半透明弹道；单向/4向/8向、实际射程、实际投射物宽度及反射镜/亚克力侧板反射均读取运行时事实源。取消选择或预览即清理；该 UI 不创建攻击、目标或伤害。
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
 - **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后说明/升级/售卖可用，面板不提供旋转选项。
@@ -117,7 +117,7 @@
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 正式 HUD 的三个圆形按钮和向左展开详情板。 |
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧左侧纵向时间轴兼容文件；正式 HUD 不实例化。 |
 | `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 可切换程序镜面/原画卡面、自动透明裁边、实时费用和建筑/镜子卡悬停说明，以及独立镜子卡、可调建筑槽、分种类 cap 和金币/冷却状态反馈。 |
-| `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 建筑/镜子四段说明事实源，并保留历史只读检视字段策略。 |
+| `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 建筑/镜子基础与三级说明事实源，同时输出紧凑纯文本和绿/黄/红等级标签 BBCode，并保留历史只读检视字段策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 兼容保留的只读检视调度器；正式 RuntimeHud 不实例化或配置。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 兼容保留的地块、建筑、镜子、虚像和元素只读模型聚合器。 |
 | `scripts/ui/TileInspectorPanel.gd` / `scenes/ui/TileInspectorPanel.tscn` | `TileInspectorPanel` / `Control` | 兼容保留的镜面滚动详情板；正式 RuntimeHud 不实例化。 |
@@ -137,13 +137,13 @@
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售。 |
-| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 110 项底部卡槽、建筑/两类镜子悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
-| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 25 项建筑说明/升级/售卖图标、经济数字、说明页和相机投影回归。 |
+| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 111 项底部卡槽、建筑/两类镜子紧凑富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
+| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 26 项建筑说明/升级/售卖图标、经济数字、富文本说明页和相机投影回归。 |
 | `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 40 项镜子三级战斗修正、升级/退款/持久化，以及与建筑一致的三操作布局和说明文本回归。 |
 | `tests/mirror_ui_visual_capture.gd` | 无 / `SceneTree` | 手工 Forward+ 截取镜子卡悬停说明与实体镜三操作布局。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
-| `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 101 项默认兼容、两种正式镜子与建筑资源、Definition 四段文本入口、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
+| `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 102 项默认兼容、两种正式镜子与建筑资源、Definition 纯文本/BBCode 入口、等级标签色、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
 | `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 95 项图标统计/经济信号、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 55 项只读波次模型、单悬停窗、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 77 项 F1、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
@@ -213,8 +213,8 @@ WaveManager.defeat -> RuntimeHud.DefeatMenu + GameTimeController 0x
 DebugConsole.open_changed + PauseMenu/DefeatMenu -> RuntimeHud unified modal -> Main input lock
 
 BuildingActionPanel -> BuildingManager remove / upgrade
-BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description()
-BuildCardBar hover + MirrorActionPanel info -> MirrorDefinition.get_formatted_inspection_description()
+BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description_bbcode()
+BuildCardBar hover + MirrorActionPanel info -> MirrorDefinition.get_formatted_inspection_description_bbcode()
 MirrorActionPanel -> MirrorManager upgrade / remove
 WaveTimelinePanel / WaveStatusPanel / M3DebugPanel：兼容文件保留，正式 RuntimeHud 不实例化
 LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
@@ -295,7 +295,9 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeSettings.gd` | `apply_to_runtime(root_window) -> void` | 应用主音量、窗口模式与 UI 缩放。 |
 | `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count, reflect_mirror_definition = null, mirror_manager = null) -> void` | 构造独立复制/反射镜卡、建筑卡和空镜面，订阅经济/容量/镜子冷却信号。 |
 | `BuildingDefinition.get_formatted_inspection_description` | `() -> String` | 把基础说明和 1–3 级说明格式化为卡片悬停/选中建筑共用文本。 |
+| `BuildingDefinition.get_formatted_inspection_description_bbcode` | `() -> String` | 输出基础正文和绿/黄/红等级标签的紧凑 BBCode，供卡片悬停与选中建筑说明页共用。 |
 | `MirrorDefinition.get_formatted_inspection_description` | `() -> String` | 把基础说明和 1–3 级说明格式化为镜子卡悬停/选中镜子共用文本。 |
+| `MirrorDefinition.get_formatted_inspection_description_bbcode` | `() -> String` | 输出与建筑一致的紧凑富文本说明，供镜子卡悬停与选中镜子说明页共用。 |
 | `CardCooldownSweep.gd` | `set_state(ready_ratio, blocked) -> void` | 绘制镜卡灰层与自上而下扫描线；不读取或修改任何美术资产。 |
 | `RuntimeHud.gd` | `configure(interaction: RuntimeInteractionController, time_controller: GameTimeController, resource_manager: ResourceManager, building_manager: BuildingManager, mirror_manager: MirrorManager, slot_count: int = 6, stuff_editor_controller: Node = null) -> void` | 组合卡槽、交互、经济、时间、暂停与可选运行时元素编辑器。 |
 | `RuntimeStuffEditorPanel.gd` | `configure(controller: RuntimeStuffEditorController) -> void` | 注入统一作者控制器，构建地形、高度、斜坡与Stuff工具并同步历史、选择和保存状态。 |
@@ -311,7 +313,8 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeHud.gd` | `get_settings_snapshot() -> Dictionary` | 返回共享设置快照，供 Main 应用景深开关。 |
 | `TileInspectionService.gd` | `configure(...) -> void` / `set_selected_cell(...) -> void` / `inspect_cell(...) -> Dictionary` | 兼容工具的直接只读检视 API；正式 RuntimeHud 不再调用。 |
 | `InspectionDisplayConfig.gd` | `resolve_display_name(fallback: String) -> String` / `resolve_function_description(fallback: String) -> String` | 使用非空自定义文本，否则回退到当前名称或内置说明。 |
-| `InspectionDisplayConfig.gd` | `format_level_description(fallback: String) -> String` | 为建筑和镜子统一输出“基础描述 / 1级 / 2级 / 3级”四段文本。 |
+| `InspectionDisplayConfig.gd` | `format_level_description(fallback: String) -> String` | 为建筑和镜子输出不含字段标题和空行的基础正文及三级纯文本。 |
+| `InspectionDisplayConfig.gd` | `format_level_description_bbcode(fallback: String) -> String` / `format_building_description_bbcode(fallback: String) -> String` | 输出白色正文及绿/黄/红等级标签；转义作者文本中的 BBCode 起始符。 |
 | `TileInspectionModelBuilder.gd` | `inspect_cell(cell: Vector3i, selected_edge_id: String = "") -> Dictionary` | 聚合本格 occupant、全部相邻边实体、同格投影和元素运行时数据；先按对象级 `visible` 过滤，条目键含 `kind/name/category/state/icon/accent/description/show_icon/show_category/show_state/show_description/lines/has_source/source_cell/mirror_edge_id`。 |
 | `TileInspectionModelBuilder.gd` | `_append_building_gameplay_lines(lines: Array[String], building: Building, config: InspectionDisplayConfig, shared_runtime_state: bool) -> void` | 让建筑实体与复制建筑复用同一套当前等级战斗、经济、对空及屏障运行时详情；按攻击类型输出箭塔攻速或激光最终 DPS，`shared_runtime_state` 仅改变共享耐久文案。 |
 | `TileInspectorPanel.gd` | `display_model(model: Dictionary) -> void` / `clear_inspection() -> void` | 兼容面板的直接渲染/清理 API；正式 RuntimeHud 不再调用。 |

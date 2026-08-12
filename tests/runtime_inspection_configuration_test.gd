@@ -52,8 +52,16 @@ func _test_config_defaults() -> void:
 	config.level_3_description = "三级文本"
 	_expect(
 		config.format_building_description("原说明")
-		== "基础描述\n基础文本\n\n1级：\n一级文本\n\n2级：\n二级文本\n\n3级：\n三级文本",
-		"level descriptions use the authored base and three-level format"
+		== "基础文本\n1级： 一级文本\n2级： 二级文本\n3级： 三级文本",
+		"level descriptions use the compact authored base and same-line level format"
+	)
+	var rich_description := config.format_building_description_bbcode("原说明")
+	_expect(
+		rich_description.contains("[color=#66d17a][b]1级：[/b][/color] [color=#f0f5ff]一级文本[/color]")
+		and rich_description.contains("[color=#ffd34e][b]2级：[/b][/color] [color=#f0f5ff]二级文本[/color]")
+		and rich_description.contains("[color=#ff6666][b]3级：[/b][/color] [color=#f0f5ff]三级文本[/color]")
+		and not rich_description.contains("基础描述"),
+		"rich descriptions color only the compact level labels and omit field captions"
 	)
 	var mirror := CopyMirrorDefinition.new()
 	mirror.inspection_display = config

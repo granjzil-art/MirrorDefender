@@ -36,7 +36,7 @@ var _upgrade_cost_label: Label
 var _sell_refund_label: Label
 var _info_page: PanelContainer
 var _info_title: Label
-var _info_description: Label
+var _info_description: RichTextLabel
 
 
 func _ready() -> void:
@@ -116,22 +116,26 @@ func _build_info_page() -> void:
 	add_child(_info_page)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
+	content.add_theme_constant_override("separation", 3)
 	_info_page.add_child(content)
 
 	_info_title = Label.new()
 	_info_title.name = "InfoTitle"
-	_info_title.add_theme_font_size_override("font_size", 18)
-	_info_title.add_theme_color_override("font_color", Color(0.78, 0.9, 1.0))
+	_info_title.add_theme_font_size_override("font_size", 22)
+	_info_title.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
 	content.add_child(_info_title)
 
-	_info_description = Label.new()
+	_info_description = RichTextLabel.new()
 	_info_description.name = "InfoDescription"
 	_info_description.custom_minimum_size = Vector2(INFO_PAGE_SIZE.x - 28.0, 236.0)
+	_info_description.bbcode_enabled = true
+	_info_description.fit_content = false
+	_info_description.scroll_active = false
 	_info_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_info_description.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_info_description.add_theme_font_size_override("font_size", 15)
-	_info_description.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
+	_info_description.add_theme_font_size_override("normal_font_size", 18)
+	_info_description.add_theme_font_size_override("bold_font_size", 18)
+	_info_description.add_theme_constant_override("line_separation", -2)
+	_info_description.add_theme_color_override("default_color", Color(0.94, 0.96, 1.0))
 	content.add_child(_info_description)
 
 
@@ -229,8 +233,8 @@ func _refresh_info_content() -> void:
 		_info_description.text = ""
 		return
 	var definition := _selected_building.definition
-	_info_title.text = "%s · 说明" % definition.get_resolved_inspection_display_name()
-	_info_description.text = definition.get_formatted_inspection_description()
+	_info_title.text = definition.get_resolved_inspection_display_name()
+	_info_description.text = definition.get_formatted_inspection_description_bbcode()
 
 
 func _update_projection() -> void:

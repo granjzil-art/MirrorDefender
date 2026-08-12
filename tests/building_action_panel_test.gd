@@ -96,12 +96,20 @@ func _run() -> void:
 	panel._on_info_pressed()
 	var info_page := panel.get_node_or_null("InfoPage") as PanelContainer
 	var title := panel.find_child("InfoTitle", true, false) as Label
-	var description := panel.find_child("InfoDescription", true, false) as Label
+	var description := panel.find_child("InfoDescription", true, false) as RichTextLabel
 	_expect(info_page != null and info_page.visible, "the explanation action expands the information page")
-	_expect(title != null and title.text == "测试塔 · 说明", "the information page identifies the selected building")
+	_expect(title != null and title.text == "测试塔", "the information page starts with the selected building name")
 	_expect(
-		description != null and description.text == definition.get_formatted_inspection_description(),
-		"the information page renders the shared formatted base and three-level text"
+		description != null
+		and description.text == definition.get_formatted_inspection_description_bbcode()
+		and description.get_parsed_text() == definition.get_formatted_inspection_description(),
+		"the information page renders the shared colored labels and white authored text"
+	)
+	_expect(
+		title.get_theme_font_size("font_size") == 22
+		and description.get_theme_font_size("normal_font_size") == 18
+		and description.get_theme_constant("line_separation") == -2,
+		"the information page uses larger type and tighter line spacing"
 	)
 	panel._on_info_pressed()
 	_expect(info_page != null and not info_page.visible, "pressing the explanation action again collapses the information page")

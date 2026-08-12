@@ -3,6 +3,11 @@
 class_name InspectionDisplayConfig
 extends Resource
 
+const LEVEL_1_LABEL_BBCODE := "[color=#66d17a][b]1级：[/b][/color]"
+const LEVEL_2_LABEL_BBCODE := "[color=#ffd34e][b]2级：[/b][/color]"
+const LEVEL_3_LABEL_BBCODE := "[color=#ff6666][b]3级：[/b][/color]"
+const DESCRIPTION_BBCODE_COLOR := "#f0f5ff"
+
 @export_group("Object")
 ## First-level switch. Disabled objects are omitted from the inspector list.
 @export var visible: bool = true
@@ -57,20 +62,38 @@ func resolve_function_description(fallback: String) -> String:
 
 func format_level_description(fallback: String) -> String:
 	return "\n".join([
-		"基础描述",
 		resolve_function_description(fallback),
-		"",
-		"1级：",
-		level_1_description.strip_edges(),
-		"",
-		"2级：",
-		level_2_description.strip_edges(),
-		"",
-		"3级：",
-		level_3_description.strip_edges(),
+		"1级： %s" % level_1_description.strip_edges(),
+		"2级： %s" % level_2_description.strip_edges(),
+		"3级： %s" % level_3_description.strip_edges(),
 	])
+
+
+## Rich-text variant used by card hover and selected-object information pages.
+## Only the level label is colored; all authored descriptions remain white.
+func format_level_description_bbcode(fallback: String) -> String:
+	return "\n".join([
+		_as_white_bbcode(resolve_function_description(fallback)),
+		"%s %s" % [LEVEL_1_LABEL_BBCODE, _as_white_bbcode(level_1_description.strip_edges())],
+		"%s %s" % [LEVEL_2_LABEL_BBCODE, _as_white_bbcode(level_2_description.strip_edges())],
+		"%s %s" % [LEVEL_3_LABEL_BBCODE, _as_white_bbcode(level_3_description.strip_edges())],
+	])
+
+
+func _as_white_bbcode(value: String) -> String:
+	return "[color=%s]%s[/color]" % [DESCRIPTION_BBCODE_COLOR, _escape_bbcode(value)]
+
+
+func _escape_bbcode(value: String) -> String:
+	# RichTextLabel recognizes a tag only after an opening bracket. Replacing
+	# that character preserves author text without allowing it to alter layout.
+	return value.replace("[", "[lb]")
 
 
 ## Compatibility entry retained for existing building callers.
 func format_building_description(fallback: String) -> String:
 	return format_level_description(fallback)
+
+
+func format_building_description_bbcode(fallback: String) -> String:
+	return format_level_description_bbcode(fallback)

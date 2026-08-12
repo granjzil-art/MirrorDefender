@@ -32,7 +32,7 @@
 - `MirrorDefinition.upgrade_costs` 保存 1→2、2→3 两笔费用；两类默认均为 50。`level_damage_multipliers` 与 `level_penetration_bonuses` 分别按 1–3 级提供攻击修正。
 - 复制镜把自身等级修正累计进 `MirrorCopyPayload`：多面复制镜的伤害倍率相乘、额外穿透相加，并作用于复制投射物、持续激光和脉冲镭射。反射镜在每次有效反射时把当前级修正加入投射物/激光路径。
 - 每个实体镜只记录本局真实支付的建造和升级资源。金币模式放置会登记基础费用；冷却模式和关卡初始陈列的免费放置不登记基础费用；任何实际支付的升级费用都会登记。出售全额返还该累计值，避免免费镜产生金币套利；冷却模式另返还对应种类库存。
-- `inspection_display.function_description` 与 `level_1/2/3_description` 是镜子卡悬停和实体“说明”按钮的唯一文本事实源，统一格式为“基础描述 / 1级 / 2级 / 3级”。选中实体镜时，`MirrorActionPanel` 与建筑使用相同的左说明、上升级、右出售图标位置及 `-x/+x` 金色数字；`R` 翻面仍是独立快捷操作。
+- `inspection_display.function_description` 与 `level_1/2/3_description` 是镜子卡悬停和实体“说明”按钮的唯一文本事实源。表现首行只显示镜子名，下一行直接显示白色基础正文，之后由绿/黄/红等级标签与白色等级正文组成三条紧凑行，不显示编辑字段名或占位括号。选中实体镜时，`MirrorActionPanel` 与建筑使用相同的左说明、上升级、右出售图标位置及 `-x/+x` 金色数字；`R` 翻面仍是独立快捷操作。
 
 ---
 
@@ -233,7 +233,7 @@ MirrorProjection
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
 | `scripts/shared/EdgeOccupancyRegistry.gd` | `EdgeOccupancyRegistry` / `RefCounted` | 镜子、边屏障共用的规范化物理边占用表。 |
-| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置/升级经济、三级战斗修正、四段说明、放置方向和实时镜面表现契约。 |
+| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置/升级经济、三级战斗修正、紧凑纯文本/BBCode 说明、放置方向和实时镜面表现契约。 |
 | `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `MirrorDefinition` | 复制链深、占位开关与虚像表现参数，并复用镜子基础配置校验。 |
 | `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧、等级、累计真实投入和程序化表现。 |
 | `scripts/mirror/ReflectMirrorDefinition.gd` | `ReflectMirrorDefinition` / `MirrorDefinition` | 投射物反射防重入偏移和单帧工作预算。 |
@@ -274,6 +274,7 @@ MirrorProjection
 | `MirrorManager.get_available_mirror_count` | `(mirror_kind) -> int` | 返回对应种类当前可连续放置的库存数量。 |
 | `MirrorManager.is_mirror_kind_ready` / `get_placement_cooldown_ready_ratio` | `(mirror_kind) -> bool` / `(mirror_kind) -> float` | 以库存判定可放置；库存为 0 时为卡片扫描提供下一枚的恢复进度。 |
 | `MirrorDefinition.get_formatted_inspection_description` | `() -> String` | 返回镜子卡悬停与实体说明共用的基础/三级格式化文本。 |
+| `MirrorDefinition.get_formatted_inspection_description_bbcode` | `() -> String` | 返回白色正文与绿/黄/红等级标签组成的紧凑 BBCode。 |
 | `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、放置/升级经济、三级战斗修正、链深、镜面预算、颜色与全部虚像表现范围。 |
 | `MirrorManager.rebuild_now` | `() -> void` | 从实体来源计算稳定有限镜链并重建投影覆盖层。 |
 | `MirrorManager.refresh_world_transforms` | `() -> void` | Terrain变化后重采样实体/预览镜的物理边坡高，再重建投影；不改变镜面陈列顺序。 |
