@@ -277,19 +277,16 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
 		var cards_rect := (hud.get_node("BuildCardBar/Layout/Cards") as Control).get_global_rect()
 		var global_rect := (hud.get_node("GlobalInfoPanel") as Control).get_global_rect()
-		var inspector_rect := (hud.get_node("TileInspectorPanel") as Control).get_global_rect()
 		var economy_rect := (hud.get_node("GlobalInfoPanel/StatsGrid/EconomyPanel") as Control).get_global_rect()
 		var time_rect := (hud.get_node("TimeControlPanel") as Control).get_global_rect()
 		var wave_controls_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
-		for rect in [global_rect, inspector_rect, economy_rect, time_rect, wave_controls_rect]:
+		for rect in [global_rect, economy_rect, time_rect, wave_controls_rect]:
 			_expect(viewport_rect.encloses(rect), "batch 3 HUD region stays inside %dx%d" % [resolution.x, resolution.y])
-		_expect(inspector_rect.position.x >= 14.0 and inspector_rect.position.x <= 18.1 and inspector_rect.end.x < viewport_rect.size.x * 0.5, "tile inspector stays at the left-middle safe area at %dx%d" % [resolution.x, resolution.y])
 		var wave_right_margin := viewport_rect.end.x - wave_controls_rect.end.x
 		_expect(wave_right_margin >= 14.0 and wave_right_margin <= 18.1, "wave buttons keep a 14-18px right safety margin at %dx%d" % [resolution.x, resolution.y])
-		_expect(not global_rect.intersects(inspector_rect), "global and tile information do not overlap at %dx%d" % [resolution.x, resolution.y])
-		_expect(not inspector_rect.intersects(economy_rect) and not inspector_rect.intersects(cards_rect), "left inspector leaves economy and cards clear at %dx%d" % [resolution.x, resolution.y])
 		_expect(not economy_rect.intersects(time_rect), "economy and time controls do not overlap at %dx%d" % [resolution.x, resolution.y])
-		_expect(not wave_controls_rect.intersects(global_rect) and not wave_controls_rect.intersects(inspector_rect), "right-edge wave buttons leave information panels clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not wave_controls_rect.intersects(global_rect), "right-edge wave buttons leave global information clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not cards_rect.intersects(global_rect), "cards leave global information clear at %dx%d" % [resolution.x, resolution.y])
 	hud.queue_free()
 	await process_frame
 	return

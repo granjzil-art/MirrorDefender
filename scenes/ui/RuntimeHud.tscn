@@ -2,8 +2,6 @@
 
 [ext_resource type="Script" path="res://scripts/ui/RuntimeHud.gd" id="1_runtime_hud"]
 [ext_resource type="Script" path="res://scripts/ui/BuildCardBar.gd" id="2_build_card_bar"]
-[ext_resource type="Script" path="res://scripts/ui/TileInspectionService.gd" id="3_tile_inspection"]
-[ext_resource type="PackedScene" path="res://scenes/ui/TileInspectorPanel.tscn" id="4_tile_inspector_panel"]
 [ext_resource type="PackedScene" path="res://scenes/ui/GlobalInfoPanel.tscn" id="5_global_info"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TimeControlPanel.tscn" id="7_time_controls"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="8_pause_menu"]
@@ -142,11 +140,6 @@ offset_right = -18.0
 offset_bottom = -16.0
 grow_horizontal = 0
 grow_vertical = 0
-
-[node name="TileInspectionService" type="Node" parent="."]
-script = ExtResource("3_tile_inspection")
-
-[node name="TileInspectorPanel" parent="." instance=ExtResource("4_tile_inspector_panel")]
 
 [node name="DebugOverlayPanel" parent="." instance=ExtResource("11_debug_overlay")]
 

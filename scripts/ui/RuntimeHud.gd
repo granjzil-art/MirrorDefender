@@ -1,13 +1,11 @@
-## M6 production HUD composition root. It owns cards, inspection, global and
-## economy information, time controls, pause, wave controls, and debug console.
+## M6 production HUD composition root. It owns cards, global/economy
+## information, time controls, pause, wave controls, and debug console.
 class_name RuntimeHud
 extends Control
 
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
-const TileInspectionServiceScript := preload("res://scripts/ui/TileInspectionService.gd")
-const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
 const WaveControlPanelScript := preload("res://scripts/ui/WaveControlPanel.gd")
 const DebugConsoleScript := preload("res://scripts/ui/DebugConsole.gd")
 const DebugOverlayPanelScript := preload("res://scripts/ui/DebugOverlayPanel.gd")
@@ -17,8 +15,6 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var card_style_toggle: Button = $CardStyleToggle
-@onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
-@onready var tile_inspector_panel: TileInspectorPanelScript = $TileInspectorPanel
 @onready var economy_panel: EconomyPanel = $GlobalInfoPanel/StatsGrid/EconomyPanel
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
@@ -46,7 +42,6 @@ var _defeat_active: bool = false
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile_inspection_service.inspection_changed.connect(tile_inspector_panel.display_model)
 	pause_menu.restart_requested.connect(_on_restart_requested)
 	pause_menu.exit_level_requested.connect(_on_exit_requested)
 	pause_menu.settings_changed.connect(_on_pause_settings_changed)
@@ -108,11 +103,9 @@ func configure(
 		_interaction.mode_changed.connect(_on_mode_changed)
 		_interaction.placement_resolved.connect(_on_placement_resolved)
 		_interaction.status_changed.connect(_on_status_changed)
-		_interaction.world_selection_changed.connect(_on_world_selection_changed)
 	if _time_controller != null:
 		_time_controller.paused_changed.connect(_on_paused_changed)
 	_on_mode_changed(_interaction.get_mode() if _interaction != null else RuntimeInteractionControllerScript.Mode.SELECT)
-	_sync_world_selection()
 	_on_paused_changed(_time_controller.is_paused() if _time_controller != null else false)
 	_on_stuff_editor_active_changed(
 		bool(stuff_editor_controller.call("is_active"))
@@ -144,27 +137,6 @@ func configure_debug_console(
 ) -> void:
 	debug_console.configure(command_registry, category_registry)
 	debug_overlay_panel.configure(category_registry)
-
-
-func configure_inspection(
-	grid_manager: GridManager,
-	tile_manager: TileManager,
-	building_manager: BuildingManager,
-	mirror_manager: MirrorManager,
-	tile_effect_system: TileEffectSystem,
-	stuff_manager: Node = null,
-	terrain_manager: Node = null
-) -> void:
-	tile_inspection_service.configure(
-		grid_manager,
-		tile_manager,
-		building_manager,
-		mirror_manager,
-		tile_effect_system,
-		stuff_manager,
-		terrain_manager
-	)
-	_sync_world_selection()
 
 
 func apply_level_configuration(level: LevelResource, _source_path: String = "") -> void:
@@ -257,21 +229,6 @@ func _on_placement_resolved(success: bool, reason: String) -> void:
 func _on_status_changed(message: String) -> void:
 	if not message.is_empty():
 		build_card_bar.show_status(message)
-
-
-func _on_world_selection_changed(has_cell: bool, cell: Vector3i, edge_id: String) -> void:
-	tile_inspection_service.set_selected_cell(has_cell, cell, edge_id)
-
-
-func _sync_world_selection() -> void:
-	if _interaction == null:
-		tile_inspection_service.clear_selection()
-		return
-	tile_inspection_service.set_selected_cell(
-		_interaction.has_world_selection(),
-		_interaction.get_world_selection_cell(),
-		_interaction.get_world_selection_edge_id()
-	)
 
 
 func _on_paused_changed(paused: bool) -> void:
@@ -384,8 +341,6 @@ func _disconnect_sources() -> void:
 			_interaction.placement_resolved.disconnect(_on_placement_resolved)
 		if _interaction.status_changed.is_connected(_on_status_changed):
 			_interaction.status_changed.disconnect(_on_status_changed)
-		if _interaction.world_selection_changed.is_connected(_on_world_selection_changed):
-			_interaction.world_selection_changed.disconnect(_on_world_selection_changed)
 	if _time_controller != null:
 		if _time_controller.paused_changed.is_connected(_on_paused_changed):
 			_time_controller.paused_changed.disconnect(_on_paused_changed)

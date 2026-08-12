@@ -1,5 +1,13 @@
 # 技术与玩法决策记录
 
+## 2026-08-12 · 正式 HUD 不再显示选中地块详情
+
+**决策**：从 `RuntimeHud.tscn` 移除 `TileInspectionService` 与 `TileInspectorPanel` 实例，`RuntimeHud` 不再订阅 `world_selection_changed` 用于生成地块详情。这条决策取代 2026-07-22 引入地块详情和 2026-07-27 将详情板迁移到左侧的现役布局结论。
+
+**选择边界**：`RuntimeInteractionController` 的世界选择仍是玩法事实源，不随详情 UI 删除；建筑/镜子上下文操作、战术慢放、取消选择和 `F` 清障继续依赖它。卡片悬停及实体说明页仍使用 `InspectionDisplayConfig` 的四段文本。
+
+**兼容边界**：暂不删除 `TileInspectionService`、`TileInspectionModelBuilder`、`TileInspectorPanel` 的脚本/场景与直接回归，以便历史工具复用；它们不得被正式 `RuntimeHud` 自动实例化或配置。
+
 ## 2026-08-12 · 镜子与建筑统一说明/升级/出售交互
 
 **决策**：复制镜和反射镜复用 `InspectionDisplayConfig` 的基础描述与 1–3 级文本，`MirrorDefinition.get_formatted_inspection_description()` 是镜子卡悬停与实体“说明”页的唯一格式化入口。镜子卡加入悬停说明；这条决策扩展并取代下方旧条目中“镜子卡不显示说明框”的边界。

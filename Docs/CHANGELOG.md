@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime UI · 移除选中地块详情面板 — 2026-08-12
+**模块**：Runtime UI / Selection / Main / Tests / Docs。
+- 正式 `RuntimeHud` 不再实例化 `TileInspectionService` 和 `TileInspectorPanel`，也不再订阅世界选择去刷新地块详情；选中格子后不显示左侧详情 UI。
+- 建筑/镜子实体选中、上下文说明/升级/出售、战术慢放及 `F` 清障仍沿用原世界选择事实源。
+- 底层只读检视服务、模型构建器和面板文件作为历史工具/直接回归兼容件保留，不进入正式 HUD 节点树。
+**影响面**：仅移除正式局内的选中地块详情展示；卡片悬停说明与建筑/镜子选中操作不变。
+
 ## Runtime UI / Mirror · 镜子四段说明与统一三操作 — 2026-08-12
 **模块**：Mirror / Runtime UI / Economy / Persistence / Tests / Docs。
 - 复制镜与反射镜卡补齐悬停说明，分别读取自身 `inspection_display` 的基础描述和 1/2/3 级可编辑文本；与选中镜子的说明页共用 `MirrorDefinition.get_formatted_inspection_description()`。

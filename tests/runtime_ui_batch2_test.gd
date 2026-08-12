@@ -2,7 +2,6 @@ extends SceneTree
 
 const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFactory.gd")
 const TileInspectionServiceScript := preload("res://scripts/ui/TileInspectionService.gd")
-const TileInspectorPanelScript := preload("res://scripts/ui/TileInspectorPanel.gd")
 
 var _failures: int = 0
 var _checks: int = 0
@@ -133,78 +132,32 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 		hud.build_card_bar.get_building_definition_at(2) == fixture["building"].pulse_laser_tower,
 		"runtime HUD third building slot is the new pulse-laser tower"
 	)
-	hud.configure_inspection(
-		fixture["grid"],
-		fixture["tile"],
-		fixture["building"],
-		fixture["mirror"],
-		fixture["tile_effect"]
+	_expect(
+		hud.get_node_or_null("TileInspectionService") == null
+		and hud.get_node_or_null("TileInspectorPanel") == null,
+		"runtime HUD omits the selected-tile detail service and panel"
 	)
-	var panel: TileInspectorPanelScript = hud.get_node("TileInspectorPanel")
-	_expect(hud.get_node_or_null("TileInspectionService") != null, "runtime HUD owns the read-only inspection service")
-	_expect(panel != null, "runtime HUD owns the left-side inspector panel")
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(4, 3, 0)}, {"hit": false})
 	await process_frame
-	_expect(not panel.visible, "selecting an empty tile keeps the inspector collapsed")
+	_expect(
+		fixture["building"].get_selected_building() == null,
+		"selecting an empty tile remains a valid world-selection action without detail UI"
+	)
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(1, 1, 0)}, {"hit": false})
 	await process_frame
-	_expect(panel.visible, "selecting a non-empty tile opens the inspector")
-	_expect(panel.get_entry_count() == 3, "panel renders every source-cell entry")
 	_expect(fixture["building"].get_selected_building() != null, "real building selection still uses BuildingManager")
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 0.1), "real building selection still activates tactical slow")
-	_expect((panel.get_node("GlassPanel") as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "inspector consumes UI clicks instead of passing them to the world")
 
 	interaction.cancel_to_select(true)
 	await process_frame
-	_expect(not panel.visible, "right-click contract collapses the left inspector")
-	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0), "cancelling inspection restores normal time")
+	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0), "cancelling world selection restores normal time")
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(2, 1, 0)}, {"hit": false})
 	await process_frame
-	_expect(panel.visible, "a projection-only cell opens the inspector")
 	_expect(fixture["building"].get_selected_building() == null, "virtual projection inspection does not select a real building")
 	_expect(is_equal_approx(time_controller.get_effective_scale(), 1.0), "projection-only inspection does not activate tactical slow")
-
-	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	hud.position = Vector2.ZERO
-	for resolution in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]:
-		hud.size = Vector2(resolution)
-		await process_frame
-		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
-		var panel_rect: Rect2 = panel.get_global_rect()
-		var cards_rect := (hud.get_node("BuildCardBar/Layout/Cards") as Control).get_global_rect()
-		var wave_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
-		_expect(viewport_rect.encloses(panel_rect), "inspector stays inside the %dx%d viewport" % [resolution.x, resolution.y])
-		_expect(panel_rect.position.x >= 14.0 and panel_rect.position.x <= 18.1 and panel_rect.end.x < viewport_rect.size.x * 0.5, "inspector stays on the left with a safe margin at %dx%d" % [resolution.x, resolution.y])
-		_expect(not panel_rect.intersects(cards_rect), "inspector does not overlap cards at %dx%d" % [resolution.x, resolution.y])
-		_expect(not panel_rect.intersects(wave_rect), "inspector does not overlap right-side wave buttons at %dx%d" % [resolution.x, resolution.y])
-
-	var many_entries: Array[Dictionary] = []
-	for index in range(12):
-		many_entries.append({
-			"kind": &"building",
-			"name": "条目 %d" % index,
-			"category": "块建筑",
-			"state": "实体",
-			"icon": null,
-			"accent": Color(0.3, 0.8, 1.0),
-			"lines": ["等级：L1 / L3", "耐久：100 / 100"],
-		})
-	panel.display_model({
-		"has_content": true,
-		"cell": Vector3i.ZERO,
-		"terrain_name": "测试地块",
-		"height_level": 0,
-		"allows_tile_building": true,
-		"allows_edge_building": true,
-		"entries": many_entries,
-	})
-	await process_frame
-	_expect(panel.get_entry_count() == 12, "panel dynamically renders an arbitrary entry count")
-	var entries_box := panel.get_node("GlassPanel/Layout/EntriesScroll/Entries") as Control
-	_expect(entries_box.size.y > panel.get_scroll_container().size.y, "overflowing entries are contained by the scroll view")
 	hud.queue_free()
 	interaction.queue_free()
 	time_controller.queue_free()

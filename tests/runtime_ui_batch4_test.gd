@@ -144,17 +144,13 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 		var controls: WaveControlPanelScript = hud.get_node("WaveControlPanel")
 		var cards := hud.get_node("BuildCardBar") as Control
 		var global_panel := hud.get_node("GlobalInfoPanel") as Control
-		var inspector := hud.get_node("TileInspectorPanel") as Control
 		var controls_rect := controls.get_global_rect()
-		var inspector_rect := inspector.get_global_rect()
 		var right_margin := viewport_rect.end.x - controls_rect.end.x
 		_expect(viewport_rect.encloses(controls_rect), "wave controls stay inside %dx%d" % [resolution.x, resolution.y])
 		_expect(right_margin >= 14.0 and right_margin <= 18.1, "wave controls stay against the right edge with a safe margin at %dx%d" % [resolution.x, resolution.y])
 		_expect(controls.start_button.global_position.y < controls.restart_button.global_position.y and controls.restart_button.global_position.y < controls.exit_button.global_position.y, "wave controls remain a vertical three-button column at %dx%d" % [resolution.x, resolution.y])
-		_expect(inspector_rect.position.x >= 14.0 and inspector_rect.position.x <= 18.1, "tile inspector stays against the left edge at %dx%d" % [resolution.x, resolution.y])
 		_expect(not controls_rect.intersects(cards.get_global_rect()), "wave controls leave the building cards clear at %dx%d" % [resolution.x, resolution.y])
-		_expect(not controls_rect.intersects(global_panel.get_global_rect()) and not controls_rect.intersects(inspector_rect), "wave controls leave information panels clear at %dx%d" % [resolution.x, resolution.y])
-		_expect(not inspector_rect.intersects(cards.get_global_rect()), "left inspector leaves the building cards clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not controls_rect.intersects(global_panel.get_global_rect()), "wave controls leave global information clear at %dx%d" % [resolution.x, resolution.y])
 		controls.preview_next_wave_for_test()
 		await process_frame
 		var info_rect: Rect2 = controls.info_panel.get_global_rect()

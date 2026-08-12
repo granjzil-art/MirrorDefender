@@ -382,15 +382,6 @@ func _ready() -> void:
 	stuff_renderer.set_effect_visual_state_resolver(Callable(tile_effect_system, "get_void_fill_ratio_for_key"))
 	tile_effect_system.effect_visual_state_changed.connect(_on_effect_visual_state_changed)
 	tile_effect_system.effect_binding_visual_state_changed.connect(stuff_renderer.refresh_effect_visual)
-	runtime_hud.configure_inspection(
-		grid,
-		tile_manager,
-		building_manager,
-		mirror_manager,
-		tile_effect_system,
-		stuff_manager,
-		terrain_manager
-	)
 	path_route_planner = PathRoutePlannerScript.new()
 	add_child(path_route_planner)
 	path_route_planner.configure(grid, tile_manager)
