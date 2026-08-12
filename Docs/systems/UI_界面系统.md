@@ -13,7 +13,7 @@
 - **运行时保存边界**：工作区提供“保存元素”“全量保存”、保存并退出、放弃并退出。“保存元素”只更新 Stuff；“全量保存”额外把当前实体建筑与全部实体镜子种类写成开局陈列，明确排除虚像和战斗临时状态。编辑器运行时可写回当前 `res://` 关卡；导出游戏默认另存 `user://levels/`。脏会话不会被静默关闭，切关会终止旧会话且绝不把旧快照覆盖到新关卡。
 - **选中地块详情（已移出正式 HUD，2026-08-12）**：`RuntimeHud.tscn` 不再实例化 `TileInspectionService` 或 `TileInspectorPanel`，点击地块不再展开左侧详情 UI。世界选择事实仍保留，继续服务于建筑/镜子上下文操作、战术慢放与 `F` 清障。
 - **检视兼容件**：`TileInspectionService` / `TileInspectionModelBuilder` / `TileInspectorPanel` 源文件与直接回归保留，供历史工具或后续手工复用，但不由正式 `RuntimeHud` 配置或订阅。`InspectionDisplayConfig` 的基础说明和 1–3 级文本仍是卡片悬停与实体说明页的事实源；历史 `visible/show_*` 仅影响兼容检视模型。
-- **建筑/镜子卡悬停说明（2026-08-12）**：悬停建筑卡、复制镜卡或反射镜卡时，`BuildCardBar` 在该卡槽水平居中的正上方显示无输入拦截的说明框，移出即隐藏。首行只显示对象名，随后直接显示基础正文；1/2/3 级标签与各自白色正文同处一行，并分别使用绿/黄/红色。`RichTextLabel` 使用 22/18 号标题/正文、紧凑行距，不渲染“基础描述”字段名或编辑占位括号。内容与对应实体选中后的说明按钮共用同一 Definition BBCode 格式化入口；程序镜面和完整卡面模式都支持，空槽不触发。
+- **建筑/镜子卡悬停说明（2026-08-12）**：悬停建筑卡、复制镜卡或反射镜卡时，`BuildCardBar` 在该卡槽水平居中的正上方显示无输入拦截的说明框，移出即隐藏。首行只显示对象名，随后直接显示基础正文；1/2/3 级标签与各自白色正文同处一行，并分别使用绿/黄/红色。`RichTextLabel` 使用 22/18 号标题/正文、紧凑行距，不渲染“基础描述”字段名或编辑占位括号。说明框保持固定换行宽度，高度按实际换行后的标题/正文自适应，短文不保留固定空白、长文自然增高；重算后仍以卡槽为锚点。内容与对应实体选中后的说明按钮共用同一 Definition BBCode 格式化入口；程序镜面和完整卡面模式都支持，空槽不触发。
 - **复制建筑参数一致性**：实体建筑与建筑虚像共用同一详情行生成入口；虚像除来源/镜子/链深度外，继续展示源实体当前等级的索敌、射程、攻击速率、产出、对空或屏障耐久/恢复/反伤信息，并服从源定义的同一组 `show_*` 开关。单发塔与镭射塔展示攻速，持续激光塔展示 `laser_dps × level_factor × extra_factor` 的最终 DPS。
 - **右上图标统计（2026-08-11）**：`GlobalInfoPanel` 无底板、无边框，按三行两列展示透明图标和白色数字：第一行是剩余据点生命、当前/总波次，第二行是复制镜数/上限、反射镜数/上限，第三行是金币、建筑数/上限。数据只读来自 `BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
 - **右上经济反馈（批次 3 已实现）**：`EconomyPanel` 是 `GlobalInfoPanel` 第三行第一列的金币单元，保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
@@ -30,7 +30,7 @@
 - **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`：下一页时当前页左滑、目标页从右滑入，上一页反向，默认 0.25 秒 QUAD 缓出；双页面缓冲避免中间黑屏。动画期间槽位锁定，最多保存最后一次合法翻页请求，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 已从 Main 移除，不再显示关卡名或“加载关卡”按钮。F1 注册表仍提供开发用关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
-- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点，在左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明展开与卡片悬停相同的紧凑富文本信息页。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
+- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点，在左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明展开与卡片悬停相同的紧凑富文本信息页；页面高度自适应内容，底边固定在操作图标上方，因此缩放时不会向按钮方向漂移。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
 - **旋转弹道参考**：选中实体投射物建筑或旋转放置虚影时，世界层显示当前逻辑朝向的粗红色半透明弹道；单向/4向/8向、实际射程、实际投射物宽度及反射镜/亚克力侧板反射均读取运行时事实源。取消选择或预览即清理；该 UI 不创建攻击、目标或伤害。
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
 - **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后说明/升级/售卖可用，面板不提供旋转选项。
@@ -70,7 +70,7 @@
 | TileInspectorPanel.`feature_enabled` / 布局参数 | 兼容保留 | 仅供历史工具/直接测试实例使用；正式 `RuntimeHud` 不再实例化该面板。 |
 | Definition.`inspection_display` | 独立资源 | 建筑、复制镜、地块定义的对象级开关、可编辑名称/功能说明和字段级开关。 |
 | InspectionDisplayConfig.`level_1/2/3_description` | `""` | 建筑和镜子的 1–3 级说明文本；与 `function_description` 基础描述一起显示。 |
-| BuildCardBar.`card_description_size/card_description_gap` | `(360,300) / 10` | 卡片悬停说明框尺寸和与卡槽顶部间距。 |
+| BuildCardBar.`card_description_size/card_description_gap` | `(360,300) / 10` | `card_description_size.x` 是固定换行宽度，Y 为旧场景序列化兼容值且不再固定高度；实际高度按内容自适应。`gap` 是说明框与卡槽顶部间距。 |
 | GameTimeController.`tactical_slow_enabled` | true | 是否在选卡/选中实体时自动慢放。 |
 | GameTimeController.`tactical_slow_scale` | 0.1 | 战术慢放倍率。 |
 | GameTimeController.`fast_scale` | 2.0 | 批次 3 正式按钮使用的快速倍率。 |
@@ -133,13 +133,13 @@
 | `scripts/ui/DebugOverlayPanel.gd` / `scenes/ui/DebugOverlayPanel.tscn` | `DebugOverlayPanel` / `Control` | 在控制台关闭后仍持续显示已启用分类的左上角只读摘要。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 已退出正式主场景的旧运行时选关快捷脚本，仅保留源文件兼容。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 旧 M3 灰盒兼容脚本；正式主场景隐藏且不配置。 |
-| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，以左/上/右图标提供说明、升级、售卖三项上下文操作。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，以左/上/右图标提供说明、升级、售卖，并按说明内容调整页面高度。 |
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
-| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售。 |
-| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 113 项底部卡槽、四关五槽配置、建筑/两类镜子紧凑富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
-| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 26 项建筑说明/升级/售卖图标、经济数字、富文本说明页和相机投影回归。 |
-| `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 40 项镜子三级战斗修正、升级/退款/持久化，以及与建筑一致的三操作布局和说明文本回归。 |
+| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售，并保持自适应说明页底边稳定。 |
+| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 114 项底部卡槽、四关五槽配置、自适应建筑/两类镜子富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
+| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 27 项建筑说明/升级/售卖图标、经济数字、自适应富文本说明页和相机投影回归。 |
+| `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 41 项镜子三级战斗修正、升级/退款/持久化，以及与建筑一致的三操作布局和自适应说明页回归。 |
 | `tests/mirror_ui_visual_capture.gd` | 无 / `SceneTree` | 手工 Forward+ 截取镜子卡悬停说明与实体镜三操作布局。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
@@ -258,11 +258,13 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `M3DebugPanel.gd` | `_on_preview_updated(building: Building) -> void` | 显示预览塔种、1 级和离散朝向。 |
 | `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/删除信号。 |
 | `BuildingActionPanel.gd` | `_update_projection() -> void` | 将选中建筑动作锚点投影到屏幕，越过相机背面时隐藏。 |
+| `BuildingActionPanel.gd` | `_fit_info_page() -> void` | 将说明页收缩/扩展到组合最小尺寸，并把底边重新固定在操作图标上方。 |
 | `BuildingActionPanel.gd` | `_on_info_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 展开逐塔说明页，或调用 BuildingManager 的升级、售卖公共操作。 |
 | `BuildingSelectionVisualizer.gd` | `set_projectile_reflection_resolver(value: Callable) -> void` | 接收 Main 注入的统一投射物反射查询并重建当前预览。 |
 | `BuildingSelectionVisualizer.gd` | `debug_get_projectile_trajectory_segments() -> Array[Dictionary]` | 返回当前多段弹道的只读深副本供自动化检查。 |
 | `ProjectileTrajectoryPreview.gd` | `rebuild(building: Building) -> void` | 读取当前级实际方向、射程、宽度并构造含镜面反射的粗射线。 |
 | `MirrorActionPanel.gd` | `configure(mirror_manager: MirrorManager, camera: Camera3D) -> void` | 订阅镜子选择/删除/变化信号，并把说明/升级/出售图标投影到镜面上方。 |
+| `MirrorActionPanel.gd` | `_fit_info_page() -> void` | 按镜子说明实际换行高度重置页面尺寸并维持固定底边。 |
 | `MirrorActionPanel.gd` | `_on_info_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 展开逐镜说明页，或调用 MirrorManager 的升级、出售公共操作。 |
 | `WaveControlPanel.gd` | `configure(wave_manager: WaveManager) -> void` | 订阅下一波、释放和状态信号，不维护第二份游标。 |
 | `WaveControlPanel.gd` | `set_level(level: LevelResource) -> void` | 重建只读摘要条目并清理旧关悬停。 |
@@ -294,6 +296,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeSettings.gd` | `load_from_file(path)` / `save_to_file(path)` | 使用 `ConfigFile` 持久化局外设置。 |
 | `RuntimeSettings.gd` | `apply_to_runtime(root_window) -> void` | 应用主音量、窗口模式与 UI 缩放。 |
 | `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count, reflect_mirror_definition = null, mirror_manager = null) -> void` | 构造独立复制/反射镜卡、建筑卡和空镜面，订阅经济/容量/镜子冷却信号。 |
+| `BuildCardBar.gd` | `_fit_card_description() -> void` | 在富文本完成换行后把悬停框重置为内容高度并重新锚定到当前卡槽。 |
 | `BuildingDefinition.get_formatted_inspection_description` | `() -> String` | 把基础说明和 1–3 级说明格式化为卡片悬停/选中建筑共用文本。 |
 | `BuildingDefinition.get_formatted_inspection_description_bbcode` | `() -> String` | 输出基础正文和绿/黄/红等级标签的紧凑 BBCode，供卡片悬停与选中建筑说明页共用。 |
 | `MirrorDefinition.get_formatted_inspection_description` | `() -> String` | 把基础说明和 1–3 级说明格式化为镜子卡悬停/选中镜子共用文本。 |

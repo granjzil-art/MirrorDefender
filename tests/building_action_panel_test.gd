@@ -94,6 +94,7 @@ func _run() -> void:
 	expected_position = camera.unproject_position(building.get_action_anchor()) + panel.screen_offset
 	_expect(panel.position.is_equal_approx(expected_position), "camera movement keeps every action at its fixed building-relative offset")
 	panel._on_info_pressed()
+	await process_frame
 	var info_page := panel.get_node_or_null("InfoPage") as PanelContainer
 	var title := panel.find_child("InfoTitle", true, false) as Label
 	var description := panel.find_child("InfoDescription", true, false) as RichTextLabel
@@ -110,6 +111,11 @@ func _run() -> void:
 		and description.get_theme_font_size("normal_font_size") == 18
 		and description.get_theme_constant("line_separation") == -2,
 		"the information page uses larger type and tighter line spacing"
+	)
+	_expect(
+		info_page.size.y < 300.0
+		and is_equal_approx(info_page.position.y + info_page.size.y, -150.0),
+		"short building text shrinks the page while its bottom stays above the actions"
 	)
 	panel._on_info_pressed()
 	_expect(info_page != null and not info_page.visible, "pressing the explanation action again collapses the information page")

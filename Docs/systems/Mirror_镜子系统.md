@@ -32,7 +32,7 @@
 - `MirrorDefinition.upgrade_costs` 保存 1→2、2→3 两笔费用；两类默认均为 50。`level_damage_multipliers` 与 `level_penetration_bonuses` 分别按 1–3 级提供攻击修正。
 - 复制镜把自身等级修正累计进 `MirrorCopyPayload`：多面复制镜的伤害倍率相乘、额外穿透相加，并作用于复制投射物、持续激光和脉冲镭射。反射镜在每次有效反射时把当前级修正加入投射物/激光路径。
 - 每个实体镜只记录本局真实支付的建造和升级资源。金币模式放置会登记基础费用；冷却模式和关卡初始陈列的免费放置不登记基础费用；任何实际支付的升级费用都会登记。出售全额返还该累计值，避免免费镜产生金币套利；冷却模式另返还对应种类库存。
-- `inspection_display.function_description` 与 `level_1/2/3_description` 是镜子卡悬停和实体“说明”按钮的唯一文本事实源。表现首行只显示镜子名，下一行直接显示白色基础正文，之后由绿/黄/红等级标签与白色等级正文组成三条紧凑行，不显示编辑字段名或占位括号。选中实体镜时，`MirrorActionPanel` 与建筑使用相同的左说明、上升级、右出售图标位置及 `-x/+x` 金色数字；`R` 翻面仍是独立快捷操作。
+- `inspection_display.function_description` 与 `level_1/2/3_description` 是镜子卡悬停和实体“说明”按钮的唯一文本事实源。表现首行只显示镜子名，下一行直接显示白色基础正文，之后由绿/黄/红等级标签与白色等级正文组成三条紧凑行，不显示编辑字段名或占位括号。悬停框和选中说明页都按实际换行内容自适应高度；选中页底边固定在操作图标上方。选中实体镜时，`MirrorActionPanel` 与建筑使用相同的左说明、上升级、右出售图标位置及 `-x/+x` 金色数字；`R` 翻面仍是独立快捷操作。
 
 ---
 
@@ -252,7 +252,7 @@ MirrorProjection
 | `tests/copy_mirror_test.gd` | `SceneTree` | 整格复制、虚像攻击、屏障/Stuff 共享根源、递归镜链与复制镭射回归。 |
 | `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制投射物与脉冲镭射总路程回归。 |
 | `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 默认金币放置、失败事务、实际投入全退、独立 5/10 cap，以及开关后的两类独立冷却、库存、阶段倍率、卡片扫描、正式资源与初始装配回归。 |
-| `tests/mirror_upgrade_test.gd` | `SceneTree` | 40 项三级配置、复制链/反射攻击修正、升级经济、说明/升级/出售 UI、满级状态、退款和等级持久化回归。 |
+| `tests/mirror_upgrade_test.gd` | `SceneTree` | 41 项三级配置、复制链/反射攻击修正、升级经济、自适应说明/升级/出售 UI、满级状态、退款和等级持久化回归。 |
 | `tests/mirror_ui_visual_capture.gd` | `SceneTree` | 手工 Forward+ 截取镜子卡悬停四段说明与选中镜子三图标布局。 |
 
 ## 六、函数索引

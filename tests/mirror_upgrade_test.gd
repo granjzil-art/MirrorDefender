@@ -258,6 +258,7 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		"mirror economy numbers share the gold color and render above their icons"
 	)
 	panel._on_info_pressed()
+	await process_frame
 	var info_page := panel.get_node_or_null("InfoPage") as PanelContainer
 	var info_title := panel.find_child("InfoTitle", true, false) as Label
 	var info_description := panel.find_child("InfoDescription", true, false) as RichTextLabel
@@ -269,6 +270,11 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and info_description.get_parsed_text()
 		== manager.copy_mirror_definition.get_formatted_inspection_description(),
 		"mirror explanation action uses the same compact rich text as card hover"
+	)
+	_expect(
+		info_page.size.y < 300.0
+		and is_equal_approx(info_page.position.y + info_page.size.y, -150.0),
+		"short mirror text shrinks the page while preserving its action-side bottom edge"
 	)
 	_expect(manager.upgrade_mirror(copy), "mirror manager accepts the selected copy upgrade")
 	_expect(

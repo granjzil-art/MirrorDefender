@@ -205,6 +205,11 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.get_theme_constant("line_separation") == -2,
 		"card descriptions use larger text with compact line spacing"
 	)
+	_expect(
+		description_panel.size.y < card_bar.card_description_size.y
+		and description_panel.size.is_equal_approx(description_panel.get_combined_minimum_size()),
+		"short card descriptions shrink to their wrapped content height"
+	)
 	var hovered_card_rect := arrow_card.get_global_rect()
 	var description_rect := description_panel.get_global_rect()
 	_expect(

@@ -10,11 +10,12 @@ const ACTION_BUTTON_SIZE := Vector2(58.0, 58.0)
 const COST_LABEL_SIZE := Vector2(92.0, 24.0)
 const COST_LABEL_GAP := 4.0
 const COIN_GOLD_COLOR := Color(1.0, 0.82, 0.24, 1.0)
-const INFO_PAGE_SIZE := Vector2(360.0, 300.0)
+const INFO_PAGE_WIDTH := 360.0
+const INFO_PAGE_CONTENT_WIDTH := INFO_PAGE_WIDTH - 28.0
+const INFO_PAGE_BOTTOM_Y := -150.0
 const INFO_BUTTON_OFFSET := Vector2(-70.0, -58.0)
 const UPGRADE_BUTTON_OFFSET := Vector2(0.0, -128.0)
 const SELL_BUTTON_OFFSET := Vector2(70.0, -58.0)
-const INFO_PAGE_OFFSET := Vector2(-INFO_PAGE_SIZE.x * 0.5, -450.0)
 ## The supplied dollar icon has a 37 px transparent inset on every side.
 const SELL_ICON_REGION := Rect2(37.0, 37.0, 406.0, 406.0)
 
@@ -91,9 +92,9 @@ func _build_interface() -> void:
 func _build_info_page() -> void:
 	_info_page = PanelContainer.new()
 	_info_page.name = "InfoPage"
-	_info_page.position = INFO_PAGE_OFFSET
-	_info_page.custom_minimum_size = INFO_PAGE_SIZE
-	_info_page.size = INFO_PAGE_SIZE
+	_info_page.position = Vector2(-INFO_PAGE_WIDTH * 0.5, INFO_PAGE_BOTTOM_Y)
+	_info_page.custom_minimum_size = Vector2(INFO_PAGE_WIDTH, 0.0)
+	_info_page.size = Vector2(INFO_PAGE_WIDTH, 0.0)
 	_info_page.mouse_filter = Control.MOUSE_FILTER_STOP
 	_info_page.visible = false
 
@@ -121,9 +122,9 @@ func _build_info_page() -> void:
 
 	_info_description = RichTextLabel.new()
 	_info_description.name = "InfoDescription"
-	_info_description.custom_minimum_size = Vector2(INFO_PAGE_SIZE.x - 28.0, 236.0)
+	_info_description.custom_minimum_size = Vector2(INFO_PAGE_CONTENT_WIDTH, 0.0)
 	_info_description.bbcode_enabled = true
-	_info_description.fit_content = false
+	_info_description.fit_content = true
 	_info_description.scroll_active = false
 	_info_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_description.add_theme_font_size_override("normal_font_size", 18)
@@ -222,10 +223,22 @@ func _refresh_info_content() -> void:
 	if _selected_mirror == null or _selected_mirror.definition == null:
 		_info_title.text = "镜子说明"
 		_info_description.text = ""
+		_fit_info_page.call_deferred()
 		return
 	var definition := _selected_mirror.definition
 	_info_title.text = definition.get_resolved_inspection_display_name()
 	_info_description.text = definition.get_formatted_inspection_description_bbcode()
+	_fit_info_page.call_deferred()
+
+
+func _fit_info_page() -> void:
+	if _info_page == null:
+		return
+	_info_page.reset_size()
+	_info_page.position = Vector2(
+		-INFO_PAGE_WIDTH * 0.5,
+		INFO_PAGE_BOTTOM_Y - _info_page.size.y
+	)
 
 
 func _update_projection() -> void:

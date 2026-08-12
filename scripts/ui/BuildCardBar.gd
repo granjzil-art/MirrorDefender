@@ -23,6 +23,8 @@ enum CardVisualMode {
 @export_range(0.0, 1.0, 0.01) var full_art_alpha_trim_threshold: float = 0.03
 
 @export_group("Card Description")
+## The X component defines the fixed wrapping width. Height is content-driven;
+## the legacy Y component remains serialized for old scenes but is not used.
 @export var card_description_size: Vector2 = Vector2(360.0, 300.0)
 @export_range(0.0, 48.0, 1.0) var card_description_gap: float = 10.0
 
@@ -223,8 +225,8 @@ func _build_interface() -> void:
 func _build_card_description_panel() -> void:
 	_card_description_panel = PanelContainer.new()
 	_card_description_panel.name = "CardDescriptionPanel"
-	_card_description_panel.custom_minimum_size = card_description_size
-	_card_description_panel.size = card_description_size
+	_card_description_panel.custom_minimum_size = Vector2(card_description_size.x, 0.0)
+	_card_description_panel.size = Vector2(card_description_size.x, 0.0)
 	_card_description_panel.z_index = 60
 	_card_description_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_card_description_panel.visible = false
@@ -256,12 +258,9 @@ func _build_card_description_panel() -> void:
 
 	_card_description_text = RichTextLabel.new()
 	_card_description_text.name = "Description"
-	_card_description_text.custom_minimum_size = Vector2(
-		card_description_size.x - 28.0,
-		card_description_size.y - 58.0
-	)
+	_card_description_text.custom_minimum_size = Vector2(card_description_size.x - 28.0, 0.0)
 	_card_description_text.bbcode_enabled = true
-	_card_description_text.fit_content = false
+	_card_description_text.fit_content = true
 	_card_description_text.scroll_active = false
 	_card_description_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_card_description_text.add_theme_font_size_override("normal_font_size", 18)
@@ -818,6 +817,14 @@ func _show_card_description(
 	_card_description_title.text = display_name
 	_card_description_text.text = formatted_description
 	_card_description_panel.visible = true
+	_position_card_description()
+	_fit_card_description.call_deferred()
+
+
+func _fit_card_description() -> void:
+	if _card_description_panel == null or not _card_description_panel.visible:
+		return
+	_card_description_panel.reset_size()
 	_position_card_description()
 
 
