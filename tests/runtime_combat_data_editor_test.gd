@@ -10,6 +10,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	print("[RuntimeCombatDataEditor] running")
+	_test_formal_base_health_and_leak_defaults()
 	await _test_building_working_copy_rebuild_save_and_discard()
 	await _test_test_enemies_are_wave_isolated_but_keep_normal_settlement()
 	if _failures == 0:
@@ -18,6 +19,27 @@ func _run() -> void:
 	else:
 		push_error("[RuntimeCombatDataEditor] FAIL: %d/%d checks failed" % [_failures, _checks])
 		quit(1)
+
+
+func _test_formal_base_health_and_leak_defaults() -> void:
+	_expect(is_equal_approx(LevelResource.new().base_max_hp, 20.0), "new levels default to 20 base health")
+	var default_wave := WaveManager.new()
+	_expect(
+		is_equal_approx(default_wave.enemy_leak_health_penalty, 1.0),
+		"wave settlement defaults every leaked enemy to one health"
+	)
+	default_wave.free()
+	for level_path in [
+		"res://resources/levels/Level1.tres",
+		"res://resources/levels/Level2.tres",
+		"res://resources/levels/Level3.tres",
+		"res://resources/levels/Level4.tres",
+	]:
+		var level := ResourceLoader.load(level_path, "", ResourceLoader.CACHE_MODE_IGNORE) as LevelResource
+		_expect(
+			level != null and is_equal_approx(level.base_max_hp, 20.0),
+			"%s authors the shared 20-health base limit" % level_path.get_file()
+		)
 
 
 func _test_building_working_copy_rebuild_save_and_discard() -> void:
@@ -159,11 +181,19 @@ func _test_test_enemies_are_wave_isolated_but_keep_normal_settlement() -> void:
 		for edit in [
 			session.set_enemy_value(working_enemy.resource_path, &"max_hp", 30.0),
 			session.set_enemy_value(working_enemy.resource_path, &"reward", 17.0),
-			session.set_enemy_value(working_enemy.resource_path, &"base_damage", 13.0),
 			session.set_enemy_value(working_enemy.resource_path, &"projectile_speed", 2.0),
 		]:
 			enemy_edits_ok = enemy_edits_ok and bool(edit.get("success", false))
 	_expect(enemy_edits_ok, "enemy edits update the runtime working copy")
+	var legacy_leak_edit := session.set_enemy_value(
+		working_enemy.resource_path if working_enemy != null else "",
+		&"base_damage",
+		13.0
+	)
+	_expect(
+		not bool(legacy_leak_edit.get("success", false)),
+		"enemy-specific base damage is no longer runtime-editable"
+	)
 	var enemy := (
 		ResourceLoader.load(working_enemy.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as EnemyDefinition
 		if working_enemy != null
@@ -193,9 +223,20 @@ func _test_test_enemies_are_wave_isolated_but_keep_normal_settlement() -> void:
 	_expect(bool(second_spawn.get("success", false)), "test enemy spawning remains independent after wave victory")
 	var second_unit := _first_enemy_unit(wave)
 	var base_before := base.current_hp
+	var settled_penalties: Array[float] = []
+	wave.enemy_reached_base.connect(
+		func(_unit: EnemyUnit, penalty: float) -> void: settled_penalties.append(penalty)
+	)
 	if second_unit != null:
-		second_unit.reached_base.emit(second_unit, second_unit.damage_to_base)
-	_expect(is_equal_approx(base.current_hp, base_before - 13.0), "test enemy reaching the base applies normal base damage")
+		second_unit.reached_base.emit(second_unit, 999.0)
+	_expect(
+		is_equal_approx(base.current_hp, base_before - 1.0),
+		"every leaked enemy removes exactly one shared base health"
+	)
+	_expect(
+		settled_penalties == [1.0],
+		"enemy_reached_base broadcasts the normalized one-health penalty"
+	)
 	_expect(wave.clear_test_enemies() >= 1, "test enemies can be cleared independently")
 	if session.is_dirty():
 		session.discard()

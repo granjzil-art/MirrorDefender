@@ -479,7 +479,6 @@ func _enemy_fields() -> Array[Dictionary]:
 		_float_field("max_hp", "最大生命", 1.0, 100000.0, 1.0),
 		_float_field("move_speed", "移动速度（格/秒）", 0.1, 100.0, 0.1),
 		_float_field("armor", "护甲", 0.0, 100000.0, 0.1),
-		_float_field("base_damage", "抵达基地伤害", 1.0, 100000.0, 1.0),
 		_float_field("reward", "死亡奖励", 0.0, 100000.0, 1.0),
 		_float_field("hit_radius", "受击半径", 0.05, 5.0, 0.05),
 		_bool_field("is_airborne", "空中单位"),

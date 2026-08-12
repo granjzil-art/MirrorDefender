@@ -1,5 +1,13 @@
 # 技术与玩法决策记录
 
+## 2026-08-12 · 据点生命与漏怪惩罚收口为关卡/波次事实源
+
+**决策**：所有正式关卡的共享据点生命为 `20`，并同步改为 `LevelResource.base_max_hp` 的新建默认值。任何敌人漏到任一据点均只扣 `1` 点共享生命。
+
+**事实源**：漏怪惩罚只由 `WaveManager.enemy_leak_health_penalty` 持有，`_on_enemy_reached_base()` 忽略 `EnemyUnit` 上报的旧伤害值，扣血和 `enemy_reached_base` 广播均使用归一值。这防止不同敌人资源或运行时编辑器重新引入分类惩罚。
+
+**兼容边界**：`EnemyDefinition.base_damage` 暂不删除，避免旧 `.tres` 字段迁移产生无关资源回写；该字段不再参与据点结算，也不再出现在 F2 运行时战斗数据编辑器。
+
 ## 2026-08-12 · 正式 HUD 不再显示选中地块详情
 
 **决策**：从 `RuntimeHud.tscn` 移除 `TileInspectionService` 与 `TileInspectorPanel` 实例，`RuntimeHud` 不再订阅 `world_selection_changed` 用于生成地块详情。这条决策取代 2026-07-22 引入地块详情和 2026-07-27 将详情板迁移到左侧的现役布局结论。

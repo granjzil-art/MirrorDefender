@@ -50,7 +50,6 @@ const ENEMY_PROPERTIES := [
 	"max_hp",
 	"move_speed",
 	"armor",
-	"base_damage",
 	"reward",
 	"hit_radius",
 	"is_airborne",

@@ -25,6 +25,7 @@
 - `BuildingManager.export_initial_placements()` 强制导出正式 Definition，运行时工作副本不会被嵌进 LevelResource。
 - 脉冲最大反射数已进入逐级 `BuildingLevelStats.pulse_laser_reflect_max`；Definition 根字段仅作旧资源兼容。
 - 投射物模型、建筑模型和敌人模型不在运行时编辑白名单中。
+- 敌人 `base_damage` 已从运行时编辑白名单和窗口移除；漏怪惩罚由 `WaveManager.enemy_leak_health_penalty` 全局统一为 1。
 
 ## 建筑刷新事务
 
@@ -44,7 +45,7 @@ WaveManager 在每次正式或测试生成时深复制解析后的 EnemyDefiniti
 
 测试敌人：
 
-- 使用普通路径、绕路、地块效果、索敌、死亡奖励和基地伤害。
+- 使用普通路径、绕路、地块效果、索敌、死亡奖励和统一的 1 点漏怪惩罚。
 - 单独存入 `_test_units`，不进入 `_active_units` 和 `_unit_wave_indices`。
 - 不阻塞波次完成或胜利；切关、配置错误和基地失败时清理。
 - 独立清理时只移除测试敌人及其敌方投射物，不影响正式波次单位。

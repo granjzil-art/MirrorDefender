@@ -232,9 +232,9 @@ func _make_fixture() -> Dictionary:
 	_expect(base_labels.size() == 2 and base_labels[0].begins_with("据点 1\n") and base_labels[1].begins_with("据点 2\n"), "runtime base locations expose numeric markers")
 	_expect(path_manager.get_spawn_marker_labels() == ["出生点 1", "出生点 2"], "runtime spawn locations expose numeric markers")
 	_expect(tile_manager.get_occupant(base_1.cell) == base_core and tile_manager.get_occupant(base_2.cell) == base_core, "every base location points to the same health owner")
-	base_core.take_damage(25.0)
+	base_core.take_damage(5.0)
 	base_labels = base_core.get_marker_labels()
-	_expect(is_equal_approx(base_core.current_hp, 75.0) and base_labels[0].contains("75/100") and base_labels[1].contains("75/100"), "damage at the shared base owner updates every base marker")
+	_expect(is_equal_approx(base_core.current_hp, 15.0) and base_labels[0].contains("15/20") and base_labels[1].contains("15/20"), "damage at the 20-health shared base updates every marker")
 	return {
 		"host": host,
 		"grid": grid,

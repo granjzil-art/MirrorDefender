@@ -31,6 +31,7 @@
 - **退出当前关卡**：右侧叉号和暂停菜单退出按钮语义一致。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。不会调用 SceneTree 退出。
 - **调试入口**：正式 Main 已不实例化 `LevelDebugPanel`；F1 `load` 仍作为开发入口复用 LevelLoader，不修改正式 Catalog，也不代表正式解锁/选关流程。
 - **当前上架范围**：`LevelSelectPage01.tres` 前两槽显式引用正式目录中的 `Level1.tres`、`Level2.tres`；其它页面当前为空。正式维护范围由 `res://resources/levels/` 决定，但选关顺序仍由 Catalog/Page 显式配置，不依赖目录扫描。
+- **据点生命统一**：`LevelResource.base_max_hp` 默认为 `20`，`resources/levels/` 中 Level1–Level4 全部显式保存 `20`；多据点仍共享这一份生命。
 
 ## 关键参数
 
@@ -52,7 +53,7 @@
 | LevelResource.`initial_mirror_placements` | `[]` | 开局实体镜子的 `mirror_kind`、边与生效侧；数组顺序同时保持复制镜链装配顺序。 |
 | LevelResource.`base_resource_per_second` | 0.5 | 关卡基础每秒资源。 |
 | LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；Level1 显式配置为5，Level2 显式配置为6；复制镜与反射镜独立。 |
-| LevelResource.`base_points/base_max_hp` | `[] / 100` | 多个据点位置共享一份生命；正式据点是有朝向的3×2占地。 |
+| LevelResource.`base_points/base_max_hp` | `[] / 20` | 多个据点位置共享一份生命；四个正式关卡均显式为 20，据点是有朝向的 3×2 占地。 |
 | LevelResource.`base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 空时只读映射为据点 1。 |
 | LevelResource.`paths/spawn_points/waves` | `[]` | 本关路径、独立出生点和作者顺序波次。 |
 | LevelResource.`camera_presets` | `[]` | 最多六个可空机位；索引 0～5 对应数字键 1～6。 |

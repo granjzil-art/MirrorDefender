@@ -61,7 +61,7 @@ Rock destroyed -> TileManager clears runtime obstacle/effect and restores buildi
 | `PathRoutePlanner.refresh_route_snapshot` | `() -> void` | 一次刷新全部作者路径的地面/空中预期路线；不修改敌人当前路线。 |
 | `EnemyUnit.is_attacking` | `() -> bool` | 当前目标有效且在射程内时返回 true。 |
 | `EnemyUnit._move_along_path` | `(remaining_distance: float) -> void` | 按距离预算推进并支持跨段。 |
-| `EnemyUnit._reach_base` | `() -> void` | 单次广播据点伤害并释放单位。 |
+| `EnemyUnit._reach_base` | `() -> void` | 单次广播据点到达并释放单位；WaveManager 统一结算 1 点漏怪惩罚。 |
 
 ## 约定事实源
 

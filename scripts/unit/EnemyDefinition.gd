@@ -20,6 +20,7 @@ enum ReflectionPattern {
 @export_range(1.0, 100000.0, 1.0, "or_greater") var max_hp: float = 100.0
 @export_range(0.1, 100.0, 0.1, "or_greater") var move_speed: float = 1.5
 @export_range(0.0, 100000.0, 0.1, "or_greater") var armor: float = 0.0
+## Legacy serialized value. WaveManager applies one shared leak penalty instead.
 @export_range(1.0, 100000.0, 1.0, "or_greater") var base_damage: float = 10.0
 @export_range(0.0, 100000.0, 1.0, "or_greater") var reward: float = 5.0
 @export_range(0.05, 5.0, 0.05, "or_greater") var hit_radius: float = 0.28

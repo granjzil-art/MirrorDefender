@@ -236,6 +236,6 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 
 ## 已知限制 / 初版不做的部分
 
-- M3 调试靶标仍静止；EnemyUnit 的移动、护甲、路径和据点伤害实现见 Unit、Path、Wave 文档。
+- M3 调试靶标仍静止；EnemyUnit 的移动、护甲、路径和统一 1 点漏怪惩罚实现见 Unit、Path、Wave 文档。
 - 标准投射物首次反射前追踪目标，反射后为直线弹道；导弹是独立变体，反射后下一帧仍可转回所标记目标。当前两者都未对象池化，正式大量单位阶段需评估。
 - 不做克制、暴击、闪避、DOT 叠层或衰减。

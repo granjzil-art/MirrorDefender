@@ -28,6 +28,7 @@ next_spawn_time += max(0.01, group.interval)
 - **路径显示阶段事实**：`ACTIVE` 同时包含“仍在生成/有存活敌人”和“等待玩家释放下一波”的静默区间。`is_wave_action_active()` 用待生成组与活动单位区分二者；`should_show_continuous_paths()` 只在 `READY` 或仍有下一波的真实静默区间返回 true。活动路径请求按未完成的已释放波求并集，并保留地面/空中档案；表现层在行动期为每条唯一实时路线循环一条“出生点 → 目标据点”的短发光线段。行动结束不会截断已经生成的短线，短线离开终点后才切换为与悬停预览一致的波间青色流线，或在终局隐藏。
 - **胜利条件**：仅当 `are_all_waves_released()`、全部已建生成状态的 `remaining == 0`、且 `_active_units` 为空时进入 `VICTORY`。未释放波仍存在时，即使场上清空也不得胜利。Debug spawn 复用 `_active_units`，因此同样阻塞最终胜利。
 - **失败与配置错误**：共享 `BaseCore` 生命归零进入 `DEFEAT`；预检/生成失败进入 `CONFIG_ERROR`。二者都会停止生成并清理活动敌人和敌方投射物，不得误判胜利。
+- **统一漏怪惩罚**：任何正式或测试敌人抵达据点时，`WaveManager` 忽略单位上报的历史伤害值，统一按 `enemy_leak_health_penalty` 扣除共享生命；现役默认为 `1`。
 - **Debug spawn 边界**：`spawn_debug_enemy()` 不释放作者波次、不推进游标、不增加组生成计数；要求非空 EnemyDefinition、当前关卡路径，且当前状态不是 `VICTORY/DEFEAT/CONFIG_ERROR`。F1 `spawn` 业务绑定会额外把敌人限制为当前关卡波次已引用定义；WaveManager 公共入口本身不扫描或验证敌人资源归属。终态一律拒绝。
 - **正式 UI**：右侧 `WaveControlPanel` 提供“释放下一波 / 快速重启 / 退出当前关卡”三个按钮。`WaveManager.defeat` 由 `RuntimeHud` 转为锁时、阻断输入的失败画面，并复用重启/返回选关事务。`WaveTimelineModel` 只复用为下一波悬停摘要；旧 `WaveTimelinePanel` 与 `WaveStatusPanel` 不在正式 `RuntimeHud.tscn` 实例化。
 
@@ -36,6 +37,7 @@ next_spawn_time += max(0.01, group.interval)
 | 归属 | 参数 | 说明 |
 |---|---|---|
 | WaveManager | `feature_enabled = true` | 波次功能总开关；关闭时不能释放波次或 Debug spawn。 |
+| WaveManager | `enemy_leak_health_penalty = 1` | 全局统一漏怪惩罚；不读取敌人类型的历史 `base_damage`。 |
 | LevelResource | `waves: Array[WaveDefinition]` | 作者顺序即释放顺序，不排序、不压缩。 |
 | WaveDefinition | `display_name: String` | 波次详情与调试显示名。 |
 | SpawnGroupDefinition | `enemy: EnemyDefinition` | 该组生成的敌人定义。 |
@@ -108,7 +110,8 @@ Pause / console / button exit / level transition
   -> Main -> PathHoverPreview.clear_preview()
 
 EnemyUnit.died -> ResourceManager.grant_enemy_drop(reward)
-EnemyUnit.reached_base -> BaseCore.take_damage(damage)
+EnemyUnit.reached_base -> WaveManager normalize to enemy_leak_health_penalty (1)
+  -> BaseCore.take_damage(1)
 BaseCore.defeated -> WaveManager -> DEFEAT
   -> RuntimeHud.DefeatMenu + GameTimeController.set_paused(true)
   -> restart: Main -> LevelLoader.reload_current_level()
@@ -162,7 +165,7 @@ all waves released
 | `wave_started` | `(wave_number: int, wave: WaveDefinition)` | 本波第一只敌人成功注册；不等同于按钮释放。 |
 | `wave_completed` | `(wave_number: int)` | 本波组已生成完且该波活动敌人为空。 |
 | `enemy_spawned` | `(unit: EnemyUnit)` | 一个作者或 Debug 敌人已完成配置和 Combat 注册。 |
-| `enemy_reached_base` | `(unit: EnemyUnit, damage: float)` | 单位抵达据点并请求结算伤害。 |
+| `enemy_reached_base` | `(unit: EnemyUnit, damage: float)` | 单位抵达据点并完成结算；`damage` 是 WaveManager 已归一的全局漏怪惩罚，默认 1。 |
 | `configuration_failed` | `(reason: String)` | 波次预检或生成事务失败并进入 `CONFIG_ERROR`。 |
 | `victory` / `defeat` | `()` / `()` | 进入不可逆玩法终态。 |
 | `WaveControlPanel.restart_level_requested` | `()` | 请求组合根完整重载当前关卡。 |
@@ -180,6 +183,7 @@ all waves released
 - 活动敌人数组包含作者生成与 Debug spawn；胜利只看全部波已释放、全部组已生成和该数组为空。
 - 生成计数只在单位成功注册后递减；失败进入 `CONFIG_ERROR`，不推进释放游标、不伪造开始/完成/胜利。
 - 敌人目标据点由初始路径锁定；大石头换路只能在同目标据点路网内进行。
+- 漏怪扣血仅由 `WaveManager.enemy_leak_health_penalty` 决定；敌人定义中的旧 `base_damage` 不再是运行时事实源。
 - 正式 HUD 只实例化 `WaveControlPanel`；旧 Timeline/Status 文件保留兼容，不代表现役布局。
 
 ## 已知限制 / 初版不做的部分

@@ -106,7 +106,7 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 ## Legacy single-base location. Kept as a read-only compatibility fallback when
 ## base_points is empty; new levels author BasePointDefinition entries instead.
 @export var base_cell: Vector3i = Vector3i.ZERO
-@export_range(1.0, 1000000.0, 1.0, "or_greater") var base_max_hp: float = 100.0
+@export_range(1.0, 1000000.0, 1.0, "or_greater") var base_max_hp: float = 20.0
 @export var base_points: Array[BasePointDefinitionScript] = []
 
 @export_group("M4 Paths")

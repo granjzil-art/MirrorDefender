@@ -17,6 +17,9 @@ enum State {
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Base Settlement")
+@export_range(1.0, 1000000.0, 1.0, "or_greater") var enemy_leak_health_penalty: float = 1.0
+
 signal state_changed(state: State, current_wave: int, total_waves: int, active_enemy_count: int)
 signal wave_released(wave_number: int, wave: WaveDefinition)
 signal next_wave_changed(wave_number: int, wave: WaveDefinition)
@@ -571,10 +574,12 @@ func _on_enemy_died(target: CombatTarget, reward_amount: float) -> void:
 	if target is EnemyUnit and _resource_manager != null:
 		_resource_manager.grant_enemy_drop(reward_amount)
 
-func _on_enemy_reached_base(unit: EnemyUnit, damage: float) -> void:
+
+func _on_enemy_reached_base(unit: EnemyUnit, _reported_damage: float) -> void:
+	var penalty := maxf(1.0, enemy_leak_health_penalty)
 	if _base_core != null:
-		_base_core.take_damage(damage)
-	enemy_reached_base.emit(unit, damage)
+		_base_core.take_damage(penalty)
+	enemy_reached_base.emit(unit, penalty)
 
 func _on_enemy_tree_exited(unit: EnemyUnit) -> void:
 	_active_units.erase(unit)

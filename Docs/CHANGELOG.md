@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Level / Wave · 据点生命 20 与统一漏怪扣 1 — 2026-08-12
+**模块**：Level / Wave / Unit / Runtime Combat Editor / Tests / Docs。
+- `LevelResource.base_max_hp` 默认值改为 `20`，Level1–Level4 全部显式写入 `20`；多据点仍共享同一生命池。
+- `WaveManager.enemy_leak_health_penalty` 成为唯一漏怪结算事实源，默认 `1`；忽略敌人上报的历史类型伤害，并对外广播归一后的惩罚。
+- 敌人 `base_damage` 作为旧 `.tres` 兼容字段保留，但从 F2 运行时编辑白名单与窗口移除，不再影响据点扣血。
+**影响面**：所有正式/测试敌人每漏一只只扣 1 点；对屏障攻击、死亡奖励、敌人生命和波次强度不变。
+
 ## Runtime UI · 移除选中地块详情面板 — 2026-08-12
 **模块**：Runtime UI / Selection / Main / Tests / Docs。
 - 正式 `RuntimeHud` 不再实例化 `TileInspectionService` 和 `TileInspectorPanel`，也不再订阅世界选择去刷新地块详情；选中格子后不显示左侧详情 UI。

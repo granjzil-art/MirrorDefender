@@ -1576,6 +1576,7 @@ decoration_scene = ExtResource("15_celestial")
 base_model_asset = SubResource("Resource_0yenb")
 spawn_point_model_asset = SubResource("Resource_dx78j")
 base_resource_per_second = 0.0
+base_max_hp = 20.0
 base_cell = Vector3i(7, 8, 0)
 base_points = Array[ExtResource("1_dh8ho")]([SubResource("Resource_wh7hg")])
 paths = Array[ExtResource("7_aofbu")]([SubResource("Resource_kcv5e"), SubResource("Resource_ppv0a")])
