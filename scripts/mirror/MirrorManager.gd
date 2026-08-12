@@ -29,6 +29,7 @@ signal mirror_constructed(mirror: CopyMirror)
 signal mirror_removed(mirror: CopyMirror)
 signal mirror_selected(mirror: CopyMirror)
 signal mirror_changed(mirror: CopyMirror)
+signal mirror_upgraded(mirror: CopyMirror, previous_level: int, new_level: int)
 signal placement_failed(cell: Vector3i, reason: String)
 signal placement_cooldown_changed(
 	mirror_kind: MirrorPlacementData.MirrorKind,
@@ -397,7 +398,8 @@ func export_initial_placements() -> Array[MirrorPlacementData]:
 			mirror.from_cell,
 			mirror.edge_index,
 			mirror.active_from_side,
-			_get_mirror_kind(mirror)
+			_get_mirror_kind(mirror),
+			mirror.level
 		)
 		placements.append(placement)
 	return placements
@@ -432,7 +434,8 @@ func load_initial_placements(placements: Array) -> Array[String]:
 			false,
 			false,
 			false,
-			false
+			false,
+			placement.level
 		)
 		if mirror == null:
 			errors.append("初始镜子 %d 装配失败" % (index + 1))
@@ -452,7 +455,8 @@ func _place_mirror(
 	runtime_placement: bool,
 	check_connectivity: bool,
 	select_after_placement: bool,
-	rebuild_after_placement: bool
+	rebuild_after_placement: bool,
+	initial_level: int = 1
 ) -> CopyMirror:
 	var validation := validate_placement(from_cell, edge_index, runtime_placement, mirror_kind)
 	if not validation.failure.is_empty():
@@ -477,6 +481,10 @@ func _place_mirror(
 		_tile_manager,
 		resolved_side
 	)
+	if not mirror.set_level(initial_level):
+		mirror.queue_free()
+		placement_failed.emit(from_cell, "镜子初始等级无效")
+		return null
 	mirror.placement_order = _next_placement_order
 	mirror.set_reflection_camera(_reflection_camera)
 	var connectivity_failure := (
@@ -581,6 +589,36 @@ func validate_placement(
 
 func remove_selected_mirror() -> bool:
 	return remove_mirror(get_selected_mirror())
+
+
+func upgrade_selected_mirror() -> bool:
+	return upgrade_mirror(get_selected_mirror())
+
+
+func upgrade_mirror(mirror: CopyMirror) -> bool:
+	if (
+		mirror == null
+		or not is_instance_valid(mirror)
+		or not _mirrors.has(mirror.edge_id)
+		or _mirrors[mirror.edge_id] != mirror
+		or not mirror.can_upgrade()
+	):
+		return false
+	var previous_level := mirror.level
+	var cost := mirror.get_upgrade_cost()
+	if cost > 0.0 and not invest_in_mirror(mirror, cost, "mirror_upgrade_cost"):
+		return false
+	if not mirror.set_level(previous_level + 1):
+		# This branch is unreachable after can_upgrade(), but keep the transaction
+		# recoverable if a runtime definition is mutated during the call.
+		if cost > 0.0 and _resource_manager != null:
+			mirror._rollback_investment(cost)
+			_resource_manager.gain(cost, "mirror_upgrade_rollback")
+		return false
+	rebuild_now()
+	mirror_changed.emit(mirror)
+	mirror_upgraded.emit(mirror, previous_level, mirror.level)
+	return true
 
 
 ## Atomically spends and records later investment so demolition can return the
@@ -773,6 +811,8 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		"surface_id": StringName(),
 		"epsilon": 0.0001,
 		"max_reflections_per_frame": 1,
+		"damage_multiplier": 1.0,
+		"penetration_bonus": 0,
 	}
 	var segment := end - start
 	var segment_length := segment.length()
@@ -818,6 +858,8 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		result.surface_id = StringName(mirror.edge_id)
 		result.epsilon = maxf(0.0001, _grid.cell_size * definition.collision_epsilon_ratio)
 		result.max_reflections_per_frame = definition.max_reflections_per_frame
+		result.damage_multiplier = mirror.get_damage_multiplier()
+		result.penetration_bonus = mirror.get_penetration_bonus()
 	var stale_provider_ids: Array[int] = []
 	for raw_provider_id in _projectile_reflection_providers.keys():
 		var provider_id := int(raw_provider_id)
@@ -854,6 +896,10 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 			result["epsilon"] = 0.0001
 		if not result.has("max_reflections_per_frame"):
 			result["max_reflections_per_frame"] = 1
+		if not result.has("damage_multiplier"):
+			result["damage_multiplier"] = 1.0
+		if not result.has("penetration_bonus"):
+			result["penetration_bonus"] = 0
 	for provider_id in stale_provider_ids:
 		_projectile_reflection_providers.erase(provider_id)
 	return result
@@ -1292,7 +1338,14 @@ func _build_projection_group(
 			if _building_manager.get_building(pair.target_cell) != null or claimed_targets.has(pair.target_cell):
 				return result
 		for source_payload in eligible:
-			result.append(source_payload.copy_through(mirror.edge_id, pair.target_cell, endpoints[0], endpoints[1]))
+			result.append(source_payload.copy_through(
+				mirror.edge_id,
+				pair.target_cell,
+				endpoints[0],
+				endpoints[1],
+				mirror.get_damage_multiplier(),
+				mirror.get_penetration_bonus()
+			))
 		return result
 	return result
 
@@ -1672,6 +1725,12 @@ func _on_copy_attack_triggered(
 	for projection in _projections:
 		if not is_instance_valid(projection) or projection.payload.root_source != building:
 			continue
+		var copy_damage_multiplier := maxf(0.0, projection.payload.damage_multiplier)
+		var copied_damage := maxf(0.0, damage) * copy_damage_multiplier
+		var copied_penetration := (
+			building.get_projectile_penetration_count()
+			+ maxi(0, projection.payload.penetration_bonus)
+		)
 		var start := projection.payload.transform_point(world_start)
 		var end := projection.payload.transform_point(world_end)
 		if (
@@ -1685,7 +1744,7 @@ func _on_copy_attack_triggered(
 				start,
 				missile_direction.normalized(),
 				building.get_projectile_speed_world(),
-				damage,
+				copied_damage,
 				building.get_attack_range_world(),
 				building.get_projectile_length_world(),
 				building.get_projectile_width_world(),
@@ -1708,7 +1767,7 @@ func _on_copy_attack_triggered(
 				start,
 				end,
 				building.get_projectile_speed_world(),
-				damage,
+				copied_damage,
 				building.get_projectile_length_world(),
 				building.get_projectile_width_world(),
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
@@ -1716,7 +1775,7 @@ func _on_copy_attack_triggered(
 				building.get_attack_range_world(),
 				_combat_manager.get_projectile_reflection_resolver(),
 				true,
-				building.get_projectile_penetration_count(),
+				copied_penetration,
 				Callable(self, "trace_ballistic_blocker")
 			)
 			attack_mirrored.emit(projection, attack_kind)
@@ -1732,7 +1791,7 @@ func _on_copy_attack_triggered(
 				start,
 				end,
 				building.get_projectile_speed_world(),
-				damage,
+				copied_damage,
 				building.get_projectile_length_world(),
 				building.get_projectile_width_world(),
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
@@ -1740,7 +1799,7 @@ func _on_copy_attack_triggered(
 				building.get_attack_range_world(),
 				_combat_manager.get_projectile_reflection_resolver(),
 				true,
-				building.get_projectile_penetration_count(),
+				copied_penetration,
 				Callable(self, "trace_ballistic_blocker")
 			)
 			attack_mirrored.emit(projection, attack_kind)
@@ -1751,7 +1810,7 @@ func _on_copy_attack_triggered(
 			var pulse_beam := _combat_manager.spawn_pulse_laser(
 				start,
 				direction.normalized(),
-				damage,
+				copied_damage,
 				building.get_attack_range_world(),
 				building.get_pulse_laser_width_world(),
 				building.get_pulse_laser_emission_energy(),
@@ -1768,8 +1827,9 @@ func _on_copy_attack_triggered(
 			var projected_laser_direction := end - start
 			if projected_laser_direction.length_squared() <= 0.000001:
 				continue
-			var damage_per_second := building.get_laser_damage_per_second()
-			var duration := damage / damage_per_second if damage_per_second > 0.0 else 0.0
+			var source_damage_per_second := building.get_laser_damage_per_second()
+			var damage_per_second := source_damage_per_second * copy_damage_multiplier
+			var duration := damage / source_damage_per_second if source_damage_per_second > 0.0 else 0.0
 			var propagation_distance := projection.advance_laser_propagation(
 				start,
 				projected_laser_direction,
@@ -1782,7 +1842,8 @@ func _on_copy_attack_triggered(
 				_combat_manager,
 				start,
 				projected_laser_direction,
-				propagation_distance
+				propagation_distance,
+				projection.payload.penetration_bonus
 			)
 			if path.get("termination", &"none") in [&"enemy", &"stuff"]:
 				projection.clamp_laser_propagation(
@@ -1791,6 +1852,12 @@ func _on_copy_attack_triggered(
 			projection.show_laser_path(
 				path.get("segments", []),
 				path.get("endpoint", start)
+			)
+			projection.set_laser_reflection_damage_multiplier(
+				LaserAttackStrategyScript.get_path_damage_multiplier(path)
+			)
+			projection.set_laser_burst_target(
+				LaserAttackStrategyScript.get_first_hit_position(path)
 			)
 			LaserAttackStrategyScript.apply_continuous_hits(
 				building,
@@ -1801,11 +1868,15 @@ func _on_copy_attack_triggered(
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"laser_burst" and projection.payload.copy_kind == &"laser_tower":
+			var burst_target := projection.get_laser_burst_target()
+			if not bool(burst_target.get("hit", false)):
+				continue
 			LaserAttackStrategyScript.apply_endpoint_burst(
 				building,
 				_combat_manager,
-				projection.get_laser_endpoint(start),
-				false
+				burst_target.get("position", start),
+				false,
+				copy_damage_multiplier * projection.get_laser_reflection_damage_multiplier()
 			)
 			attack_mirrored.emit(projection, attack_kind)
 
@@ -1856,6 +1927,7 @@ func _on_definition_changed() -> void:
 	_emit_placement_cooldown_changed(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT)
 	for mirror in get_mirrors():
 		mirror.refresh_visual()
+		mirror_changed.emit(mirror)
 	if _preview_mirror != null and is_instance_valid(_preview_mirror):
 		_preview_mirror.refresh_visual()
 	rebuild_now()

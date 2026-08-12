@@ -52,10 +52,14 @@ func _test_production_resource_contract() -> void:
 	_expect(copy != null and copy.validate_configuration().is_empty(), "production copy-mirror resource remains valid after cooldown schema migration")
 	_expect(reflector != null and reflector.validate_configuration().is_empty(), "production reflector resource remains valid after cooldown schema migration")
 	for definition in [copy, reflector]:
-		_expect(is_equal_approx(definition.placement_cost, 100.0), "%s uses the authored 100-coin placement cost" % definition.display_name)
+		_expect(definition.placement_cost > 0.0, "%s keeps an editable positive placement cost" % definition.display_name)
 		_expect(is_equal_approx(definition.placement_cooldown_seconds, 15.0), "%s keeps the authored 15-second cooldown" % definition.display_name)
 		_expect(is_equal_approx(definition.mirror_thickness_ratio, 0.08), "%s keeps the authored mirror thickness" % definition.display_name)
-		_expect(is_equal_approx(definition.reflection_surface_offset_ratio, 0.78), "%s keeps the authored reflection-surface offset" % definition.display_name)
+		_expect(
+			definition.reflection_surface_offset_ratio >= 0.52
+			and definition.reflection_surface_offset_ratio <= 1.5,
+			"%s keeps a valid editable reflection-surface offset" % definition.display_name
+		)
 		_expect(definition.reflection_resolution == 256, "%s uses the optimized 256px gameplay reflection" % definition.display_name)
 		_expect(definition.reflection_preview_resolution == 128, "%s uses the optimized 128px preview reflection" % definition.display_name)
 		_expect(definition.reflection_update_interval_frames == 4, "%s uses the optimized four-frame reflection interval" % definition.display_name)

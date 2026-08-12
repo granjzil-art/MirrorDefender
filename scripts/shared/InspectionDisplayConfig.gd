@@ -11,8 +11,9 @@ extends Resource
 ## Empty text uses the built-in description for legacy resources.
 @export_multiline var function_description: String = ""
 
-@export_group("Building Level Descriptions")
+@export_group("Level Descriptions")
 ## Optional per-level copy appended after the shared base description.
+## Buildings and mirrors share these fields and the same formatted layout.
 @export_multiline var level_1_description: String = ""
 @export_multiline var level_2_description: String = ""
 @export_multiline var level_3_description: String = ""
@@ -54,7 +55,7 @@ func resolve_function_description(fallback: String) -> String:
 	return configured if not configured.is_empty() else fallback
 
 
-func format_building_description(fallback: String) -> String:
+func format_level_description(fallback: String) -> String:
 	return "\n".join([
 		"基础描述",
 		resolve_function_description(fallback),
@@ -68,3 +69,8 @@ func format_building_description(fallback: String) -> String:
 		"3级：",
 		level_3_description.strip_edges(),
 	])
+
+
+## Compatibility entry retained for existing building callers.
+func format_building_description(fallback: String) -> String:
+	return format_level_description(fallback)

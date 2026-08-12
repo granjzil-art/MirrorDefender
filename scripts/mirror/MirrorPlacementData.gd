@@ -15,24 +15,27 @@ enum MirrorKind {
 @export var from_cell: Vector3i = Vector3i.ZERO
 @export_range(0, 5, 1) var edge_index: int = 0
 @export var active_from_side: bool = true
+@export_range(1, 3, 1) var level: int = 1
 
 
 func configure(
 	p_from_cell: Vector3i,
 	p_edge_index: int,
 	p_active_from_side: bool,
-	p_mirror_kind: MirrorKind = MirrorKind.COPY
+	p_mirror_kind: MirrorKind = MirrorKind.COPY,
+	p_level: int = 1
 ) -> void:
 	from_cell = p_from_cell
 	edge_index = maxi(0, p_edge_index)
 	active_from_side = p_active_from_side
 	mirror_kind = p_mirror_kind
+	level = clampi(p_level, 1, 3)
 	emit_changed()
 
 
 func duplicate_placement() -> MirrorPlacementData:
 	var clone := MirrorPlacementData.new()
-	clone.configure(from_cell, edge_index, active_from_side, mirror_kind)
+	clone.configure(from_cell, edge_index, active_from_side, mirror_kind, level)
 	return clone
 
 
@@ -42,4 +45,6 @@ func validate_configuration() -> Array[String]:
 		errors.append("镜子类型无效")
 	if edge_index < 0 or edge_index > 5:
 		errors.append("镜子边方向必须位于 0 到 5 之间")
+	if level < 1 or level > 3:
+		errors.append("镜子等级必须位于 1 到 3 之间")
 	return errors

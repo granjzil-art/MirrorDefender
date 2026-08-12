@@ -5,6 +5,7 @@ extends Resource
 
 const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd")
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
+const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 
 @export_group("Identity")
 @export var display_name: String = "镜子"
@@ -21,6 +22,14 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 @export_group("Placement Economy")
 ## Used when MirrorManager.placement_cooldown_enabled is false.
 @export_range(0.0, 100000.0, 1.0, "or_greater") var placement_cost: float = 100.0
+
+@export_group("Upgrade")
+## Costs paid when advancing 1 -> 2 and 2 -> 3.
+@export var upgrade_costs: Array[float] = [50.0, 50.0]
+## Level-indexed combat modifiers. Concrete mirror definitions provide their
+## own defaults while keeping every value editable in the resource inspector.
+@export var level_damage_multipliers: Array[float] = [1.0, 1.0, 1.0]
+@export var level_penetration_bonuses: Array[int] = [0, 0, 0]
 
 @export_group("Placement")
 @export var active_from_side_by_default: bool = true
@@ -42,9 +51,69 @@ const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionD
 @export var mirror_back_face_color: Color = Color(0.24, 0.25, 0.27, 1.0)
 @export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 
+const MAX_LEVEL: int = 3
+
+
+func get_max_level() -> int:
+	return MAX_LEVEL
+
+
+func get_upgrade_cost(current_level: int) -> float:
+	if current_level < 1 or current_level >= MAX_LEVEL:
+		return 0.0
+	var index := current_level - 1
+	return maxf(0.0, upgrade_costs[index]) if index < upgrade_costs.size() else 0.0
+
+
+func get_damage_multiplier(level: int) -> float:
+	var index := clampi(level, 1, MAX_LEVEL) - 1
+	return maxf(0.0, level_damage_multipliers[index]) if index < level_damage_multipliers.size() else 1.0
+
+
+func get_penetration_bonus(level: int) -> int:
+	var index := clampi(level, 1, MAX_LEVEL) - 1
+	return maxi(0, level_penetration_bonuses[index]) if index < level_penetration_bonuses.size() else 0
+
+
+func get_resolved_inspection_display_name() -> String:
+	if inspection_display != null:
+		return inspection_display.resolve_display_name(display_name)
+	return display_name
+
+
+func get_formatted_inspection_description() -> String:
+	if inspection_display != null:
+		return inspection_display.format_level_description(DEFAULT_FUNCTION_DESCRIPTION)
+	return "\n".join([
+		"基础描述",
+		DEFAULT_FUNCTION_DESCRIPTION,
+		"",
+		"1级：",
+		"",
+		"2级：",
+		"",
+		"3级：",
+	])
+
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
+	if upgrade_costs.size() != MAX_LEVEL - 1:
+		errors.append("镜子升级费用必须配置二级和三级两项")
+	else:
+		for index in range(upgrade_costs.size()):
+			ConfigValidator.require_number(errors, "镜子升级费用%d" % (index + 2), upgrade_costs[index], 0.0)
+	if level_damage_multipliers.size() != MAX_LEVEL:
+		errors.append("镜子伤害倍率必须配置三级")
+	else:
+		for index in range(level_damage_multipliers.size()):
+			ConfigValidator.require_number(errors, "镜子%d级伤害倍率" % (index + 1), level_damage_multipliers[index], 0.0)
+	if level_penetration_bonuses.size() != MAX_LEVEL:
+		errors.append("镜子穿透加成必须配置三级")
+	else:
+		for index in range(level_penetration_bonuses.size()):
+			if level_penetration_bonuses[index] < 0:
+				errors.append("镜子%d级穿透加成不能小于零" % (index + 1))
 	ConfigValidator.require_text(errors, "镜子显示名", display_name)
 	ConfigValidator.require_number(errors, "镜子放置冷却", placement_cooldown_seconds, 0.0)
 	ConfigValidator.require_number(errors, "镜子放置费用", placement_cost, 0.0)

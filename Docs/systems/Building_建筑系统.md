@@ -14,7 +14,7 @@
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔仍可逐级选择 `TARGET_ONLY` / `TARGET_OR_FACING`，但不启用导弹开关。
 - **钉锤 / 固定多方向齐射**：`resources/buildings/MaceTower.tres` 使用独立 `MACE_TOWER` 类型。1级按当前逻辑朝向四等分齐射，2级解锁八等分齐射；1、2级只有在半径 `targeting_range` 内存在有效敌人时开火。3级保持八向，提升本级伤害、飞行距离、攻速和穿透，并解锁 `TARGET_OR_FACING`，没有敌人时也持续齐射。钉锤不选择单个目标，也不自动转向。
-- **激光塔**：不索敌，使用 `FIXED_FACING`。持续光路与其它塔共用反射镜和 Stuff 查询，所有反射段共享 `attack_range`；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，下一个敌人承伤后截断光路。每次持续命中附带寒冷，目标模型表面临时切换为深蓝脉动 Shader；2 级起每隔可调时间在当前可见终点产生一次圆形伤害/减速爆发，3 级再追加冻结。表现保留较粗直线主轴，并由两条左右平移、持续传播且带平滑噪声的细正弦光丝夹住；波形只作用于渲染顶点。复制塔从镜像起点独立重算同一套光路和效果，并复用相同光丝表现。
+- **激光塔**：不索敌，使用 `FIXED_FACING`。持续光路与其它塔共用反射镜和 Stuff 查询，所有反射段共享 `attack_range`；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，下一个敌人承伤后截断光路。每次持续命中附带寒冷，目标模型表面临时切换为深蓝脉动 Shader；2 级起每隔可调时间在当前已传播光路的首个存活敌人处产生一次圆形伤害/减速爆发，无命中时不空爆，3 级再追加冻结。表现保留较粗直线主轴，并由两条左右平移、持续传播且带平滑噪声的细正弦光丝夹住；波形只作用于渲染顶点。复制塔从镜像起点独立重算同一套光路、首个命中点和效果，并复用相同光丝表现。
 - **脉冲镭射塔**：保留旧激光塔的同时新增独立 `PULSE_LASER_TOWER`。固定朝向且无论有无敌人都按 `attacks_per_second` 周期开火；发射时瞬间固化整条可反射路径，渐入、保持、渐出均为线性可调。只在进入保持阶段的一瞬间按 `base_damage × level_factor × extra_factor` 结算；各反射光段独立无限穿透敌人，因此同一敌人可被不同光段多次命中。
 - **空中适用性与优先级**：每级 `affects_airborne` 统一控制箭塔候选、激光线段伤害、屏障阻挡与反伤是否作用于飞行敌人；`prioritizes_airborne` 在有效候选中先取空中分组，再应用最近/最远/血量/锁定等原优先级。箭塔与导弹塔正式三级全部启用，空中敌人进入范围会打断旧的对地锁定。
 - **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
@@ -27,7 +27,7 @@
 - **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；实例会先把可视底部中心自动接地，再保留当前等级 Scale。`projectile_model_asset` 则精确拟合到该级的子弹长度/宽度。未指定时继续使用 `tower_color/attack_color` 灰盒。
 - **卡片美术替换**：`BuildingDefinition.card_icon` 是程序镜面模式的可选透明建筑主体，不包含镜框、镜面、名称或费用。`full_card_art` 是原画卡面模式的独立完整卡面，可包含镜框、镜面和已烘焙名称但不能烘焙费用。BuildCardBar 默认程序化生成完整卡片；切换到原画模式后自动裁透明边、隐藏程序框和名称，只在建筑上方叠加实时费用。缺少对应素材时稳定回退程序镜面，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
-- **选中操作**：选择模式点中建筑后，在其地块上方投影出删除、升级、旋转三个悬浮按钮；点空格立即隐藏。升级满级时仅升级按钮禁用，旋转不消耗资源。键盘 `R` 按下立即旋转 10°，持续按住则按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
+- **选中操作**：选择模式点中建筑后，在其动作锚点左/上/右投影出说明、升级、出售三个同尺寸图标；升级与出售数字位于对应图标上方，满级隐藏升级项。键盘 `R` 和滚轮的 10° 旋转仍保留，持续按住 `R` 按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
 - **拆除退款**：主动拆除按当前等级动态累加 1 级建造费用和已经过等级的全部升级费用，100% 返还且无损失；不再配置独立退款数值。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
 - **关卡初始建筑**：`BuildingPlacementData` 保存 Definition、格/边、逻辑朝向和等级。`BuildingManager.export_initial_placements()` 只导出真实建筑；加载时不扣 `initial_resource`，但注册建筑上限、恢复产出并继续使用正常删除/升级/战斗规则。初始陈列属于作者数据，静态预检通过后不重复执行玩家封路守卫。
@@ -76,7 +76,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | Continuous Laser | `laser_beam_emission_energy` / `laser_propagation_speed` | 射线自发光强度与逻辑/表现共用传播速度（格/秒）。 |
 | Continuous Laser | `laser_slow_multiplier` | 寒冷期间的实际移速倍率；0.4 表示以 40% 速度移动。 |
 | Continuous Laser | `laser_slow_duration` | 离开光路或爆发后的寒冷保留时间。 |
-| Continuous Laser | `laser_burst_interval` / `laser_burst_radius` | 2/3 级终点爆发间隔与格数半径；间隔为 0 关闭爆发。 |
+| Continuous Laser | `laser_burst_interval` / `laser_burst_radius` | 2/3 级首敌爆发间隔与格数半径；间隔为 0 关闭爆发。 |
 | Continuous Laser | `laser_freeze_duration` | 3 级冻结时间；冻结期间暂停移动、攻击和寒冷倒计时。 |
 | Defense | `max_durability` | 屏障本级最大耐久；塔类忽略。 |
 | Defense | `regeneration_delay` | 受伤后进入回血所需的无伤秒数。 |
@@ -137,10 +137,10 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | `resources/buildings/Barrier.tres` | `BuildingDefinition` | 屏障三等级耐久、回血、反伤与经济参数。 |
 | `scripts/combat/ArrowAttackStrategy.gd` | `ArrowAttackStrategy` / `IAttackStrategy` | 单目标冷却、射程校验和投射物发射。 |
 | `scripts/combat/MaceAttackStrategy.gd` | `MaceAttackStrategy` / `IAttackStrategy` | 只做范围门控、冷却和四/八方向齐射，不选择目标。 |
-| `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 持续激光的寒冷结算、2/3 级终点爆发时钟与复制攻击事件。 |
+| `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 持续激光的寒冷结算、2/3 级首敌爆发时钟、反射倍率与复制攻击事件。 |
 | `scripts/combat/ContinuousLaserPath.gd` | `ContinuousLaserPath` / `RefCounted` | 按共享射程解算反射段、Stuff 交点、有限穿透和最终终点。 |
 | `scripts/combat/ContinuousLaserVisual.gd` | `ContinuousLaserVisual` / `Node3D` | 持续体积光主轴、双平移流动噪声正弦光丝、可调材质与可见终点。 |
-| `scripts/combat/LaserBurstEffect.gd` | `LaserBurstEffect` / `Node3D` | 终点爆发的冰蓝扩散环与闪光。 |
+| `scripts/combat/LaserBurstEffect.gd` | `LaserBurstEffect` / `Node3D` | 首敌爆发的冰蓝扩散环与闪光。 |
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 统一生命与不叠层寒冷/冻结状态、计时和基础视觉反馈。 |
 | `scripts/combat/PulseLaserAttackStrategy.gd` | `PulseLaserAttackStrategy` / `IAttackStrategy` | 无目标门控的固定朝向周期开火。 |
 | `scripts/combat/PulseLaserBeam.gd` | `PulseLaserBeam` / `Node3D` | 瞬时固化反射路径、独立光段伤害与线性粗细/亮度时序。 |

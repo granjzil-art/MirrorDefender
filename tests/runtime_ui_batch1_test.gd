@@ -90,6 +90,16 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	building_manager.arrow_tower.inspection_display.level_1_description = "一级效果。"
 	building_manager.arrow_tower.inspection_display.level_2_description = "二级效果。"
 	building_manager.arrow_tower.inspection_display.level_3_description = "三级效果。"
+	mirror_manager.copy_mirror_definition.inspection_display = InspectionDisplayConfigScript.new()
+	mirror_manager.copy_mirror_definition.inspection_display.function_description = "复制镜基础说明。"
+	mirror_manager.copy_mirror_definition.inspection_display.level_1_description = "复制镜一级效果。"
+	mirror_manager.copy_mirror_definition.inspection_display.level_2_description = "复制镜二级效果。"
+	mirror_manager.copy_mirror_definition.inspection_display.level_3_description = "复制镜三级效果。"
+	mirror_manager.reflect_mirror_definition.inspection_display = InspectionDisplayConfigScript.new()
+	mirror_manager.reflect_mirror_definition.inspection_display.function_description = "反射镜基础说明。"
+	mirror_manager.reflect_mirror_definition.inspection_display.level_1_description = "反射镜一级效果。"
+	mirror_manager.reflect_mirror_definition.inspection_display.level_2_description = "反射镜二级效果。"
+	mirror_manager.reflect_mirror_definition.inspection_display.level_3_description = "反射镜三级效果。"
 	card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
@@ -148,11 +158,31 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and reflect_mirror_cost_color.is_equal_approx(building_cost_color),
 		"both mirror costs use the same yellow as procedural building costs"
 	)
-	arrow_card.mouse_entered.emit()
+	var copy_mirror_card := configured_cards_row.get_node("MirrorCard") as Button
+	copy_mirror_card.mouse_entered.emit()
 	await process_frame
 	var description_panel := card_bar.get_node("CardDescriptionPanel") as PanelContainer
 	var description_title := card_bar.get_node("CardDescriptionPanel/Content/Title") as Label
 	var description_text := card_bar.get_node("CardDescriptionPanel/Content/Description") as Label
+	_expect(
+		description_panel.visible
+		and description_title.text == "%s · 说明" % mirror_manager.copy_mirror_definition.get_resolved_inspection_display_name()
+		and description_text.text == mirror_manager.copy_mirror_definition.get_formatted_inspection_description(),
+		"copy-mirror card hover uses the mirror definition's shared four-part description"
+	)
+	copy_mirror_card.mouse_exited.emit()
+	var reflect_mirror_card := configured_cards_row.get_node("ReflectMirrorCard") as Button
+	reflect_mirror_card.mouse_entered.emit()
+	await process_frame
+	_expect(
+		description_panel.visible
+		and description_title.text == "%s · 说明" % mirror_manager.reflect_mirror_definition.get_resolved_inspection_display_name()
+		and description_text.text == mirror_manager.reflect_mirror_definition.get_formatted_inspection_description(),
+		"reflect-mirror card hover uses its own editable four-part description"
+	)
+	reflect_mirror_card.mouse_exited.emit()
+	arrow_card.mouse_entered.emit()
+	await process_frame
 	_expect(description_panel.visible, "hovering a building card opens its description panel")
 	_expect(
 		description_title.text == "%s · 说明" % building_manager.arrow_tower.get_resolved_inspection_display_name()

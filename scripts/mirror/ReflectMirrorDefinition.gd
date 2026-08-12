@@ -13,6 +13,9 @@ extends MirrorDefinition
 
 func _init() -> void:
 	display_name = "反射镜"
+	upgrade_costs = [50.0, 50.0]
+	level_damage_multipliers = [1.1, 1.2, 1.2]
+	level_penetration_bonuses = [1, 2, 4]
 
 
 func validate_configuration() -> Array[String]:

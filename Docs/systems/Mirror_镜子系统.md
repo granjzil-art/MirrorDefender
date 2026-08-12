@@ -14,11 +14,11 @@
 4. 放置时需要通过建筑附近敌人、对应种类独立上限与当前放置模式校验。默认金币模式扣除该 Definition 的 `placement_cost`；可选冷却模式改用对应种类的可用数量。
 5. 镜子有正反两个生效面。`R` 只在两侧之间翻面，不改变所在物理边。
 6. 镜面所在边的直线是所有镜像计算的对称轴；点、方向和攻击线均使用同一套线反射公式。
-7. 镜子可被选中、翻面和删除；复制镜与反射镜都不参与升级、耐久、主动攻击或路径阻挡。
+7. 镜子可被选中、翻面、升级和出售；两种镜子均为三级。升级改变其复制/反射攻击的伤害倍率与额外穿透，但镜子仍不参与耐久、主动攻击或路径阻挡。
 8. 镜子本身永远不可复制，任何其他边建筑也不属于 M5 的整格复制内容。
 9. 放置复制镜前必须将候选镜加入当前稳定迭代，检查它导致的全部直接/递归障碍投影；任一受影响出生点失去到原目标据点的最后可达路线时拒绝放置。
-10. 正式默认 `placement_cooldown_enabled=false`：两种实体镜各自消耗 Definition 配置的金币费用，放置后无冷却，主动拆除不退费。开启兼容开关后才使用旧 `placement_cooldown_seconds` 和独立可用数量，并忽略金币费用。
-11. `MirrorPlacementData` 可把实体镜子的种类、物理边与生效侧保存为开局陈列；旧数据默认复制镜，数组顺序是重载时的镜链装配顺序。虚像始终由实体镜重新推导，禁止持久化。
+10. 正式默认 `placement_cooldown_enabled=false`：两种实体镜各自消耗 Definition 配置的金币费用，放置后无冷却；升级继续消耗金币，主动出售返还该运行时镜子实际累计支付的全部资源。开启兼容开关后才使用旧 `placement_cooldown_seconds` 和独立可用数量，并忽略放置金币费用。
+11. `MirrorPlacementData` 可把实体镜子的种类、物理边、生效侧与当前等级保存为开局陈列；旧数据默认复制镜一级，数组顺序是重载时的镜链装配顺序。虚像始终由实体镜重新推导，禁止持久化。
 
 ### 1.1 放置经济与可选冷却
 
@@ -26,6 +26,13 @@
 - `MainController.mirror_placement_cooldown_enabled=true` 时启用保留的冷却实现：开局加载初始陈列后，复制镜和反射镜各有 1 枚可用数量，并立即开始下一枚的累计周期；初始陈列不消耗数量。
 - 冷却模式的波次实际行动按 1.0 倍回复；首波前和波间按 `mirror_preparation_cooldown_time_scale` 回复。终局、无波次或暂停时不推进，0.1x/2x 速度自然影响回复。
 - 冷却模式可用数量为 0 时，卡槽显示下一枚的扫描；有库存时显示 `×数量`。某种镜子达到自己 cap 时只禁用该卡，另一种和后台库存累计不受影响。
+
+### 1.2 三级升级、说明与出售
+
+- `MirrorDefinition.upgrade_costs` 保存 1→2、2→3 两笔费用；两类默认均为 50。`level_damage_multipliers` 与 `level_penetration_bonuses` 分别按 1–3 级提供攻击修正。
+- 复制镜把自身等级修正累计进 `MirrorCopyPayload`：多面复制镜的伤害倍率相乘、额外穿透相加，并作用于复制投射物、持续激光和脉冲镭射。反射镜在每次有效反射时把当前级修正加入投射物/激光路径。
+- 每个实体镜只记录本局真实支付的建造和升级资源。金币模式放置会登记基础费用；冷却模式和关卡初始陈列的免费放置不登记基础费用；任何实际支付的升级费用都会登记。出售全额返还该累计值，避免免费镜产生金币套利；冷却模式另返还对应种类库存。
+- `inspection_display.function_description` 与 `level_1/2/3_description` 是镜子卡悬停和实体“说明”按钮的唯一文本事实源，统一格式为“基础描述 / 1级 / 2级 / 3级”。选中实体镜时，`MirrorActionPanel` 与建筑使用相同的左说明、上升级、右出售图标位置及 `-x/+x` 金色数字；`R` 翻面仍是独立快捷操作。
 
 ---
 
@@ -125,7 +132,7 @@
 
 ## 三、投射物反射镜 · ReflectMirror（已实现）
 
-1. 反射镜是独立镜子种类，与复制镜共享边权限、物理边占用、镜子 cap、镜框/实时镜面、预览、翻面、选中和删除规则；两者只共享数量上限，不共享冷却。
+1. 反射镜是独立镜子种类，与复制镜共享边权限、物理边占用、镜框/实时镜面、预览、翻面、选中、升级和出售流程；两者使用相互独立的数量上限与冷却/库存状态。
 2. 我方实体塔与复制塔投射物从生效侧命中有限镜面矩形时，按 `r = d - 2(d·n)n` 反射；切向分量保持、法线分量反号。背面保持穿过。
 3. 首次反射前实体塔普通追踪弹继续追踪原目标，复制塔普通投射物保持固定镜像终点；两者首次反射后变为直线弹道。导弹只在绕圈结束后进入镜面查询：反射只改向、不引爆；有标记的实体导弹下一帧仍可继续向原目标转向，无目标和投影导弹保持反射后直飞。
 4. 可经过任意多面反射镜；`max_reflections_per_frame` 只是防止极高速单帧循环的工作预算，不是生命周期反射次数上限，未完成距离会在下一帧继续。
@@ -134,6 +141,7 @@
 7. `MirrorManager` 同时聚合外部模块提供的有限反射面。当前亚克力展示柜四侧板注册为内向单面反射体；实体反射镜与柜板同时命中时只使用线段上最近者。顶板不参与。
 8. 建筑旋转弹道预览通过 Callable 只读复用 `MirrorManager.trace_projectile_reflection`；投射物、持续激光和脉冲镭射均按同一公式、最近有限交点和防重入偏移显示完整剩余射程，但不注册攻击、不查询敌人、不触发镜子玩法事件或伤害。复制镜仍不参与弹道反射，其投影只独立显示变换后的规划光路。
 9. 脉冲镭射在发射时同步计算整条路径。初始段为红，反射后按橙、黄、绿、青、蓝、紫推进，超过紫后循环回红；每段独立结算一次伤害，全部光段与防重入偏移共享一个 `attack_range` 总预算。
+10. 每次实体反射镜命中额外返回其当前等级的 `damage_multiplier` 与 `penetration_bonus`，由投射物、持续激光和脉冲镭射按各自路径累计规则消费。
 
 ---
 
@@ -142,18 +150,21 @@
 | 参数 | 当前正式资源值 | 归属 | 说明 |
 |---|---:|---|---|
 | `copy_mirror_cap` / `reflect_mirror_cap` | 5 / 10 | LevelResource / ResourceManager | 复制镜与反射镜的独立实体上限，投影不计数 |
-| `placement_cost` | 100 | CopyMirrorDefinition / ReflectMirrorDefinition | 默认金币模式的单次放置费用 |
+| `placement_cost` | 复制镜 100 / 反射镜 50 | CopyMirrorDefinition / ReflectMirrorDefinition | 默认金币模式的单次放置费用 |
+| `upgrade_costs` | `[50, 50]` | MirrorDefinition | 1→2 与 2→3 的升级费用；升级成功才登记到累计投入 |
+| `level_damage_multipliers` | 复制镜 `[1.0,1.1,1.2]` / 反射镜 `[1.1,1.2,1.2]` | MirrorDefinition | 每级复制/反射攻击伤害倍率 |
+| `level_penetration_bonuses` | 复制镜 `[0,1,2]` / 反射镜 `[1,2,4]` | MirrorDefinition | 每级复制/反射攻击额外穿透 |
 | `mirror_placement_cooldown_enabled` | false | MainController | 开启时忽略放置费用并恢复旧冷却/库存模式 |
 | `placement_cooldown_seconds` | 15.0 秒 | CopyMirrorDefinition / ReflectMirrorDefinition | 该种镜子每累加 1 枚可用数量所需的独立周期；两类可分别配置 |
 | `mirror_preparation_cooldown_time_scale` | 0.5 | MainController | 首波前与波间准备阶段的冷却回复倍率；波内固定 1.0 |
 | `card_icon` | 空 | CopyMirrorDefinition | M6 独立复制镜卡片图；为空时使用“镜”字灰盒。 |
-| `inspection_display` | 独立配置 | CopyMirrorDefinition | 复制镜在右侧详情中的对象开关、显示名称、功能说明与字段开关。 |
+| `inspection_display` | 两种镜子各自独立配置 | MirrorDefinition | 右侧详情开关、显示名称、基础说明，以及卡悬停/实体说明共用的 1–3 级文本。 |
 | `mirror_height_ratio` | 2.00 格 | CopyMirrorDefinition | 镜框、实时镜面和操作锚点共用高度 |
 | `projection_ignores_occupancy` | true | CopyMirrorDefinition | 投影是否忽略实体/投影占位并允许叠加 |
 | `copy_chain_max` | 6 | CopyMirrorDefinition | 最大镜链深度 |
 | `reflection_enabled` | true | CopyMirrorDefinition | 是否启用复制镜生效面的实时世界反射 |
 | `reflection_two_sided_visual` | false | CopyMirrorDefinition | 是否让同一反射面根据观察者所在侧切换实体表面；当前资源只显示玩法生效侧 |
-| `reflection_surface_offset_ratio` | 0.78 | CopyMirrorDefinition | 镜面相对镜体厚度的外推比例；大于半厚度以避免远距离深度遮挡 |
+| `reflection_surface_offset_ratio` | 1.00 | CopyMirrorDefinition | 镜面相对镜体厚度的外推比例；大于半厚度以避免远距离深度遮挡 |
 | `reflection_resolution` | 512 | CopyMirrorDefinition | 正式镜面的水平渲染分辨率 |
 | `reflection_preview_resolution` | 256 | CopyMirrorDefinition | 放置预览镜面的水平渲染分辨率 |
 | `reflection_update_interval_frames` | 2 | CopyMirrorDefinition | 同一调度轮次的帧间隔 |
@@ -186,7 +197,7 @@ EdgeOccupancyRegistry
   └─ 统一登记实体边建筑，供 BuildingManager / MirrorManager 查询
 
 MirrorManager
-  ├─ 放置、翻面、删除、选择与预览
+  ├─ 放置、翻面、升级、出售、选择与预览
   ├─ 沿法线扫描最近源格
   ├─ 固定点迭代生成有限镜链
   └─ 向战斗、阻挡、导航、地块效果暴露只读投影查询
@@ -197,7 +208,7 @@ Placement connectivity
   -> PathPlacementConnectivityGuard 只消费障碍格集，MirrorManager 不持有路网
 
 CopyMirror
-  ├─ edge_id / from_cell / to_cell / active_side
+  ├─ edge_id / from_cell / to_cell / active_side / level / invested_resource
   └─ MirrorReflectionView（共享世界屏幕对齐反射，单视口按观察侧切换镜面）
 
 MirrorProjection
@@ -222,25 +233,27 @@ MirrorProjection
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
 | `scripts/shared/EdgeOccupancyRegistry.gd` | `EdgeOccupancyRegistry` / `RefCounted` | 镜子、边屏障共用的规范化物理边占用表。 |
-| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置费用、保留冷却、放置方向和实时镜面表现契约。 |
+| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置/升级经济、三级战斗修正、四段说明、放置方向和实时镜面表现契约。 |
 | `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `MirrorDefinition` | 复制链深、占位开关与虚像表现参数，并复用镜子基础配置校验。 |
-| `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧和程序化表现。 |
+| `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧、等级、累计真实投入和程序化表现。 |
 | `scripts/mirror/ReflectMirrorDefinition.gd` | `ReflectMirrorDefinition` / `MirrorDefinition` | 投射物反射防重入偏移和单帧工作预算。 |
 | `scripts/mirror/ReflectMirror.gd` | `ReflectMirror` / `CopyMirror` | 复用实体镜表现但只向弹道查询注册为反射镜。 |
-| `scripts/mirror/MirrorPlacementData.gd` | `MirrorPlacementData` / `Resource` | 一个开局实体镜子的种类、起始格、边方向与生效侧。 |
+| `scripts/mirror/MirrorPlacementData.gd` | `MirrorPlacementData` / `Resource` | 一个开局实体镜子的种类、起始格、边方向、生效侧与等级。 |
 | `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、屏幕对齐反射与反射相机横向手性补偿。 |
 | `scripts/mirror/MirrorCopyPayload.gd` | `MirrorCopyPayload` / `RefCounted` | 稳定来源、镜子谱系和复合反射变换。 |
 | `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、源模型实时姿态同步、稳定透明渲染顺序、严格反射、屏障与地块效果代理。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点或从起点直射投射物。 |
-| `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、预览、固定点镜链和跨模块查询。 |
+| `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、升级、出售、预览、固定点镜链和跨模块查询。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 镜像石头最终转发到的真实逐格耐久源。 |
-| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子的删除/翻面按钮。 |
+| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子，以建筑一致布局显示说明、升级、出售和经济数字。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
 | `tests/copy_mirror_test.gd` | `SceneTree` | 整格复制、虚像攻击、屏障/Stuff 共享根源、递归镜链与复制镭射回归。 |
 | `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制投射物与脉冲镭射总路程回归。 |
-| `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 68项：默认金币放置、失败事务、删除不退费、独立 5/10 cap，以及开关后的两类独立冷却、库存、拆除返还、阶段倍率、卡片扫描、正式资源与 Level2 初始装配回归。 |
+| `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 默认金币放置、失败事务、实际投入全退、独立 5/10 cap，以及开关后的两类独立冷却、库存、阶段倍率、卡片扫描、正式资源与初始装配回归。 |
+| `tests/mirror_upgrade_test.gd` | `SceneTree` | 40 项三级配置、复制链/反射攻击修正、升级经济、说明/升级/出售 UI、满级状态、退款和等级持久化回归。 |
+| `tests/mirror_ui_visual_capture.gd` | `SceneTree` | 手工 Forward+ 截取镜子卡悬停四段说明与选中镜子三图标布局。 |
 
 ## 六、函数索引
 
@@ -249,9 +262,10 @@ MirrorProjection
 | `GridManager.get_mirror_cell_pair` | `(from_cell, edge_index, active_from_side, distance_from_edge) -> Dictionary` | 在 Grid 内封装四/六边形法线源格/目标格对。 |
 | `MirrorManager.place_copy_mirror` | `(from_cell, edge_index, active_from_side = null) -> CopyMirror` | 完成校验、共享边登记、消耗 1 枚复制镜库存并重建投影。 |
 | `MirrorManager.place_reflect_mirror` | `(from_cell: Vector3i, edge_index: int, active_from_side: Variant = null) -> ReflectMirror` | 按同一物理边规则放置投射物反射镜并消耗其独立库存；不参与复制连通性计算。 |
-| `MirrorManager.remove_mirror` | `(mirror: CopyMirror) -> bool` | 主动拆除实体镜并释放该种类 cap；金币模式不退费，冷却模式立即返还同种镜子 1 枚库存。 |
-| `MirrorManager.export_initial_placements` | `() -> Array[MirrorPlacementData]` | 按实体镜 `placement_order` 导出初始镜面陈列，不包含投影。 |
-| `MirrorManager.load_initial_placements` | `(placements: Array) -> Array[String]` | 按数组顺序免建造费恢复实体镜、登记共享边并计入镜子 cap。 |
+| `MirrorManager.upgrade_mirror` | `(mirror: CopyMirror) -> bool` | 原子扣除下一等级费用、登记累计投入、提升等级并立即重建复制/反射效果。 |
+| `MirrorManager.remove_mirror` | `(mirror: CopyMirror) -> bool` | 主动出售实体镜、释放该种类 cap并返还其真实累计投入；冷却模式另返还同种镜子 1 枚库存。 |
+| `MirrorManager.export_initial_placements` | `() -> Array[MirrorPlacementData]` | 按实体镜 `placement_order` 导出种类、边、生效侧与等级，不包含投影。 |
+| `MirrorManager.load_initial_placements` | `(placements: Array) -> Array[String]` | 按数组顺序免建造费恢复实体镜等级、登记共享边并计入镜子 cap。 |
 | `MirrorManager.validate_placement` | `(from_cell: Vector3i, edge_index: int, check_runtime_availability: bool = true, mirror_kind: MirrorPlacementData.MirrorKind = COPY) -> Dictionary` | 按具体镜子 Definition 返回边界、权限、占用、敌人、金币/冷却和独立数量上限校验结果。 |
 | `MirrorManager.set_placement_cooldown_enabled` | `(value: bool) -> void` | 在金币无冷却与保留的独立冷却/库存模式之间切换。 |
 | `MirrorManager.set_cooldown_time_scale_resolver` | `(value: Callable) -> void` | 注入波次阶段倍率，保持镜子模块不直接依赖 WaveManager。 |
@@ -259,7 +273,8 @@ MirrorProjection
 | `MirrorManager.reset_placement_cooldowns` | `() -> void` | 关卡初始陈列/切关时把两种库存重置为各 1 枚，并开始下一周期。 |
 | `MirrorManager.get_available_mirror_count` | `(mirror_kind) -> int` | 返回对应种类当前可连续放置的库存数量。 |
 | `MirrorManager.is_mirror_kind_ready` / `get_placement_cooldown_ready_ratio` | `(mirror_kind) -> bool` / `(mirror_kind) -> float` | 以库存判定可放置；库存为 0 时为卡片扫描提供下一枚的恢复进度。 |
-| `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、放置冷却、链深、镜面预算、颜色与全部虚像表现范围。 |
+| `MirrorDefinition.get_formatted_inspection_description` | `() -> String` | 返回镜子卡悬停与实体说明共用的基础/三级格式化文本。 |
+| `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、放置/升级经济、三级战斗修正、链深、镜面预算、颜色与全部虚像表现范围。 |
 | `MirrorManager.rebuild_now` | `() -> void` | 从实体来源计算稳定有限镜链并重建投影覆盖层。 |
 | `MirrorManager.refresh_world_transforms` | `() -> void` | Terrain变化后重采样实体/预览镜的物理边坡高，再重建投影；不改变镜面陈列顺序。 |
 | `MirrorManager.get_projected_effects` | `(cell) -> Array[TileEffect]` | 向 TileEffectSystem 提供同格可叠加效果。 |
@@ -272,7 +287,7 @@ MirrorProjection
 | `MirrorManager.register_projectile_reflection_provider` | `(owner: Object, resolver: Callable) -> bool` | 注册镜子模块外的有限反射面查询，以弱 owner 管理生命周期。 |
 | `MirrorManager.unregister_projectile_reflection_provider` | `(owner: Object) -> void` | 注销指定模块的外部反射查询。 |
 | `MirrorManager.get_projectile_reflection_provider_count` | `() -> int` | 清理失效提供者并返回当前外部查询数量。 |
-| `MirrorManager.trace_projectile_reflection` | `(start: Vector3, end: Vector3) -> Dictionary` | 比较实体反射镜与外部提供者并返回最近有限交点；键为 `{hit, position, normal, distance, mirror, reflector, surface_id, epsilon, max_reflections_per_frame}`。 |
+| `MirrorManager.trace_projectile_reflection` | `(start: Vector3, end: Vector3) -> Dictionary` | 比较实体反射镜与外部提供者并返回最近有限交点；键为 `{hit, position, normal, distance, mirror, reflector, surface_id, epsilon, max_reflections_per_frame, damage_multiplier, penetration_bonus}`。 |
 | `MirrorManager.trace_ballistic_blocker` | `(start: Vector3, end: Vector3, excluded: Object = null) -> Dictionary` | 比较实体与投影 Stuff 的统一球形交点，返回最近吸收体。 |
 | `MirrorManager._on_copy_attack_triggered` | `(building: Building, attack_kind: StringName, world_start: Vector3, world_end: Vector3, damage: float) -> void` | 把实体攻击复合镜像到每个投影；`missile/directional_missile` 分支创建镜像朝向的独立爆炸导弹。 |
 | `MirrorManager.projections_rebuilt` | `(count: int)` | 镜面/投影几何重建完成；Main 用它刷新已选建筑的只读弹道预览，使镜子放置、翻面和移除不会留下旧路径。 |
@@ -282,7 +297,7 @@ MirrorProjection
 | `MirrorManager.set_reflection_camera` | `(camera: Camera3D) -> void` | 注入主相机并为已有/预览镜面建立共享世界反射。 |
 | `MirrorManager.set_tile_visual_snapshot_resolver` | `(resolver: Callable) -> void` | 注入不含地形基底的地块内容快照工厂，保持 Mirror/Tile 模块边界。 |
 | `MirrorManager.set_inspected_cell` | `(cell: Variant = null) -> void` | 切换同格虚像悬停标签，不移动任何虚像几何。 |
-| `MirrorCopyPayload.copy_through` | `(mirror_id, target_cell, axis_start, axis_end) -> MirrorCopyPayload` | 追加谱系与镜像轴，产生下一层不可变语义 payload。 |
+| `MirrorCopyPayload.copy_through` | `(mirror_id, target_cell, axis_start, axis_end, mirror_damage_multiplier = 1.0, mirror_penetration_bonus = 0) -> MirrorCopyPayload` | 追加谱系与镜像轴，并累计该镜等级的伤害倍率与穿透加成。 |
 | `MirrorCopyPayload.transform_point` | `(point) -> Vector3` | 按谱系顺序应用复合镜像，供同步攻击使用。 |
 | `MirrorCopyPayload.get_composed_transform` / `transform_transform` | `() -> Transform3D` / `(source_transform: Transform3D) -> Transform3D` | 把点反射谱系组合为仿射变换，并严格作用到源视觉姿态。 |
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |

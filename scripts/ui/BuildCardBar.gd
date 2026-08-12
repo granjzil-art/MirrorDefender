@@ -61,7 +61,7 @@ var _status_label: Label
 var _card_description_panel: PanelContainer
 var _card_description_title: Label
 var _card_description_text: Label
-var _hovered_building_button: Button
+var _hovered_card_button: Button
 var _selected_definition: BuildingDefinition
 var _mirror_selected: bool = false
 var _reflect_mirror_selected: bool = false
@@ -285,6 +285,11 @@ func _rebuild_cards() -> void:
 	_mirror_button.name = "MirrorCard"
 	_mirror_cooldown_sweep = _mirror_button.get_node("CooldownSweep") as Node
 	_mirror_button.pressed.connect(_on_mirror_pressed)
+	if _mirror_definition != null:
+		_mirror_button.mouse_entered.connect(
+			_on_mirror_card_mouse_entered.bind(_mirror_button, _mirror_definition)
+		)
+		_mirror_button.mouse_exited.connect(_on_card_mouse_exited.bind(_mirror_button))
 	_cards_row.add_child(_mirror_button)
 	if _reflect_mirror_definition != null:
 		_reflect_mirror_button = _create_card_button(
@@ -296,6 +301,15 @@ func _rebuild_cards() -> void:
 		_reflect_mirror_button.name = "ReflectMirrorCard"
 		_reflect_mirror_cooldown_sweep = _reflect_mirror_button.get_node("CooldownSweep") as Node
 		_reflect_mirror_button.pressed.connect(_on_reflect_mirror_pressed)
+		_reflect_mirror_button.mouse_entered.connect(
+			_on_mirror_card_mouse_entered.bind(
+				_reflect_mirror_button,
+				_reflect_mirror_definition
+			)
+		)
+		_reflect_mirror_button.mouse_exited.connect(
+			_on_card_mouse_exited.bind(_reflect_mirror_button)
+		)
 		_cards_row.add_child(_reflect_mirror_button)
 	else:
 		_reflect_mirror_button = null
@@ -319,7 +333,7 @@ func _rebuild_cards() -> void:
 			button.name = "BuildingCard%d" % (index + 1)
 			button.pressed.connect(_on_building_pressed.bind(definition))
 			button.mouse_entered.connect(_on_building_card_mouse_entered.bind(button, definition))
-			button.mouse_exited.connect(_on_building_card_mouse_exited.bind(button))
+			button.mouse_exited.connect(_on_card_mouse_exited.bind(button))
 			_cards_row.add_child(button)
 			_building_buttons[definition] = button
 		else:
@@ -383,7 +397,7 @@ func _create_card_button(
 	button.clip_contents = true
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.tooltip_text = "%s · 放置冷却" % display_name if is_mirror else ""
+	button.tooltip_text = ""
 
 	var mirror_surface := _create_mirror_surface()
 	button.add_child(mirror_surface)
@@ -771,20 +785,45 @@ func _on_building_card_mouse_entered(
 ) -> void:
 	if button == null or definition == null or _card_description_panel == null:
 		return
-	_hovered_building_button = button
-	_card_description_title.text = "%s · 说明" % definition.get_resolved_inspection_display_name()
-	_card_description_text.text = definition.get_formatted_inspection_description()
+	_show_card_description(
+		button,
+		definition.get_resolved_inspection_display_name(),
+		definition.get_formatted_inspection_description()
+	)
+
+
+func _on_mirror_card_mouse_entered(
+	button: Button,
+	definition: MirrorDefinition
+) -> void:
+	if button == null or definition == null or _card_description_panel == null:
+		return
+	_show_card_description(
+		button,
+		definition.get_resolved_inspection_display_name(),
+		definition.get_formatted_inspection_description()
+	)
+
+
+func _show_card_description(
+	button: Button,
+	display_name: String,
+	formatted_description: String
+) -> void:
+	_hovered_card_button = button
+	_card_description_title.text = "%s · 说明" % display_name
+	_card_description_text.text = formatted_description
 	_card_description_panel.visible = true
 	_position_card_description()
 
 
-func _on_building_card_mouse_exited(button: Button) -> void:
-	if _hovered_building_button == button:
+func _on_card_mouse_exited(button: Button) -> void:
+	if _hovered_card_button == button:
 		_hide_card_description()
 
 
 func _hide_card_description() -> void:
-	_hovered_building_button = null
+	_hovered_card_button = null
 	if _card_description_panel != null:
 		_card_description_panel.visible = false
 
@@ -792,13 +831,13 @@ func _hide_card_description() -> void:
 func _position_card_description() -> void:
 	if (
 		_card_description_panel == null
-		or _hovered_building_button == null
-		or not is_instance_valid(_hovered_building_button)
-		or not _hovered_building_button.is_inside_tree()
+		or _hovered_card_button == null
+		or not is_instance_valid(_hovered_card_button)
+		or not _hovered_card_button.is_inside_tree()
 	):
 		_hide_card_description()
 		return
-	var button_rect := _hovered_building_button.get_global_rect()
+	var button_rect := _hovered_card_button.get_global_rect()
 	var bar_origin := get_global_rect().position
 	var panel_size := _card_description_panel.size
 	_card_description_panel.position = Vector2(

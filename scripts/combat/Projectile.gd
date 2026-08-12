@@ -236,6 +236,7 @@ func _advance(travel_budget: float) -> void:
 			remaining = 0.0
 			break
 		ReflectionDamageScript.apply(mirror_hit, _damage)
+		_apply_reflection_modifiers(mirror_hit)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
 		if reflecting_target != null and is_instance_valid(reflecting_target):
 			_contact_targets[reflecting_target.get_instance_id()] = reflecting_target
@@ -256,6 +257,21 @@ func _advance(travel_budget: float) -> void:
 		if reflections_this_frame >= frame_cap:
 			break
 	_update_orientation(_direction)
+
+
+func _apply_reflection_modifiers(reflection_hit: Dictionary) -> void:
+	var damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
+	if is_finite(damage_multiplier):
+		_damage *= maxf(0.0, damage_multiplier)
+	_penetration_limit += maxi(0, int(reflection_hit.get("penetration_bonus", 0)))
+
+
+func debug_get_damage() -> float:
+	return _damage
+
+
+func debug_get_remaining_penetration() -> int:
+	return maxi(0, _penetration_limit - _penetration_value)
 
 
 func _query_reflection(start: Vector3, end: Vector3) -> Dictionary:

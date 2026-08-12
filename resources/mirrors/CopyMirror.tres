@@ -9,6 +9,9 @@ script = ExtResource("2_inspection")
 visible = false
 display_name = "复制镜"
 function_description = "复制镜面法线方向最近非空地块上的全部对象到对称位置。"
+level_1_description = ""
+level_2_description = ""
+level_3_description = ""
 
 [resource]
 script = ExtResource("1_definition")

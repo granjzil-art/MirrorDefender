@@ -16,6 +16,7 @@ var edge_index: int = -1
 var edge_id: String = ""
 var active_from_side: bool = true
 var placement_order: int = 0
+var level: int = 1
 var preview_mode: bool = false
 var _invested_resource: float = 0.0
 
@@ -48,6 +49,7 @@ func configure(
 	_tile_manager = tile_manager
 	active_from_side = p_active_from_side
 	preview_mode = p_preview_mode
+	level = 1
 	_invested_resource = 0.0
 	_update_transform()
 	_build_visual()
@@ -112,6 +114,29 @@ func is_copy_mirror() -> bool:
 func is_projectile_reflector() -> bool:
 	return false
 
+
+func can_upgrade() -> bool:
+	return definition != null and level < definition.get_max_level()
+
+
+func get_upgrade_cost() -> float:
+	return definition.get_upgrade_cost(level) if definition != null and can_upgrade() else 0.0
+
+
+func set_level(value: int) -> bool:
+	if definition == null or value < 1 or value > definition.get_max_level():
+		return false
+	level = value
+	return true
+
+
+func get_damage_multiplier() -> float:
+	return definition.get_damage_multiplier(level) if definition != null else 1.0
+
+
+func get_penetration_bonus() -> int:
+	return definition.get_penetration_bonus(level) if definition != null else 0
+
 func get_axis_endpoints() -> Array[Vector3]:
 	return _grid.get_edge_endpoints(from_cell, edge_index) if _grid != null else []
 
@@ -157,6 +182,13 @@ func _record_investment(amount: float) -> bool:
 	if not is_finite(updated_total):
 		return false
 	_invested_resource = updated_total
+	return true
+
+
+func _rollback_investment(amount: float) -> bool:
+	if not is_finite(amount) or amount <= 0.0 or amount > _invested_resource:
+		return false
+	_invested_resource -= amount
 	return true
 
 

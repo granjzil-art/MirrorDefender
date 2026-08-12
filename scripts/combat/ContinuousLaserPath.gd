@@ -30,6 +30,8 @@ static func trace(
 		"reflections": reflections,
 		"endpoint": start,
 		"termination": &"none",
+		"damage_multiplier": 1.0,
+		"penetration_limit": maxi(0, penetration_count),
 	}
 	if (
 		combat_manager == null
@@ -123,6 +125,14 @@ static func trace(
 			break
 		normal = normal.normalized()
 		reflections.append(reflection_hit.duplicate())
+		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
+		if is_finite(reflection_damage_multiplier):
+			result["damage_multiplier"] = (
+				float(result["damage_multiplier"])
+				* maxf(0.0, reflection_damage_multiplier)
+			)
+		resolved_penetration_count += maxi(0, int(reflection_hit.get("penetration_bonus", 0)))
+		result["penetration_limit"] = resolved_penetration_count
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
 		previous_reflector = terminal_reflector

@@ -113,6 +113,10 @@ func debug_get_visual_factor() -> float:
 	return _visual_factor
 
 
+func debug_get_damage() -> float:
+	return _damage
+
+
 func _trace_path(
 	start: Vector3,
 	direction_value: Vector3,
@@ -171,6 +175,9 @@ func _trace_path(
 			var reflected_segment: Dictionary = _segments[_segments.size() - 1]
 			reflected_segment["reflection_hit"] = reflection_hit.duplicate()
 			_segments[_segments.size() - 1] = reflected_segment
+		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
+		if is_finite(reflection_damage_multiplier):
+			_damage *= maxf(0.0, reflection_damage_multiplier)
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
 		previous_reflector = terminal_reflector

@@ -365,6 +365,9 @@ func _advance_flight(travel_budget: float) -> void:
 			remaining = 0.0
 			break
 		MissileReflectionDamageScript.apply(reflection_hit, _damage)
+		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
+		if is_finite(reflection_damage_multiplier):
+			_damage *= maxf(0.0, reflection_damage_multiplier)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
 		_has_reflected = true
 		reflections_this_frame += 1

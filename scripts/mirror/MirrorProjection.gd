@@ -30,6 +30,9 @@ var _laser_endpoint_position: Vector3 = Vector3.ZERO
 var _laser_segments: Array = []
 var _laser_has_basis: bool = false
 var _laser_has_endpoint: bool = false
+var _laser_reflection_damage_multiplier: float = 1.0
+var _laser_burst_position: Vector3 = Vector3.ZERO
+var _laser_has_burst_target: bool = false
 var _inspection_label: Label3D
 var _stack_indicator: MeshInstance3D
 
@@ -228,8 +231,28 @@ func get_laser_endpoint(fallback: Vector3) -> Vector3:
 	return _laser_endpoint_position if _laser_has_endpoint else fallback
 
 
+func set_laser_burst_target(value: Dictionary) -> void:
+	_laser_has_burst_target = bool(value.get("hit", false))
+	_laser_burst_position = value.get("position", Vector3.ZERO)
+
+
+func get_laser_burst_target() -> Dictionary:
+	return {
+		"hit": _laser_has_burst_target,
+		"position": _laser_burst_position,
+	}
+
+
 func get_laser_propagation_distance() -> float:
 	return _laser_propagation_distance
+
+
+func set_laser_reflection_damage_multiplier(value: float) -> void:
+	_laser_reflection_damage_multiplier = maxf(0.0, value) if is_finite(value) else 1.0
+
+
+func get_laser_reflection_damage_multiplier() -> float:
+	return _laser_reflection_damage_multiplier
 
 
 func get_laser_propagation_state() -> Dictionary:
@@ -241,6 +264,9 @@ func get_laser_propagation_state() -> Dictionary:
 		"segments": _laser_segments.duplicate(true),
 		"has_basis": _laser_has_basis,
 		"has_endpoint": _laser_has_endpoint,
+		"reflection_damage_multiplier": _laser_reflection_damage_multiplier,
+		"burst_position": _laser_burst_position,
+		"has_burst_target": _laser_has_burst_target,
 	}
 
 
@@ -252,6 +278,9 @@ func restore_laser_propagation_state(state: Dictionary) -> void:
 	_laser_segments = state.get("segments", []).duplicate(true)
 	_laser_has_basis = bool(state.get("has_basis", false))
 	_laser_has_endpoint = bool(state.get("has_endpoint", false))
+	set_laser_reflection_damage_multiplier(float(state.get("reflection_damage_multiplier", 1.0)))
+	_laser_burst_position = state.get("burst_position", Vector3.ZERO)
+	_laser_has_burst_target = bool(state.get("has_burst_target", false))
 	if _laser_has_endpoint and _laser_visual != null:
 		_laser_visual.show_path(_laser_segments, _laser_endpoint_position)
 
@@ -264,6 +293,9 @@ func reset_laser_propagation() -> void:
 	_laser_segments.clear()
 	_laser_has_basis = false
 	_laser_has_endpoint = false
+	_laser_reflection_damage_multiplier = 1.0
+	_laser_burst_position = Vector3.ZERO
+	_laser_has_burst_target = false
 	if _laser_visual != null:
 		_laser_visual.clear_path()
 

@@ -14,6 +14,7 @@ class TestLaserBuilding:
 	var last_endpoint: Vector3 = Vector3.ZERO
 	var propagation_speed: float = 4.0
 	var penetration_count: int = 8
+	var laser_dps: float = 10.0
 
 	func get_combat_manager() -> CombatManager:
 		return combat_manager
@@ -31,7 +32,7 @@ class TestLaserBuilding:
 		return penetration_count
 
 	func get_laser_damage_per_second() -> float:
-		return 10.0
+		return laser_dps
 
 	func get_laser_propagation_speed_world() -> float:
 		return propagation_speed
@@ -134,7 +135,7 @@ func _test_production_configuration() -> void:
 		and is_equal_approx(level_two.laser_burst_interval, 3.0)
 		and is_equal_approx(level_two.laser_burst_radius, 1.0)
 		and level_two.base_damage > 0.0,
-		"level 2 configures a damaging three-second one-cell endpoint burst"
+		"level 2 configures a damaging three-second one-cell first-hit burst"
 	)
 	_expect(
 		level_three != null and is_equal_approx(level_three.laser_freeze_duration, 3.0),
@@ -403,21 +404,35 @@ func _test_burst_timing_and_freeze_resume() -> void:
 	var building := TestLaserBuilding.new()
 	host.add_child(building)
 	building.combat_manager = combat
-	var target := _spawn_target(combat, Vector3(4.0, 0.0, 0.8))
+	building.laser_dps = 0.0
+	var empty_strategy := LaserAttackStrategy.new()
+	empty_strategy.tick(building, 3.0)
+	_expect(_find_burst_visual(combat) == null, "burst does not fall back to the endpoint when no enemy is hit")
+	building.burst_notifications = 0
+	var target := _spawn_target(combat, Vector3(2.0, 0.0, 0.0))
+	var endpoint_target := _spawn_target(combat, Vector3(4.0, 0.0, 0.0))
 	var strategy := LaserAttackStrategy.new()
 	strategy.tick(building, 2.9)
 	_expect(is_equal_approx(target.current_hp, 100.0) and building.burst_notifications == 0, "level 2 waits for the complete burst interval")
 	strategy.tick(building, 0.1)
-	_expect(is_equal_approx(target.current_hp, 85.0) and building.burst_notifications == 1, "endpoint burst deals one-time damage and notifies copies")
+	_expect(is_equal_approx(target.current_hp, 85.0) and building.burst_notifications == 1, "first-hit burst deals one-time damage and notifies copies")
+	_expect(is_equal_approx(endpoint_target.current_hp, 100.0), "burst no longer uses the laser endpoint")
 	_expect(target.is_movement_slowed() and not target.is_frozen(), "level 2 burst applies the normal cold effect without freezing")
+	var first_hit_visual := _find_burst_visual(combat)
+	_expect(
+		first_hit_visual != null
+		and is_equal_approx(first_hit_visual.global_position.x, target.get_target_position().x)
+		and is_equal_approx(first_hit_visual.global_position.z, target.get_target_position().z),
+		"burst visual is centered on the first enemy hit by the beam"
+	)
 	building.level = 3
-	LaserAttackStrategy.apply_endpoint_burst(building, combat, Vector3(4.0, 0.0, 0.0), false)
-	_expect(target.is_frozen(), "level 3 endpoint burst freezes enemies in its circle")
+	LaserAttackStrategy.apply_endpoint_burst(building, combat, target.get_target_position(), false)
+	_expect(target.is_frozen(), "level 3 first-hit burst freezes enemies in its circle")
 	var freeze_visual := target.get_node_or_null("FrozenShellVisual") as MeshInstance3D
 	_expect(freeze_visual != null and freeze_visual.visible, "freeze enables its visible ice shell")
 	target._process(3.0)
 	_expect(not target.is_frozen() and target.is_movement_slowed(), "slow duration is preserved while frozen and resumes after thawing")
-	_expect(_find_burst_visual(combat) != null, "endpoint burst creates the expanding visual effect")
+	_expect(_find_burst_visual(combat) != null, "first-hit burst creates the expanding visual effect")
 	host.queue_free()
 
 

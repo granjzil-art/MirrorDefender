@@ -11,13 +11,13 @@
 - **统一公式**：`DamageCalculator.compute(base, level_factor, extra_factor)`，三个乘区均取非负值。
 - **单发伤害**：读取当前级 `base_damage`，发射前计算最终伤害，但只在 Projectile 命中存活目标时调用 `take_damage()`。飞行期间目标不掉血。
 - **持续激光**：读取当前级 `laser_dps`，用 `take_damage_over_time(final_dps, delta)` 结算帧率无关的持续伤害。光路以 `laser_propagation_speed` 从塔身逐步增长，只对已传播到的路径结算命中；复用投射物反射查询，所有反射段共享一个 `attack_range` 路程预算；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，第 N+1 个敌人承伤后成为终点。硬阻挡会把传播前沿锁回真实交点，阻挡消失后从该位置继续增长。主轴两侧的流动噪声正弦光丝是纯顶点表现，不参与这些查询。
-- **寒冷与冻结**：持续光路命中和终点爆发都施加当前级同一组减速倍率/时长。同类减速不叠乘，取更强倍率并刷新时间；冻结暂停移动与攻击，减速剩余时间在冻结期间暂停，解冻后继续。寒冷期间模型全部表面临时使用深蓝脉动 Shader，结束后恢复各网格原 `material_override`；不再生成脚下蓝色圆环，冻结冰壳仍独立保留。
-- **终点爆发**：2 级起按 `laser_burst_interval` 在当前传播前沿发生半径 `laser_burst_radius` 的圆形爆发，使用 `base_damage × level_factor × extra_factor` 结算一次伤害并施加普通寒冷；3 级再追加 `laser_freeze_duration` 冻结。
+- **寒冷与冻结**：持续光路命中和首敌爆发都施加当前级同一组减速倍率/时长。同类减速不叠乘，取更强倍率并刷新时间；冻结暂停移动与攻击，减速剩余时间在冻结期间暂停，解冻后继续。寒冷期间模型全部表面临时使用深蓝脉动 Shader，结束后恢复各网格原 `material_override`；不再生成脚下蓝色圆环，冻结冰壳仍独立保留。
+- **首敌爆发**：2 级起按 `laser_burst_interval` 在当前已传播光路中首个存活敌人的目标中心发生半径 `laser_burst_radius` 的圆形爆发，使用 `base_damage × level_factor × extra_factor` 结算一次伤害并施加普通寒冷；3 级再追加 `laser_freeze_duration` 冻结。当前光路没有命中敌人时只维持计时/复制通知，不在传播终点空爆。
 - **脉冲镭射**：`PulseLaserAttackStrategy` 不索敌，按 `attacks_per_second` 固定周期发射。`PulseLaserBeam` 在生成当下计算完整反射/阻挡路径；粗细和亮度按渐入、保持、渐出线性变化。伤害只在进入保持阶段的瞬间结算一次，且每个反射段独立查询全部路径目标。
 - **索敌范围**：箭塔仅从 `targeting_range` 内建立候选并应用优先级。
 - **攻击范围**：所选目标必须在独立的 `attack_range` 内才会发射；投射物最大飞行距离也使用该范围。激光用它作为线段长度。
 - **投射物表现**：建筑、敌人与复制体投射物均可读取 `ModelAssetDefinition`；模型可视包围盒会精确拟合到 `visual_length/visual_width`，不再依赖资产根 Transform 或旧 Scale 校尺寸。为空或非法时使用同尺寸 BoxMesh 短直线回退；复制体沿用源建筑当前等级投射物资产并叠加虚像发光层。
-- **投射物跟踪与反射**：首次命中反射面之前保持原追踪行为；命中反射镜生效面或亚克力柜内侧面后用 `r = d - 2(d·n)n` 转为直线弹道，可连续反射并命中后续线段上的首个有效敌人。背面不反射。每段移动（含防重入偏移）都累计到同一个 `attack_range` 世界距离预算，达到上限立即销毁。
+- **投射物跟踪与反射**：首次命中反射面之前保持原追踪行为；命中反射镜生效面或亚克力柜内侧面后用 `r = d - 2(d·n)n` 转为直线弹道，可连续反射并命中后续线段上的首个有效敌人。实体反射镜同时按自身等级把伤害倍率乘入当前伤害、把穿透加成加入剩余预算；多次反射逐次累计。亚克力柜默认返回 `×1/+0`。背面不反射。每段移动（含防重入偏移）都累计到同一个 `attack_range` 世界距离预算，达到上限立即销毁。
 - **可配置无目标直射**：箭塔类每级通过 `projectile_fire_mode` 选择 `TARGET_ONLY` 或 `TARGET_OR_FACING`。后者有索敌候选时仍使用原追踪弹；候选为空时沿建筑逻辑朝向发射直线弹，从生成起对每一移动段查询所有适用敌人并命中最近者。冷却、伤害、速度、对空过滤、累计射程和反射规则与普通投射物共用。
 - **导弹弹道**：`projectile_is_missile` 启用后，发射时快照塔的世界起点和初始方向，随机顺/逆时针走完一次可调偏心环线并轻微起伏。绕圈阶段只是表现，不查询敌人、Stuff 或镜面，也不消耗射程。索敌导弹同时创建 `aim.png` 地面标记，出圈后按可调转向速度持续追踪同一目标；无目标导弹则沿发射时的朝向直飞。
 - **导弹引爆与反射**：实体飞行阶段碰到任意敌人、弹道阻挡 Stuff 或达到共享总路程时立即引爆；爆炸用 XZ 圆形范围结算一次全额伤害，忽略高度差，因此命中空中单位。反射镜有效面和亚克力柜内侧只改变导弹真实方向、不引爆；复制镜未注册到两条查询链，因此直接穿过。速度正弦波动作用于真实路程，小幅侧移/滚转只作用于模型子根，不污染追踪和碰撞。
@@ -30,7 +30,7 @@
 - **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
 - **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
-- **复制塔攻击事件**：Building 在真实投射物、持续激光 tick/终点爆发或脉冲镭射发射时发出 `copy_attack_triggered`。MirrorManager 变换起点/方向后，为虚像独立重算反射、Stuff 和穿透截止；持续伤害、寒冷、终点爆发与冻结都使用源建筑当前等级参数，虚像不自持计时器。
+- **复制塔攻击事件**：Building 在真实投射物、持续激光 tick/首敌爆发或脉冲镭射发射时发出 `copy_attack_triggered`。MirrorManager 变换起点/方向后，先累计复制镜链各等级的伤害倍率/穿透加成，再为虚像独立重算反射、Stuff 和穿透截止；持续伤害、寒冷、首敌爆发与冻结都使用源建筑当前等级参数，虚像保存自己的首个命中点但不自持计时器。
 - **复制塔投射物反射**：箭塔复制弹从生成起就是直线弹道，使用开火瞬间镜像后的方向而不追踪或保留固定终点；沿途命中、Stuff 截断和反射后命中都使用源建筑 `affects_target` 过滤，并独立消耗源建筑当前级 `attack_range` 总路程预算。
 
 ## 关键参数
@@ -46,8 +46,8 @@
 | BuildingLevelStats | `laser_beam_color` / `laser_beam_width` / `laser_beam_emission_energy` | 持续激光主轴和双正弦光丝共用的乳白淡蓝色、自发光强度，以及主轴宽度。 |
 | BuildingLevelStats | `laser_propagation_speed` | 持续激光的逻辑/表现共用传播速度，单位为格/秒。 |
 | BuildingLevelStats | `laser_slow_multiplier` / `laser_slow_duration` | 寒冷期间的有效移速倍率与离开光路后保留时间。 |
-| BuildingLevelStats | `laser_burst_interval` / `laser_burst_radius` | 2/3 级终点爆发周期与格数半径；间隔为 0 时关闭。 |
-| BuildingLevelStats | `laser_freeze_duration` | 3 级终点爆发的冻结时间；0 表示不冻结。 |
+| BuildingLevelStats | `laser_burst_interval` / `laser_burst_radius` | 2/3 级首敌爆发周期与格数半径；间隔为 0 时关闭。 |
+| BuildingLevelStats | `laser_freeze_duration` | 3 级首敌爆发的冻结时间；0 表示不冻结。 |
 | BuildingLevelStats | `level_factor` / `extra_factor` | 当前级等级乘区 / 其它乘区。 |
 | BuildingLevelStats | `targeting_range` / `attack_range` | 独立的候选半径 / 发射或激光范围。 |
 | BuildingLevelStats | `attacks_per_second` | 单发冷却频率。 |
@@ -94,7 +94,7 @@
 | `scripts/combat/PriorityTargetingStrategy.gd` | `PriorityTargetingStrategy` / `ITargetingStrategy` | 七种优先级实现。 |
 | `scripts/combat/IAttackStrategy.gd` | `IAttackStrategy` / `RefCounted` | 攻击逐帧执行/重置接口。 |
 | `scripts/combat/ArrowAttackStrategy.gd` | `ArrowAttackStrategy` / `IAttackStrategy` | 目标获取、独立射程检查、冷却和投射物发射。 |
-| `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定朝向可反射光路、有限穿透、寒冷与周期终点爆发。 |
+| `scripts/combat/LaserAttackStrategy.gd` | `LaserAttackStrategy` / `IAttackStrategy` | 固定朝向可反射光路、有限穿透、寒冷、反射伤害倍率与周期首敌爆发。 |
 | `scripts/combat/PulseLaserAttackStrategy.gd` | `PulseLaserAttackStrategy` / `IAttackStrategy` | 无目标门控的周期固定朝向开火。 |
 | `scripts/combat/PulseLaserBeam.gd` | `PulseLaserBeam` / `Node3D` | 脉冲路径、反射段、单次伤害与渐变表现。 |
 | `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 敌人攻击冷却和 `perform_attack` 调度。 |
@@ -133,8 +133,8 @@ Laser Building facing
   -> nearest reflect mirror / Stuff / penetration-stop enemy / max range
   -> hard stop clamps stored front; removal resumes growth from that endpoint
   -> every crossed target.take_damage_over_time + apply_movement_slow
-  -> level 2 timer: endpoint burst damage + same cold
-  -> level 3 endpoint burst: append freeze; slow timer pauses until thaw
+  -> level 2 timer: first live hit target burst damage + same cold; no hit means no burst
+  -> level 3 first-hit burst: append freeze; slow timer pauses until thaw
 
 Pulse Laser Building facing
   -> attacks_per_second fixed clock, no target gate
@@ -146,7 +146,7 @@ Pulse Laser Building facing
 Building.copy_attack_triggered
   -> MirrorManager transforms start/end through projection lineage
   -> projectile: mirrored launch direction, straight ballistic query until hit/block/range
-  -> laser: independently retrace reflection/blocking/penetration and mirror cold/burst/freeze
+  -> laser: independently retrace reflection/blocking/penetration, store first hit, and mirror cold/burst/freeze
 
 CombatTarget.died -> CombatManager.target_killed(reward)
 EnemyUnit.died -> WaveManager type check -> ResourceManager.grant_enemy_drop(reward)

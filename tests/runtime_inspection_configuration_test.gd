@@ -10,6 +10,7 @@ const CONFIGURED_RESOURCES: Array[String] = [
 	"res://resources/buildings/Barrier.tres",
 	"res://resources/buildings/EdgeBarrier.tres",
 	"res://resources/mirrors/CopyMirror.tres",
+	"res://resources/mirrors/ReflectMirror.tres",
 	"res://resources/tile_definitions/Buildable.tres",
 	"res://resources/tile_definitions/BlockedRoad.tres",
 	"res://resources/tile_definitions/Destructible.tres",
@@ -52,7 +53,14 @@ func _test_config_defaults() -> void:
 	_expect(
 		config.format_building_description("原说明")
 		== "基础描述\n基础文本\n\n1级：\n一级文本\n\n2级：\n二级文本\n\n3级：\n三级文本",
-		"building descriptions use the authored base and three-level format"
+		"level descriptions use the authored base and three-level format"
+	)
+	var mirror := CopyMirrorDefinition.new()
+	mirror.inspection_display = config
+	_expect(
+		mirror.get_formatted_inspection_description()
+		== config.format_level_description(MirrorDefinition.DEFAULT_FUNCTION_DESCRIPTION),
+		"mirror definitions expose the same formatted description source"
 	)
 	for property in [
 		&"show_icon", &"show_category", &"show_entity_state", &"show_function_description",

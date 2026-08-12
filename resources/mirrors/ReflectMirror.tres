@@ -8,6 +8,9 @@
 script = ExtResource("2_inspection")
 display_name = "反射镜"
 function_description = "按入射角等于反射角的规则反射经过生效面的我方投射物，可连续经过多面反射镜。"
+level_1_description = ""
+level_2_description = ""
+level_3_description = ""
 
 [resource]
 script = ExtResource("1_definition")

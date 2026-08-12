@@ -142,6 +142,11 @@ func _make_mirror_entry(mirror: CopyMirror) -> Dictionary:
 		lines.append("两侧：%s ↔ %s" % [str(mirror.from_cell), str(mirror.to_cell)])
 	if _shows(config, &"show_orientation"):
 		lines.append("生效侧：%s" % str(mirror.get_active_cell()))
+	lines.append("等级：%d / %d" % [mirror.level, definition.get_max_level()])
+	lines.append("伤害倍率：×%.2f　穿透加成：+%d" % [
+		mirror.get_damage_multiplier(),
+		mirror.get_penetration_bonus(),
+	])
 	var fallback_name := definition.display_name if definition != null else "镜子"
 	var fallback_description := (
 		"按入射角等于反射角反射经过生效面的我方投射物。"

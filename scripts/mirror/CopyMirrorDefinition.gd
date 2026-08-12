@@ -21,6 +21,9 @@ extends MirrorDefinition
 
 func _init() -> void:
 	display_name = "复制镜"
+	upgrade_costs = [50.0, 50.0]
+	level_damage_multipliers = [1.0, 1.1, 1.2]
+	level_penetration_bonuses = [0, 1, 2]
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = super.validate_configuration()

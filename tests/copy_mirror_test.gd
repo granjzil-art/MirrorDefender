@@ -504,6 +504,14 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		and laser_projection.get_laser_propagation_distance() < laser.get_attack_range_world(),
 		"copied continuous laser maintains its own non-instant propagation front"
 	)
+	var copied_burst_target := laser_projection.get_laser_burst_target()
+	_expect(
+		bool(copied_burst_target.get("hit", false))
+		and (copied_burst_target.get("position", Vector3.ZERO) as Vector3).is_equal_approx(
+			mirrored_target.get_target_position()
+		),
+		"copied laser stores the first enemy from its independently traced path"
+	)
 	var copied_burst_before := mirrored_target.current_hp
 	laser.notify_copy_attack(&"laser_burst", laser.get_attack_origin(), original_endpoint, laser.get_laser_burst_damage())
 	_expect(
@@ -511,7 +519,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 			mirrored_target.current_hp,
 			copied_burst_before - laser.get_laser_burst_damage()
 		),
-		"copied laser mirrors endpoint burst damage at its independently traced endpoint"
+		"copied laser bursts at the first enemy of its independently traced path"
 	)
 	blocker_runtime = stuff_manager.add_stuff(
 		mirrored_target_cell,

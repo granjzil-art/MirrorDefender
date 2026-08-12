@@ -743,7 +743,12 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 			])
 	var selected_mirror := mirror_manager.get_selected_mirror()
 	if selected_mirror != null:
-		lines.append("镜子: 复制镜 | 边 %s | 生效侧 %s | R 翻面 / Delete 删除" % [
+		lines.append("镜子: %s L%d/%d | 伤害 ×%.2f | 穿透 +%d | 边 %s | 生效侧 %s | R 翻面 / Delete 删除" % [
+			selected_mirror.definition.display_name,
+			selected_mirror.level,
+			selected_mirror.definition.get_max_level(),
+			selected_mirror.get_damage_multiplier(),
+			selected_mirror.get_penetration_bonus(),
 			selected_mirror.edge_id,
 			str(selected_mirror.get_active_cell()),
 		])

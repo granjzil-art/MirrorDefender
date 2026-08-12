@@ -15,6 +15,8 @@ var primary_color: Color = Color.WHITE
 var lineage: Array[String] = []
 var axes: Array = []
 var chain_depth: int = 0
+var damage_multiplier: float = 1.0
+var penetration_bonus: int = 0
 
 func is_source_valid() -> bool:
 	if root_source == null:
@@ -35,7 +37,9 @@ func copy_through(
 	mirror_id: String,
 	target_cell: Vector3i,
 	axis_start: Vector3,
-	axis_end: Vector3
+	axis_end: Vector3,
+	mirror_damage_multiplier: float = 1.0,
+	mirror_penetration_bonus: int = 0
 ) -> MirrorCopyPayload:
 	var next := MirrorCopyPayload.new()
 	next.stable_key = "%s>%s" % [stable_key, mirror_id]
@@ -53,6 +57,8 @@ func copy_through(
 	next.axes = axes.duplicate(true)
 	next.axes.append([axis_start, axis_end])
 	next.chain_depth = chain_depth + 1
+	next.damage_multiplier = damage_multiplier * maxf(0.0, mirror_damage_multiplier)
+	next.penetration_bonus = penetration_bonus + maxi(0, mirror_penetration_bonus)
 	return next
 
 func transform_point(point: Vector3) -> Vector3:

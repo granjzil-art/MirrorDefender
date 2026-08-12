@@ -1,5 +1,15 @@
 # 技术与玩法决策记录
 
+## 2026-08-12 · 镜子与建筑统一说明/升级/出售交互
+
+**决策**：复制镜和反射镜复用 `InspectionDisplayConfig` 的基础描述与 1–3 级文本，`MirrorDefinition.get_formatted_inspection_description()` 是镜子卡悬停与实体“说明”页的唯一格式化入口。镜子卡加入悬停说明；这条决策扩展并取代下方旧条目中“镜子卡不显示说明框”的边界。
+
+**操作契约**：`MirrorActionPanel` 使用与 `BuildingActionPanel` 完全相同的图标素材、尺寸和锚点偏移：左说明、上升级、右出售，升级费用 `-x` 与出售返还 `+x` 位于各自图标上方并使用同一金币黄色。满级隐藏升级图标和费用。面板不再提供翻面按钮，但 `R` 键翻面、放置预览翻面和底层 `MirrorManager.flip_selected()` 保持可用。
+
+**升级与经济契约**：镜子固定三级，Definition 分别配置两笔升级费用、三级伤害倍率和穿透加成。复制镜沿 payload 累积倍率/穿透，反射镜在每次有效反射中返回当前级修正。每个运行时镜只登记实际支付的放置/升级资源，主动出售全额返还该累计值；免费初始陈列与冷却放置不登记基础费用，避免无成本套利。`MirrorPlacementData.level` 保存等级但不保存本局投资。
+
+**持续激光爆发契约**：周期爆发锚定当前已传播光路中首个存活敌人的目标中心；没有命中时不在传播终点创建伤害或表现。复制激光保存自己的首个命中点，继续由源塔的周期通知触发。该条取代 2026-08-10 “在当前可见终点爆发”的旧锚点决策，使复制镜伤害倍率和独立空间命中保持一致。
+
 ## 2026-08-12 · 建筑卡悬停与实体说明共用四段文本事实源
 
 **决策**：建筑说明统一由 `BuildingDefinition.inspection_display` 提供。旧 `function_description` 作为基础描述，新增 `level_1_description / level_2_description / level_3_description`；`format_building_description()` 固定输出“基础描述、1级、2级、3级”四段。
