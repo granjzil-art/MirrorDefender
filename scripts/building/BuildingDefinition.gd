@@ -6,6 +6,7 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
 const MAX_LEVEL := 3
+const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 
 enum Kind {
 	ARROW_TOWER,
@@ -58,6 +59,8 @@ enum AimMode {
 @export var levels: Array[BuildingLevelStats] = []
 
 @export_group("Pulse Laser")
+## Legacy root-level value retained for old resources. Runtime combat tuning and
+## new content use BuildingLevelStats.pulse_laser_reflect_max per level.
 @export_range(0, 64, 1) var pulse_laser_reflect_max: int = 8
 @export var pulse_laser_reflection_colors: Array[Color] = [
 	Color(1.0, 0.08, 0.04, 1.0),
@@ -88,6 +91,27 @@ func get_cumulative_cost(value: int) -> float:
 
 func get_max_level() -> int:
 	return mini(MAX_LEVEL, levels.size())
+
+
+func get_resolved_inspection_display_name() -> String:
+	if inspection_display != null:
+		return inspection_display.resolve_display_name(display_name)
+	return display_name
+
+
+func get_formatted_inspection_description() -> String:
+	if inspection_display != null:
+		return inspection_display.format_building_description(DEFAULT_FUNCTION_DESCRIPTION)
+	return "\n".join([
+		"基础描述",
+		DEFAULT_FUNCTION_DESCRIPTION,
+		"",
+		"1级：",
+		"",
+		"2级：",
+		"",
+		"3级：",
+	])
 
 func is_configured() -> bool:
 	return validate_configuration().is_empty()

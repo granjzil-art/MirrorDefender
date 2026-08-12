@@ -8,6 +8,8 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 @export_group("Feature")
 @export var feature_enabled: bool = true
 @export var top_panel_enabled: bool = true
+## Direct-light specular response of the horizontal lid. Keep at zero to avoid a camera-facing hotspot.
+@export_range(0.0, 1.0, 0.01) var top_panel_specular: float = 0.0
 
 @export_group("Dynamic Bounds")
 @export_range(0.0, 4.0, 0.05) var horizontal_margin_cells: float = 0.35
@@ -35,6 +37,7 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
+	ConfigValidator.require_number(errors, "top_panel_specular", top_panel_specular, 0.0, 1.0)
 	ConfigValidator.require_number(errors, "横向边距", horizontal_margin_cells, 0.0, 4.0)
 	ConfigValidator.require_number(errors, "最低内部高度", minimum_interior_height_cells, 0.0, INF, false)
 	ConfigValidator.require_number(errors, "顶面余量", top_margin_cells, 0.0, 4.0)

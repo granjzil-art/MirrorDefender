@@ -38,13 +38,12 @@ func validate_configuration() -> Array[String]:
 			seen_pages[page_instance_id] = page_index
 		for page_error in page.validate_configuration():
 			errors.append("第 %d 页：%s" % [page_index + 1, page_error])
-		for slot_index in range(page.levels.size()):
-			var level: LevelResource = page.levels[slot_index]
-			if level == null:
+		for slot_index in range(page.get_configured_slot_count()):
+			var level_key := page.get_level_reference_key(slot_index)
+			if level_key.is_empty():
 				continue
-			var level_instance_id := level.get_instance_id()
-			if seen_levels.has(level_instance_id):
-				var first_location: Vector2i = seen_levels[level_instance_id]
+			if seen_levels.has(level_key):
+				var first_location: Vector2i = seen_levels[level_key]
 				if first_location.x != page_index:
 					errors.append(
 						"第 %d 页第 %d 槽与第 %d 页第 %d 槽重复引用同一关卡" % [
@@ -55,5 +54,5 @@ func validate_configuration() -> Array[String]:
 						]
 					)
 			else:
-				seen_levels[level_instance_id] = Vector2i(page_index, slot_index)
+				seen_levels[level_key] = Vector2i(page_index, slot_index)
 	return errors

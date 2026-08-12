@@ -1,6 +1,6 @@
 # 灯光与亚克力展示柜 · Lighting
 
-> 实现状态：已实现动态尺寸亚克力展示柜、四侧板投射物反射、数据化灯光方案、方案渐变、反射探针、独立程序树影层、独立真实树投影对照层和 Level2 白色柔光/黄色暖光/青红对比/夜晚聚光四套测试方案。
+> 实现状态：已实现按关卡独立配置的动态尺寸亚克力展示柜、四侧板投射物反射、数据化灯光方案、方案渐变、反射探针、独立程序树影层、独立真实树投影对照层和 Level2 白色柔光/黄色暖光/青红对比/夜晚聚光四套测试方案。
 
 ## 职责
 
@@ -13,12 +13,13 @@
 ## 分类 / 做法
 
 - **柜体构造**：`AcrylicDisplayCaseDefinition` 管动态边距、净高、边条、顶板、底座、密封垫和侧板投射物反射参数；不携带灯光方案色彩。
+- **关卡独立配置**：每个正式 `LevelResource` 都在 `Presentation > Display Case Definition` 内嵌自己的 `AcrylicDisplayCaseDefinition` 子资源。加载/切换关卡时控制器读取当前关卡的定义并重新构建柜体；缺少该定义的正式关卡校验失败。
 - **动态边界**：`AcrylicDisplayCase` 遍历 `GridManager.get_all_cells()` 的单元多边形角点，再合并 Terrain/Stuff 的 `MeshInstance3D` AABB。水平边界扩展 `horizontal_margin_cells`；顶部取实际视觉最高点加边距与最小净高的较大值。
 - **亚克力材质**：五个 `QuadMesh` 使用统一 Shader，以低基础 Alpha + Fresnel + UV 边缘 + 对角假反射条纹表达透明板。十二条半透明发光边稳定表达板厚和轮廓。
 - **灯光方案**：`LightingProfile` 聚合 `Environment`、任意数量 `LightDefinition`、`DisplayCaseLightingDefinition`、`ReflectionProbeDefinition` 和默认过渡时间。
 - **尺寸无关布光**：`LightDefinition.position_space = BOUNDS_NORMALIZED` 时，`position.x/z` 的 -1～1 映射到关卡左右/前后，`position.y` 映射到内容高度；射程、面光源尺寸与影子距离也会按边界放大。`WORLD_ABSOLUTE` 供局部灯使用。
 - **切换**：新灯组从 0 能量淡入，旧灯组淡出；Environment 的背景、环境光、色调曝光/对比/饱和度、雾强度连续插值。柜体色调和探针在切换开始时更新。
-- **关卡选择**：`LevelResource.lighting_profile` 可为单关指定首选方案；空值沿用控制器默认第一套方案。正式关卡 Level2 无需改写原资源即默认使用白色柔光。
+- **关卡选择**：`LevelResource.display_case_definition` 决定该关的柜体构造与材质响应；`LevelResource.lighting_profile` 可为单关指定首选灯光方案，空值沿用控制器默认第一套方案。两类配置彼此独立。
 - **投射物反射**：前/后/左/右四块侧板的玩法法线朝向柜内，柜内射出的我方投射物按反射镜公式反弹，柜外射入穿过；侧板范围严格受当前动态宽/深/高度约束，顶板不参与。Main 将柜体查询注册给 MirrorManager，后者与实体反射镜候选比较并返回最近命中。
 - **程序化树影**：`FoliageShadowController` 按随机种子生成少量柔边椭圆叶簇，贴图用 Alpha Hash 把局部遮挡降为浅密度，载体网格设为 `SHADOWS_ONLY`，因此不显示树冠模型，只在已启用阴影的现有灯源中留下稀疏浅光斑。遮片尺寸跟随同一份关卡 AABB，每帧只平移 UV 模拟风吹晃动。
 - **开关隔离**：`foliage_shadow_enabled` 只切换遮影网格的 `visible` 和自身进程，不重建或改写 Light3D、LightingProfile、Environment、反射探针和亚克力材质；关闭后就是原有灯光方案。
@@ -30,7 +31,7 @@
 
 | 资源 / 参数 | 默认 | 说明 |
 |---|---:|---|
-| `AcrylicDisplayCaseDefinition.horizontal_margin_cells` | 0.35 | 柜体比关卡边界每侧多出的单格数。 |
+| `AcrylicDisplayCaseDefinition.horizontal_margin_cells` | 脚本默认 0.35；Level1–4 当前 0.6 | 柜体比关卡边界每侧多出的单格数。该值属于当前关卡的独立定义。 |
 | `minimum_interior_height_cells` | 4.5 | 柜体最小内部净高。 |
 | `top_margin_cells` | 0.65 | 实际最高可视物上方余量。 |
 | `edge_thickness_cells` | 0.025 | 亚克力高光边条厚度。 |
@@ -45,6 +46,7 @@
 | `shape_scales_with_level` | true | 射程和 AreaLight3D 尺寸是否随关卡扩展。 |
 | `LightingProfile.default_transition_duration` | 0.6 s | 方案切换的默认渐变时长。 |
 | `ReflectionProbeDefinition.update_always` | false | false 使用 `UPDATE_ONCE`；动态环境可改为每帧更新。 |
+| `AcrylicDisplayCaseDefinition.top_panel_specular` | `0.0`（范围 `0.0–1.0`） | 仅控制水平顶板的直接镜面高光；默认关闭以消除随相机滑动的饱和亮斑，四块侧板仍保持原有亚克力高光。 |
 | `FoliageShadowDefinition.cluster_count` | 5 | 整张图案的叶簇数；默认刻意保持稀疏。 |
 | `leaves_per_cluster_min / max` | 2 / 3 | 每簇模拟叶片数，用于控制复杂度。 |
 | `leaf_radius_min_uv / max_uv` | 0.045 / 0.085 | 单片柔边椭圆在遮片 UV 中的半径范围。 |
@@ -84,7 +86,8 @@
 | `scripts/lighting/RealisticTreeShadowController.gd` | `RealisticTreeShadowController` / `Node3D` | 实例化并等比拟合真实树，按动态关卡边界贴地，并递归启用网格投影。 |
 | `scripts/ui/LightingTestPanel.gd` | `LightingTestPanel` / `PanelContainer` | 左上角四方案快捷对比、当前方案标题与独立“树影/实树”开关。 |
 | `resources/lighting/AcrylicGlass.gdshader` | Spatial Shader | 亚克力的 Fresnel、边缘、反射条纹与透明度。 |
-| `resources/lighting/AcrylicDisplayCase.tres` | `AcrylicDisplayCaseDefinition` | 项目默认柜体构造。 |
+| `resources/levels/Level1.tres`～`Level4.tres` | `LevelResource` | 各自内嵌独立的 `display_case_definition`，复制关卡资源时参数随关卡一起复制。 |
+| `resources/lighting/AcrylicDisplayCase.tres` | `AcrylicDisplayCaseDefinition` | 新建关卡或测试可使用的柜体参数模板；正式关卡运行时不再共享读取它。 |
 | `resources/lighting/FoliageShadowDefault.tres` | `FoliageShadowDefinition` | Level2 默认稀疏浅树影参数。 |
 | `resources/lighting/RealisticTreeShadow.tres` | `RealisticTreeShadowDefinition` | 真实树资产引用及当前 30 格、叶隙投影对照参数。 |
 | `resources/lighting/RealisticLeafShadowCutout.gdshader` | Spatial Shader | 复用叶片 Alpha，并以两级噪声打散重叠树冠的仅投影材质。 |
@@ -93,6 +96,7 @@
 | `resources/lighting/CyanRedContrast.tres` | `LightingProfile` | 顶部弱轮廓光 + 左青右红面光源。 |
 | `resources/lighting/NightSpotlight.tres` | `LightingProfile` | 深蓝环境、暖中性单阴影聚光与无阴影冷色填光组成的夜晚方案。 |
 | `tests/lighting_display_case_test.gd` | `SceneTree` | 四方案配置、Level2 动态尺寸、无碰撞、四侧/柜角反射、真实/复制投射物、夜晚单阴影灯与探针回归。 |
+| `tests/acrylic_top_highlight_test.gd` | `SceneTree` | Level1–4 柜体定义互相独立、运行时切关替换定义、顶板无镜面亮斑、侧板高光保留以及灯光方案隔离回归。 |
 | `tests/lighting_visual_capture.gd` | `SceneTree` | 用真实 Forward+ 视口输出 Level2 四方案 PNG。 |
 | `tests/night_spotlight_visual_capture.gd` | `SceneTree` | 输出 Level2 夜晚聚光的真实树、程序树影、无树影三张同机位 A/B PNG。 |
 | `tests/foliage_shadow_test.gd` | `SceneTree` | 程序贴图、稀疏/浅密度、动态尺寸、摆动、开关隔离和 Level2 集成回归。 |
@@ -103,6 +107,7 @@
 LevelLoader.level_loaded(level)
   -> Main._on_level_loaded(level, source_path)
   -> LightingController.apply_level(level)
+     -> AcrylicDisplayCase.configure(..., level.display_case_definition, ...)
      -> AcrylicDisplayCase.rebuild_for_level()
         -> Grid cells/polygon corners + Terrain/Stuff visual AABB
         -> content bounds -> base + panels + edges
@@ -152,8 +157,8 @@ test panel "实树 开/关"
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `LightingController.configure` | `(world_environment, legacy_light, grid, terrain_manager, case_definition, profiles, visual_roots = [], foliage_shadow_definition = null, realistic_tree_shadow_definition = null) -> void` | 注入环境、旧灯、尺寸事实源、柜体、方案以及可选程序/真实树影资源。 |
-| `LightingController.apply_level` | `(level_resource: LevelResource) -> bool` | 关卡加载后重建柜体并重应用首选/当前方案。 |
+| `LightingController.configure` | `(world_environment, legacy_light, grid, terrain_manager, profiles, visual_roots = [], foliage_shadow_definition = null, realistic_tree_shadow_definition = null) -> void` | 注入环境、旧灯、尺寸事实源、方案以及可选程序/真实树影资源；柜体定义由关卡提供。 |
+| `LightingController.apply_level` | `(level_resource: LevelResource) -> bool` | 读取 `level_resource.display_case_definition`，重新配置并构建柜体，再重应用首选/当前灯光方案。 |
 | `LightingController.apply_profile_by_index` | `(profile_index: int, duration: float = -1.0) -> bool` | 按注入顺序切换方案。 |
 | `LightingController.apply_profile` | `(profile: LightingProfile, duration: float = -1.0, profile_index: int = -1) -> bool` | 校验并应用任意方案。 |
 | `LightingController.get_active_profile` | `() -> LightingProfile` | 返回当前方案。 |
@@ -169,6 +174,7 @@ test panel "实树 开/关"
 | `AcrylicDisplayCase.configure` | `(grid: GridManager, terrain_manager: TerrainManager, definition: AcrylicDisplayCaseDefinition, visual_roots: Array[Node3D] = []) -> void` | 注入尺寸与视觉边界依赖。 |
 | `AcrylicDisplayCase.rebuild_for_level` | `() -> bool` | 重算当前关卡边界并替换全部程序化几何。 |
 | `AcrylicDisplayCase.apply_lighting` | `(definition: DisplayCaseLightingDefinition) -> void` | 替换所有板面 Shader 参数和边条材质。 |
+| `AcrylicDisplayCase.get_definition` | `() -> AcrylicDisplayCaseDefinition` | 返回当前关卡正在使用的柜体定义，供校验和调试读取。 |
 | `AcrylicDisplayCase.get_content_bounds` | `() -> AABB` | 返回扩展后的关卡内容边界。 |
 | `AcrylicDisplayCase.get_projectile_reflection_surface_count` | `() -> int` | 返回当前启用并已构建的玩法侧板数量；正式为4。 |
 | `AcrylicDisplayCase.trace_projectile_reflection` | `(start: Vector3, end: Vector3) -> Dictionary` | 返回四侧板最近内向有限交点；键与 MirrorManager 统一反射结果一致。 |
@@ -179,7 +185,8 @@ test panel "实树 开/关"
 ## 测试与调整入口
 
 - 运行 Level2 后，点击左上角“7 白色柔光 / 8 黄色暖光 / 9 青红对比 / 6 夜晚聚光”，或直接按对应数字键。“树影”和“实树”是彼此独立且与四套灯光方案平级的 A/B 开关；推荐先保持“树影 关 / 实树 开”观察真实模型，再切换为“树影 开 / 实树 关”观察程序方案，双关即为无额外树影基线。
-- 新建方案：复制任一 `resources/lighting/*.tres`，调整 Environment/灯源/柜体/探针子资源，然后把新 `LightingProfile` 注入 `Main.gd` 的方案数组；若是关卡专用艺术方案，可设置 `LevelResource.lighting_profile`。
+- 调整单关柜体：打开对应 `resources/levels/Level*.tres`，在 `Presentation > Display Case Definition` 中修改边距、高度、底座、顶板和反射参数。各关子资源实例互不共享。
+- 新建灯光方案：复制任一灯光方案 `.tres`，调整 Environment、灯源、亚克力色调和探针子资源，再把新 `LightingProfile` 注入 `Main.gd` 的方案数组；若是关卡专用艺术方案，可设置 `LevelResource.lighting_profile`。灯光方案切换不会覆盖关卡的柜体构造参数。
 - 自动回归：`godot --headless --path <project> --script res://tests/lighting_display_case_test.gd`。
 - 树影专项回归：`godot --headless --path <project> --script res://tests/foliage_shadow_test.gd`。
 - 真实视口捕获（不加 `--headless`）：`godot --path <project> --script res://tests/lighting_visual_capture.gd`；输出 Level2 四方案到 `outputs/lighting_profiles/`，运行时截图不应提交。

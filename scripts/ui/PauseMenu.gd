@@ -16,7 +16,7 @@ extends Control
 
 @export_group("Layout")
 @export_range(180.0, 360.0, 1.0) var collapsed_height: float = 230.0
-@export_range(320.0, 640.0, 1.0) var expanded_height: float = 450.0
+@export_range(320.0, 640.0, 1.0) var expanded_height: float = 500.0
 
 @export_group("Optional Icons")
 @export var settings_icon: Texture2D
@@ -35,6 +35,7 @@ signal settings_changed(settings: Dictionary)
 @onready var volume_slider: HSlider = $Shade/ModalPanel/Content/SettingsPanel/VolumeRow/VolumeSlider
 @onready var volume_value: Label = $Shade/ModalPanel/Content/SettingsPanel/VolumeRow/VolumeValue
 @onready var window_mode: OptionButton = $Shade/ModalPanel/Content/SettingsPanel/WindowRow/WindowMode
+@onready var render_quality: OptionButton = $Shade/ModalPanel/Content/SettingsPanel/RenderQualityRow/RenderQuality
 @onready var ui_scale_slider: HSlider = $Shade/ModalPanel/Content/SettingsPanel/ScaleRow/UiScaleSlider
 @onready var ui_scale_value: Label = $Shade/ModalPanel/Content/SettingsPanel/ScaleRow/UiScaleValue
 @onready var depth_of_field_toggle: CheckButton = $Shade/ModalPanel/Content/SettingsPanel/DepthOfFieldRow/DepthOfFieldToggle
@@ -58,11 +59,16 @@ func _ready() -> void:
 	window_mode.clear()
 	window_mode.add_item("窗口", 0)
 	window_mode.add_item("全屏", 1)
+	render_quality.clear()
+	render_quality.add_item("性能（1080p 上限）", RuntimeSettings.RENDER_QUALITY_PERFORMANCE)
+	render_quality.add_item("平衡（2K 上限，推荐）", RuntimeSettings.RENDER_QUALITY_BALANCED)
+	render_quality.add_item("原生分辨率", RuntimeSettings.RENDER_QUALITY_NATIVE)
 	settings_button.pressed.connect(_on_settings_pressed)
 	restart_button.pressed.connect(_on_restart_pressed)
 	exit_button.pressed.connect(_on_exit_pressed)
 	volume_slider.value_changed.connect(_on_setting_control_changed)
 	window_mode.item_selected.connect(_on_window_mode_changed)
+	render_quality.item_selected.connect(_on_render_quality_changed)
 	ui_scale_slider.value_changed.connect(_on_setting_control_changed)
 	depth_of_field_toggle.toggled.connect(_on_depth_of_field_toggled)
 	_apply_icons()
@@ -126,6 +132,10 @@ func _on_window_mode_changed(_index: int) -> void:
 	_on_setting_control_changed(0.0)
 
 
+func _on_render_quality_changed(_index: int) -> void:
+	_on_setting_control_changed(0.0)
+
+
 func _on_depth_of_field_toggled(_enabled: bool) -> void:
 	_on_setting_control_changed(0.0)
 
@@ -137,7 +147,8 @@ func _on_setting_control_changed(_value: float) -> void:
 		volume_slider.value,
 		window_mode.selected == 1,
 		ui_scale_slider.value,
-		depth_of_field_toggle.button_pressed
+		depth_of_field_toggle.button_pressed,
+		render_quality.get_selected_id()
 	)
 	var error := _settings.save_to_file(settings_path)
 	if error == OK and apply_runtime_settings:
@@ -151,6 +162,7 @@ func _sync_controls_from_settings() -> void:
 	_syncing_controls = true
 	volume_slider.set_value_no_signal(_settings.main_volume_percent)
 	window_mode.select(1 if _settings.fullscreen else 0)
+	render_quality.select(_settings.render_quality_preset)
 	ui_scale_slider.set_value_no_signal(_settings.ui_scale)
 	depth_of_field_toggle.set_pressed_no_signal(_settings.depth_of_field_enabled)
 	_syncing_controls = false

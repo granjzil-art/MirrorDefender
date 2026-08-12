@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 MCPRuntimeProbe="*res://addons/godot_mcp/runtime/mcp_runtime_probe.gd"
+SoundEffects="*res://scripts/audio/SoundEffectSystem.gd"
 
 [display]
 
@@ -133,5 +134,6 @@ cancel_action={
 
 [rendering]
 
-lights_and_shadows/directional_shadow/soft_shadow_filter_quality=5
-anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+scaling_3d/mode=2
+scaling_3d/fsr_sharpness=0.2

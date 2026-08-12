@@ -16,6 +16,7 @@ func _run() -> void:
 	print("[TerrainRuntime] running")
 	await _test_square_runtime_surface_and_renderer()
 	await _test_terrain_model_instancing()
+	await _test_flat_terrain_batching()
 	await _test_hex_ramp_sampling()
 	await _test_legacy_snapshot_runtime()
 	await _test_loader_rolls_back_terrain()
@@ -88,6 +89,7 @@ func _test_terrain_model_instancing() -> void:
 	var loader: LevelLoader = fixture["loader"]
 	var terrain: TerrainManagerScript = fixture["terrain"]
 	var renderer: TerrainRendererScript = fixture["renderer"]
+	renderer.batch_flat_models = false
 	_expect(loader.load_level(level, "memory://terrain-models"), "terrain model fixture loads")
 	_expect(terrain.get_terrain(Vector3i(1, 1, 0)) == ramp_terrain, "runtime resolves an explicit terrain for every ramp footprint cell")
 	_expect(terrain.get_terrain(Vector3i(0, 0, 0)) == terrain_definition, "ramp terrain override does not leak into neighboring flat Grid")
@@ -128,6 +130,33 @@ func _test_terrain_model_instancing() -> void:
 	_expect(is_equal_approx(ramp_aabb.size.x, 2.0) and is_equal_approx(ramp_aabb.size.z, 1.0), "1:2 ramp model fits its complete authored footprint")
 	var greybox := renderer.get_node_or_null("TerrainGreybox") as MeshInstance3D
 	_expect(greybox != null and greybox.mesh == null, "fully configured terrain assets suppress greybox geometry")
+	fixture["host"].queue_free()
+	await process_frame
+
+
+func _test_flat_terrain_batching() -> void:
+	var fixture := _make_fixture(false)
+	var level := _make_square_ramp_level()
+	var terrain_definition := TerrainDefinition.new()
+	terrain_definition.terrain_id = &"batched_runtime_asset_terrain"
+	terrain_definition.display_name = "批处理运行时模型地形"
+	terrain_definition.flat_model_asset = _make_model_asset(Vector3(1.2, 1.1, 1.0))
+	level.default_terrain = terrain_definition
+	for grid_cell in level.grid_cells:
+		grid_cell.terrain = terrain_definition
+	var loader: LevelLoader = fixture["loader"]
+	var renderer: TerrainRendererScript = fixture["renderer"]
+	_expect(renderer.batch_flat_models, "flat terrain batching defaults on")
+	_expect(loader.load_level(level, "memory://terrain-multimesh"), "batched terrain fixture loads")
+	var model_root := renderer.get_node_or_null("TerrainModels")
+	var batch_count := 0
+	var instance_count := 0
+	for child in model_root.get_children():
+		if child is MultiMeshInstance3D:
+			batch_count += 1
+			instance_count += (child as MultiMeshInstance3D).multimesh.instance_count
+	_expect(batch_count == 1, "identical flat terrain mesh parts collapse into one MultiMesh batch")
+	_expect(instance_count == 25, "MultiMesh preserves one transform per non-ramp voxel layer")
 	fixture["host"].queue_free()
 	await process_frame
 

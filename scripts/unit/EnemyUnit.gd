@@ -5,8 +5,15 @@ extends CombatTarget
 const EnemyAttackStrategyScript := preload("res://scripts/combat/EnemyAttackStrategy.gd")
 const EnemyProjectileScript := preload("res://scripts/combat/EnemyProjectile.gd")
 const EnemyHealthBarScript := preload("res://scripts/ui/EnemyHealthBar3D.gd")
+const EnemyHitParticlesScript := preload("res://scripts/fx/EnemyHitParticles.gd")
 const ATTACK_RANGE_EPSILON_RATIO := 0.001
 const PATH_PROGRESS_EPSILON := 0.0001
+const REFLECTION_EPSILON_RATIO := 0.002
+const MAX_REFLECTIONS_PER_FRAME := 8
+const SIMULATION_EPSILON := 0.000001
+## Coalesces frame-by-frame damage (such as continuous lasers) while the
+## previous burst is still visually fresh.
+const HIT_PARTICLE_MIN_INTERVAL := 0.08
 
 signal reached_base(unit: EnemyUnit, damage_to_base: float)
 signal attack_started(unit: EnemyUnit, target: Node)
@@ -15,6 +22,12 @@ signal attack_performed(unit: EnemyUnit, target: Node, applied_damage: float, ra
 signal projectile_spawned(unit: EnemyUnit, projectile: EnemyProjectile)
 signal rerouted(unit: EnemyUnit, from_path: PathDefinition, to_path: PathDefinition, join_cell: Vector3i)
 signal route_blocked(unit: EnemyUnit, blocked_cell: Vector3i)
+signal reflection_surface_health_changed(
+	unit: EnemyUnit,
+	surface_id: StringName,
+	current_durability: float,
+	maximum_durability: float
+)
 
 var definition: EnemyDefinition
 var armor: float = 0.0
@@ -34,6 +47,7 @@ var _tile_enter_resolver: Callable
 var _tile_stay_resolver: Callable
 var _navigation_blocker_resolver: Callable
 var _projectile_blocker_resolver: Callable
+var _combat_manager: CombatManager
 var _tile_effects_initialized: bool = false
 var _waiting_blocked_cell: Vector3i = Vector3i.ZERO
 var _is_waiting_for_route: bool = false
@@ -44,6 +58,12 @@ var _attack_damage: float = 0.0
 var _attacks_per_second: float = 1.0
 var _attack_range_world: float = 0.65
 var _enemy_health_bar: Node3D
+var _movement_phase_remaining: float = 0.0
+var _movement_pause_remaining: float = 0.0
+var _movement_is_paused: bool = false
+var _reflection_surface_states: Dictionary = {}
+var _reflection_surfaces_root: Node3D
+var _hit_particle_cooldown: float = 0.0
 
 func _ready() -> void:
 	super._ready()
@@ -55,9 +75,23 @@ func _ready() -> void:
 	_enemy_health_bar.configure(max_hp, current_hp, debug_height + 0.34)
 	add_child(_enemy_health_bar)
 	health_changed.connect(_on_enemy_health_changed)
+	if _reflection_surface_states.is_empty():
+		_initialize_reflection_surface_states()
+	_build_special_ability_visuals()
+	if _combat_manager != null and has_reflection_surfaces():
+		_combat_manager.register_projectile_reflection_provider(
+			self,
+			Callable(self, "trace_projectile_reflection")
+		)
+
+
+func _exit_tree() -> void:
+	if _combat_manager != null and is_instance_valid(_combat_manager):
+		_combat_manager.unregister_projectile_reflection_provider(self)
 
 func _process(delta: float) -> void:
 	var simulation_delta := maxf(0.0, delta)
+	_hit_particle_cooldown = maxf(0.0, _hit_particle_cooldown - simulation_delta)
 	var frozen_duration := minf(get_freeze_remaining(), simulation_delta)
 	super._process(simulation_delta)
 	if not feature_enabled or not is_alive() or _reached_base or _path_points.is_empty():
@@ -73,10 +107,44 @@ func _process(delta: float) -> void:
 		simulation_delta = maxf(0.0, simulation_delta - frozen_duration)
 		if simulation_delta <= 0.0:
 			return
-	var effective_move_speed := get_effective_move_speed()
+	_simulate_unfrozen_time(simulation_delta)
+
+
+func _simulate_unfrozen_time(duration: float) -> void:
+	var remaining := maxf(0.0, duration)
+	var safety := 0
+	while remaining > SIMULATION_EPSILON and is_alive() and not _reached_base:
+		safety += 1
+		if safety > 128:
+			break
+		if _has_movement_cycle() and _movement_is_paused:
+			var pause_step := minf(remaining, _movement_pause_remaining)
+			_simulate_gameplay_step(pause_step, false)
+			_movement_pause_remaining = maxf(0.0, _movement_pause_remaining - pause_step)
+			remaining = maxf(0.0, remaining - pause_step)
+			if _movement_pause_remaining <= SIMULATION_EPSILON:
+				_movement_is_paused = false
+				_movement_phase_remaining = definition.movement_active_duration
+			continue
+		var step := remaining
+		if _has_movement_cycle():
+			step = minf(step, _movement_phase_remaining)
+		var movement_duration := _simulate_gameplay_step(step, true)
+		remaining = maxf(0.0, remaining - step)
+		if not _has_movement_cycle():
+			break
+		_movement_phase_remaining = maxf(0.0, _movement_phase_remaining - movement_duration)
+		if _movement_phase_remaining <= SIMULATION_EPSILON:
+			_movement_is_paused = true
+			_movement_pause_remaining = definition.movement_pause_duration
+
+
+func _simulate_gameplay_step(duration: float, movement_allowed: bool) -> float:
+	if duration <= 0.0:
+		return 0.0
 	if _path_points.size() < 2:
-		_apply_current_tile_stay(simulation_delta)
-		return
+		_apply_current_tile_stay(duration)
+		return 0.0
 	var blocker_info := _find_first_path_blocker()
 	if blocker_info.is_empty():
 		blocker_info = _get_reroute_attack_blocker_info()
@@ -86,25 +154,36 @@ func _process(delta: float) -> void:
 		if _is_within_attack_range(blocker_position):
 			_enter_attack_state(blocker)
 			_face_target(blocker_position)
-			_apply_current_tile_stay(simulation_delta)
-			if not is_alive():
-				return
-			_attack_strategy.tick(self, simulation_delta)
-			return
+			_apply_current_tile_stay(duration)
+			if is_alive():
+				_attack_strategy.tick(self, duration)
+			return 0.0
 		_leave_attack_state()
+		if not movement_allowed:
+			_apply_current_tile_stay(duration)
+			return 0.0
 		var movement_limit := _get_path_distance_until_attack_range(blocker_info)
 		var movement_duration := _move_along_path(
-			minf(effective_move_speed * simulation_delta, movement_limit)
+			minf(get_effective_move_speed() * duration, movement_limit)
 		)
-		_apply_current_tile_stay(maxf(0.0, simulation_delta - movement_duration))
-		if is_alive() and is_instance_valid(blocker) and _is_within_attack_range(_get_blocker_position(blocker)):
+		var stationary_duration := maxf(0.0, duration - movement_duration)
+		_apply_current_tile_stay(stationary_duration)
+		if (
+			is_alive()
+			and is_instance_valid(blocker)
+			and _is_within_attack_range(_get_blocker_position(blocker))
+		):
 			_enter_attack_state(blocker)
 			_face_target(_get_blocker_position(blocker))
-			_attack_strategy.tick(self, 0.0)
-		return
+			_attack_strategy.tick(self, stationary_duration)
+		return movement_duration
 	_leave_attack_state()
-	var movement_duration := _move_along_path(effective_move_speed * simulation_delta)
-	_apply_current_tile_stay(maxf(0.0, simulation_delta - movement_duration))
+	if not movement_allowed:
+		_apply_current_tile_stay(duration)
+		return 0.0
+	var movement_duration := _move_along_path(get_effective_move_speed() * duration)
+	_apply_current_tile_stay(maxf(0.0, duration - movement_duration))
+	return movement_duration
 
 func configure_unit(
 	enemy_definition: EnemyDefinition,
@@ -118,7 +197,8 @@ func configure_unit(
 	tile_enter_resolver: Callable = Callable(),
 	tile_stay_resolver: Callable = Callable(),
 	navigation_blocker_resolver: Callable = Callable(),
-	projectile_blocker_resolver: Callable = Callable()
+	projectile_blocker_resolver: Callable = Callable(),
+	combat_manager: CombatManager = null
 ) -> void:
 	definition = enemy_definition
 	_path_points.clear()
@@ -135,11 +215,18 @@ func configure_unit(
 	_tile_stay_resolver = tile_stay_resolver
 	_navigation_blocker_resolver = navigation_blocker_resolver
 	_projectile_blocker_resolver = projectile_blocker_resolver
+	_combat_manager = combat_manager
 	_tile_effects_initialized = false
 	_is_waiting_for_route = false
 	_reroute_attack_target = null
 	_attack_target = null
 	_attack_strategy = EnemyAttackStrategyScript.new()
+	_movement_is_paused = false
+	_movement_pause_remaining = 0.0
+	_movement_phase_remaining = (
+		maxf(0.0, definition.movement_active_duration) if definition != null else 0.0
+	)
+	_initialize_reflection_surface_states()
 	airborne = definition != null and definition.is_airborne
 	_flight_height = maxf(0.0, definition.flight_height) if airborne else 0.0
 	model_asset = definition.get_model_asset() if definition != null else null
@@ -165,10 +252,354 @@ func configure_unit(
 		_enemy_health_bar.configure(max_hp, current_hp, debug_height + 0.34)
 
 func take_damage(amount: float) -> float:
-	return super.take_damage(maxf(0.0, amount - armor))
+	return super.take_damage(maxf(0.0, amount - get_effective_armor()))
 
 func take_damage_over_time(damage_per_second: float, duration: float) -> float:
-	return super.take_damage_over_time(maxf(0.0, damage_per_second - armor), duration)
+	return super.take_damage_over_time(
+		maxf(0.0, damage_per_second - get_effective_armor()),
+		duration
+	)
+
+
+func get_effective_armor() -> float:
+	var aura_bonus := 0.0
+	if _combat_manager != null and is_instance_valid(_combat_manager):
+		for target in _combat_manager.get_targets():
+			if target == self or not target is EnemyUnit:
+				continue
+			var caster := target as EnemyUnit
+			aura_bonus = maxf(aura_bonus, caster.get_armor_aura_bonus_for(self))
+	return maxf(0.0, armor + aura_bonus)
+
+
+func get_armor_aura_bonus_for(target: EnemyUnit) -> float:
+	if (
+		target == null
+		or target == self
+		or not feature_enabled
+		or not is_alive()
+		or not target.is_alive()
+		or definition == null
+		or definition.armor_aura_radius <= 0.0
+		or definition.armor_aura_bonus <= 0.0
+	):
+		return 0.0
+	var radius_world := definition.armor_aura_radius * _grid_cell_size
+	return (
+		definition.armor_aura_bonus
+		if _horizontal_distance_to(target.global_position) <= radius_world + 0.0001
+		else 0.0
+	)
+
+
+func _has_movement_cycle() -> bool:
+	return (
+		definition != null
+		and definition.movement_active_duration > 0.0
+		and definition.movement_pause_duration > 0.0
+	)
+
+
+func is_in_movement_pause() -> bool:
+	return _has_movement_cycle() and _movement_is_paused
+
+
+func get_movement_active_remaining() -> float:
+	return maxf(0.0, _movement_phase_remaining)
+
+
+func has_reflection_surfaces() -> bool:
+	return (
+		feature_enabled
+		and definition != null
+		and definition.reflection_pattern != EnemyDefinition.ReflectionPattern.NONE
+	)
+
+
+func has_active_reflection_surfaces() -> bool:
+	for surface_id in _reflection_surface_states:
+		if is_reflection_surface_alive(StringName(surface_id)):
+			return true
+	return false
+
+
+func get_reflection_surface_ids() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for surface_id in _configured_reflection_surface_ids():
+		result.append(surface_id)
+	return result
+
+
+func get_reflection_surface_current_durability(surface_id: StringName) -> float:
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	return maxf(0.0, float(state.get("current_durability", 0.0)))
+
+
+func get_reflection_surface_max_durability(surface_id: StringName) -> float:
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	return maxf(0.0, float(state.get("maximum_durability", 0.0)))
+
+
+func is_reflection_surface_alive(surface_id: StringName) -> bool:
+	return get_reflection_surface_current_durability(surface_id) > 0.0
+
+
+func get_reflection_surface_root(surface_id: StringName) -> Node3D:
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	var root_value: Variant = state.get("root")
+	return root_value as Node3D if is_instance_valid(root_value) else null
+
+
+func get_reflection_surface_health_bar(surface_id: StringName) -> Node3D:
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	var bar_value: Variant = state.get("health_bar")
+	return bar_value as Node3D if is_instance_valid(bar_value) else null
+
+
+## Mirror durability is intentionally independent from enemy armor and body HP.
+func take_reflection_surface_damage(surface_id: StringName, amount: float) -> float:
+	if amount <= 0.0 or not is_reflection_surface_alive(surface_id):
+		return 0.0
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	var previous := float(state.get("current_durability", 0.0))
+	var applied := minf(previous, maxf(0.0, amount))
+	var current := maxf(0.0, previous - applied)
+	state["current_durability"] = current
+	_reflection_surface_states[surface_id] = state
+	var health_bar_value: Variant = state.get("health_bar")
+	if is_instance_valid(health_bar_value):
+		(health_bar_value as EnemyHealthBar3D).update_health(
+			current,
+			float(state.get("maximum_durability", 1.0))
+		)
+	reflection_surface_health_changed.emit(
+		self,
+		surface_id,
+		current,
+		float(state.get("maximum_durability", 1.0))
+	)
+	if current <= 0.0:
+		_destroy_reflection_surface_visual(surface_id)
+	return applied
+
+
+## Finite, one-sided vertical reflection faces. A four-sided reflector forms a
+## square footprint around the unit; top and bottom are intentionally absent.
+func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
+	var result := {
+		"hit": false,
+		"position": end,
+		"normal": Vector3.ZERO,
+		"distance": start.distance_to(end),
+		"mirror": null,
+		"reflector": self,
+		"surface_id": StringName(),
+		"reflector_surface_id": StringName(),
+		"epsilon": maxf(0.0001, _grid_cell_size * REFLECTION_EPSILON_RATIO),
+		"max_reflections_per_frame": MAX_REFLECTIONS_PER_FRAME,
+	}
+	if not has_reflection_surfaces() or not is_alive():
+		return result
+	var segment := end - start
+	var segment_length := segment.length()
+	if segment_length <= SIMULATION_EPSILON:
+		return result
+	var half_side := definition.reflection_side_length * _grid_cell_size * 0.5
+	var height := definition.reflection_height * _grid_cell_size
+	var best_fraction := INF
+	for side in _get_reflection_sides():
+		var side_id := StringName(side.get("id", StringName()))
+		if not is_reflection_surface_alive(side_id):
+			continue
+		var normal: Vector3 = side.get("normal", Vector3.ZERO)
+		var tangent: Vector3 = side.get("tangent", Vector3.ZERO)
+		var plane_center := global_position + normal * half_side
+		var denominator := segment.dot(normal)
+		if denominator >= -SIMULATION_EPSILON:
+			continue
+		var signed_start := (start - plane_center).dot(normal)
+		if signed_start < -SIMULATION_EPSILON:
+			continue
+		var fraction := -signed_start / denominator
+		if fraction <= SIMULATION_EPSILON or fraction > 1.0 or fraction >= best_fraction:
+			continue
+		var hit_position := start + segment * fraction
+		var along_side := (hit_position - plane_center).dot(tangent)
+		if absf(along_side) > half_side + 0.0001:
+			continue
+		if (
+			hit_position.y < global_position.y - 0.0001
+			or hit_position.y > global_position.y + height + 0.0001
+		):
+			continue
+		best_fraction = fraction
+		result.hit = true
+		result.position = hit_position
+		result.normal = normal
+		result.distance = segment_length * fraction
+		result.surface_id = StringName("enemy_%d_%s" % [get_instance_id(), side_id])
+		result.reflector_surface_id = side_id
+	return result
+
+
+func _get_reflection_sides() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if definition == null:
+		return result
+	for layout in _get_local_reflection_side_layout():
+		var local_normal: Vector3 = layout.get("normal", Vector3.ZERO)
+		var local_tangent: Vector3 = layout.get("tangent", Vector3.ZERO)
+		var world_normal := global_basis * local_normal
+		world_normal.y = 0.0
+		world_normal = world_normal.normalized()
+		var world_tangent := global_basis * local_tangent
+		world_tangent.y = 0.0
+		world_tangent = world_tangent.normalized()
+		result.append({
+			"id": layout.get("id", StringName()),
+			"normal": world_normal,
+			"tangent": world_tangent,
+		})
+	return result
+
+
+func _get_local_reflection_side_layout() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if definition == null:
+		return result
+	match definition.reflection_pattern:
+		EnemyDefinition.ReflectionPattern.FRONT:
+			result.append({"id": &"front", "normal": Vector3.FORWARD, "tangent": Vector3.RIGHT})
+		EnemyDefinition.ReflectionPattern.LEFT_RIGHT:
+			result.append({"id": &"left", "normal": Vector3.LEFT, "tangent": Vector3.FORWARD})
+			result.append({"id": &"right", "normal": Vector3.RIGHT, "tangent": Vector3.FORWARD})
+		EnemyDefinition.ReflectionPattern.FOUR_SIDES:
+			result.append({"id": &"front", "normal": Vector3.FORWARD, "tangent": Vector3.RIGHT})
+			result.append({"id": &"back", "normal": Vector3.BACK, "tangent": Vector3.RIGHT})
+			result.append({"id": &"left", "normal": Vector3.LEFT, "tangent": Vector3.FORWARD})
+			result.append({"id": &"right", "normal": Vector3.RIGHT, "tangent": Vector3.FORWARD})
+	return result
+
+
+func _configured_reflection_surface_ids() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for layout in _get_local_reflection_side_layout():
+		result.append(StringName(layout.get("id", StringName())))
+	return result
+
+
+func _initialize_reflection_surface_states() -> void:
+	_reflection_surface_states.clear()
+	if definition == null:
+		return
+	var maximum := maxf(1.0, definition.reflection_max_durability)
+	for surface_id in _configured_reflection_surface_ids():
+		_reflection_surface_states[surface_id] = {
+			"current_durability": maximum,
+			"maximum_durability": maximum,
+			"root": null,
+			"health_bar": null,
+		}
+
+
+func _build_special_ability_visuals() -> void:
+	if definition == null:
+		return
+	if debug_visual_enabled and definition.armor_aura_radius > 0.0 and definition.armor_aura_bonus > 0.0:
+		var aura := MeshInstance3D.new()
+		aura.name = &"ArmorAuraVisual"
+		var aura_mesh := TorusMesh.new()
+		var aura_radius := definition.armor_aura_radius * _grid_cell_size
+		aura_mesh.inner_radius = maxf(0.04, aura_radius - 0.035)
+		aura_mesh.outer_radius = aura_radius + 0.035
+		aura.mesh = aura_mesh
+		aura.position.y = 0.055
+		aura.material_override = _make_ability_material(Color(0.68, 0.28, 1.0, 0.72), 2.2)
+		add_child(aura)
+	if not has_reflection_surfaces():
+		return
+	_reflection_surfaces_root = Node3D.new()
+	_reflection_surfaces_root.name = &"ReflectionSurfaces"
+	add_child(_reflection_surfaces_root)
+	var side_length := definition.reflection_side_length * _grid_cell_size
+	var height := definition.reflection_height * _grid_cell_size
+	var thickness := maxf(0.025, _grid_cell_size * 0.035)
+	var material := _make_ability_material(Color(0.32, 0.88, 1.0, 0.48), 2.8)
+	for layout in _get_local_reflection_side_layout():
+		var side_id := StringName(layout.get("id", StringName()))
+		var local_normal: Vector3 = layout.get("normal", Vector3.ZERO)
+		var size := (
+			Vector3(side_length, height, thickness)
+			if absf(local_normal.z) > 0.5
+			else Vector3(thickness, height, side_length)
+		)
+		_add_reflection_surface(side_id, local_normal, size, material)
+
+
+func _add_reflection_surface(
+	surface_id: StringName,
+	local_normal: Vector3,
+	size: Vector3,
+	material: StandardMaterial3D
+) -> void:
+	var surface_root := Node3D.new()
+	surface_root.name = StringName("%sReflectionSurface" % String(surface_id).capitalize())
+	surface_root.position = local_normal * definition.reflection_side_length * _grid_cell_size * 0.5
+	_reflection_surfaces_root.add_child(surface_root)
+	var visual: Node3D
+	if definition.reflection_model_asset != null:
+		visual = definition.reflection_model_asset.instantiate_fitted_model(
+			&"MirrorModel",
+			AABB(Vector3(-size.x * 0.5, 0.0, -size.z * 0.5), size)
+		)
+	if visual == null:
+		var fallback := MeshInstance3D.new()
+		fallback.name = &"MirrorModel"
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		fallback.mesh = mesh
+		fallback.position.y = size.y * 0.5
+		fallback.material_override = material
+		visual = fallback
+	surface_root.add_child(visual)
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	var health_bar := EnemyHealthBarScript.new()
+	health_bar.name = &"MirrorHealthBar3D"
+	health_bar.configure(
+		float(state.get("maximum_durability", 1.0)),
+		float(state.get("current_durability", 0.0)),
+		debug_height + 0.34
+	)
+	health_bar.position += local_normal * maxf(0.08, _grid_cell_size * 0.14)
+	surface_root.add_child(health_bar)
+	state["root"] = surface_root
+	state["health_bar"] = health_bar
+	_reflection_surface_states[surface_id] = state
+
+
+func _destroy_reflection_surface_visual(surface_id: StringName) -> void:
+	var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+	var surface_root_value: Variant = state.get("root")
+	if is_instance_valid(surface_root_value):
+		var surface_root := surface_root_value as Node3D
+		surface_root.visible = false
+		surface_root.queue_free()
+	state["root"] = null
+	state["health_bar"] = null
+	_reflection_surface_states[surface_id] = state
+
+
+func _make_ability_material(color: Color, emission_energy: float) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.albedo_color = color
+	material.metallic = 0.72
+	material.roughness = 0.2
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = emission_energy
+	return material
 
 
 func get_target_marker_position() -> Vector3:
@@ -219,6 +650,7 @@ func _move_along_path(remaining_distance: float) -> float:
 		movement_duration += traveled_duration
 		if not is_alive():
 			break
+		_face_direction(to_destination)
 		if distance_to_destination <= remaining_distance:
 			global_position = destination
 			remaining_distance -= distance_to_destination
@@ -229,7 +661,6 @@ func _move_along_path(remaining_distance: float) -> float:
 		else:
 			var direction := to_destination / distance_to_destination
 			global_position += direction * remaining_distance
-			_face_direction(direction)
 			remaining_distance = 0.0
 	if is_alive() and _path_index >= _path_points.size() - 1:
 		_reach_base()
@@ -535,6 +966,32 @@ func _on_enemy_health_changed(
 ) -> void:
 	if _enemy_health_bar != null:
 		_enemy_health_bar.update_health(new_current_hp, new_maximum_hp)
+	_spawn_hit_particles(new_current_hp <= 0.0)
+
+
+func _spawn_hit_particles(force: bool = false) -> void:
+	if (
+		definition == null
+		or definition.hit_particle_count <= 0
+		or not is_inside_tree()
+		or _hit_particle_cooldown > 0.0 and not force
+	):
+		return
+	var host := get_parent()
+	if host == null:
+		return
+	var burst := EnemyHitParticlesScript.new()
+	burst.configure(
+		definition.hit_particle_color,
+		definition.hit_particle_brightness,
+		definition.hit_particle_size,
+		definition.hit_particle_count,
+		maxf(definition.hit_particle_size, hit_radius * 0.55)
+	)
+	host.add_child(burst)
+	burst.global_position = get_target_position()
+	burst.start()
+	_hit_particle_cooldown = HIT_PARTICLE_MIN_INTERVAL
 
 func _reach_base() -> void:
 	if _reached_base:

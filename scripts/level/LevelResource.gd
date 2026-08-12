@@ -18,6 +18,7 @@ const TerrainModelMetricsScript := preload("res://scripts/terrain/TerrainModelMe
 const LevelContentMigrationAdapterScript := preload("res://scripts/level/LevelContentMigrationAdapter.gd")
 const LevelContentValidatorScript := preload("res://scripts/level/LevelContentValidator.gd")
 const LightingProfileScript := preload("res://scripts/lighting/LightingProfile.gd")
+const AcrylicDisplayCaseDefinitionScript := preload("res://scripts/lighting/AcrylicDisplayCaseDefinition.gd")
 const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
 const InitialLayoutValidatorScript := preload("res://scripts/level/InitialLayoutValidator.gd")
 const DefaultGrassTerrainResource := preload("res://resources/terrains/Grass.tres")
@@ -67,6 +68,10 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export_group("Presentation")
 ## Optional per-level lighting. Runtime falls back to the project's first test profile.
 @export var lighting_profile: LightingProfileScript
+## Per-level cabinet construction and material-response settings. Stored as a level-owned subresource.
+@export var display_case_definition: AcrylicDisplayCaseDefinitionScript = AcrylicDisplayCaseDefinitionScript.new()
+## Optional non-gameplay scene placed around the level (for example hanging showcase ornaments).
+@export var decoration_scene: PackedScene
 ## Default grounded model for every base point in this level. A point-level
 ## model_asset overrides this value.
 @export var base_model_asset: ModelAssetDefinition
@@ -83,7 +88,11 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export_group("M3 Economy")
 @export_range(0, 100000, 1, "or_greater") var initial_resource: int = 200
 @export_range(0, 1000, 1, "or_greater") var building_cap: int = 20
-@export_range(0, 1000, 1, "or_greater") var mirror_cap: int = 6
+@export_range(0, 1000, 1, "or_greater") var copy_mirror_cap: int = 5
+@export_range(0, 1000, 1, "or_greater") var reflect_mirror_cap: int = 10
+## Compatibility storage for levels authored before independent mirror limits.
+## New levels keep -1 and use copy_mirror_cap / reflect_mirror_cap.
+@export_storage var mirror_cap: int = -1
 @export_range(0.0, 10000.0, 0.1, "or_greater") var base_resource_per_second: float = 0.5
 
 @export_group("M6 Runtime HUD")
@@ -105,6 +114,10 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export var spawn_points: Array[SpawnPointDefinition] = []
 
 @export_group("M4 Waves")
+## Wave one keeps authored base HP. Later waves multiply HP by
+## enemy_hp_growth_factor^(wave_number - 1), capped for long levels.
+@export_range(1.0, 3.0, 0.01, "or_greater") var enemy_hp_growth_factor: float = 1.1
+@export_range(1.0, 100.0, 0.1, "or_greater") var enemy_hp_growth_max_multiplier: float = 5.0
 @export var waves: Array[WaveDefinition] = []
 
 var _legacy_base_point: BasePointDefinitionScript
@@ -119,6 +132,24 @@ func get_tile_building_facing_count() -> int:
 
 func get_edge_building_facing_count() -> int:
 	return 6 if grid_shape == 0 else 4
+
+
+## Resolves an authored zero-based wave index into its runtime HP multiplier.
+## Negative indices are reserved for debug/test spawns and remain unscaled.
+func get_enemy_hp_multiplier(wave_index: int) -> float:
+	if wave_index <= 0:
+		return 1.0
+	if (
+		not is_finite(enemy_hp_growth_factor)
+		or enemy_hp_growth_factor < 1.0
+		or not is_finite(enemy_hp_growth_max_multiplier)
+		or enemy_hp_growth_max_multiplier < 1.0
+	):
+		return 1.0
+	return minf(
+		pow(enemy_hp_growth_factor, float(wave_index)),
+		enemy_hp_growth_max_multiplier
+	)
 
 
 func get_camera_preset(slot_index: int) -> CameraPresetDefinitionScript:
@@ -390,6 +421,14 @@ func get_path_for_spawn_point(spawn_point: SpawnPointDefinition) -> PathDefiniti
 ## Complete preflight used by both the editor and LevelLoader. Validation is
 ## deliberately read-only so a rejected resource cannot partially mutate the
 ## currently running level.
+func get_copy_mirror_cap() -> int:
+	return mirror_cap if mirror_cap >= 0 else copy_mirror_cap
+
+
+func get_reflect_mirror_cap() -> int:
+	return mirror_cap if mirror_cap >= 0 else reflect_mirror_cap
+
+
 func validate_runtime() -> Array[String]:
 	var errors: Array[String] = []
 	_validate_grid_and_tiles(errors)
@@ -452,8 +491,8 @@ func _validate_grid_and_tiles(errors: Array[String]) -> void:
 func _validate_level_parameters(errors: Array[String]) -> void:
 	if initial_resource < 0:
 		errors.append("初始资源不能为负数")
-	if building_cap < 0 or mirror_cap < 0:
-		errors.append("建筑或镜面上限不能为负数")
+	if building_cap < 0 or get_copy_mirror_cap() < 0 or get_reflect_mirror_cap() < 0:
+		errors.append("建筑、复制镜或反射镜上限不能为负数")
 	if building_card_slot_count < 1 or building_card_slot_count > 12:
 		errors.append("建筑卡槽数量必须位于 1 到 12 之间")
 	if camera_presets.size() > CAMERA_PRESET_SLOT_COUNT:
@@ -468,10 +507,18 @@ func _validate_level_parameters(errors: Array[String]) -> void:
 		errors.append("关卡基础资源产出必须为有限非负数")
 	if not is_finite(base_max_hp) or base_max_hp <= 0.0:
 		errors.append("据点生命值必须为有限正数")
+	if not is_finite(enemy_hp_growth_factor) or enemy_hp_growth_factor < 1.0:
+		errors.append("敌人波次生命增长系数必须为不小于 1 的有限数")
+	if not is_finite(enemy_hp_growth_max_multiplier) or enemy_hp_growth_max_multiplier < 1.0:
+		errors.append("敌人波次生命倍率上限必须为不小于 1 的有限数")
 	if tile_model_asset != null:
 		ConfigValidator.append_prefixed(errors, "关卡地块模型", tile_model_asset.validate_configuration())
 	if lighting_profile != null:
 		ConfigValidator.append_prefixed(errors, "关卡灯光", lighting_profile.validate_configuration())
+	if display_case_definition == null:
+		errors.append("关卡必须配置独立的亚克力展示柜参数")
+	else:
+		ConfigValidator.append_prefixed(errors, "关卡亚克力展示柜", display_case_definition.validate_configuration())
 	if base_model_asset != null:
 		ConfigValidator.append_prefixed(errors, "关卡默认据点模型", base_model_asset.validate_configuration())
 	if spawn_point_model_asset != null:
@@ -645,6 +692,12 @@ func _validate_m4_content(errors: Array[String]) -> void:
 				)
 			if group.count < 1 or not is_finite(group.interval) or group.interval <= 0.0:
 				errors.append("波次 %s 的数量或间隔无效" % wave.display_name)
+			if (
+				not is_finite(group.interval_jitter_ratio)
+				or group.interval_jitter_ratio < 0.0
+				or group.interval_jitter_ratio > 0.95
+			):
+				errors.append("波次 %s 的生成间隔抖动比例无效" % wave.display_name)
 			if not is_finite(group.start_delay) or group.start_delay < 0.0:
 				errors.append("波次 %s 的组开始延迟无效" % wave.display_name)
 			if not paths.has(group.path) or not spawn_points.has(resolved_spawn):

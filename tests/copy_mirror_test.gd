@@ -16,6 +16,7 @@ func _run() -> void:
 	await _test_grid_geometry(GridManager.Shape.SQUARE)
 	await _test_grid_geometry(GridManager.Shape.HEX)
 	await _test_building_preview_and_copy_trajectory()
+	await _test_mirror_placement_preview_trajectory()
 	await _test_whole_tile_preview_stacking_and_tower_attacks()
 	await _test_projected_barrier_and_shared_edge_occupancy()
 	await _test_projected_rock_after_overlapping_barrier_breaks()
@@ -118,6 +119,75 @@ func _test_building_preview_and_copy_trajectory() -> void:
 	_assert_original_and_copy_trajectories(
 		visualizer.debug_get_projectile_trajectory_segments(),
 		"selected building"
+	)
+	host.queue_free()
+	await process_frame
+
+
+func _test_mirror_placement_preview_trajectory() -> void:
+	var fixture := _make_fixture(_make_level(false))
+	var host: Node3D = fixture.host
+	var grid: GridManager = fixture.grid
+	var building_manager: BuildingManager = fixture.building
+	var mirror_manager: MirrorManager = fixture.mirror
+	var source_cell := Vector3i(2, 2, 0)
+	var from_cell := Vector3i(3, 2, 0)
+	var target_cell := Vector3i(5, 2, 0)
+	var edge_index := grid.find_edge_index(from_cell, Vector3i(4, 2, 0))
+	var source := building_manager.place_building(source_cell, building_manager.arrow_tower)
+	building_manager.select_building(null)
+	_expect(source != null, "mirror-trajectory fixture places a real source tower")
+	_expect(mirror_manager.update_preview(from_cell, edge_index), "copy-mirror placement creates its virtual-image preview")
+	var trajectory_data := mirror_manager.get_preview_projectile_trajectory()
+	var trajectory_payloads: Array = trajectory_data.get("payloads", [])
+	_expect(
+		trajectory_data.get("building") == source
+		and trajectory_payloads.size() == 1
+		and (trajectory_payloads[0] as MirrorCopyPayload).projected_cell == target_cell,
+		"copy-mirror preview exposes its source tower and generated virtual-image transform"
+	)
+	var visualizer := BuildingSelectionVisualizer.new()
+	host.add_child(visualizer)
+	visualizer.configure(grid, building_manager)
+	visualizer.set_mirror_preview_trajectory_resolver(
+		Callable(mirror_manager, "get_preview_projectile_trajectory")
+	)
+	var segments := visualizer.debug_get_projectile_trajectory_segments()
+	var source_segments := segments.filter(
+		func(segment: Dictionary) -> bool: return not bool(segment.get("projected", false))
+	)
+	var virtual_segments := segments.filter(
+		func(segment: Dictionary) -> bool: return bool(segment.get("projected", false))
+	)
+	_expect(
+		source_segments.size() == source.get_projectile_launch_directions().size(),
+		"copy-mirror placement displays every source-building preview trajectory"
+	)
+	_expect(
+		virtual_segments.size() == source.get_projectile_launch_directions().size()
+		and virtual_segments[0].get("projected_cell") == target_cell,
+		"copy-mirror placement displays every generated virtual-image preview trajectory"
+	)
+	var payload := trajectory_payloads[0] as MirrorCopyPayload
+	_expect(
+		(source_segments[0].get("start") as Vector3).distance_to(source.get_attack_origin()) < 0.001
+		and (virtual_segments[0].get("start") as Vector3).distance_to(
+			payload.transform_point(source.get_attack_origin())
+		) < 0.001,
+		"source and virtual trajectories start from their corresponding attack origins"
+	)
+	mirror_manager.clear_preview()
+	visualizer.refresh()
+	_expect(
+		not visualizer.has_projectile_trajectory_visual(),
+		"clearing mirror placement removes both transient trajectories"
+	)
+	mirror_manager.reflect_mirror_definition = TestDefinitionFactory.make_reflect_mirror_definition()
+	_expect(mirror_manager.update_reflect_preview(from_cell, edge_index), "reflect-mirror placement preview remains available")
+	visualizer.refresh()
+	_expect(
+		not visualizer.has_projectile_trajectory_visual(),
+		"reflect-mirror placement does not show copy trajectories"
 	)
 	host.queue_free()
 	await process_frame
@@ -282,7 +352,7 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	source_camera_attributes.dof_blur_far_enabled = true
 	reflection_camera.attributes = source_camera_attributes
 	mirror_manager.set_reflection_camera(reflection_camera)
-	_expect(mirror.get_reflection_surface() != null and mirror.get_reflection_surface().mesh is QuadMesh, "copy mirror active face owns a dedicated reflection surface")
+	_expect(mirror.get_reflection_surface() != null and mirror.get_reflection_surface().mesh is ArrayMesh, "copy mirror active face owns a dedicated oval reflection surface")
 	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99, "reflection surface front normal follows the configured active side")
 	var mirror_center := mirror.global_position + Vector3.UP * mirror.get_mirror_height() * 0.5
 	var surface_depth_offset := (mirror.get_reflection_surface().global_position - mirror_center).dot(mirror.get_active_normal())
@@ -304,6 +374,12 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		reflection_material != null
 		and reflection_material.shader.code.contains("1.0 - SCREEN_UV.x"),
 		"mirror shader counter-corrects the reflected camera's horizontal handedness"
+	)
+	_expect(
+		reflection_material != null
+		and reflection_material.shader.code.contains("surface_tint.a")
+		and reflection_material.shader.code.contains("effective_tint"),
+		"transparent mirror tint controls tint strength instead of multiplying the reflection to black"
 	)
 	var mirror_body := mirror.get_node("MirrorBody") as MeshInstance3D
 	var mirror_body_material := mirror_body.material_override as StandardMaterial3D
@@ -343,13 +419,37 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(stuff_manager.load_level(_make_level(false)), "copy attack fixture Stuff runtime loads")
 	mirror_manager.set_stuff_manager(stuff_manager)
 	var original_endpoint := grid.cell_to_world(Vector3i(1, 2, 0)) + Vector3(0.0, mirrored_target.debug_height * 0.55, 0.0)
+	var projected_start := tower_projection.payload.transform_point(arrow.get_attack_origin())
+	var projected_end := tower_projection.payload.transform_point(original_endpoint)
+	var old_endpoint_distance := projected_start.distance_to(projected_end)
 	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
 	var projection_projectile := _find_projection_projectile(combat_manager)
-	_expect(projection_projectile != null, "original arrow attack spawns a fixed-end projection projectile")
+	_expect(projection_projectile != null, "original arrow attack spawns a from-start ballistic projection projectile")
 	if projection_projectile != null:
 		projection_projectile._process(10.0)
-	_expect(is_equal_approx(mirrored_target.current_hp, mirrored_target.max_hp - 17.0), "projection projectile damages a target only at the mirrored endpoint")
+	_expect(is_equal_approx(mirrored_target.current_hp, mirrored_target.max_hp - 17.0), "projection projectile damages the first eligible target along its mirrored ray")
 	await process_frame
+	mirrored_target.global_position = grid.cell_to_world(Vector3i(6, 0, 0))
+	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
+	var continuing_projection_projectile := _find_projection_projectile(combat_manager)
+	var continued_distance := minf(
+		old_endpoint_distance + grid.cell_size * 0.25,
+		arrow.get_attack_range_world() - grid.cell_size * 0.25
+	)
+	if continuing_projection_projectile != null:
+		continuing_projection_projectile._process(
+			continued_distance / arrow.get_projectile_speed_world()
+		)
+	_expect(
+		continuing_projection_projectile != null
+		and not continuing_projection_projectile.is_queued_for_deletion()
+		and continuing_projection_projectile.get_distance_traveled() > old_endpoint_distance + 0.001,
+		"projection arrow continues beyond the launch-time endpoint until collision or range exhaustion"
+	)
+	if continuing_projection_projectile != null:
+		continuing_projection_projectile.queue_free()
+	await process_frame
+	mirrored_target.global_position = grid.cell_to_world(mirrored_target_cell)
 	var ballistic_blocker := StuffDefinition.new()
 	ballistic_blocker.stuff_id = &"copy_attack_blocker"
 	ballistic_blocker.display_name = "Copy attack blocker"

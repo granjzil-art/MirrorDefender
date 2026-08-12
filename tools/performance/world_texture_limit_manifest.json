@@ -1,0 +1,1244 @@
+{
+    "version":  1,
+    "generated_at":  "2026-08-12T00:03:24+08:00",
+    "target_limit":  2048,
+    "minimum_source_dimension":  4096,
+    "excluded_roots":  [
+                           "assets/ui",
+                           "assets/png"
+                       ],
+    "entries":  [
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_0.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_1.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_2.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_3.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_0.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_1.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_2.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_3.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_0.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_1.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_2.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_3.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_0.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_1.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_2.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_3.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_0.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_1.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_2.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_3.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_0.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_1.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_2.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_3.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_0.png",
+                        "import_path":  "assets/blocks/fbx/mud1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_1.png",
+                        "import_path":  "assets/blocks/fbx/mud1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_2.png",
+                        "import_path":  "assets/blocks/fbx/mud1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_3.png",
+                        "import_path":  "assets/blocks/fbx/mud1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_0.png",
+                        "import_path":  "assets/blocks/fbx/stone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_1.png",
+                        "import_path":  "assets/blocks/fbx/stone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_2.png",
+                        "import_path":  "assets/blocks/fbx/stone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_3.png",
+                        "import_path":  "assets/blocks/fbx/stone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_0.png",
+                        "import_path":  "assets/buildings/crossbow/crossbow_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_1.png",
+                        "import_path":  "assets/buildings/crossbow/crossbow_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_2.jpg",
+                        "import_path":  "assets/buildings/crossbow/crossbow_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_0.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_1.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_2.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_3.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_0.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_1.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_2.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_3.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_0.png",
+                        "import_path":  "assets/buildings/mace/mace_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_1.png",
+                        "import_path":  "assets/buildings/mace/mace_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_0.png",
+                        "import_path":  "assets/buildings/mace/mace1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_1.png",
+                        "import_path":  "assets/buildings/mace/mace1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace1_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_0.png",
+                        "import_path":  "assets/buildings/mace/mace8_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_1.png",
+                        "import_path":  "assets/buildings/mace/mace8_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace8_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_0.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_1.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_2.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_3.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_0.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_1.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_2.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_3.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_baseColor.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_baseColor.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_metallicRoughness.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_metallicRoughness.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_normal.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_normal.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_0.png",
+                        "import_path":  "assets/moon/moon_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_1.png",
+                        "import_path":  "assets/moon/moon_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_2.png",
+                        "import_path":  "assets/moon/moon_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_3.png",
+                        "import_path":  "assets/moon/moon_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_0.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_1.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_2.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_3.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_0.png",
+                        "import_path":  "assets/projections/daodan/daodan_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_1.png",
+                        "import_path":  "assets/projections/daodan/daodan_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_2.png",
+                        "import_path":  "assets/projections/daodan/daodan_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_3.png",
+                        "import_path":  "assets/projections/daodan/daodan_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_0.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_1.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_2.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_3.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star1_0.png",
+                        "import_path":  "assets/star/star1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star1_1.png",
+                        "import_path":  "assets/star/star1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star1_2.png",
+                        "import_path":  "assets/star/star1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star1_3.png",
+                        "import_path":  "assets/star/star1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star2_0.png",
+                        "import_path":  "assets/star/star2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star2_1.png",
+                        "import_path":  "assets/star/star2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star2_2.jpg",
+                        "import_path":  "assets/star/star2_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star3_0.png",
+                        "import_path":  "assets/star/star3_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star3_1.png",
+                        "import_path":  "assets/star/star3_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star3_2.png",
+                        "import_path":  "assets/star/star3_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star3_3.png",
+                        "import_path":  "assets/star/star3_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star4_0.png",
+                        "import_path":  "assets/star/star4_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star4_1.png",
+                        "import_path":  "assets/star/star4_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star4_2.jpg",
+                        "import_path":  "assets/star/star4_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star5_0.png",
+                        "import_path":  "assets/star/star5_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star5_1.png",
+                        "import_path":  "assets/star/star5_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star5_2.png",
+                        "import_path":  "assets/star/star5_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star5_3.png",
+                        "import_path":  "assets/star/star5_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star6_0.png",
+                        "import_path":  "assets/star/star6_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star6_1.png",
+                        "import_path":  "assets/star/star6_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/star/star6_2.jpg",
+                        "import_path":  "assets/star/star6_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_0.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_1.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_2.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_3.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_0.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_1.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_2.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_3.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_0.png",
+                        "import_path":  "assets/sun/sun_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_1.png",
+                        "import_path":  "assets/sun/sun_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_2.png",
+                        "import_path":  "assets/sun/sun_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_3.png",
+                        "import_path":  "assets/sun/sun_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  0
+                    }
+                ]
+}

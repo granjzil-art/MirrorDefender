@@ -23,8 +23,21 @@ static func validate(level: Resource, shape: IGridShape) -> Array[String]:
 		return errors
 	if raw_buildings.size() > int(level.get("building_cap")):
 		errors.append("初始建筑数量超过建筑上限")
-	if raw_mirrors.size() > int(level.get("mirror_cap")):
-		errors.append("初始镜子数量超过镜子上限")
+	var copy_mirror_count := 0
+	var reflect_mirror_count := 0
+	for raw_mirror in raw_mirrors:
+		if not raw_mirror is MirrorPlacementDataScript:
+			continue
+		if raw_mirror.mirror_kind == MirrorPlacementDataScript.MirrorKind.PROJECTILE_REFLECT:
+			reflect_mirror_count += 1
+		else:
+			copy_mirror_count += 1
+	var copy_mirror_cap := int(level.call("get_copy_mirror_cap"))
+	var reflect_mirror_cap := int(level.call("get_reflect_mirror_cap"))
+	if copy_mirror_count > copy_mirror_cap:
+		errors.append("初始复制镜数量超过复制镜上限")
+	if reflect_mirror_count > reflect_mirror_cap:
+		errors.append("初始反射镜数量超过反射镜上限")
 	var context := _build_context(level)
 	var occupied_cells: Dictionary = {}
 	var occupied_edges: Dictionary = {}

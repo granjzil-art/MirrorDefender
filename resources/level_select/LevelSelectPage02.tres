@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="LevelSelectPageDefinition" format=3 uid="uid://c08lx5w16smig"]
 
-[ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="1_h323o"]
 [ext_resource type="Script" uid="uid://ckayuxy8ijk2o" path="res://scripts/level/LevelSelectPageDefinition.gd" id="6_ft1ng"]
 
 [resource]
 script = ExtResource("6_ft1ng")
 display_name = "正式关卡"
+level_paths = PackedStringArray()

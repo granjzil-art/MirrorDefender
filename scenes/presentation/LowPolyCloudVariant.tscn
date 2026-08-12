@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/LowPolyCloudVariant.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://caajf86vgu506" path="res://assets/low_poly_clouds/scene.gltf" id="2_clouds"]
+
+[node name="LowPolyCloudVariant" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="ImportedClouds" parent="." instance=ExtResource("2_clouds")]

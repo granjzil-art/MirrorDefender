@@ -80,6 +80,10 @@ func configure(
 	_update_orientation((_last_target_position - start).normalized())
 	_active = true
 
+
+func get_attacker() -> Node:
+	return _attacker if is_instance_valid(_attacker) else null
+
 func _impact() -> void:
 	_active = false
 	var applied_damage: float = 0.0

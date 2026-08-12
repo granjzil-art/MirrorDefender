@@ -14,7 +14,6 @@ class_name MainController
 extends Node3D
 
 const LevelLoaderScript := preload("res://scripts/level/LevelLoader.gd")
-const LevelDebugPanelScript := preload("res://scripts/level/LevelDebugPanel.gd")
 const M3DebugPanelScript := preload("res://scripts/ui/M3DebugPanel.gd")
 const BuildingActionPanelScript := preload("res://scripts/ui/BuildingActionPanel.gd")
 const MirrorActionPanelScript := preload("res://scripts/ui/MirrorActionPanel.gd")
@@ -43,6 +42,9 @@ const RuntimeStuffEditorControllerScript := preload("res://scripts/stuff/Runtime
 const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
 const MiniatureDofControllerScript := preload("res://scripts/camera/MiniatureDofController.gd")
 const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
+const RuntimeCombatDataEditSessionScript := preload("res://scripts/combat/RuntimeCombatDataEditSession.gd")
+const RuntimeTestEnemySpawnerScript := preload("res://scripts/combat/RuntimeTestEnemySpawner.gd")
+const RuntimeCombatDataEditorWindowScript := preload("res://scripts/ui/RuntimeCombatDataEditorWindow.gd")
 const LightingControllerScript := preload("res://scripts/lighting/LightingController.gd")
 const LightingTestPanelScript := preload("res://scripts/ui/LightingTestPanel.gd")
 const BuildingSelectionVisualizerScript := preload("res://scripts/building/BuildingSelectionVisualizer.gd")
@@ -54,7 +56,6 @@ const BarrierDefinitionResource := preload("res://resources/buildings/Barrier.tr
 const EdgeBarrierDefinitionResource := preload("res://resources/buildings/EdgeBarrier.tres")
 const MaceDefinitionResource := preload("res://resources/buildings/MaceTower.tres")
 const PulseLaserDefinitionResource := preload("res://resources/buildings/PulseLaserTower.tres")
-const AcrylicDisplayCaseDefinitionResource := preload("res://resources/lighting/AcrylicDisplayCase.tres")
 const WhiteSoftLightingProfile := preload("res://resources/lighting/WhiteSoft.tres")
 const WarmYellowLightingProfile := preload("res://resources/lighting/WarmYellow.tres")
 const CyanRedLightingProfile := preload("res://resources/lighting/CyanRedContrast.tres")
@@ -68,7 +69,8 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 @export_range(0.0, 5.0, 0.01, "or_greater") var camera_preset_transition_duration: float = 0.35
 @export var camera_preset_transition_curve: Curve
 
-@export_group("Mirror Placement Cooldown")
+@export_group("Mirror Placement Availability")
+@export var mirror_placement_cooldown_enabled: bool = false
 @export_range(0.0, 1.0, 0.01) var mirror_preparation_cooldown_time_scale: float = 0.5
 
 @export_group("Miniature Depth Of Field")
@@ -77,6 +79,9 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 
 @export_group("M6 Debug Console")
 @export var debug_console_enabled: bool = true
+
+@export_group("Runtime Combat Data Editor")
+@export var runtime_combat_data_editor_enabled: bool = true
 
 @export_group("Lighting Presentation")
 @export var lighting_enabled: bool = true
@@ -109,7 +114,6 @@ signal startup_level_load_resolved(success: bool, reason: String)
 @onready var cam_rig: CameraController = $CameraRig
 @onready var hud_label: Label = $HUD/Panel/Info
 @onready var hint_label: Label = $HUD/Hint
-@onready var level_debug_panel: LevelDebugPanelScript = $HUD/LevelDebugPanel
 @onready var m3_debug_panel: M3DebugPanelScript = $HUD/M3DebugPanel
 @onready var runtime_hud: RuntimeHudScript = $HUD/RuntimeHud
 @onready var runtime_interaction: RuntimeInteractionControllerScript = $RuntimeInteractionController
@@ -132,11 +136,15 @@ var runtime_path_display: RuntimePathDisplayController
 var camera_preset_controller: CameraPresetControllerScript
 var miniature_dof_controller: MiniatureDofControllerScript
 var runtime_debug_bindings: RuntimeDebugBindingsScript
+var runtime_combat_data_edit_session: RuntimeCombatDataEditSessionScript
+var runtime_test_enemy_spawner: RuntimeTestEnemySpawnerScript
+var runtime_combat_data_editor_window: RuntimeCombatDataEditorWindowScript
 var lighting_controller: LightingControllerScript
 var lighting_test_panel: LightingTestPanelScript
 var stuff_placement_validator: StuffPlacementValidatorScript
 var runtime_stuff_edit_session: RuntimeStuffEditSessionScript
 var runtime_stuff_editor: RuntimeStuffEditorControllerScript
+var _level_decoration: Node3D
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
 var _has_selected_edge: bool = false
@@ -219,7 +227,6 @@ func _ready() -> void:
 		$Sun,
 		grid,
 		terrain_manager,
-		AcrylicDisplayCaseDefinitionResource,
 		lighting_profiles,
 		lighting_visual_roots,
 		FoliageShadowDefinitionResource,
@@ -242,6 +249,7 @@ func _ready() -> void:
 	building_manager.configure(grid, tile_manager, resource_manager, combat_manager)
 	building_selection_visualizer.configure(grid, building_manager)
 	mirror_manager = MirrorManagerScript.new()
+	mirror_manager.placement_cooldown_enabled = mirror_placement_cooldown_enabled
 	add_child(mirror_manager)
 	mirror_manager.copy_mirror_definition = CopyMirrorDefinitionResource
 	mirror_manager.reflect_mirror_definition = ReflectMirrorDefinitionResource
@@ -271,6 +279,11 @@ func _ready() -> void:
 	building_selection_visualizer.set_projectile_copy_resolver(
 		Callable(mirror_manager, "get_projectile_trajectory_copy_payloads")
 	)
+	building_selection_visualizer.set_mirror_preview_trajectory_resolver(
+		Callable(mirror_manager, "get_preview_projectile_trajectory")
+	)
+	mirror_manager.preview_updated.connect(_on_mirror_placement_preview_updated)
+	mirror_manager.preview_cleared.connect(_on_mirror_placement_preview_cleared)
 	mirror_manager.projections_rebuilt.connect(_on_projectile_reflection_surfaces_rebuilt)
 	mirror_manager.building_preview_projections_rebuilt.connect(
 		_on_building_preview_projections_rebuilt
@@ -396,6 +409,23 @@ func _ready() -> void:
 		Callable(tile_effect_system, "apply_stay"),
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
+	if runtime_combat_data_editor_enabled and OS.has_feature("editor_runtime"):
+		runtime_test_enemy_spawner = RuntimeTestEnemySpawnerScript.new()
+		runtime_test_enemy_spawner.name = "RuntimeTestEnemySpawner"
+		add_child(runtime_test_enemy_spawner)
+		runtime_test_enemy_spawner.configure(wave_manager)
+		runtime_combat_data_edit_session = RuntimeCombatDataEditSessionScript.new()
+		runtime_combat_data_edit_session.name = "RuntimeCombatDataEditSession"
+		add_child(runtime_combat_data_edit_session)
+		runtime_combat_data_edit_session.configure(building_manager, wave_manager, level_loader)
+		runtime_combat_data_editor_window = RuntimeCombatDataEditorWindowScript.new()
+		runtime_combat_data_editor_window.name = "RuntimeCombatDataEditorWindow"
+		runtime_combat_data_editor_window.visible = false
+		add_child(runtime_combat_data_editor_window)
+		runtime_combat_data_editor_window.configure(
+			runtime_combat_data_edit_session,
+			runtime_test_enemy_spawner
+		)
 	mirror_manager.set_cooldown_time_scale_resolver(
 		Callable(self, "_get_mirror_cooldown_time_scale")
 	)
@@ -424,7 +454,6 @@ func _ready() -> void:
 	)
 	level_loader.configure(grid, tile_manager, terrain_manager, stuff_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
-	level_debug_panel.configure(level_loader)
 	var startup_loaded := false
 	if _startup_level != null:
 		startup_loaded = level_loader.load_level(_startup_level, _startup_level.resource_path)
@@ -731,9 +760,19 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放/选中建筑时旋转 | 左键选择/单次放置 | 右键取消 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障"
+	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放/选中建筑时旋转 | 左键选择/单次放置 | 右键取消/拖动旋转视角 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | F2 战斗数据"
 
 func _unhandled_input(event: InputEvent) -> void:
+	if (
+		event is InputEventKey
+		and event.pressed
+		and not event.echo
+		and event.keycode == KEY_F2
+		and runtime_combat_data_editor_window != null
+	):
+		runtime_combat_data_editor_window.toggle_editor()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_released("rotate_facing"):
 		_selected_rotation_repeat.release()
 	if runtime_hud != null and runtime_hud.is_modal_open():
@@ -781,7 +820,8 @@ func _handle_primary_action() -> void:
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
 		runtime_stuff_editor.handle_primary(cell_pick)
 		return
-	runtime_interaction.handle_primary(cell_pick, edge_pick)
+	var mirror_pick: Dictionary = mirror_manager.pick_mirror(_camera, mouse_position)
+	runtime_interaction.handle_primary(cell_pick, edge_pick, mirror_pick)
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
@@ -867,10 +907,15 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 		mirror_manager.clear_mirrors(true)
 		push_error("初始建筑陈列装配失败：\n%s" % "\n".join(initial_layout_errors))
 	base_core.load_level(level_resource)
+	if runtime_test_enemy_spawner != null:
+		runtime_test_enemy_spawner.stop()
 	wave_manager.load_level(level_resource)
+	if runtime_combat_data_edit_session != null:
+		runtime_combat_data_edit_session.refresh_level_catalog()
 	camera_preset_controller.load_level(level_resource)
 	if miniature_dof_controller != null:
 		miniature_dof_controller.refresh_now(true)
+	_replace_level_decoration(level_resource)
 	if lighting_controller != null:
 		lighting_controller.apply_level(level_resource)
 	runtime_hud.apply_level_configuration(level_resource, source_path)
@@ -879,6 +924,35 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	renderer.highlight_cell(Vector3i.ZERO, false)
 	renderer.highlight_edge(Vector3i.ZERO, 0, false)
 	runtime_interaction.cancel_to_select(true)
+	var sound_effects := get_node_or_null("/root/SoundEffects")
+	if sound_effects != null and sound_effects.has_method("bind_gameplay"):
+		sound_effects.call(
+			"bind_gameplay",
+			building_manager,
+			combat_manager,
+			wave_manager,
+			mirror_manager
+		)
+
+
+func get_level_decoration() -> Node3D:
+	return _level_decoration
+
+
+func _replace_level_decoration(level_resource: LevelResource) -> void:
+	if _level_decoration != null and is_instance_valid(_level_decoration):
+		_level_decoration.free()
+	_level_decoration = null
+	if level_resource == null or level_resource.decoration_scene == null:
+		return
+	var instance := level_resource.decoration_scene.instantiate()
+	if not instance is Node3D:
+		push_error("Level decoration root must inherit Node3D: %s" % level_resource.decoration_scene.resource_path)
+		instance.free()
+		return
+	_level_decoration = instance as Node3D
+	_level_decoration.name = "LevelDecoration"
+	add_child(_level_decoration)
 
 func _on_effect_visual_state_changed(source_cell: Vector3i, fill_ratio: float) -> void:
 	tile_renderer.refresh_effect_visual(source_cell, fill_ratio)
@@ -891,6 +965,16 @@ func _on_projectile_reflection_surfaces_rebuilt(_projection_count: int) -> void:
 
 
 func _on_building_preview_projections_rebuilt(_projection_count: int) -> void:
+	if building_selection_visualizer != null:
+		building_selection_visualizer.refresh()
+
+
+func _on_mirror_placement_preview_updated(_info: Dictionary) -> void:
+	if building_selection_visualizer != null:
+		building_selection_visualizer.refresh()
+
+
+func _on_mirror_placement_preview_cleared() -> void:
 	if building_selection_visualizer != null:
 		building_selection_visualizer.refresh()
 

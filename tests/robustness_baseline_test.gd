@@ -96,6 +96,10 @@ func _test_production_definition_smoke() -> void:
 		"res://resources/enemies/Runner.tres",
 		"res://resources/enemies/Archer.tres",
 		"res://resources/enemies/Flyer.tres",
+		"res://resources/enemies/EliteMage.tres",
+		"res://resources/enemies/EliteTitan.tres",
+		"res://resources/enemies/SingleShieldSoldier.tres",
+		"res://resources/enemies/DoubleShieldSoldier.tres",
 	]
 	for path in enemy_paths:
 		var enemy := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP) as EnemyDefinition

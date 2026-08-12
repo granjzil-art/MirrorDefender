@@ -2,7 +2,7 @@ extends SceneTree
 
 const MainScene := preload("res://scenes/Main.tscn")
 const FormalLevel := preload("res://resources/levels/Level2.tres")
-const CaseDefinition := preload("res://resources/lighting/AcrylicDisplayCase.tres")
+const CaseDefinition := preload("res://resources/levels/Level2.tres").display_case_definition
 const WhiteSoft := preload("res://resources/lighting/WhiteSoft.tres")
 const WarmYellow := preload("res://resources/lighting/WarmYellow.tres")
 const CyanRed := preload("res://resources/lighting/CyanRedContrast.tres")

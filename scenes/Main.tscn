@@ -7,7 +7,6 @@
 [ext_resource type="Script" uid="uid://bew28lvimhs27" path="res://scripts/tile/TileManager.gd" id="5_tile_manager"]
 [ext_resource type="Script" uid="uid://cdjj1ktv8i6pi" path="res://scripts/tile/TileRenderer.gd" id="6_tile_renderer"]
 [ext_resource type="Script" uid="uid://b03foyve8j5nb" path="res://scripts/level/LevelLoader.gd" id="8_level_loader"]
-[ext_resource type="Script" uid="uid://du3ppigv1d0s3" path="res://scripts/level/LevelDebugPanel.gd" id="9_level_debug_panel"]
 [ext_resource type="Script" uid="uid://dvtjsb0qfcrv2" path="res://scripts/resource/ResourceManager.gd" id="10_resource_manager"]
 [ext_resource type="Script" uid="uid://v3ocbrr2xs3k" path="res://scripts/combat/CombatManager.gd" id="11_combat_manager"]
 [ext_resource type="Script" uid="uid://65iq16m5xrrs" path="res://scripts/building/BuildingManager.gd" id="12_building_manager"]
@@ -129,18 +128,6 @@ offset_top = -40.0
 offset_right = -16.0
 offset_bottom = -12.0
 text = "WASD 平移 | QE 旋转 | XC 调俯仰 | 滚轮缩放 | T 切换网格 | 左键锁定"
-
-[node name="LevelDebugPanel" type="Control" parent="HUD" unique_id=677013588]
-layout_mode = 3
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -360.0
-offset_top = 16.0
-offset_right = -16.0
-offset_bottom = 54.0
-grow_horizontal = 0
-script = ExtResource("9_level_debug_panel")
 
 [node name="M3DebugPanel" type="Control" parent="HUD" unique_id=959147162]
 layout_mode = 3

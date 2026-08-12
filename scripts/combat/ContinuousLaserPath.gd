@@ -23,9 +23,11 @@ static func trace(
 ) -> Dictionary:
 	var segments: Array[Dictionary] = []
 	var hits: Array[Dictionary] = []
+	var reflections: Array[Dictionary] = []
 	var result := {
 		"segments": segments,
 		"hits": hits,
+		"reflections": reflections,
 		"endpoint": start,
 		"termination": &"none",
 	}
@@ -40,6 +42,7 @@ static func trace(
 	var remaining_distance := maximum_distance
 	var reflection_count := 0
 	var hit_count := 0
+	var previous_reflector: CombatTarget
 	var resolved_penetration_count := maxi(0, penetration_count)
 	while remaining_distance > MIN_SEGMENT_LENGTH:
 		var candidate_end := current_start + direction * remaining_distance
@@ -53,11 +56,22 @@ static func trace(
 			nearest_interaction if is_finite(nearest_interaction) else remaining_distance
 		)
 		var interaction_end := current_start + direction * segment_distance
+		var terminal_reflector := (
+			reflection_hit.get("reflector") as CombatTarget
+			if not blocker_is_first and is_finite(reflection_distance)
+			else null
+		)
+		var excluded_targets: Array[CombatTarget] = []
+		if previous_reflector != null and is_instance_valid(previous_reflector):
+			excluded_targets.append(previous_reflector)
+		if terminal_reflector != null and not excluded_targets.has(terminal_reflector):
+			excluded_targets.append(terminal_reflector)
 		var target_hits := _get_sorted_target_hits(
 			combat_manager,
 			source_building,
 			current_start,
-			interaction_end
+			interaction_end,
+			excluded_targets
 		)
 		var stopped_by_target := false
 		for target_hit in target_hits:
@@ -108,8 +122,10 @@ static func trace(
 			result["termination"] = &"invalid_reflection"
 			break
 		normal = normal.normalized()
+		reflections.append(reflection_hit.duplicate())
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
+		previous_reflector = terminal_reflector
 		var epsilon := minf(
 			maxf(MIN_SEGMENT_LENGTH, float(reflection_hit.get("epsilon", MIN_SEGMENT_LENGTH))),
 			remaining_distance
@@ -124,7 +140,8 @@ static func _get_sorted_target_hits(
 	combat_manager: CombatManager,
 	source_building: Node,
 	start: Vector3,
-	end: Vector3
+	end: Vector3,
+	excluded_targets: Array[CombatTarget] = []
 ) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var segment_start := Vector2(start.x, start.z)
@@ -136,6 +153,8 @@ static func _get_sorted_target_hits(
 	var direction := segment / segment_length
 	for target in combat_manager.get_targets():
 		if target == null or not is_instance_valid(target) or not target.is_alive():
+			continue
+		if excluded_targets.has(target):
 			continue
 		if source_building != null and is_instance_valid(source_building):
 			if not bool(source_building.call("affects_target", target)):

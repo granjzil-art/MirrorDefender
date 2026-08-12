@@ -9,6 +9,7 @@ static func make_copy_mirror_definition() -> CopyMirrorDefinition:
 	var definition := CopyMirrorDefinition.new()
 	definition.display_name = "测试复制镜"
 	definition.placement_cooldown_seconds = 0.0
+	definition.placement_cost = 0.0
 	definition.projection_ignores_occupancy = true
 	definition.copy_chain_max = 4
 	definition.active_from_side_by_default = true
@@ -28,6 +29,7 @@ static func make_reflect_mirror_definition() -> ReflectMirrorDefinition:
 	var definition := ReflectMirrorDefinition.new()
 	definition.display_name = "测试反射镜"
 	definition.placement_cooldown_seconds = 0.0
+	definition.placement_cost = 0.0
 	definition.active_from_side_by_default = true
 	definition.mirror_thickness_ratio = 0.08
 	definition.mirror_height_ratio = 2.0

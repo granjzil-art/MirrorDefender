@@ -96,6 +96,7 @@ func _run() -> void:
 	print("[LaserTowerStatus] running")
 	_test_production_configuration()
 	_test_finite_penetration_and_cold()
+	_test_cold_surface_shader_visual()
 	_test_reflected_path()
 	_test_propagating_logical_endpoint()
 	_test_pulse_style_beam_presentation()
@@ -168,8 +169,68 @@ func _test_finite_penetration_and_cold() -> void:
 	_expect(is_equal_approx(first.current_hp, 90.0) and is_equal_approx(second.current_hp, 90.0), "every traversed enemy receives continuous damage")
 	_expect(is_equal_approx(third.current_hp, 100.0), "enemies beyond the penetration stop remain unharmed")
 	_expect(first.is_movement_slowed() and is_equal_approx(first.get_movement_speed_multiplier(), 0.4), "continuous contact applies the configured cold slow")
-	var slow_visual := first.get_node_or_null("ColdSlowVisual") as MeshInstance3D
-	_expect(slow_visual != null and slow_visual.visible, "cold slow enables its visible status ring")
+	_expect(
+		first.get_node_or_null("ColdSlowVisual") == null,
+		"cold slow no longer creates a blue ring under the target"
+	)
+	host.queue_free()
+
+
+func _test_cold_surface_shader_visual() -> void:
+	var host := Node3D.new()
+	root.add_child(host)
+	var target := CombatTarget.new()
+	target.debug_visual_enabled = true
+	target.debug_color = Color(0.82, 0.18, 0.12, 1.0)
+	host.add_child(target)
+	target.configure_debug_target(Vector3.ZERO, 100.0, 1.0, 0.0)
+	var body := target.get_node_or_null("DebugTargetBody") as MeshInstance3D
+	var original_material: Material = body.material_override if body != null else null
+	var original_overlay: Material = body.material_overlay if body != null else null
+	_expect(target.apply_movement_slow(0.4, 3.0), "visible target accepts the cold effect")
+	var cold_material := target.debug_get_cold_surface_material()
+	_expect(
+		body != null
+		and cold_material != null
+		and body.material_override == cold_material
+		and target.debug_get_cold_surface_mesh_count() == 1,
+		"cold applies one ShaderMaterial directly to the target model surface"
+	)
+	var cold_tint: Color = (
+		cold_material.get_shader_parameter("cold_tint")
+		if cold_material != null
+		else Color.WHITE
+	)
+	_expect(
+		cold_material != null
+		and cold_tint.b > cold_tint.g
+		and cold_tint.g > cold_tint.r
+		and cold_material.shader.code.contains("TIME * 2.4")
+		and body.material_overlay == original_overlay,
+		"cold uses an animated deep-blue shader without mutating the model's overlay channel"
+	)
+	target._process(3.0)
+	_expect(
+		not target.is_movement_slowed()
+		and body.material_override == original_material
+		and body.material_overlay == original_overlay
+		and target.debug_get_cold_surface_mesh_count() == 0,
+		"cold expiry restores the model's previous material override"
+	)
+	var grunt_definition := load("res://resources/enemies/Grunt.tres") as EnemyDefinition
+	var model_target := CombatTarget.new()
+	model_target.debug_visual_enabled = false
+	model_target.model_asset = grunt_definition.get_model_asset() if grunt_definition != null else null
+	model_target.debug_height = grunt_definition.body_height if grunt_definition != null else 0.8
+	model_target.hit_radius = grunt_definition.hit_radius if grunt_definition != null else 0.3
+	host.add_child(model_target)
+	model_target.apply_movement_slow(0.4, 3.0)
+	_expect(
+		grunt_definition != null
+		and model_target.debug_get_cold_surface_mesh_count() > 0
+		and model_target.get_node_or_null("ColdSlowVisual") == null,
+		"production enemy model meshes receive the cold surface shader without a foot ring"
+	)
 	host.queue_free()
 
 

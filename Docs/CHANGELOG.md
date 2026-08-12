@@ -1,5 +1,55 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime UI / Building · 建筑卡悬停四段说明 — 2026-08-12
+**模块**：Runtime UI / Building Definition / Tests / Docs。
+- 鼠标悬停任意已配置建筑卡时，在对应卡槽正上方显示说明框；移出后立即隐藏，程序镜面与完整卡面两种模式共用。
+- `InspectionDisplayConfig` 在原 `function_description` 基础说明之外新增 1/2/3 级可编辑说明，统一格式为“基础描述 / 1级：/ 2级：/ 3级：”。
+- 卡片悬停框与选中建筑的“说明”页面均调用 `BuildingDefinition.get_formatted_inspection_description()`，不维护第二份文本。
+**影响面**：只增加只读说明表现和可编辑文本字段；卡片选择、建造费用、放置、升级与战斗数值不变。
+
+## Audio / UI / Combat · 七类语义音效系统 — 2026-08-12
+**模块**：Audio / UI / Building / Combat / Wave / Tests / Docs。
+- 新增持久 `SoundEffects` 自动加载节点、4 路 UI 与 12 路 3D 世界声播放池，覆盖 UI 操作、玩家建造/升级、双方攻击、命中、死亡、胜利和失败。
+- 七类默认声音由运行时程序生成，可开箱试听；`DefaultSoundEffects.tres` 提供逐类 AudioStream、音量和音高扰动替换入口，空插槽自动回退。
+- 高频攻击、持续激光和群体命中按事件/来源节流；玩家建筑/镜子使用独立成功建造信号，关卡初始陈列、重载和热重建不会误播。
+- 新增专项回归，覆盖七类默认 PCM、语义播放、UI 自动接入和核心玩法信号映射。
+**影响面**：纯表现层，不改变资源扣除、攻击频率、伤害、死亡和胜负状态机；现有 Master 音量继续统一控制。
+
+## Combat / FX · 寒冷状态改为模型表面深蓝 Shader — 2026-08-11
+**模块**：CombatTarget / Enemy Visual / Tests / Docs。
+- 移除寒冷减速期间目标脚下的 `ColdSlowVisual` 蓝色 Torus 圆环；改为递归覆盖敌人正式模型或调试模型下的全部 `MeshInstance3D`，临时使用带轻微明暗脉动的深蓝 `ShaderMaterial`。
+- 每个模型节点进入寒冷时保存原 `material_override`，效果结束后原样恢复；不写回共享模型/材质资源，也不占用 `material_overlay` 通道。冻结冰壳、血条、反射组件和攻击表现保持原样。
+- 寒冷专项回归扩展至 36 项，覆盖无脚环、深蓝 Shader、正式 Grunt 多网格覆盖、原材质隔离与到期恢复；新增 Forward+ 原模型/寒冷模型对照截图。
+**影响面**：只替换寒冷状态视觉；减速倍率、持续时间、不叠层、冻结暂停与解冻续时逻辑不变。
+
+## Mirror / Resource / Runtime UI · 独立镜子容量、金币放置与右上经济栏 — 2026-08-11
+**模块**：Mirror / Resource / Level / Runtime UI / Tests / Docs。
+- 关卡与 `ResourceManager` 将镜子容量拆为复制镜、反射镜两组独立计数；Level1–Level4 统一设为复制镜 `5`、反射镜 `10`，旧 `mirror_cap` 资源仍可单向兼容读取。
+- 镜子玩家放置默认改为按 `MirrorDefinition.placement_cost` 扣金币且无冷却；两种正式镜子当前费用均为 `100`，卡槽费用与建筑费用共用同一黄色。`Main.mirror_placement_cooldown_enabled` 保留旧独立冷却/库存分支，开启后忽略金币费用并恢复冷却卡面。
+- 右上信息改为三行两列：生命/波次、复制镜/反射镜、金币/建筑。金币使用 `dollar1.png` 并保留主数字滚动与 `+x/-x` 浮字，复制镜使用 `mirror1.png`，全部为无边框图标+白字。
+**影响面**：虚像不计 cap，关卡初始镜子仍免费登记，删除金币模式下的镜子不退费；边占用、放置权限和镜像/反射效果不变。
+
+## Mirror / Combat · 箭塔复制弹改为全射程直线弹道 — 2026-08-11
+**模块**：Mirror / Combat / Tests / Docs。
+- 箭塔复制弹从生成起使用镜像后的发射方向进行直线弹道查询，不再抵达开火时记录的旧目标点便提前销毁。
+- 沿途敌人、Stuff、穿透、镜面反射与累计 `attack_range` 继续复用现有统一查询和源建筑目标过滤规则；源箭的追踪行为不变。
+- 复制镜回归新增“越过旧终点仍继续飞行”断言，并同步覆盖沿途命中与 Stuff 截断。
+**影响面**：只调整箭塔有目标攻击的复制投射物生命周期；导弹、钉锤、激光、脉冲镭射及实体箭弹道不变。
+
+## Runtime UI · 右上状态改为四项图标数字 — 2026-08-11
+**模块**：Runtime UI / Main / Assets / Tests / Docs。
+- 移除主场景右上 `LevelDebugPanel`，游戏画面不再显示当前关卡名，也不再提供“加载关卡”资源选择按钮。
+- `GlobalInfoPanel` 改为无底板、无边框的两行图标统计：第一行显示剩余生命和当前/总波次，第二行显示建筑数量/上限和镜子数量/上限；数字统一为白色并实时订阅既有公共信号。
+- 接入 `heart.png`、`head.png`、`tower.png`、`mirror.png` 四张透明 UI 素材，并扩展 HUD 数据、素材绑定、布局和旧入口移除回归。
+**影响面**：仅收敛正式局内右上 HUD；关卡启动、AppFlow 选关、暂停/失败重载与 F1 调试命令的底层关卡加载能力不变。
+
+## Lighting / Level / Presentation · 亚克力展示柜改为关卡独立配置 — 2026-08-11
+**模块**：Lighting / Level / Presentation / Tests / Docs。
+- `LevelResource` 新增必填且递归校验的 `display_case_definition`；Level1–Level4 分别内嵌独立的 `AcrylicDisplayCaseDefinition` 子资源，并保留迁移前的当前参数作为初始值。
+- `Main` 不再向灯光控制器注入全局 `AcrylicDisplayCase.tres`。加载或切换关卡时，`LightingController` 从当前关卡读取定义、重新配置柜体并按该关尺寸构建。
+- 回归覆盖四个正式关卡的定义实例互不共享、参数合法、运行时切关会替换柜体定义，以及既有顶板高光隔离仍然成立。
+**影响面**：只改变柜体构造和材质响应参数的归属；现有 `LightingProfile`、Environment、Light3D、树影、反射探针和四侧投射物反射语义不变。`resources/lighting/AcrylicDisplayCase.tres` 仅保留为模板，不再是正式关卡运行时事实源。
+
 ## Runtime UI / Camera · 关卡失败画面与景深开关 — 2026-08-11
 **模块**：Runtime UI / Wave / Camera / AppFlow / Tests / Docs。
 - `WaveManager.defeat` 现在打开正式失败模态层并暂停游戏；失败画面复用 `PauseMenu` 的设置、重启与退关信号，通用 Esc 关闭不会跳过结果。
@@ -7,6 +57,22 @@
 - `RuntimeSettings` 新增默认开启的 `depth_of_field_enabled`；暂停和失败菜单共享同一设置对象，可即时关闭/重开主相机景深并持久化。
 - 扩展 UI、微缩景深与完整 AppFlow 回归，覆盖失败触发、时间/输入锁、设置同步、当关重启和返回选关。
 **影响面**：只扩展失败终态的正式 UI 与用户显示设置；波次判败、关卡加载、选关和景深参数资源契约不变。
+
+## Lighting / Presentation · 亚克力顶板高光隔离 — 2026-08-11
+**模块**：Lighting / Presentation / Tests / Docs。
+- 亚克力着色器新增逐材质 `surface_specular`；动态柜体只把顶板绑定到可调 `top_panel_specular=0`，四块侧板继续使用原有 `0.9` 镜面响应。
+- 白色柔光、黄色暖光、青红对比和夜晚聚光的 Light3D、Environment、Glow、反射探针及侧板表现全部保持不变，避免为了去除顶板饱和亮斑而压暗整个场景。
+- 新增独立回归，覆盖顶板高光关闭、侧板高光保留及重新应用灯光方案后参数不被覆盖。
+**影响面**：只改变水平亚克力顶板的直接镜面高光；Fresnel、边框、反光条纹、透明度、柜体尺寸和四侧投射物反射不变。
+
+## Combat / Building / Unit / Runtime UI · 独立运行时战斗数据编辑器 — 2026-08-11
+**模块**：Combat / Building / Unit / Wave / Runtime UI / Tests / Docs。
+- 新增 F2 原生独立窗口；游戏不暂停，建筑和敌人按类型显示常用战斗参数，并按塔型追加寒冷、冻结、爆发、耐久、反伤、导弹、齐射和脉冲等有效特殊参数。投射物模型不进入编辑范围。
+- 建筑参数按 `BuildingDefinition.levels[level]` 工作副本编辑。相同类型与等级的现有建筑在原位置、原朝向重建，攻击、持续光束、投射物和耐久状态重新初始化；后续建造与升级透明解析当前工作副本。
+- 敌人不刷新已生成实例；每次出怪复制一份出生快照，后续正式波次和测试批次读取当前工作副本。测试敌人支持类型、数量、间隔和当前关卡路径，不参与波次活动计数/完成判定，但保留死亡奖励和抵达基地伤害。
+- 永久保存统一校验并写回原 `.tres`，放弃修改重新读取磁盘并重建受影响建筑；运行态覆盖不会进入关卡初始陈列保存。正式导出版本不创建该窗口。
+- 新增运行时战斗数据专项 30 项回归，并通过手动波次、持续激光、脉冲镭射、导弹塔和边屏障相邻回归。
+**影响面**：只增加项目源码开发运行时的数据调试入口；`.tres` 仍是唯一持久数据源，现有运行时关卡编辑器和正式波次作者数据不变。
 
 ## Building / Runtime UI · 索敌塔放置阶段蓝色范围预览 — 2026-08-11
 **模块**：Building / Runtime UI / Tests / Docs。
@@ -58,7 +124,7 @@
 **模块**：Building / Combat / Unit / Mirror / Runtime Inspector / Tests / Docs。
 - 持续激光改为与其它塔共用反射镜、Stuff 阻挡、累计射程和 `projectile_penetration_count`；光路在 Stuff、超出穿透预算的承伤敌人或最大距离处终止。
 - 1 级起持续命中施加移速×0.4、离开后 3 秒的寒冷；同类减速取最强且不叠乘。2 级起每 3 秒在当前光路终点产生 1 格半径扩散爆发，结算一次 `base_damage × level_factor × extra_factor` 并施加同级寒冷。
-- 3 级爆发追加 3 秒冻结；冻结中停止移动与攻击，寒冷剩余时间暂停并在解冻后继续。敌人附加寒冷环/冰壳，光路附加可见终点，爆发使用短时冰蓝扩散环与闪光。
+- 3 级爆发追加 3 秒冻结；冻结中停止移动与攻击，寒冷剩余时间暂停并在解冻后继续。敌人附加寒冷环（已由 2026-08-11 深蓝表面 Shader 替换）/冰壳，光路附加可见终点，爆发使用短时冰蓝扩散环与闪光。
 - 复制激光从镜像起点独立重算反射/阻挡/穿透光路，同步伤害、寒冷、终点爆发和冻结。持续伤害切换到 `take_damage_over_time`，修正护甲按帧重复扣减导致的帧率依赖。
 - 新增持续激光专项回归，并扩展复制镜回归覆盖寒冷与终点爆发。
 **影响面**：`LaserTower.tres` 的寒冷、爆发、冻结、一次伤害和穿透数全部保留逐级可调接口；脉冲镭射塔不受影响。

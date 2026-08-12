@@ -71,6 +71,10 @@ func get_content_bounds() -> AABB:
 	return _content_bounds
 
 
+func get_definition() -> AcrylicDisplayCaseDefinition:
+	return _definition
+
+
 func get_case_size() -> Vector3:
 	return _case_size
 
@@ -319,7 +323,14 @@ func _build_panels(center: Vector3, width: float, height: float, depth: float) -
 	_add_panel("Left", Vector2(depth, height), Vector3(center.x - width * 0.5, middle_y, center.z), Vector3(0.0, -PI * 0.5, 0.0), 0.62)
 	_add_panel("Right", Vector2(depth, height), Vector3(center.x + width * 0.5, middle_y, center.z), Vector3(0.0, PI * 0.5, 0.0), 0.42)
 	if _definition.top_panel_enabled:
-		_add_panel("Top", Vector2(width, depth), Vector3(center.x, center.y + height, center.z), Vector3(-PI * 0.5, 0.0, 0.0), 0.82)
+		_add_panel(
+			"Top",
+			Vector2(width, depth),
+			Vector3(center.x, center.y + height, center.z),
+			Vector3(-PI * 0.5, 0.0, 0.0),
+			0.82,
+			_definition.top_panel_specular
+		)
 
 
 func _add_panel(
@@ -327,7 +338,8 @@ func _add_panel(
 	size: Vector2,
 	panel_position: Vector3,
 	panel_rotation: Vector3,
-	stripe_position: float
+	stripe_position: float,
+	surface_specular: float = 0.9
 ) -> void:
 	var quad := QuadMesh.new()
 	quad.size = size
@@ -341,6 +353,7 @@ func _add_panel(
 	material.shader = AcrylicGlassShader
 	material.render_priority = -30
 	material.set_shader_parameter("stripe_position", stripe_position)
+	material.set_shader_parameter("surface_specular", surface_specular)
 	panel.material_override = material
 	_panel_materials.append(material)
 	_panels_root.add_child(panel)

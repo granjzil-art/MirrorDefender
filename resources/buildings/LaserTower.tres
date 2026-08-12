@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://cdehjwm442vgl"]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://bpl35awmyucnk"]
 
 [ext_resource type="Texture2D" uid="uid://bhfmnn75f16wb" path="res://assets/png/LaserTower_o.png" id="1_6brfg"]
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
@@ -26,7 +26,8 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
-cost = 200.0
+cost = 150.0
+affects_airborne = false
 base_damage = 15.0
 targeting_range = 6.0
 attack_range = 6.0
@@ -44,7 +45,8 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
-cost = 160.0
+cost = 100.0
+affects_airborne = false
 targeting_range = 7.0
 attack_range = 7.0
 laser_dps = 10.0
@@ -68,7 +70,8 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
-cost = 220.0
+cost = 100.0
+affects_airborne = false
 base_damage = 25.0
 targeting_range = 8.0
 attack_range = 8.0

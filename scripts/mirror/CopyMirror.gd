@@ -4,6 +4,8 @@ class_name CopyMirror
 extends Node3D
 
 const MirrorReflectionViewScript := preload("res://scripts/mirror/MirrorReflectionView.gd")
+const MirrorOvalMeshFactory := preload("res://scripts/mirror/MirrorOvalMeshFactory.gd")
+const PICK_MARGIN: float = 0.01
 
 signal side_changed(mirror: CopyMirror)
 
@@ -15,10 +17,12 @@ var edge_id: String = ""
 var active_from_side: bool = true
 var placement_order: int = 0
 var preview_mode: bool = false
+var _invested_resource: float = 0.0
 
 var _grid: GridManager
 var _tile_manager: TileManager
 var _source_camera: Camera3D
+var _body: MeshInstance3D
 var _frame_material: StandardMaterial3D
 var _reflection_view: Node3D
 var _selected: bool = false
@@ -44,6 +48,7 @@ func configure(
 	_tile_manager = tile_manager
 	active_from_side = p_active_from_side
 	preview_mode = p_preview_mode
+	_invested_resource = 0.0
 	_update_transform()
 	_build_visual()
 
@@ -63,11 +68,33 @@ func set_preview_valid(valid: bool) -> void:
 	if not preview_mode or _preview_valid == valid:
 		return
 	_preview_valid = valid
-	_build_visual()
+	_update_frame_material()
 
 
 func is_preview_valid() -> bool:
 	return _preview_valid
+
+
+## Moves a placement ghost while retaining its mesh, material and reflection
+## SubViewport. Runtime mirrors are immutable after placement.
+func relocate_preview(
+	p_from_cell: Vector3i,
+	p_to_cell: Vector3i,
+	p_edge_index: int,
+	p_edge_id: String
+) -> bool:
+	if not preview_mode:
+		return false
+	from_cell = p_from_cell
+	to_cell = p_to_cell
+	edge_index = p_edge_index
+	edge_id = p_edge_id
+	_update_transform()
+	if _body != null and is_instance_valid(_body):
+		_body.rotation.y = -atan2(get_edge_direction().z, get_edge_direction().x)
+	_update_active_side_visual()
+	return true
+
 
 func flip_side() -> void:
 	active_from_side = not active_from_side
@@ -120,6 +147,120 @@ func get_reflection_viewport() -> SubViewport:
 func get_action_anchor() -> Vector3:
 	return global_position + Vector3(0.0, get_mirror_height() + 0.2, 0.0)
 
+
+## Tracks the resource actually paid into this runtime mirror. Authored initial
+## mirrors and cooldown-mode placements remain at zero because they cost zero.
+func _record_investment(amount: float) -> bool:
+	if not is_finite(amount) or amount <= 0.0:
+		return false
+	var updated_total := _invested_resource + amount
+	if not is_finite(updated_total):
+		return false
+	_invested_resource = updated_total
+	return true
+
+
+func get_refund_amount() -> float:
+	return maxf(0.0, _invested_resource) if is_finite(_invested_resource) else 0.0
+
+
+## Returns the ray distance to the visible mirror body, or INF on a miss.
+## Both body shapes are geometric rather than front-face culled, so the
+## reflective face and the back face remain directly selectable.
+func get_pick_distance(ray_origin: Vector3, ray_direction: Vector3) -> float:
+	if preview_mode or _body == null or not is_instance_valid(_body):
+		return INF
+	if ray_direction.length_squared() <= 0.000001:
+		return INF
+	var inverse := _body.global_transform.affine_inverse()
+	var local_origin := inverse * ray_origin
+	var local_direction := inverse.basis * ray_direction.normalized()
+	var half_extents := Vector3(
+		get_mirror_width(),
+		get_mirror_height(),
+		get_mirror_thickness()
+	) * 0.5 + Vector3.ONE * PICK_MARGIN
+	if is_copy_mirror():
+		return _get_oval_pick_distance(local_origin, local_direction, half_extents)
+	return _get_box_pick_distance(local_origin, local_direction, half_extents)
+
+
+func _get_box_pick_distance(
+	local_origin: Vector3,
+	local_direction: Vector3,
+	half_extents: Vector3
+) -> float:
+	var near_distance := 0.0
+	var far_distance := INF
+	for axis in range(3):
+		var origin_axis: float = local_origin[axis]
+		var direction_axis: float = local_direction[axis]
+		var extent: float = half_extents[axis]
+		if absf(direction_axis) <= 0.000001:
+			if origin_axis < -extent or origin_axis > extent:
+				return INF
+			continue
+		var first := (-extent - origin_axis) / direction_axis
+		var second := (extent - origin_axis) / direction_axis
+		if first > second:
+			var swap := first
+			first = second
+			second = swap
+		near_distance = maxf(near_distance, first)
+		far_distance = minf(far_distance, second)
+		if near_distance > far_distance:
+			return INF
+	return near_distance if far_distance >= 0.0 else INF
+
+
+func _get_oval_pick_distance(
+	local_origin: Vector3,
+	local_direction: Vector3,
+	half_extents: Vector3
+) -> float:
+	var radius_x_squared := half_extents.x * half_extents.x
+	var radius_y_squared := half_extents.y * half_extents.y
+	var quadratic_a := (
+		local_direction.x * local_direction.x / radius_x_squared
+		+ local_direction.y * local_direction.y / radius_y_squared
+	)
+	var quadratic_b := 2.0 * (
+		local_origin.x * local_direction.x / radius_x_squared
+		+ local_origin.y * local_direction.y / radius_y_squared
+	)
+	var quadratic_c := (
+		local_origin.x * local_origin.x / radius_x_squared
+		+ local_origin.y * local_origin.y / radius_y_squared
+		- 1.0
+	)
+	var oval_near := -INF
+	var oval_far := INF
+	if quadratic_a <= 0.000001:
+		if quadratic_c > 0.0:
+			return INF
+	else:
+		var discriminant := quadratic_b * quadratic_b - 4.0 * quadratic_a * quadratic_c
+		if discriminant < 0.0:
+			return INF
+		var root := sqrt(discriminant)
+		oval_near = (-quadratic_b - root) / (2.0 * quadratic_a)
+		oval_far = (-quadratic_b + root) / (2.0 * quadratic_a)
+	var depth_near := -INF
+	var depth_far := INF
+	if absf(local_direction.z) <= 0.000001:
+		if absf(local_origin.z) > half_extents.z:
+			return INF
+	else:
+		depth_near = (-half_extents.z - local_origin.z) / local_direction.z
+		depth_far = (half_extents.z - local_origin.z) / local_direction.z
+		if depth_near > depth_far:
+			var swap := depth_near
+			depth_near = depth_far
+			depth_far = swap
+	var near_distance := maxf(0.0, maxf(oval_near, depth_near))
+	var far_distance := minf(oval_far, depth_far)
+	return near_distance if far_distance >= near_distance else INF
+
 func set_selected(selected: bool) -> void:
 	_selected = selected
 	if _frame_material != null:
@@ -148,24 +289,45 @@ func refresh_world_transform() -> void:
 func _build_visual() -> void:
 	for child in get_children():
 		child.queue_free()
+	_body = null
 	_reflection_view = null
 	if _grid == null or definition == null or get_axis_endpoints().size() != 2:
 		return
 	var body := MeshInstance3D.new()
 	body.name = "MirrorBody"
-	var body_mesh := BoxMesh.new()
-	body_mesh.size = Vector3(get_mirror_width(), get_mirror_height(), get_mirror_thickness())
+	var body_size := Vector3(get_mirror_width(), get_mirror_height(), get_mirror_thickness())
+	var body_mesh: Mesh
+	if is_copy_mirror():
+		body_mesh = MirrorOvalMeshFactory.create_prism(body_size)
+	else:
+		var box_mesh := BoxMesh.new()
+		box_mesh.size = body_size
+		body_mesh = box_mesh
 	body.mesh = body_mesh
 	body.set_layer_mask_value(1, false)
 	body.set_layer_mask_value(MirrorReflectionViewScript.REFLECTION_VISIBILITY_LAYER, true)
 	body.position.y = get_mirror_height() * 0.5
 	body.rotation.y = -atan2(get_edge_direction().z, get_edge_direction().x)
 	_frame_material = StandardMaterial3D.new()
-	var invalid_color := definition.invalid_preview_color
-	_frame_material.albedo_color = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color
 	_frame_material.metallic = 0.82
 	_frame_material.roughness = 0.22
 	_frame_material.emission_enabled = true
+	_update_frame_material()
+	body.material_override = _frame_material
+	add_child(body)
+	_body = body
+	_reflection_view = MirrorReflectionViewScript.new()
+	add_child(_reflection_view)
+	_reflection_view.configure(self, definition, _source_camera, preview_mode)
+	_update_active_side_visual()
+	set_selected(_selected)
+
+
+func _update_frame_material() -> void:
+	if _frame_material == null or definition == null:
+		return
+	var invalid_color := definition.invalid_preview_color
+	_frame_material.albedo_color = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color
 	_frame_material.emission = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color.darkened(0.38)
 	_frame_material.emission_energy_multiplier = 3.2 if preview_mode and not _preview_valid else 1.5
 	if preview_mode:
@@ -173,12 +335,6 @@ func _build_visual() -> void:
 		preview_color.a = 0.72
 		_frame_material.albedo_color = preview_color
 		_frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	body.material_override = _frame_material
-	add_child(body)
-	_reflection_view = MirrorReflectionViewScript.new()
-	add_child(_reflection_view)
-	_reflection_view.configure(self, definition, _source_camera, preview_mode)
-	_update_active_side_visual()
 	set_selected(_selected)
 
 func _update_active_side_visual() -> void:

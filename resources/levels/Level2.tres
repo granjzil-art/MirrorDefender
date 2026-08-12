@@ -12,7 +12,7 @@
 [ext_resource type="Script" uid="uid://ec1bf62qerai" path="res://scripts/terrain/RampPlacementData.gd" id="7_t6av8"]
 [ext_resource type="Script" uid="uid://dq00co5slh7di" path="res://scripts/mirror/MirrorPlacementData.gd" id="8_f7y1q"]
 [ext_resource type="Script" uid="uid://buwap3qo2xx7p" path="res://scripts/level/LevelResource.gd" id="8_q0prt"]
-[ext_resource type="Resource" uid="uid://cuo6or243a1ic" path="res://resources/buildings/CrossbowTower.tres" id="8_y27cs"]
+[ext_resource type="Resource" uid="uid://cdwwe3oi2hm4" path="res://resources/buildings/CrossbowTower.tres" id="8_y27cs"]
 [ext_resource type="Resource" uid="uid://c7506gde3yfnk" path="res://resources/terrains/Mud.tres" id="9_gp1te"]
 [ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="9_sa8tw"]
 [ext_resource type="Script" uid="uid://b2irkm1liqpq5" path="res://scripts/stuff/StuffPlacementData.gd" id="10_f7y1q"]
@@ -28,6 +28,7 @@
 [ext_resource type="Resource" uid="uid://qkjjtgfwg8kv" path="res://resources/enemies/Grunt.tres" id="21_y27cs"]
 [ext_resource type="Resource" uid="uid://cnwwdb4wfo5ur" path="res://resources/enemies/Archer.tres" id="22_13yjj"]
 [ext_resource type="Resource" uid="uid://jhoves7q4q0h" path="res://resources/enemies/Flyer.tres" id="23_7ll48"]
+[ext_resource type="Script" uid="uid://ca4sp2wvpaui" path="res://scripts/lighting/AcrylicDisplayCaseDefinition.gd" id="100_acrylic_case"]
 
 [sub_resource type="Resource" id="Resource_gp1te"]
 script = ExtResource("12_kuv7j")
@@ -54,6 +55,12 @@ focus_position = Vector3(7.559695, 0, 8.456365)
 yaw_degrees = -0.4941520000319736
 pitch_degrees = 71.72135000001222
 zoom_distance = 11.55564800902844
+
+[sub_resource type="Resource" id="Resource_acrylic_case"]
+script = ExtResource("100_acrylic_case")
+horizontal_margin_cells = 0.6
+top_margin_cells = 4.0
+base_overhang_cells = 0.3
 
 [sub_resource type="Resource" id="Resource_ji5tv"]
 script = ExtResource("4_rxywg")
@@ -1374,11 +1381,12 @@ grid_cells = Array[ExtResource("4_rxywg")]([SubResource("Resource_ji5tv"), SubRe
 stuff_placements = Array[ExtResource("10_f7y1q")]([SubResource("Resource_lgtyr"), SubResource("Resource_2bpxl"), SubResource("Resource_uanbg"), SubResource("Resource_36swl"), SubResource("Resource_imopy"), SubResource("Resource_h4ko7"), SubResource("Resource_s0ta3"), SubResource("Resource_o2yyx"), SubResource("Resource_dfh57"), SubResource("Resource_lefjs"), SubResource("Resource_qs1rn"), SubResource("Resource_5wqlm"), SubResource("Resource_1cyke")])
 initial_building_placements = Array[ExtResource("6_q0prt")]([SubResource("Resource_8ykxd")])
 initial_mirror_placements = Array[ExtResource("8_f7y1q")]([SubResource("Resource_f04dn"), SubResource("Resource_2qtbk"), SubResource("Resource_vmedb")])
+display_case_definition = SubResource("Resource_acrylic_case")
 base_model_asset = SubResource("Resource_gp1te")
 spawn_point_model_asset = SubResource("Resource_g7pwb")
-initial_resource = 1000
+initial_resource = 300
 building_cap = 4
-mirror_cap = 10
+base_resource_per_second = 0.0
 camera_presets = Array[ExtResource("2_mwvsq")]([SubResource("Resource_0yenb"), SubResource("Resource_wg47p")])
 base_cell = Vector3i(7, 10, 0)
 base_points = Array[ExtResource("1_ru23r")]([SubResource("Resource_mtuhc")])

@@ -23,6 +23,12 @@ func _run() -> void:
 	_expect(not InputMap.has_action("toggle_grid_shape"), "the runtime T grid-shape toggle action is removed")
 	_expect(is_equal_approx(rig.zoom_min, 2.0) and is_equal_approx(rig.zoom_max, 30.0), "runtime camera supports the larger 2-to-30 zoom distance range")
 	_expect(rig.mouse_navigation_enabled and rig.pan_sensitivity > 0.0 and rig.orbit_sensitivity > 0.0, "runtime mouse navigation is parameterized and enabled by default")
+	var contextual_panel := Control.new()
+	contextual_panel.set_meta(&"allows_camera_orbit", true)
+	var contextual_button := Button.new()
+	contextual_panel.add_child(contextual_button)
+	_expect(rig._control_allows_camera_orbit(contextual_button), "tagged contextual actions allow right-drag camera orbit through their children")
+	contextual_panel.free()
 
 	var original_zoom := rig.get_zoom_distance()
 	Input.action_press("cam_pitch_lower")

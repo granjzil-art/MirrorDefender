@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="CopyMirrorDefinition" format=3 uid="uid://dfckrnd130uuf"]
 
 [ext_resource type="Script" uid="uid://rx7xjm50tfnu" path="res://scripts/mirror/CopyMirrorDefinition.gd" id="1_definition"]
+[ext_resource type="Texture2D" uid="uid://ceit6aqd8desj" path="res://assets/ui/global_info/mirror1.png" id="1_uv4ha"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="2_inspection"]
 
 [sub_resource type="Resource" id="Inspection_copy_mirror"]
@@ -13,10 +14,12 @@ function_description = "复制镜面法线方向最近非空地块上的全部�
 script = ExtResource("1_definition")
 copy_chain_max = 6
 display_name = "复制镜"
+card_icon = ExtResource("1_uv4ha")
 inspection_display = SubResource("Inspection_copy_mirror")
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false
-reflection_resolution = 512
-reflection_preview_resolution = 256
+reflection_surface_offset_ratio = 1.0
 mirror_reflectivity = 1.0
+mirror_surface_tint = Color(0, 0, 0, 0.007843138)
 mirror_back_face_color = Color(0.8700769, 0.89158946, 0.8612653, 1)
+invalid_preview_color = Color(0.8, 0.94, 1, 1)

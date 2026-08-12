@@ -45,6 +45,15 @@ func _test_config_defaults() -> void:
 	_expect(config.visible, "object visibility defaults to enabled")
 	_expect(config.resolve_display_name("原名称") == "原名称", "empty custom name preserves the current name")
 	_expect(config.resolve_function_description("原说明") == "原说明", "empty description preserves the built-in description")
+	config.function_description = "基础文本"
+	config.level_1_description = "一级文本"
+	config.level_2_description = "二级文本"
+	config.level_3_description = "三级文本"
+	_expect(
+		config.format_building_description("原说明")
+		== "基础描述\n基础文本\n\n1级：\n一级文本\n\n2级：\n二级文本\n\n3级：\n三级文本",
+		"building descriptions use the authored base and three-level format"
+	)
 	for property in [
 		&"show_icon", &"show_category", &"show_entity_state", &"show_function_description",
 		&"show_position", &"show_height", &"show_build_permissions", &"show_level",

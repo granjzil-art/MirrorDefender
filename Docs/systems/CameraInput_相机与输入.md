@@ -10,12 +10,12 @@
   - `X` 降低俯仰角，`C` 提高俯仰角
   - 按住中键拖动：沿相机屏幕平面“抓住画面”平移焦点，允许改变焦点 Y
   - 按住右键拖动：水平调整 yaw、垂直调整 pitch；鼠标向右使 yaw 减小，鼠标向上使 pitch 降低
-  - 仅鼠标滚轮缩放，不保留键盘缩放动作
+  - 鼠标滚轮默认缩放；建筑放置预览或已选中的实体建筑会消费滚轮来改变朝向
 - **交互输入**：
   - `R` 在建造模式旋转塔虚影；选择模式中按下立即旋转选中的实际塔一档，持续按住则按真实时间连续旋转。镜子接入后复用同一动作，但镜子翻面、建筑预览和运行时关卡元素保持单次触发。
   - 鼠标左键：放置 / 选择
   - 鼠标右键短点击：取消；超过拖动阈值后转为相机旋转且不取消
-- **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；HUD 上起手禁止相机旋转，但短点击仍保留全局取消。
+- **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；普通 HUD 上起手禁止相机旋转，但跟随选中建筑的悬浮操作图标显式允许右键拖动穿过，避免旋转视角时被菜单阻断。
 - **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
 - **模态输入边界**：M6 失败画面、暂停菜单或调试控制台展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮及鼠标拖动，并清除未完成的中/右键手势；继续或切关后统一解锁。
 - **六机位预设**：数字键 `1`～`6` 读取当前 `LevelResource` 的同号可选机位。已配置槽位按真实时间平滑过渡焦点、yaw、pitch 和缩放距离；空槽、无效槽或未加载关卡无动作。
@@ -132,7 +132,7 @@ LevelReflectionSurface / MirrorReflectionView
 - 景深只挂主 Camera3D，因此 HUD、灯光测试按钮和其它 CanvasItem 始终保持清晰。
 
 ### 输入现状（M6 批次 1）
-- **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理键盘移动、旋转和俯仰；`_input` 分类中键平移与右键点击/旋转，`_unhandled_input` 独占滚轮缩放。鼠标手势仅从无 GUI 命中的世界区域起手；关卡编辑画布不复用该运行时手势。
+- **相机输入**：`CameraController` 用 `Input.get_action_strength` 处理键盘移动、旋转和俯仰；`_input` 分类中键平移与右键点击/旋转，`_unhandled_input` 处理未被玩法消费的滚轮缩放。建筑放置预览或已选中的实体建筑会优先消费滚轮来改朝向；鼠标手势通常只从无 GUI 命中的世界区域起手，带 `allows_camera_orbit` 标记的建筑悬浮操作区允许右键视角旋转穿过。
 - **Main 场景路由**：`place_select` 把格/边拾取交给 RuntimeInteractionController；CameraController 的 `cancel_requested()` 全局回到选择模式；`rotate_facing` 依次处理镜子预览翻面、选中镜子翻面、建筑预览旋转或选中建筑旋转。只有最后一种上下文会启动 `HoldRepeatGate`，其它上下文一次物理按键只执行一次。
 - **世界固定朝向**：建筑与镜子方向只读 Grid 形状及自身 facing/active side；CameraRig yaw 不参与玩法方向计算。独立 InputRouter 尚未拆分。
 

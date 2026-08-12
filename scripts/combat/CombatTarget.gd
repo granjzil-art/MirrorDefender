@@ -2,6 +2,25 @@
 class_name CombatTarget
 extends Node3D
 
+const COLD_SURFACE_SHADER_CODE := """
+shader_type spatial;
+render_mode cull_back;
+
+uniform vec4 cold_tint : source_color = vec4(0.005, 0.03, 0.28, 1.0);
+uniform float emission_energy = 0.32;
+
+void fragment() {
+	float facing = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+	float rim = pow(1.0 - facing, 2.0);
+	float pulse = 0.94 + sin(TIME * 2.4) * 0.06;
+	ALBEDO = cold_tint.rgb * (0.78 + rim * 0.22);
+	EMISSION = cold_tint.rgb * emission_energy * (0.72 + rim * 0.48) * pulse;
+	ROUGHNESS = 0.52;
+}
+"""
+
+static var _shared_cold_surface_shader: Shader
+
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
@@ -40,7 +59,8 @@ var _slow_multiplier: float = 1.0
 var _slow_remaining: float = 0.0
 var _freeze_remaining: float = 0.0
 var _status_visual_elapsed: float = 0.0
-var _slow_visual: MeshInstance3D
+var _cold_surface_material: ShaderMaterial
+var _cold_surface_bindings: Array[Dictionary] = []
 var _freeze_visual: MeshInstance3D
 
 func _ready() -> void:
@@ -174,6 +194,7 @@ func _build_debug_visual() -> void:
 			add_child(_visual_root)
 	if _visual_root == null and debug_visual_enabled:
 		_mesh_instance = MeshInstance3D.new()
+		_mesh_instance.name = &"DebugTargetBody"
 		var mesh := CapsuleMesh.new()
 		mesh.radius = hit_radius
 		mesh.height = debug_height
@@ -195,19 +216,14 @@ func _build_debug_visual() -> void:
 
 
 func _build_status_visuals() -> void:
-	_slow_visual = MeshInstance3D.new()
-	_slow_visual.name = &"ColdSlowVisual"
-	var slow_mesh := TorusMesh.new()
-	slow_mesh.inner_radius = maxf(0.04, hit_radius * 1.05)
-	slow_mesh.outer_radius = maxf(slow_mesh.inner_radius + 0.03, hit_radius * 1.38)
-	_slow_visual.mesh = slow_mesh
-	_slow_visual.position.y = 0.045
-	_slow_visual.material_override = _make_status_material(
-		Color(0.18, 0.82, 1.0, 0.72),
-		2.8
+	_cold_surface_material = ShaderMaterial.new()
+	_cold_surface_material.shader = _get_cold_surface_shader()
+	_cold_surface_material.set_shader_parameter(
+		"cold_tint",
+		Color(0.005, 0.03, 0.28, 1.0)
 	)
-	_slow_visual.visible = false
-	add_child(_slow_visual)
+	_cold_surface_material.set_shader_parameter("emission_energy", 0.32)
+	_cold_surface_material.render_priority = 1
 
 	_freeze_visual = MeshInstance3D.new()
 	_freeze_visual.name = &"FrozenShellVisual"
@@ -257,17 +273,80 @@ func _tick_movement_statuses(delta: float) -> void:
 
 
 func _update_status_visuals() -> void:
-	if _slow_visual != null:
-		_slow_visual.visible = is_movement_slowed()
-		if _slow_visual.visible:
-			var pulse := 1.0 + sin(_status_visual_elapsed * 5.0) * 0.06
-			_slow_visual.scale = Vector3(pulse, 1.0, pulse)
-			_slow_visual.rotation.y = _status_visual_elapsed * 0.8
+	_update_cold_surface_material(is_movement_slowed())
 	if _freeze_visual != null:
 		_freeze_visual.visible = is_frozen()
 		if _freeze_visual.visible:
 			var shimmer := 1.0 + sin(_status_visual_elapsed * 7.0) * 0.025
 			_freeze_visual.scale = Vector3.ONE * shimmer
+
+
+func debug_get_cold_surface_material() -> ShaderMaterial:
+	return _cold_surface_material
+
+
+func debug_get_cold_surface_mesh_count() -> int:
+	var count := 0
+	for binding in _cold_surface_bindings:
+		var mesh := binding.get("mesh") as MeshInstance3D
+		if (
+			mesh != null
+			and is_instance_valid(mesh)
+			and mesh.material_override == _cold_surface_material
+		):
+			count += 1
+	return count
+
+
+func _update_cold_surface_material(is_active: bool) -> void:
+	if is_active:
+		if _cold_surface_bindings.is_empty():
+			_bind_cold_surface_material()
+		return
+	_restore_cold_surface_materials()
+
+
+func _bind_cold_surface_material() -> void:
+	if _cold_surface_material == null:
+		return
+	var meshes: Array[MeshInstance3D] = []
+	if _visual_root != null and is_instance_valid(_visual_root):
+		_collect_model_meshes(_visual_root, meshes)
+	elif _mesh_instance != null and is_instance_valid(_mesh_instance):
+		meshes.append(_mesh_instance)
+	for mesh in meshes:
+		_cold_surface_bindings.append({
+			"mesh": mesh,
+			"previous_material_override": mesh.material_override,
+		})
+		mesh.material_override = _cold_surface_material
+
+
+func _restore_cold_surface_materials() -> void:
+	for binding in _cold_surface_bindings:
+		var mesh := binding.get("mesh") as MeshInstance3D
+		if (
+			mesh == null
+			or not is_instance_valid(mesh)
+			or mesh.material_override != _cold_surface_material
+		):
+			continue
+		mesh.material_override = binding.get("previous_material_override") as Material
+	_cold_surface_bindings.clear()
+
+
+func _collect_model_meshes(node: Node, meshes: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		meshes.append(node as MeshInstance3D)
+	for child in node.get_children():
+		_collect_model_meshes(child, meshes)
+
+
+func _get_cold_surface_shader() -> Shader:
+	if _shared_cold_surface_shader == null:
+		_shared_cold_surface_shader = Shader.new()
+		_shared_cold_surface_shader.code = COLD_SURFACE_SHADER_CODE
+	return _shared_cold_surface_shader
 
 
 func _emit_movement_status_changed() -> void:

@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="ReflectMirrorDefinition" format=3 uid="uid://ber3a0bwsj4m4"]
 
 [ext_resource type="Script" uid="uid://df84lj0trmbvn" path="res://scripts/mirror/ReflectMirrorDefinition.gd" id="1_definition"]
+[ext_resource type="Texture2D" uid="uid://7p1qtdvcr15v" path="res://assets/ui/global_info/mirror.png" id="1_gohiu"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="2_inspection"]
 
 [sub_resource type="Resource" id="Inspection_reflect_mirror"]
@@ -11,10 +12,12 @@ function_description = "按入射角等于反射角的规则反射经过生效�
 [resource]
 script = ExtResource("1_definition")
 display_name = "反射镜"
+card_icon = ExtResource("1_gohiu")
 inspection_display = SubResource("Inspection_reflect_mirror")
+placement_cost = 50.0
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false
-reflection_resolution = 512
-reflection_preview_resolution = 256
+reflection_surface_offset_ratio = 1.0
 mirror_reflectivity = 1.0
 mirror_surface_tint = Color(0.92, 0.96, 1, 1)
+invalid_preview_color = Color(0.8, 0.94, 1, 1)

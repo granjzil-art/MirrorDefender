@@ -11,7 +11,7 @@
 - **统一公式**：`DamageCalculator.compute(base, level_factor, extra_factor)`，三个乘区均取非负值。
 - **单发伤害**：读取当前级 `base_damage`，发射前计算最终伤害，但只在 Projectile 命中存活目标时调用 `take_damage()`。飞行期间目标不掉血。
 - **持续激光**：读取当前级 `laser_dps`，用 `take_damage_over_time(final_dps, delta)` 结算帧率无关的持续伤害。光路以 `laser_propagation_speed` 从塔身逐步增长，只对已传播到的路径结算命中；复用投射物反射查询，所有反射段共享一个 `attack_range` 路程预算；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，第 N+1 个敌人承伤后成为终点。硬阻挡会把传播前沿锁回真实交点，阻挡消失后从该位置继续增长。主轴两侧的流动噪声正弦光丝是纯顶点表现，不参与这些查询。
-- **寒冷与冻结**：持续光路命中和终点爆发都施加当前级同一组减速倍率/时长。同类减速不叠乘，取更强倍率并刷新时间；冻结暂停移动与攻击，减速剩余时间在冻结期间暂停，解冻后继续。
+- **寒冷与冻结**：持续光路命中和终点爆发都施加当前级同一组减速倍率/时长。同类减速不叠乘，取更强倍率并刷新时间；冻结暂停移动与攻击，减速剩余时间在冻结期间暂停，解冻后继续。寒冷期间模型全部表面临时使用深蓝脉动 Shader，结束后恢复各网格原 `material_override`；不再生成脚下蓝色圆环，冻结冰壳仍独立保留。
 - **终点爆发**：2 级起按 `laser_burst_interval` 在当前传播前沿发生半径 `laser_burst_radius` 的圆形爆发，使用 `base_damage × level_factor × extra_factor` 结算一次伤害并施加普通寒冷；3 级再追加 `laser_freeze_duration` 冻结。
 - **脉冲镭射**：`PulseLaserAttackStrategy` 不索敌，按 `attacks_per_second` 固定周期发射。`PulseLaserBeam` 在生成当下计算完整反射/阻挡路径；粗细和亮度按渐入、保持、渐出线性变化。伤害只在进入保持阶段的瞬间结算一次，且每个反射段独立查询全部路径目标。
 - **索敌范围**：箭塔仅从 `targeting_range` 内建立候选并应用优先级。
@@ -25,13 +25,13 @@
 - **穿透与连续接触**：`projectile_penetration_count=N` 的单发弹最多命中 `N+1` 个敌人。一个目标进入同一投射物的连续接触表后不会重复受击；投射物离开其命中半径加清除距离后解除该表，反射返回并再次穿过时可以再次命中。穿透额度或累计飞行距离先达到上限时投射物销毁。
 - **Stuff 统一弹道阻挡**：`StuffDefinition.blocks_ballistics` 启用且根源存活时，实体与复制 Stuff 都以 `StuffManager` 的全局统一球形命中体参与最近交点比较。追踪弹、方向弹、穿透弹、复制弹、敌方投射物、旧持续激光和脉冲镭射全部被吸收截止；穿透额度不能穿过 Stuff。Stuff 交点具有硬截止优先级，即使敌人命中球与阻挡球重叠，中心在阻挡点后方也不会被端帽命中。
 - **索敌优先级**：最近、最远、最高血、最低血、最快、首个进入、锁定；锁定失效后回退到最近。`prioritizes_airborne` 启用时先把候选收缩为空中敌人，再应用上述优先级；新空中敌人会因而打断对地 `LOCKED`。正式箭塔和导弹塔三级全部启用。
-- **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径，以及通用减速/冻结计时和冰蓝状态表现；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
+- **目标实现**：CombatTarget 提供生命、速度、奖励、命中半径，以及通用减速/冻结计时、深蓝寒冷表面 Shader 和冻结冰壳；M3 靶标与 M4 EnemyUnit 都可注册。正式掉落不通过泛用 `target_killed`，而由 WaveManager 限定 EnemyUnit 的死亡信号结算。
 - **空中目标过滤**：CombatTarget 用 `airborne` / `is_airborne_unit()` 暴露统一分类。每级建筑用 `affects_airborne` 决定是否接纳飞行目标；单体索敌、独立射程复核与激光线段结算使用同一过滤入口。
 - **敌方攻击策略**：EnemyAttackStrategy 复用 IAttackStrategy 的 `tick/reset` 契约，只管理冷却；EnemyUnit 提供当前屏障目标和具体近战/远程执行入口。
 - **敌方投射物**：EnemyProjectile 使用结构目标的动态方法契约，不把屏障注册进 CombatManager，避免我方塔误把我方建筑当敌人。攻击者或屏障失效时投射物自动清理。
 - **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
 - **复制塔攻击事件**：Building 在真实投射物、持续激光 tick/终点爆发或脉冲镭射发射时发出 `copy_attack_triggered`。MirrorManager 变换起点/方向后，为虚像独立重算反射、Stuff 和穿透截止；持续伤害、寒冷、终点爆发与冻结都使用源建筑当前等级参数，虚像不自持计时器。
-- **复制塔投射物反射**：固定终点只维持到首次反射；反射后同样转为直线弹道、使用源建筑 `affects_target` 过滤，并共享源建筑当前级 `attack_range` 总路程预算。
+- **复制塔投射物反射**：箭塔复制弹从生成起就是直线弹道，使用开火瞬间镜像后的方向而不追踪或保留固定终点；沿途命中、Stuff 截断和反射后命中都使用源建筑 `affects_target` 过滤，并独立消耗源建筑当前级 `attack_range` 总路程预算。
 
 ## 关键参数
 
@@ -145,7 +145,7 @@ Pulse Laser Building facing
 
 Building.copy_attack_triggered
   -> MirrorManager transforms start/end through projection lineage
-  -> projectile: fixed mirrored endpoint, no retarget
+  -> projectile: mirrored launch direction, straight ballistic query until hit/block/range
   -> laser: independently retrace reflection/blocking/penetration and mirror cold/burst/freeze
 
 CombatTarget.died -> CombatManager.target_killed(reward)

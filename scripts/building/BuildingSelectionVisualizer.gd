@@ -37,6 +37,7 @@ var _trajectory_preview: ProjectileTrajectoryPreview
 var _projectile_reflection_resolver: Callable
 var _projectile_blocker_resolver: Callable
 var _projectile_copy_resolver: Callable
+var _mirror_preview_trajectory_resolver: Callable
 var _visualized_cells: Array[Vector3i] = []
 
 
@@ -84,6 +85,12 @@ func set_projectile_blocker_resolver(value: Callable) -> void:
 ## selected source Building. Mirror ownership stays outside this UI node.
 func set_projectile_copy_resolver(value: Callable) -> void:
 	_projectile_copy_resolver = value
+	_rebuild_visuals()
+
+
+## Supplies the transient source/payload pair owned by copy-mirror placement.
+func set_mirror_preview_trajectory_resolver(value: Callable) -> void:
+	_mirror_preview_trajectory_resolver = value
 	_rebuild_visuals()
 
 
@@ -182,14 +189,26 @@ func _rebuild_visuals() -> void:
 		)
 		_trajectory_preview.set_reflection_resolver(_projectile_reflection_resolver)
 		_trajectory_preview.set_blocker_resolver(_projectile_blocker_resolver)
+		var trajectory_building := active_preview_building
 		var copy_payloads: Array[MirrorCopyPayload] = []
-		if active_preview_building != null and _projectile_copy_resolver.is_valid():
-			var raw_payloads: Variant = _projectile_copy_resolver.call(active_preview_building)
+		if trajectory_building != null and _projectile_copy_resolver.is_valid():
+			var raw_payloads: Variant = _projectile_copy_resolver.call(trajectory_building)
 			if raw_payloads is Array:
 				for raw_payload in raw_payloads:
 					if raw_payload is MirrorCopyPayload:
 						copy_payloads.append(raw_payload)
-		_trajectory_preview.rebuild(active_preview_building, copy_payloads)
+		elif _mirror_preview_trajectory_resolver.is_valid():
+			var raw_preview: Variant = _mirror_preview_trajectory_resolver.call()
+			if raw_preview is Dictionary:
+				var raw_building: Variant = raw_preview.get("building", null)
+				if raw_building is Building and is_instance_valid(raw_building):
+					trajectory_building = raw_building as Building
+					var raw_payloads: Variant = raw_preview.get("payloads", [])
+					if raw_payloads is Array:
+						for raw_payload in raw_payloads:
+							if raw_payload is MirrorCopyPayload:
+								copy_payloads.append(raw_payload)
+		_trajectory_preview.rebuild(trajectory_building, copy_payloads)
 
 
 func _rebuild_targeting_circle(center: Vector3, radius: float) -> void:

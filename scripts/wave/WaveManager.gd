@@ -3,6 +3,7 @@ class_name WaveManager
 extends Node
 
 const EnemyProjectileScript := preload("res://scripts/combat/EnemyProjectile.gd")
+const MIN_SPAWN_INTERVAL: float = 0.01
 
 enum State {
 	NO_WAVES,
@@ -22,6 +23,7 @@ signal next_wave_changed(wave_number: int, wave: WaveDefinition)
 signal wave_started(wave_number: int, wave: WaveDefinition)
 signal wave_completed(wave_number: int)
 signal enemy_spawned(unit: EnemyUnit)
+signal test_enemy_spawned(unit: EnemyUnit)
 signal enemy_reached_base(unit: EnemyUnit, damage: float)
 signal configuration_failed(reason: String)
 signal victory
@@ -37,6 +39,7 @@ var _released_wave_count: int = 0
 var _battle_elapsed: float = 0.0
 var _spawn_states: Array[Dictionary] = []
 var _active_units: Array[EnemyUnit] = []
+var _test_units: Array[EnemyUnit] = []
 var _unit_wave_indices: Dictionary = {}
 var _started_wave_indices: Dictionary = {}
 var _completed_wave_indices: Dictionary = {}
@@ -47,6 +50,12 @@ var _tile_enter_resolver: Callable
 var _tile_stay_resolver: Callable
 var _navigation_blocker_resolver: Callable
 var _configuration_error: String = ""
+var _enemy_definition_resolver: Callable
+var _spawn_random := RandomNumberGenerator.new()
+
+
+func _init() -> void:
+	_spawn_random.randomize()
 
 func _process(delta: float) -> void:
 	if not feature_enabled or _state != State.ACTIVE:
@@ -87,8 +96,13 @@ func configure(
 	if _base_core != null:
 		_base_core.defeated.connect(_on_base_defeated)
 
+
+func set_enemy_definition_resolver(resolver: Callable) -> void:
+	_enemy_definition_resolver = resolver
+
 func load_level(level_resource: LevelResource) -> void:
 	_clear_active_units()
+	clear_test_enemies()
 	_level = level_resource
 	_configuration_error = ""
 	_released_wave_count = 0
@@ -281,6 +295,11 @@ func get_active_enemy_count() -> int:
 	_cleanup_units()
 	return _active_units.size()
 
+
+func get_test_enemy_count() -> int:
+	_cleanup_units()
+	return _test_units.size()
+
 func get_battle_elapsed() -> float:
 	return _battle_elapsed
 
@@ -313,6 +332,40 @@ func spawn_debug_enemy(enemy: EnemyDefinition, path: PathDefinition) -> Dictiona
 		"message": "已生成 %s，路径 %s" % [enemy.display_name, path.display_name],
 	}
 
+
+## Spawns a normal combatant that is deliberately excluded from authored wave
+## progress and completion. Rewards and base damage use the normal callbacks.
+func spawn_test_enemy(enemy: EnemyDefinition, path: PathDefinition) -> Dictionary:
+	if not feature_enabled:
+		return {"success": false, "message": "WaveManager 已关闭"}
+	if _level == null:
+		return {"success": false, "message": "波次系统未加载关卡"}
+	if enemy == null or path == null:
+		return {"success": false, "message": "敌人或路径为空"}
+	if not _level.paths.has(path):
+		return {"success": false, "message": "路径不属于当前关卡"}
+	var group := SpawnGroupDefinition.new()
+	group.enemy = enemy
+	group.path = path
+	group.count = 1
+	var error := _spawn_group_unit(group, -2)
+	if not error.is_empty():
+		return {"success": false, "message": error}
+	return {
+		"success": true,
+		"message": "已生成测试敌人 %s，路径 %s" % [enemy.display_name, path.display_name],
+	}
+
+
+func clear_test_enemies() -> int:
+	var units := _test_units.duplicate()
+	_test_units.clear()
+	_clear_enemy_projectiles_from(units)
+	for unit in units:
+		if is_instance_valid(unit):
+			unit.queue_free()
+	return units.size()
+
 func _build_wave_spawn_states(wave_index: int) -> void:
 	if _level == null or wave_index < 0 or wave_index >= _level.waves.size():
 		return
@@ -344,9 +397,19 @@ func _process_spawn_states() -> void:
 				return
 			_mark_wave_started(wave_index)
 			remaining -= 1
-			next_spawn_time += maxf(0.01, group.interval)
+			if remaining > 0:
+				next_spawn_time += _sample_spawn_interval(group)
 		state["remaining"] = remaining
 		state["next_spawn_time"] = next_spawn_time
+
+
+func _sample_spawn_interval(group: SpawnGroupDefinition) -> float:
+	var base_interval := maxf(MIN_SPAWN_INTERVAL, group.interval)
+	var jitter_ratio := clampf(group.interval_jitter_ratio, 0.0, 0.95)
+	return maxf(
+		MIN_SPAWN_INTERVAL,
+		base_interval * (1.0 + _spawn_random.randf_range(-jitter_ratio, jitter_ratio))
+	)
 
 func _mark_wave_started(wave_index: int) -> void:
 	if _started_wave_indices.has(wave_index) or _level == null:
@@ -361,9 +424,18 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 	var points := _path_manager.get_world_points(group.path)
 	if points.size() < 2:
 		return "路径 %s 无法生成至少两个世界点" % group.path.display_name
+	var enemy := _resolve_enemy_definition(group.enemy)
+	if enemy == null:
+		return "无法解析敌人运行时数据"
+	# Every spawned unit owns a snapshot. Some projectile presentation/flight
+	# fields are read at launch time, so retaining the mutable working Resource
+	# would otherwise update enemies that already exist.
+	var spawn_definition := enemy.duplicate(true) as EnemyDefinition
+	if spawn_definition == null:
+		spawn_definition = enemy
 	var unit := EnemyUnit.new()
 	unit.configure_unit(
-		group.enemy,
+		spawn_definition,
 		points,
 		group.path.cells,
 		_level.grid_cell_size if _level != null else 1.0,
@@ -374,19 +446,34 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 		_tile_enter_resolver,
 		_tile_stay_resolver,
 		_navigation_blocker_resolver,
-		_combat_manager.get_projectile_blocker_resolver() if _combat_manager != null else Callable()
+		_combat_manager.get_projectile_blocker_resolver() if _combat_manager != null else Callable(),
+		_combat_manager
 	)
+	var hp_multiplier := _level.get_enemy_hp_multiplier(wave_index) if _level != null else 1.0
+	unit.max_hp = maxf(1.0, unit.max_hp * hp_multiplier)
+	unit.current_hp = unit.max_hp
 	add_child(unit)
 	if _combat_manager == null or not _combat_manager.register_target(unit):
 		unit.queue_free()
-		return "敌人 %s 无法注册到 CombatManager" % group.enemy.display_name
+		return "敌人 %s 无法注册到 CombatManager" % enemy.display_name
 	unit.died.connect(_on_enemy_died)
 	unit.reached_base.connect(_on_enemy_reached_base)
 	unit.tree_exited.connect(_on_enemy_tree_exited.bind(unit))
-	_active_units.append(unit)
-	_unit_wave_indices[unit] = wave_index
+	if wave_index != -2:
+		_active_units.append(unit)
+		_unit_wave_indices[unit] = wave_index
+	else:
+		_test_units.append(unit)
+		test_enemy_spawned.emit(unit)
 	enemy_spawned.emit(unit)
 	return ""
+
+
+func _resolve_enemy_definition(source: EnemyDefinition) -> EnemyDefinition:
+	if source == null or not _enemy_definition_resolver.is_valid():
+		return source
+	var resolved: Variant = _enemy_definition_resolver.call(source)
+	return resolved as EnemyDefinition if resolved is EnemyDefinition else source
 
 func _validate_spawn_timeline() -> String:
 	if _level == null:
@@ -475,6 +562,10 @@ func _cleanup_units() -> void:
 		if unit == null or not is_instance_valid(unit):
 			_unit_wave_indices.erase(unit)
 			_active_units.remove_at(index)
+	for index in range(_test_units.size() - 1, -1, -1):
+		var unit := _test_units[index]
+		if unit == null or not is_instance_valid(unit):
+			_test_units.remove_at(index)
 
 func _on_enemy_died(target: CombatTarget, reward_amount: float) -> void:
 	if target is EnemyUnit and _resource_manager != null:
@@ -487,6 +578,7 @@ func _on_enemy_reached_base(unit: EnemyUnit, damage: float) -> void:
 
 func _on_enemy_tree_exited(unit: EnemyUnit) -> void:
 	_active_units.erase(unit)
+	_test_units.erase(unit)
 	_unit_wave_indices.erase(unit)
 
 func _on_base_defeated() -> void:
@@ -495,6 +587,7 @@ func _on_base_defeated() -> void:
 	_state = State.DEFEAT
 	_spawn_states.clear()
 	_clear_active_units()
+	clear_test_enemies()
 	defeat.emit()
 	_emit_state_changed()
 
@@ -503,6 +596,7 @@ func _enter_configuration_error(reason: String) -> void:
 	_state = State.CONFIG_ERROR
 	_spawn_states.clear()
 	_clear_active_units()
+	clear_test_enemies()
 	configuration_failed.emit(reason)
 	_emit_state_changed()
 
@@ -511,3 +605,9 @@ func _emit_state_changed() -> void:
 
 func _emit_next_wave_changed() -> void:
 	next_wave_changed.emit(get_next_wave_number(), get_next_wave())
+
+
+func _clear_enemy_projectiles_from(units: Array) -> void:
+	for child in get_children():
+		if child is EnemyProjectile and units.has((child as EnemyProjectile).get_attacker()):
+			child.queue_free()

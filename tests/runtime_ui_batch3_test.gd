@@ -38,7 +38,7 @@ func _test_settings_persistence() -> void:
 	var path := _test_settings_path()
 	_cleanup_settings_file(path)
 	var settings := RuntimeSettings.new()
-	settings.set_values(37.0, true, 1.25, false)
+	settings.set_values(37.0, true, 1.25, false, RuntimeSettings.RENDER_QUALITY_PERFORMANCE)
 	_expect(settings.save_to_file(path) == OK, "runtime settings save to an isolated user cfg")
 	var loaded := RuntimeSettings.new()
 	_expect(loaded.load_from_file(path) == OK, "runtime settings reload from user cfg")
@@ -46,8 +46,28 @@ func _test_settings_persistence() -> void:
 	_expect(loaded.fullscreen, "saved fullscreen mode round-trips")
 	_expect(is_equal_approx(loaded.ui_scale, 1.25), "saved UI scale round-trips")
 	_expect(not loaded.depth_of_field_enabled, "saved depth-of-field setting round-trips")
+	_expect(loaded.render_quality_preset == RuntimeSettings.RENDER_QUALITY_PERFORMANCE, "saved render quality round-trips")
 	loaded.set_values(-10.0, false, 9.0)
 	_expect(is_zero_approx(loaded.main_volume_percent) and is_equal_approx(loaded.ui_scale, 1.5), "runtime settings clamp editable ranges")
+	var render_window := Window.new()
+	render_window.size = Vector2i(3840, 2160)
+	var scale_settings := RuntimeSettings.new()
+	scale_settings.set_values(100.0, false, 1.0, true, RuntimeSettings.RENDER_QUALITY_BALANCED)
+	_expect(
+		is_equal_approx(scale_settings.get_effective_3d_scale(render_window), 2.0 / 3.0),
+		"balanced render quality maps 4K output to a 1440p 3D buffer"
+	)
+	scale_settings.set_values(100.0, false, 1.0, true, RuntimeSettings.RENDER_QUALITY_PERFORMANCE)
+	_expect(
+		is_equal_approx(scale_settings.get_effective_3d_scale(render_window), 0.5),
+		"performance render quality maps 4K output to a 1080p 3D buffer"
+	)
+	scale_settings.set_values(100.0, false, 1.0, true, RuntimeSettings.RENDER_QUALITY_NATIVE)
+	_expect(
+		is_equal_approx(scale_settings.get_effective_3d_scale(render_window), 1.0),
+		"native render quality keeps the full 3D buffer"
+	)
+	render_window.free()
 
 
 func _test_economy_panel(fixture: Dictionary) -> void:
@@ -90,25 +110,33 @@ func _test_global_info_panel(fixture: Dictionary) -> void:
 	var wave_manager: WaveManager = fixture["wave"]
 	var base_core: BaseCore = fixture["base"]
 	panel.configure(resource_manager, wave_manager, base_core)
-	var level: LevelResource = fixture["level"]
-	panel.set_level_context(level, "res://resources/levels/FallbackName.tres")
 	base_core.current_hp = 75.0
 	base_core.max_hp = 120.0
 	base_core.health_changed.emit(base_core.current_hp, base_core.max_hp)
 	wave_manager.state_changed.emit(WaveManager.State.ACTIVE, 1, 3, 4)
 	resource_manager.try_register_building(0.0)
-	resource_manager.try_register_mirror()
+	resource_manager.try_register_mirror(ResourceManager.COPY_MIRROR_KIND)
+	resource_manager.try_register_mirror(ResourceManager.REFLECT_MIRROR_KIND)
 	var summary := panel.get_summary_text()
-	_expect(summary.contains("批次 3 测试关卡"), "global panel uses the editable level display name")
-	_expect(summary.contains("据点 75 / 120 HP"), "global panel follows BaseCore health signals")
-	_expect(summary.contains("场上敌人 · 4"), "global panel follows WaveManager enemy counts")
-	_expect(summary.contains("建筑 1/20 · 镜子 1/6"), "global panel follows ResourceManager entity caps")
-	level.display_name = ""
-	panel.set_level_context(level, "res://resources/levels/FallbackName.tres")
-	_expect(panel.get_summary_text().contains("FallbackName"), "level filename is the stable fallback display name")
-	level.display_name = "批次 3 测试关卡"
+	_expect(summary.split("\n")[0] == "75", "heart stat follows the remaining BaseCore health")
+	_expect(summary.contains("1/3"), "head stat follows current and total wave counts")
+	_expect(summary.contains("1/20"), "tower stat follows the building count and cap")
+	_expect(summary.contains("1/5"), "copy-mirror stat follows its independent count and cap")
+	_expect(summary.contains("1/10"), "reflect-mirror stat follows its independent count and cap")
+	_expect(panel.get_node_or_null("GlassPanel") == null, "icon stats render without the legacy information frame")
+	for icon_path in [
+		"StatsGrid/HealthStat/Icon",
+		"StatsGrid/WaveStat/Icon",
+		"StatsGrid/CopyMirrorStat/Icon",
+		"StatsGrid/ReflectMirrorStat/Icon",
+		"StatsGrid/EconomyPanel/Content/ResourceIcon",
+		"StatsGrid/BuildingStat/Icon",
+	]:
+		var icon := panel.get_node(icon_path) as TextureRect
+		_expect(icon != null and icon.texture != null, "global icon stat owns its supplied texture")
 	resource_manager.unregister_building()
-	resource_manager.unregister_mirror()
+	resource_manager.unregister_mirror(ResourceManager.COPY_MIRROR_KIND)
+	resource_manager.unregister_mirror(ResourceManager.REFLECT_MIRROR_KIND)
 	panel.queue_free()
 	await process_frame
 
@@ -156,12 +184,15 @@ func _test_time_controls_and_pause_menu(fixture: Dictionary) -> void:
 	_expect(pause.settings_panel.visible, "settings button expands the first settings group")
 	pause.volume_slider.value = 62.0
 	pause.ui_scale_slider.value = 1.15
+	pause.render_quality.select(RuntimeSettings.RENDER_QUALITY_NATIVE)
+	pause.render_quality.item_selected.emit(RuntimeSettings.RENDER_QUALITY_NATIVE)
 	pause.depth_of_field_toggle.set_pressed_no_signal(false)
 	pause.depth_of_field_toggle.toggled.emit(false)
 	var persisted := RuntimeSettings.new()
 	_expect(persisted.load_from_file(_test_settings_path()) == OK, "pause settings save immediately")
 	_expect(is_equal_approx(persisted.main_volume_percent, 62.0) and is_equal_approx(persisted.ui_scale, 1.15), "pause menu persists volume and UI scale")
 	_expect(not persisted.depth_of_field_enabled, "pause menu persists the depth-of-field toggle")
+	_expect(persisted.render_quality_preset == RuntimeSettings.RENDER_QUALITY_NATIVE, "pause menu persists render quality")
 	pause.restart_button.pressed.emit()
 	pause.exit_button.pressed.emit()
 	_expect(_restart_requests == 1, "restart button emits one high-level request without reloading inside the UI")
@@ -193,8 +224,8 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	hud.configure_global_info(fixture["resource"], fixture["wave"], fixture["base"])
 	hud.configure_wave_controls(fixture["wave"])
 	hud.apply_level_configuration(fixture["level"], "memory://runtime-ui-batch3")
-	_expect(hud.get_node_or_null("GlobalInfoPanel") != null, "runtime HUD owns the right-top global panel")
-	_expect(hud.get_node_or_null("EconomyPanel") != null, "runtime HUD owns the right-bottom economy panel")
+	_expect(hud.get_node_or_null("GlobalInfoPanel") != null, "runtime HUD owns the right-top icon stats")
+	_expect(hud.get_node_or_null("GlobalInfoPanel/StatsGrid/EconomyPanel") != null, "right-top stats own the animated economy cell")
 	_expect(hud.get_node_or_null("TimeControlPanel") != null, "runtime HUD owns formal time controls")
 	_expect(hud.get_node_or_null("PauseMenu") != null, "runtime HUD owns the pause modal")
 	_expect(hud.get_node_or_null("DefeatMenu") != null, "runtime HUD owns the defeat modal")
@@ -247,7 +278,7 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 		var cards_rect := (hud.get_node("BuildCardBar/Layout/Cards") as Control).get_global_rect()
 		var global_rect := (hud.get_node("GlobalInfoPanel") as Control).get_global_rect()
 		var inspector_rect := (hud.get_node("TileInspectorPanel") as Control).get_global_rect()
-		var economy_rect := (hud.get_node("EconomyPanel") as Control).get_global_rect()
+		var economy_rect := (hud.get_node("GlobalInfoPanel/StatsGrid/EconomyPanel") as Control).get_global_rect()
 		var time_rect := (hud.get_node("TimeControlPanel") as Control).get_global_rect()
 		var wave_controls_rect := (hud.get_node("WaveControlPanel") as Control).get_global_rect()
 		for rect in [global_rect, inspector_rect, economy_rect, time_rect, wave_controls_rect]:
@@ -325,7 +356,8 @@ func _make_fixture() -> Dictionary:
 	level.base_cell = Vector3i(3, 2, 0)
 	level.initial_resource = 500
 	level.building_cap = 20
-	level.mirror_cap = 6
+	level.copy_mirror_cap = 5
+	level.reflect_mirror_cap = 10
 	level.base_resource_per_second = 0.0
 	resource_manager.apply_level_configuration(level)
 	_expect(loader.load_level(level, "memory://runtime-ui-batch3"), "batch 3 fixture level loads")

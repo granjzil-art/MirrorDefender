@@ -27,6 +27,7 @@ var _legacy_light: Light3D
 var _grid: GridManager
 var _terrain_manager: TerrainManager
 var _display_case: AcrylicDisplayCase
+var _display_case_visual_roots: Array[Node3D] = []
 var _profiles: Array[LightingProfile] = []
 var _active_profile: LightingProfile
 var _active_profile_index: int = -1
@@ -44,7 +45,6 @@ func configure(
 	legacy_light: Light3D,
 	grid: GridManager,
 	terrain_manager: TerrainManager,
-	case_definition: AcrylicDisplayCaseDefinition,
 	profiles: Array[LightingProfile],
 	visual_roots: Array[Node3D] = [],
 	foliage_shadow_definition: FoliageShadowDefinition = null,
@@ -54,6 +54,7 @@ func configure(
 	_legacy_light = legacy_light
 	_grid = grid
 	_terrain_manager = terrain_manager
+	_display_case_visual_roots = visual_roots.duplicate()
 	_profiles = profiles.duplicate()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if _legacy_light != null:
@@ -62,7 +63,7 @@ func configure(
 		_display_case = AcrylicDisplayCase.new()
 		_display_case.name = "AcrylicDisplayCase"
 		add_child(_display_case)
-	_display_case.configure(_grid, _terrain_manager, case_definition, visual_roots)
+	_display_case.configure(_grid, _terrain_manager, null, _display_case_visual_roots)
 	if foliage_shadow_definition != null:
 		if _foliage_shadow == null:
 			_foliage_shadow = FoliageShadowControllerScript.new()
@@ -81,9 +82,20 @@ func configure(
 		apply_profile_by_index(0, 0.0)
 
 
-func apply_level(_level_resource: LevelResource) -> bool:
-	if not feature_enabled or _display_case == null:
+func apply_level(level_resource: LevelResource) -> bool:
+	if (
+		not feature_enabled
+		or _display_case == null
+		or level_resource == null
+		or level_resource.display_case_definition == null
+	):
 		return false
+	_display_case.configure(
+		_grid,
+		_terrain_manager,
+		level_resource.display_case_definition,
+		_display_case_visual_roots
+	)
 	if not _display_case.rebuild_for_level():
 		return false
 	_level_bounds = _display_case.get_content_bounds()
@@ -91,8 +103,8 @@ func apply_level(_level_resource: LevelResource) -> bool:
 		_foliage_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
 	if _realistic_tree_shadow != null:
 		_realistic_tree_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
-	if _level_resource != null and _level_resource.lighting_profile != null:
-		_active_profile = _level_resource.lighting_profile
+	if level_resource.lighting_profile != null:
+		_active_profile = level_resource.lighting_profile
 		_active_profile_index = _profiles.find(_active_profile)
 	if _active_profile != null:
 		_apply_profile_runtime(_active_profile, 0.0)

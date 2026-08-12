@@ -126,9 +126,13 @@ func cancel_to_select(clear_world_selection: bool = true) -> void:
 
 ## Returns a stable result dictionary so UI and tests never need to infer a
 ## synchronous manager signal. `attempted` is false only in SELECT mode.
-func handle_primary(cell_pick: Dictionary, edge_pick: Dictionary) -> Dictionary:
+func handle_primary(
+	cell_pick: Dictionary,
+	edge_pick: Dictionary,
+	mirror_pick: Dictionary = {}
+) -> Dictionary:
 	if _mode == Mode.SELECT:
-		_select_world(cell_pick, edge_pick)
+		_select_world(cell_pick, edge_pick, mirror_pick)
 		return {
 			"attempted": false,
 			"success": false,
@@ -210,9 +214,21 @@ func handle_primary(cell_pick: Dictionary, edge_pick: Dictionary) -> Dictionary:
 	}
 
 
-func _select_world(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
+func _select_world(
+	cell_pick: Dictionary,
+	edge_pick: Dictionary,
+	mirror_pick: Dictionary = {}
+) -> void:
 	if _building_manager == null or _mirror_manager == null:
 		return
+	var direct_pick: Variant = mirror_pick.get("mirror", null)
+	if bool(mirror_pick.get("hit", false)) and direct_pick is CopyMirror:
+		var direct_mirror := direct_pick as CopyMirror
+		if is_instance_valid(direct_mirror):
+			_set_world_selection(true, direct_mirror.from_cell, direct_mirror.edge_id)
+			_mirror_manager.select_mirror(direct_mirror)
+			_building_manager.select_building(null)
+			return
 	if not bool(cell_pick.get("hit", false)):
 		_clear_world_selection()
 		return

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const EnemyHealthBarScript := preload("res://scripts/ui/EnemyHealthBar3D.gd")
+const EnemyHitParticlesScript := preload("res://scripts/fx/EnemyHitParticles.gd")
 
 var _failures: int = 0
 var _checks: int = 0
@@ -57,6 +58,10 @@ func _test_damage_presentation() -> void:
 func _test_enemy_integration() -> void:
 	var definition := EnemyDefinition.new()
 	definition.max_hp = 100.0
+	definition.hit_particle_color = Color(0.82, 0.06, 0.11, 0.9)
+	definition.hit_particle_brightness = 6.5
+	definition.hit_particle_size = 0.085
+	definition.hit_particle_count = 7
 	var enemy := EnemyUnit.new()
 	enemy.configure_unit(definition, PackedVector3Array([Vector3.ZERO]))
 	root.add_child(enemy)
@@ -77,8 +82,52 @@ func _test_enemy_integration() -> void:
 		bar != null and int(bar.call("get_active_flash_count")) == 1,
 		"EnemyUnit damage settlements trigger the white flash feedback"
 	)
-	enemy.queue_free()
+	var burst := _find_hit_burst()
+	_expect(burst != null, "EnemyUnit damage settlements spawn a hit-particle burst")
+	_expect(
+		burst != null and burst.amount == definition.hit_particle_count,
+		"hit-particle burst uses the configured particle count"
+	)
+	if burst != null:
+		var quad := burst.draw_pass_1 as QuadMesh
+		var material := quad.material as StandardMaterial3D if quad != null else null
+		_expect(
+			quad != null and is_equal_approx(quad.size.x, definition.hit_particle_size),
+			"hit-particle burst uses the configured particle size"
+		)
+		_expect(
+			material != null
+			and material.albedo_color.is_equal_approx(definition.hit_particle_color)
+			and is_equal_approx(
+				material.emission_energy_multiplier,
+				definition.hit_particle_brightness
+			),
+			"hit-particle burst uses the configured color and brightness"
+		)
+		burst.queue_free()
 	await process_frame
+	enemy.take_damage(enemy.current_hp)
+	await process_frame
+	_expect(not is_instance_valid(enemy), "lethal damage removes the defeated EnemyUnit")
+	var lethal_burst := _find_hit_burst()
+	_expect(
+		lethal_burst != null and lethal_burst.get_parent() == root,
+		"lethal-hit particles survive their defeated EnemyUnit under the world root"
+	)
+	if lethal_burst != null:
+		lethal_burst.queue_free()
+	await process_frame
+
+
+func _find_hit_burst() -> GPUParticles3D:
+	for child in root.get_children():
+		if (
+			child is GPUParticles3D
+			and not child.is_queued_for_deletion()
+			and child.get_script() == EnemyHitParticlesScript
+		):
+			return child as GPUParticles3D
+	return null
 
 
 func _expect(condition: bool, message: String) -> void:

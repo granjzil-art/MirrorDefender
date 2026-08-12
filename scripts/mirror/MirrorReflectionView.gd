@@ -5,6 +5,7 @@ extends Node3D
 
 const REFLECTION_VISIBILITY_LAYER := 20
 const DEFAULT_VIEWPORT_ASPECT := Vector2(16.0, 9.0)
+const MirrorOvalMeshFactory := preload("res://scripts/mirror/MirrorOvalMeshFactory.gd")
 
 var _mirror: Node3D
 var _definition: MirrorDefinition
@@ -92,15 +93,23 @@ func get_reflection_viewport() -> SubViewport:
 func _build_surface() -> void:
 	_surface = MeshInstance3D.new()
 	_surface.name = "ActiveReflectionSurface"
-	var quad := QuadMesh.new()
-	quad.orientation = PlaneMesh.FACE_Z
-	quad.size = Vector2(_mirror.get_mirror_width() * 0.94, _mirror.get_mirror_height() * 0.90)
-	_surface.mesh = quad
+	var surface_size := Vector2(_mirror.get_mirror_width() * 0.94, _mirror.get_mirror_height() * 0.90)
+	if _mirror.is_copy_mirror():
+		_surface.mesh = MirrorOvalMeshFactory.create_face(surface_size)
+	else:
+		var quad := QuadMesh.new()
+		quad.orientation = PlaneMesh.FACE_Z
+		quad.size = surface_size
+		_surface.mesh = quad
 	_surface.set_layer_mask_value(1, false)
 	_surface.set_layer_mask_value(REFLECTION_VISIBILITY_LAYER, true)
 	_fallback_material = StandardMaterial3D.new()
 	_fallback_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_fallback_material.albedo_color = _definition.mirror_surface_tint.lerp(_definition.mirror_color, 0.28)
+	var effective_tint := Color.WHITE.lerp(
+		_definition.mirror_surface_tint,
+		_definition.mirror_surface_tint.a
+	)
+	_fallback_material.albedo_color = effective_tint.lerp(_definition.mirror_color, 0.28)
 	_fallback_material.metallic = 0.85
 	_fallback_material.roughness = 0.08
 	_surface.material_override = _fallback_material
@@ -216,9 +225,10 @@ uniform float reflectivity : hint_range(0.0, 1.0) = 0.92;
 void fragment() {
 	vec2 corrected_uv = vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y);
 	vec3 reflected = texture(reflection_texture, corrected_uv).rgb;
+	vec3 effective_tint = mix(vec3(1.0), surface_tint.rgb, surface_tint.a);
 	float rim = pow(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 2.0);
-	vec3 result = mix(surface_tint.rgb, reflected * surface_tint.rgb, reflectivity);
-	ALBEDO = result + surface_tint.rgb * rim * 0.12;
+	vec3 result = mix(effective_tint, reflected * effective_tint, reflectivity);
+	ALBEDO = result + effective_tint * rim * 0.12;
 	EMISSION = result * 0.18;
 }
 """

@@ -1,5 +1,63 @@
 # 技术与玩法决策记录
 
+## 2026-08-12 · 建筑卡悬停与实体说明共用四段文本事实源
+
+**决策**：建筑说明统一由 `BuildingDefinition.inspection_display` 提供。旧 `function_description` 作为基础描述，新增 `level_1_description / level_2_description / level_3_description`；`format_building_description()` 固定输出“基础描述、1级、2级、3级”四段。
+
+**表现契约**：`BuildCardBar` 仅对真实建筑卡响应悬停，说明框以卡槽水平中心为锚点显示在其正上方，不拦截鼠标。`BuildingActionPanel` 的说明按钮与悬停框都只调用 `BuildingDefinition.get_formatted_inspection_description()`，确保作者只编辑一份内容。
+
+**边界**：镜子卡和空卡槽不显示该建筑说明框；悬停不选卡、不切换战术慢放也不改变可用性。新增字段仅追加到 `@tool Resource` 尾部，旧 `.tres` 的基础说明与其它开关保持原值。
+
+## 2026-08-11 · 寒冷减速使用可恢复的模型表面深蓝 Shader
+
+**决策**：寒冷状态不再创建脚下范围圆环，而是由 `CombatTarget` 对自身正式模型根或调试模型下的全部 `MeshInstance3D` 临时设置同一个深蓝 `ShaderMaterial`。Shader 保留模型几何明暗并使用轻微时间脉动；正式模型多网格共用表现，冻结仍使用独立冰壳。
+
+**材质边界**：绑定时逐节点保存原 `material_override`，寒冷结束后仅在该节点仍使用寒冷材质时恢复，避免覆盖其它系统后写入的状态。该方案不修改 mesh surface 材质或共享资源，也不占用 `material_overlay`，因此美术材质、命中反馈和其它叠加通道保持隔离。Shader 顶点不偏移，避免不同导入模型法线尺度造成外壳鼓包；视觉不参与碰撞、命中半径或移动计时。
+
+## 2026-08-11 · 镜子默认使用金币放置并按种类独立限额
+
+**决策**：`LevelResource` 与 `ResourceManager` 分别保存复制镜和反射镜的数量/上限，一种镜子达上限不影响另一种。玩家放置默认与容量登记同一事务扣除 `MirrorDefinition.placement_cost`，失败不扣款，主动删除不退款；初始陈列仍免费但占用对应种类容量。
+
+**兼容开关**：`Main.mirror_placement_cooldown_enabled=false` 是正式默认。改为 `true` 时，MirrorManager 忽略放置费用，恢复两种镜子各自的冷却、可用库存、阶段倍率、拆除返还库存和卡面扫描。两个分支共用同一套独立 cap、边占用和放置合法性判定。
+
+**数据与迁移**：Level1–Level4 显式配置 `copy_mirror_cap=5` 与 `reflect_mirror_cap=10`，两种正式镜子的 `placement_cost=100`。只读兼容字段 `mirror_cap` 仅用于老关卡和测试资源；新作者数据不得再写共享上限。
+
+## 2026-08-11 · 箭塔复制弹从生成起采用直线弹道
+
+**决策**：箭塔有目标攻击仍以开火瞬间的目标点计算复合镜像方向，但复制弹不再把该点作为生命周期终点。它从生成起沿镜像方向直线飞行并查询沿途有效敌人，直到穿透预算结束、被 Stuff 截断或耗尽源塔当前级 `attack_range` 的独立累计路程。
+
+**边界**：源箭继续追踪原目标，复制箭不独立索敌也不跟随目标移动；两者只共享发射参数，不共享投射物节点、飞行计数或销毁状态。该决策取代复制箭“抵达镜像旧目标点即销毁”的固定终点规则，不改变导弹、钉锤、激光和脉冲镭射分支。
+
+## 2026-08-11 · 局内右上信息采用无框图标统计
+
+**决策**：正式局内画面移除 `LevelDebugPanel` 的关卡名与“加载关卡”按钮；右上只保留 `GlobalInfoPanel` 的三行两列数据：剩余据点生命/当前与总波次、复制镜/反射镜数量与独立上限、金币/建筑数量与上限。每项均为透明图标加白色数字，不使用底板、描边或文字标题。
+
+**数据边界**：生命、波次、金币和容量分别继续以 `BaseCore.health_changed`、`WaveManager.state_changed`、`ResourceManager.resource_changed/limits_changed` 为唯一运行时事实源。`EconomyPanel` 改为右上网格的金币单元，仍独立处理真实时间数字滚动与 `+x/-x` 浮字。该决策取代 2026-07-26 对 Main 内 `LevelDebugPanel` 的保留要求；不删除 F1 命令注册表中的开发加载命令，也不改变正式 AppFlow 选关和暂停/失败重载流程。
+
+## 2026-08-11 · 展示柜构造参数归当前关卡所有
+
+**决策**：每个正式 `LevelResource` 内嵌一份独立 `AcrylicDisplayCaseDefinition`，负责该关卡的柜体边距、净高、底座、面板材质响应和四侧投射物反射参数。`Main` 不再预加载并向所有关卡注入同一份全局定义；`LightingController.apply_level()` 必须读取当前关卡定义后重新配置与构建柜体。
+
+**迁移契约**：Level1–Level4 以迁移前的当前值创建各自子资源，初始画面与玩法表现不因所有权迁移而改变，但后续修改某关不会波及其它关。缺少 `display_case_definition` 的正式关卡不能通过 `LevelResource.validate_configuration()`。
+
+**边界**：`LightingProfile` 继续只管理 Environment、Light3D、亚克力色调、反射探针与过渡时间，不吸收柜体构造参数；因此同一灯光预设仍可跨关复用，切换灯光也不会覆盖关卡自有柜体配置。原 `resources/lighting/AcrylicDisplayCase.tres` 仅保留为新建/测试模板。
+
+## 2026-08-11 · 顶板高光与灯光方案解耦
+
+**决策**：不通过降低灯光能量、Light3D Specular、Glow 或反射探针来消除展示柜白斑。亚克力 Shader 提供逐材质 `surface_specular`，柜体定义以 `top_panel_specular` 单独控制水平顶板；默认值为 `0`，四块侧板仍保持 `0.9`。
+
+**理由与边界**：饱和椭圆来自低粗糙顶板对现有灯源的镜面响应。局部关闭顶板高光可保持全部灯光方案、侧板亚克力质感和场景曝光；顶板的 Fresnel、透明度、边框和装饰反光条仍继续渲染。
+
+## 2026-08-11 · 运行时战斗数据以临时工作副本预览并回写唯一 `.tres`
+
+**数据决策**：运行时战斗数据编辑器不直接修改 ResourceCache 中的正式资源，也不建立 JSON/用户配置等第二数据源。会话按外部资源路径加载独立工作副本；建筑按类型和等级解析 `level_data`，敌人按资源路径解析工作定义。永久保存统一校验并写回原 `.tres`，放弃时重新读取磁盘。建筑初始陈列导出始终回指 BuildingManager 的正式外部定义，禁止把工作副本嵌入关卡。
+
+**刷新决策**：建筑不复用会保留旧状态的字段热改，也不调用旧的等级升级事务；参数变化后由 BuildingManager 在同一占位事务中重建相同类型、等级、位置和朝向的实体，并取消旧实体拥有的持续光束、脉冲和在途投射物。敌人相反：出生时深复制有效定义，已生成单位永不追随工作副本，只有后续正式/测试出怪读取新值。
+
+**测试敌人边界**：测试批次复用普通 EnemyUnit、寻路、CombatManager、奖励和基地伤害回调，但由独立列表持有；它不进入 authored `_active_units`、波次索引、生成时间线或完成判断。原有 `spawn_debug_enemy` 兼容行为保持不变，避免改变既有调试命令语义。
+
+**发布边界**：原生窗口只在 `OS.has_feature("editor_runtime")` 的项目源码运行中创建，因为导出 PCK 不能可靠写回 `res://`。窗口使用 `force_native` 且非 transient，默认尝试平铺到主游戏窗口右侧、左侧或其它显示器可用区域。
+
 ## 2026-08-11 · 索敌范围预览覆盖放置虚影并优先于旧选择
 
 **决策**：`BuildingSelectionVisualizer` 用同一个活动建筑来源驱动蓝色索敌圆和红色弹道：存在有效放置虚影时读取虚影，否则读取已选实体。能力仍只由 `Building.uses_targeting_range()` 决定，因此正式内容中箭塔、导弹塔和钉锤在放置时显示蓝圈，两种激光与防御建筑不显示。
@@ -386,7 +444,7 @@
 
 **决策**：F1 控制台只负责模态输入、分类配置、控制台内摘要、历史和命令文本；独立 `DebugOverlayPanel` 在游戏画面左上角常驻显示已启用分类。`DebugCommandRegistry` 负责分词与结构化分发，`DebugCategoryRegistry` 作为控制台与常驻层共享的八类开关和只读提供器事实源，`RuntimeDebugBindings` 负责把正式 Manager 公共 API 注册为命令。UI 内禁止用大型 `match` 实现关卡、资源、波次或生成业务。
 
-**迁移决策**：Main 左上调试文字、Hint 和 M3DebugPanel 在正式主场景隐藏且不再配置；应操作验收要求，LevelDebugPanel 继续保留当前关卡状态与“加载关卡”快捷入口。`path` 开关只影响路径调试线，出生点/据点数字作为正式关卡信息始终显示。
+**迁移决策（历史）**：Main 左上调试文字、Hint 和 M3DebugPanel 在正式主场景隐藏且不再配置；当时保留了 LevelDebugPanel 当前关卡状态与“加载关卡”快捷入口，该保留要求已由 2026-08-11 的右上无框图标统计决策取代。`path` 开关只影响路径调试线，出生点/据点数字作为正式关卡信息始终显示。
 
 **理由**：命令解析、运行时依赖和界面生命周期独立后，新增命令不需要修改控制台；错误可在进入 Manager 前统一校验，切关继续通过现有正式入口完成全部子系统重建。双注册表也让勾选框和文本命令共享唯一分类事实源。
 

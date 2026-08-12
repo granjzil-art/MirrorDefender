@@ -8,6 +8,9 @@ const BuildingPlacementDataScript := preload("res://scripts/building/BuildingPla
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Preview Performance")
+@export var reuse_placement_preview_instances: bool = true
+
 @export_group("Definitions")
 @export var arrow_tower: BuildingDefinition
 @export var laser_tower: BuildingDefinition
@@ -18,10 +21,14 @@ const BuildingPlacementDataScript := preload("res://scripts/building/BuildingPla
 @export var pulse_laser_tower: BuildingDefinition
 
 signal building_placed(building: Building)
+## Player-paid construction only. Authored initial layouts and runtime rebuilds
+## continue to emit building_placed but intentionally stay silent in the SFX layer.
+signal building_constructed(building: Building)
 signal building_removed(building: Building)
 signal building_selected(building: Building)
 signal building_upgraded(building: Building, previous_level: int, new_level: int)
 signal building_destroyed(building: Building, attacker: Node)
+signal building_runtime_rebuilt(previous: Building, current: Building)
 signal placement_failed(cell: Vector3i, reason: String)
 signal upgrade_failed(building: Building, reason: String)
 signal preview_updated(building: Building)
@@ -44,6 +51,7 @@ var _building_exit_callbacks: Dictionary = {}
 var _edge_occupancy_registry: EdgeOccupancyRegistry
 var _projection_blocker_resolver: Callable
 var _path_connectivity_validator: Callable
+var _runtime_definition_overrides: Dictionary = {}
 
 func configure(
 	grid_manager: GridManager,
@@ -83,7 +91,15 @@ func place_building(
 	definition: BuildingDefinition,
 	placement_facing: int = -1
 ) -> Building:
-	return _place_tile_building(cell, definition, placement_facing, 1, true, true, true)
+	return _place_tile_building(
+		cell,
+		_resolve_runtime_definition(definition),
+		placement_facing,
+		1,
+		true,
+		true,
+		true
+	)
 
 
 func place_edge_building(
@@ -91,7 +107,15 @@ func place_edge_building(
 	placement_edge_index: int,
 	definition: BuildingDefinition
 ) -> Building:
-	return _place_edge_building(from_cell, placement_edge_index, definition, 1, true, true, true)
+	return _place_edge_building(
+		from_cell,
+		placement_edge_index,
+		_resolve_runtime_definition(definition),
+		1,
+		true,
+		true,
+		true
+	)
 
 
 ## Captures only real Buildings. Preview nodes and mirror projections are excluded.
@@ -99,8 +123,11 @@ func export_initial_placements() -> Array[BuildingPlacementData]:
 	var placements: Array[BuildingPlacementData] = []
 	for building in get_buildings():
 		var placement := BuildingPlacementDataScript.new()
+		var persistent_definition := _get_source_definition(building.definition.kind)
+		if persistent_definition == null:
+			persistent_definition = building.definition
 		placement.configure(
-			building.definition,
+			persistent_definition,
 			building.cell,
 			building.facing_index,
 			building.edge_index if building.is_edge_placement() else -1,
@@ -171,6 +198,7 @@ func _place_tile_building(
 	check_connectivity: bool,
 	select_after_placement: bool
 ) -> Building:
+	definition = _resolve_runtime_definition(definition)
 	var failure := _validate_placement(cell, definition, charge_cost)
 	if not failure.is_empty():
 		placement_failed.emit(cell, failure)
@@ -213,6 +241,8 @@ func _place_tile_building(
 	if select_after_placement:
 		select_building(building)
 	building_placed.emit(building)
+	if charge_cost:
+		building_constructed.emit(building)
 	return building
 
 
@@ -225,6 +255,7 @@ func _place_edge_building(
 	check_connectivity: bool,
 	select_after_placement: bool
 ) -> Building:
+	definition = _resolve_runtime_definition(definition)
 	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition, charge_cost)
 	var failure: String = validation["failure"]
 	if not failure.is_empty():
@@ -277,6 +308,8 @@ func _place_edge_building(
 	if select_after_placement:
 		select_building(building)
 	building_placed.emit(building)
+	if charge_cost:
+		building_constructed.emit(building)
 	return building
 
 func upgrade_selected() -> bool:
@@ -326,11 +359,26 @@ func clear_buildings(update_resource_count: bool = true) -> void:
 	_sync_building_income()
 
 func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
+	definition = _resolve_runtime_definition(definition)
 	if not _can_preview(cell, definition):
 		clear_preview(false)
 		return false
 	if _preview_building != null and _preview_definition == definition and _preview_cell == cell:
 		_refresh_preview_connectivity()
+		return true
+	if (
+		reuse_placement_preview_instances
+		and
+		_preview_building != null
+		and is_instance_valid(_preview_building)
+		and _preview_definition == definition
+		and not _preview_building.is_edge_placement()
+	):
+		_preview_cell = cell
+		_preview_edge_id = ""
+		_preview_building.relocate_tile_preview(cell)
+		_refresh_preview_connectivity()
+		preview_updated.emit(_preview_building)
 		return true
 	if _preview_definition != definition:
 		_preview_facing_index = 0
@@ -350,6 +398,7 @@ func update_edge_preview(
 	placement_edge_index: int,
 	definition: BuildingDefinition
 ) -> bool:
+	definition = _resolve_runtime_definition(definition)
 	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition, false)
 	var failure: String = validation["failure"]
 	if not failure.is_empty():
@@ -358,6 +407,26 @@ func update_edge_preview(
 	var canonical_id: String = validation["edge_id"]
 	if _preview_building != null and _preview_definition == definition and _preview_edge_id == canonical_id and _preview_cell == from_cell:
 		_refresh_preview_connectivity()
+		return true
+	if (
+		reuse_placement_preview_instances
+		and
+		_preview_building != null
+		and is_instance_valid(_preview_building)
+		and _preview_definition == definition
+		and _preview_building.is_edge_placement()
+	):
+		_preview_cell = from_cell
+		_preview_edge_id = canonical_id
+		_preview_facing_index = placement_edge_index
+		_preview_building.relocate_edge_preview(
+			from_cell,
+			validation["to_cell"],
+			placement_edge_index,
+			canonical_id
+		)
+		_refresh_preview_connectivity()
+		preview_updated.emit(_preview_building)
 		return true
 	clear_preview(false)
 	_preview_definition = definition
@@ -454,6 +523,14 @@ func get_selected_building() -> Building:
 	return _selected_building if is_instance_valid(_selected_building) else null
 
 func get_definition(kind: int) -> BuildingDefinition:
+	if _runtime_definition_overrides.has(kind):
+		var override_definition := _runtime_definition_overrides[kind] as BuildingDefinition
+		if override_definition != null:
+			return override_definition
+	return _get_source_definition(kind)
+
+
+func _get_source_definition(kind: int) -> BuildingDefinition:
 	if kind == BuildingDefinition.Kind.CROSSBOW_TOWER:
 		return crossbow_tower
 	if kind == BuildingDefinition.Kind.MACE_TOWER:
@@ -467,6 +544,146 @@ func get_definition(kind: int) -> BuildingDefinition:
 	if kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
 		return pulse_laser_tower
 	return arrow_tower
+
+
+func get_all_definitions(effective: bool = true) -> Array[BuildingDefinition]:
+	var definitions: Array[BuildingDefinition] = []
+	for kind in [
+		BuildingDefinition.Kind.ARROW_TOWER,
+		BuildingDefinition.Kind.LASER_TOWER,
+		BuildingDefinition.Kind.PULSE_LASER_TOWER,
+		BuildingDefinition.Kind.CROSSBOW_TOWER,
+		BuildingDefinition.Kind.MACE_TOWER,
+		BuildingDefinition.Kind.BARRIER,
+		BuildingDefinition.Kind.EDGE_BARRIER,
+	]:
+		var definition := get_definition(kind) if effective else _get_source_definition(kind)
+		if definition != null and not definitions.has(definition):
+			definitions.append(definition)
+	return definitions
+
+
+## Installs temporary definitions without changing the exported persistent
+## bindings. Card selections and authored placements are canonicalized by kind.
+func set_runtime_definition_overrides(overrides: Dictionary) -> void:
+	_runtime_definition_overrides.clear()
+	for raw_key in overrides:
+		var definition := overrides[raw_key] as BuildingDefinition
+		if definition != null:
+			_runtime_definition_overrides[int(raw_key)] = definition
+	clear_preview()
+
+
+func clear_runtime_definition_overrides() -> void:
+	_runtime_definition_overrides.clear()
+	clear_preview()
+
+
+func _resolve_runtime_definition(definition: BuildingDefinition) -> BuildingDefinition:
+	if definition == null:
+		return null
+	if _runtime_definition_overrides.has(definition.kind):
+		var runtime_definition := _runtime_definition_overrides[definition.kind] as BuildingDefinition
+		if runtime_definition != null:
+			return runtime_definition
+	return definition
+
+
+## Recreates matching runtime buildings in-place using explicit working
+## level_data. Placement, facing, type and level stay stable; combat state is new.
+func rebuild_runtime_buildings(kind: int, building_level: int = -1) -> int:
+	var definition := get_definition(kind)
+	if definition == null:
+		return 0
+	var rebuilt := 0
+	for building in get_buildings().duplicate():
+		if building.definition == null or building.definition.kind != kind:
+			continue
+		if building_level > 0 and building.level != building_level:
+			continue
+		var level_data := definition.get_level_stats(building.level)
+		if level_data == null:
+			continue
+		if _replace_runtime_building(building, definition, level_data):
+			rebuilt += 1
+	if rebuilt > 0:
+		_sync_building_income()
+	return rebuilt
+
+
+func _replace_runtime_building(
+	previous: Building,
+	definition: BuildingDefinition,
+	level_data: BuildingLevelStats
+) -> bool:
+	if previous == null or not _is_registered_building(previous):
+		return false
+	var current := Building.new()
+	add_child(current)
+	var configured := false
+	if previous.is_edge_placement():
+		configured = current.configure_edge_runtime_level_data(
+			definition,
+			level_data,
+			previous.level,
+			previous.cell,
+			previous.edge_to_cell,
+			previous.edge_index,
+			previous.edge_id,
+			_grid,
+			_tile_manager,
+			_combat_manager
+		)
+	else:
+		configured = current.configure_runtime_level_data(
+			definition,
+			level_data,
+			previous.level,
+			previous.cell,
+			_grid,
+			_tile_manager,
+			_combat_manager
+		)
+	if not configured:
+		current.queue_free()
+		return false
+	current.set_facing_index(previous.facing_index)
+	var was_selected := _selected_building == previous
+	if previous.is_edge_placement():
+		if _edge_occupancy_registry != null:
+			_edge_occupancy_registry.unregister(previous.edge_id, previous)
+			if not _edge_occupancy_registry.try_register(previous.edge_id, current):
+				_edge_occupancy_registry.try_register(previous.edge_id, previous)
+				current.queue_free()
+				return false
+		_edge_buildings[previous.edge_id] = current
+	else:
+		_tile_manager.clear_occupant(previous.cell, previous)
+		var occupied := (
+			_tile_manager.place_path_occupant(previous.cell, current)
+			if current.is_path_blocker()
+			else _tile_manager.place_occupant(previous.cell, current)
+		)
+		if not occupied:
+			if previous.is_path_blocker():
+				_tile_manager.place_path_occupant(previous.cell, previous)
+			else:
+				_tile_manager.place_occupant(previous.cell, previous)
+			current.queue_free()
+			return false
+		_buildings[previous.cell] = current
+	_disconnect_building_lifecycle(previous)
+	_register_building_lifecycle(current)
+	if _combat_manager != null:
+		_combat_manager.clear_attacks_from_building(previous)
+	previous.shutdown()
+	building_removed.emit(previous)
+	building_placed.emit(current)
+	building_runtime_rebuilt.emit(previous, current)
+	if was_selected:
+		select_building(current)
+	previous.queue_free()
+	return true
 
 func get_path_blocker(cell: Vector3i, target: Node = null) -> Node:
 	var building := get_building(cell)

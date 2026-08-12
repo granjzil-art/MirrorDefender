@@ -3,6 +3,7 @@ class_name LaserAttackStrategy
 extends IAttackStrategy
 
 const ContinuousLaserPathScript := preload("res://scripts/combat/ContinuousLaserPath.gd")
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
 var _burst_elapsed: float = 0.0
 var _propagation_distance: float = 0.0
@@ -164,6 +165,10 @@ static func apply_continuous_hits(
 	duration: float,
 	notify_source: bool
 ) -> void:
+	var mirror_damage := maxf(0.0, damage_per_second) * maxf(0.0, duration)
+	for raw_reflection in path.get("reflections", []):
+		if raw_reflection is Dictionary:
+			ReflectionDamageScript.apply(raw_reflection, mirror_damage)
 	var slow_multiplier: float = building.call("get_laser_slow_multiplier")
 	var slow_duration: float = building.call("get_laser_slow_duration")
 	var raw_hits: Array = path.get("hits", [])

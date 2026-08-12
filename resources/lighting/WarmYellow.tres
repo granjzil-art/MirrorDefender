@@ -28,7 +28,6 @@ ssao_enabled = true
 ssao_radius = 1.5
 ssao_intensity = 1.45
 ssao_power = 1.2
-ssil_enabled = true
 ssil_radius = 3.5
 ssil_intensity = 0.62
 ssil_sharpness = 0.9

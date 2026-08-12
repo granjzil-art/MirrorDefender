@@ -1,0 +1,22 @@
+## Shared durability damage for reflection providers that expose destructible faces.
+class_name ReflectionDamage
+extends RefCounted
+
+
+static func apply(reflection_hit: Dictionary, damage: float) -> float:
+	if not bool(reflection_hit.get("hit", false)) or damage <= 0.0:
+		return 0.0
+	var reflector: Object = reflection_hit.get("reflector") as Object
+	if reflector == null or not is_instance_valid(reflector):
+		return 0.0
+	if not reflector.has_method("take_reflection_surface_damage"):
+		return 0.0
+	var surface_id := StringName(
+		reflection_hit.get(
+			"reflector_surface_id",
+			reflection_hit.get("surface_id", StringName())
+		)
+	)
+	if surface_id == StringName():
+		return 0.0
+	return float(reflector.call("take_reflection_surface_damage", surface_id, damage))

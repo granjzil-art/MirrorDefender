@@ -9,6 +9,7 @@ signal exploded(world_position: Vector3, radius: float)
 const MissileTargetMarkerScript := preload("res://scripts/combat/MissileTargetMarker.gd")
 const MissileTrailScript := preload("res://scripts/combat/MissileTrail.gd")
 const MissileExplosionEffectScript := preload("res://scripts/combat/MissileExplosionEffect.gd")
+const MissileReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
 var _orbit_anchor: Vector3
 var _orbit_forward: Vector3 = Vector3.FORWARD
@@ -333,7 +334,12 @@ func _advance_flight(travel_budget: float) -> void:
 		var nearest_interaction := minf(reflection_distance, blocker_distance)
 		var segment_distance := nearest_interaction if is_finite(nearest_interaction) else remaining
 		var segment_end := start + _direction * segment_distance
-		var target_hit := _find_first_missile_target_hit(start, segment_end)
+		var reflecting_target := (
+			reflection_hit.get("reflector") as CombatTarget
+			if not blocker_is_first and is_finite(reflection_distance)
+			else null
+		)
+		var target_hit := _find_first_missile_target_hit(start, segment_end, reflecting_target)
 		if bool(target_hit.get("hit", false)):
 			var target_distance := clampf(float(target_hit.get("distance", 0.0)), 0.0, segment_distance)
 			if target_distance < segment_distance - 0.000001 or not is_finite(nearest_interaction):
@@ -358,6 +364,7 @@ func _advance_flight(travel_budget: float) -> void:
 		if normal.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
 			remaining = 0.0
 			break
+		MissileReflectionDamageScript.apply(reflection_hit, _damage)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
 		_has_reflected = true
 		reflections_this_frame += 1
@@ -376,7 +383,11 @@ func _advance_flight(travel_budget: float) -> void:
 	_update_orientation(_direction)
 
 
-func _find_first_missile_target_hit(start: Vector3, end: Vector3) -> Dictionary:
+func _find_first_missile_target_hit(
+	start: Vector3,
+	end: Vector3,
+	excluded_target: CombatTarget = null
+) -> Dictionary:
 	if not _target_query.is_valid() or start.distance_squared_to(end) <= 0.000001:
 		return {"hit": false}
 	var queried: Variant = _target_query.call()
@@ -389,6 +400,8 @@ func _find_first_missile_target_hit(start: Vector3, end: Vector3) -> Dictionary:
 			continue
 		var candidate := raw_target as CombatTarget
 		if candidate == null or not is_instance_valid(candidate) or not candidate.is_alive():
+			continue
+		if candidate == excluded_target:
 			continue
 		var hit_distance := _ray_sphere_entry_distance(
 			start,

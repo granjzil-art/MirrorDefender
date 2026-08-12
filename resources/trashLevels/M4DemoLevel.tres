@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://dw37dj1c5jtnm" path="res://scripts/terrain/GridCellData.gd" id="3_liyv7"]
 [ext_resource type="Script" uid="uid://cqdsppkcwsbiy" path="res://scripts/path/SpawnPointDefinition.gd" id="3_spawn"]
 [ext_resource type="Script" uid="uid://durm36kiv483q" path="res://scripts/wave/SpawnGroupDefinition.gd" id="4_group"]
+[ext_resource type="Script" uid="uid://ca4sp2wvpaui" path="res://scripts/lighting/AcrylicDisplayCaseDefinition.gd" id="4_iv06m"]
 [ext_resource type="Resource" uid="uid://fgb4rvaxeysi" path="res://resources/tile_definitions/Rock.tres" id="4_rn6pj"]
 [ext_resource type="Script" uid="uid://vc7p6g6lerdp" path="res://scripts/tile/TileCellData.gd" id="5_4ts1b"]
 [ext_resource type="Script" uid="uid://ec1bf62qerai" path="res://scripts/terrain/RampPlacementData.gd" id="5_jg0p8"]
@@ -20,6 +21,9 @@
 [ext_resource type="Script" uid="uid://b2irkm1liqpq5" path="res://scripts/stuff/StuffPlacementData.gd" id="8_82nxy"]
 [ext_resource type="Resource" uid="uid://cnwwdb4wfo5ur" path="res://resources/enemies/Archer.tres" id="8_archer"]
 [ext_resource type="Resource" uid="uid://jhoves7q4q0h" path="res://resources/enemies/Flyer.tres" id="10_4ts1b"]
+
+[sub_resource type="Resource" id="Resource_8vmfn"]
+script = ExtResource("4_iv06m")
 
 [sub_resource type="Resource" id="Path_Main"]
 script = ExtResource("2_path")
@@ -131,6 +135,7 @@ spawn_groups = Array[ExtResource("4_group")]([SubResource("Resource_rn6pj"), Sub
 [resource]
 script = ExtResource("1_level")
 tiles = [SubResource("Resource_liyv7"), SubResource("Resource_jg0p8"), SubResource("Resource_82nxy"), SubResource("Resource_ed7b5")]
+display_case_definition = SubResource("Resource_8vmfn")
 initial_resource = 2000
 base_resource_per_second = 1.0
 base_cell = Vector3i(4, 0, -4)

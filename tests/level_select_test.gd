@@ -59,6 +59,16 @@ func _test_page_and_catalog_validation() -> void:
 	_expect(_contains_text(catalog_errors, "重复引用同一关卡"), "catalog validation reports levels repeated across pages")
 	_expect(catalog.pages.size() == 3 and catalog.pages[1] == null, "catalog validation preserves page ordering and nulls")
 
+	var path_page := LevelSelectPageDefinitionScript.new()
+	path_page.level_paths = PackedStringArray([
+		"res://resources/levels/Level1.tres",
+		"res://resources/levels/Level1.tres",
+	])
+	_expect(
+		_contains_text(path_page.validate_configuration(), "重复引用"),
+		"path-backed page validation detects duplicate levels without retaining resources"
+	)
+
 
 func _test_view_portal_cube_and_signal() -> void:
 	var levels: Array[LevelResource] = []
@@ -93,6 +103,7 @@ func _test_view_portal_cube_and_signal() -> void:
 	_expect(view.get_face_area(0).collision_layer != 0, "filled level face participates in selection raycasts")
 	_expect(view.get_face_area(1).collision_layer == 0, "empty level face is excluded from selection raycasts")
 	_expect(view.get_face_area(0).get_meta("level_face_index") == 0, "face hit area retains its stable authored index")
+	_expect(view.get_loaded_level_count() == 3, "selection view owns only its three non-empty transient preview levels")
 
 	var first_preview = view.get_preview(0)
 	_expect(first_preview != null and first_preview.get_level() == levels[0], "first face owns an isolated preview viewport for its exact level")
@@ -120,6 +131,7 @@ func _test_view_portal_cube_and_signal() -> void:
 	_expect(selected.is_empty(), "empty cube face emits no level")
 	view.activate_face_for_test(0)
 	_expect(selected.size() == 1 and selected[0] == levels[0], "filled cube face emits the exact LevelResource")
+	_expect(view.get_loaded_level_count() == 0, "accepted selection immediately releases every preview level reference")
 	view.activate_face_for_test(2)
 	_expect(selected.size() == 1, "selection locks after the first accepted face activation")
 
@@ -197,10 +209,19 @@ func _test_default_resources() -> void:
 	if catalog == null:
 		return
 	var pages_fit_fixed_grid := true
+	var authored_pages_are_path_backed := true
 	for page_index in range(catalog.get_page_count()):
 		var page: LevelSelectPageDefinitionScript = catalog.get_page(page_index)
-		pages_fit_fixed_grid = pages_fit_fixed_grid and page != null and page.levels.size() <= LevelSelectPageDefinitionScript.SLOT_COUNT
+		pages_fit_fixed_grid = pages_fit_fixed_grid and page != null and page.get_configured_slot_count() <= LevelSelectPageDefinitionScript.SLOT_COUNT
+		authored_pages_are_path_backed = authored_pages_are_path_backed and page != null and page.levels.is_empty()
 	_expect(pages_fit_fixed_grid, "every authored page fits the fixed four-face cube")
+	_expect(authored_pages_are_path_backed, "authored selection pages retain paths instead of LevelResource objects")
+	var page_dependencies := ResourceLoader.get_dependencies("res://resources/level_select/LevelSelectPage01.tres")
+	var retains_level_dependency := false
+	for dependency in page_dependencies:
+		if String(dependency).contains("res://resources/levels/"):
+			retains_level_dependency = true
+	_expect(not retains_level_dependency, "authored page resource has no eager dependency on any full level")
 	return
 
 

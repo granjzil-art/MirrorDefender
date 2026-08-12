@@ -68,6 +68,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_right_dragging = false
 	_angular_velocity = Vector2.ZERO
+	release_loaded_level_resources()
 	return
 
 
@@ -129,6 +130,29 @@ func get_face_level(face_index: int) -> LevelResource:
 	if face_index < 0 or face_index >= _levels.size():
 		return null
 	return _levels[face_index]
+
+
+func get_loaded_level_count() -> int:
+	var count := 0
+	for level in _levels:
+		if level != null:
+			count += 1
+	return count
+
+
+## Drops every heavyweight preview graph while leaving the lightweight catalog
+## paths intact. Returning to level selection reloads the previews on demand.
+func release_loaded_level_resources() -> void:
+	for preview in _previews:
+		if preview != null and is_instance_valid(preview):
+			preview.clear()
+	for face_index in range(_levels.size()):
+		_levels[face_index] = null
+	for face_index in range(_face_areas.size()):
+		_face_areas[face_index].collision_layer = 0
+	for face_index in range(_face_materials.size()):
+		_face_materials[face_index].albedo_texture = null
+	return
 
 
 func get_face_root(face_index: int) -> Node3D:
@@ -547,6 +571,7 @@ func _select_face(face_index: int) -> void:
 	_right_dragging = false
 	_angular_velocity = Vector2.ZERO
 	_set_hovered_face(face_index)
+	release_loaded_level_resources()
 	level_selected.emit(level)
 	return
 

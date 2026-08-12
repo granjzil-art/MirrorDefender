@@ -126,6 +126,19 @@ func get_current_source_path() -> String:
 	return _current_source_path
 
 
+## Releases the currently loaded resource graph. Preview owners use this before
+## a battle scene is created so unselected levels can leave the resource cache.
+func clear_level() -> void:
+	if _terrain_manager != null:
+		_terrain_manager.clear_level()
+	if _stuff_manager != null:
+		_stuff_manager.clear_level()
+	if _tile_manager != null:
+		_tile_manager.clear_level()
+	_current_level = null
+	_current_source_path = ""
+
+
 ## Recreates the current level resource before loading it so every runtime
 ## subsystem receives a fresh level_loaded transaction.
 func reload_current_level() -> bool:

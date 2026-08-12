@@ -4,6 +4,7 @@ extends Node
 
 const DebugCommandRegistryScript := preload("res://scripts/debug/DebugCommandRegistry.gd")
 const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryRegistry.gd")
+const ENEMY_DIRECTORY := "res://resources/enemies"
 
 var command_registry: DebugCommandRegistryScript = DebugCommandRegistryScript.new()
 var category_registry: DebugCategoryRegistryScript = DebugCategoryRegistryScript.new()
@@ -160,7 +161,7 @@ func _command_spawn(arguments: Array[String]) -> Dictionary:
 		return _error("当前没有关卡")
 	var enemy := _find_enemy(level, arguments[0])
 	if enemy == null:
-		return _error("当前关卡未引用敌人：%s" % arguments[0])
+		return _error("未找到敌人：%s" % arguments[0])
 	var path: PathDefinition
 	if arguments.size() == 2:
 		path = level.get_path_by_id(StringName(arguments[1]))
@@ -215,6 +216,21 @@ func _find_enemy(level: LevelResource, enemy_id: String) -> EnemyDefinition:
 				continue
 			if String(group.enemy.enemy_id).to_lower() == normalized:
 				return group.enemy
+	var directory := DirAccess.open(ENEMY_DIRECTORY)
+	if directory == null:
+		return null
+	directory.list_dir_begin()
+	var file_name := directory.get_next()
+	while not file_name.is_empty():
+		if not directory.current_is_dir() and file_name.ends_with(".tres"):
+			var definition := ResourceLoader.load(
+				"%s/%s" % [ENEMY_DIRECTORY, file_name]
+			) as EnemyDefinition
+			if definition != null and String(definition.enemy_id).to_lower() == normalized:
+				directory.list_dir_end()
+				return definition
+		file_name = directory.get_next()
+	directory.list_dir_end()
 	return null
 
 
@@ -254,9 +270,11 @@ func _provide_mirror() -> String:
 	if _mirror_manager == null or _resource_manager == null:
 		return "MirrorManager 未连接"
 	var selected := _mirror_manager.get_selected_mirror()
-	return "镜子 %d/%d | 选中 %s" % [
-		_resource_manager.get_mirror_count(),
-		_resource_manager.mirror_cap,
+	return "复制镜 %d/%d | 反射镜 %d/%d | 选中 %s" % [
+		_resource_manager.get_copy_mirror_count(),
+		_resource_manager.copy_mirror_cap,
+		_resource_manager.get_reflect_mirror_count(),
+		_resource_manager.reflect_mirror_cap,
 		selected.edge_id if selected != null else "无",
 	]
 

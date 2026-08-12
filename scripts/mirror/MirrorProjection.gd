@@ -31,6 +31,7 @@ var _laser_segments: Array = []
 var _laser_has_basis: bool = false
 var _laser_has_endpoint: bool = false
 var _inspection_label: Label3D
+var _stack_indicator: MeshInstance3D
 
 func _process(_delta: float) -> void:
 	sync_source_visual_pose()
@@ -57,6 +58,42 @@ func configure(
 	position = _grid.cell_to_world(payload.projected_cell) + Vector3(0.0, base_height, 0.0)
 	_accent_color = _resolve_accent_color()
 	_build_visual()
+
+
+func can_retarget_preview(next_payload: MirrorCopyPayload) -> bool:
+	return (
+		preview_mode
+		and next_payload != null
+		and payload != null
+		and payload.root_source == next_payload.root_source
+		and payload.tile_effect == next_payload.tile_effect
+		and payload.copy_kind == next_payload.copy_kind
+	)
+
+
+## Reuses an existing projection snapshot when only its reflected destination
+## and chain change during placement movement.
+func retarget_preview(
+	next_payload: MirrorCopyPayload,
+	next_stack_index: int,
+	next_preview_valid: bool
+) -> bool:
+	if not can_retarget_preview(next_payload):
+		return false
+	payload = next_payload
+	_stack_index = next_stack_index
+	preview_valid = next_preview_valid
+	var base_height := _tile_manager.get_world_height(payload.projected_cell) if _tile_manager != null else 0.0
+	position = _grid.cell_to_world(payload.projected_cell) + Vector3(0.0, base_height, 0.0)
+	_accent_color = _resolve_accent_color()
+	_refresh_projection_instance_state(_visual_snapshot)
+	_refresh_stack_indicator()
+	if _inspection_label != null:
+		_inspection_label.text = get_inspection_text()
+		_inspection_label.position.y = _grid.cell_size * (1.08 + float(_stack_index) * 0.16)
+		_inspection_label.modulate = _accent_color
+	sync_source_visual_pose()
+	return true
 
 func is_structure_alive() -> bool:
 	return payload != null and payload.is_source_valid()
@@ -297,6 +334,34 @@ func _apply_projection_materials(node: Node) -> void:
 	for child in node.get_children():
 		_apply_projection_materials(child)
 
+
+func _refresh_projection_instance_state(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		mesh_instance.transparency = 1.0 - clampf(_definition.projection_alpha, 0.05, 1.0)
+		if preview_valid:
+			mesh_instance.material_overlay = null
+		else:
+			var invalid_overlay := mesh_instance.material_overlay as ShaderMaterial
+			if invalid_overlay == null or invalid_overlay.shader != _shared_rim_shader:
+				invalid_overlay = _make_invalid_preview_material()
+				mesh_instance.material_overlay = invalid_overlay
+			else:
+				invalid_overlay.render_priority = _get_render_priority(true)
+				invalid_overlay.set_shader_parameter("accent", _accent_color)
+				invalid_overlay.set_shader_parameter("rim_alpha", _definition.projection_rim_alpha)
+		if mesh_instance.material_override != null:
+			mesh_instance.material_override.render_priority = _get_render_priority(false)
+		elif mesh_instance.mesh != null:
+			for surface_index in range(mesh_instance.mesh.get_surface_count()):
+				var material := mesh_instance.get_surface_override_material(surface_index)
+				if material != null:
+					material.render_priority = _get_render_priority(false)
+	for child in node.get_children():
+		_refresh_projection_instance_state(child)
+
 ## GeometryInstance3D.transparency fades every source surface without replacing
 ## its material. Per-instance duplicates are used only for deterministic render
 ## order and mirrored culling, preserving every source color, texture and shader.
@@ -359,6 +424,24 @@ func _build_stack_indicator() -> void:
 	ring.position.y = _grid.cell_size * 0.025
 	ring.material_override = _make_line_material(_accent_color)
 	add_child(ring)
+	_stack_indicator = ring
+
+
+func _refresh_stack_indicator() -> void:
+	if _stack_indicator == null or not is_instance_valid(_stack_indicator):
+		return
+	var mesh := _stack_indicator.mesh as TorusMesh
+	if mesh != null:
+		var ring_spacing := _grid.cell_size * _definition.projection_ring_spacing_ratio
+		mesh.inner_radius = _grid.cell_size * 0.29 + ring_spacing * float(_stack_index)
+		mesh.outer_radius = mesh.inner_radius + _grid.cell_size * _definition.projection_ring_thickness_ratio
+	var material := _stack_indicator.material_override as StandardMaterial3D
+	if material == null:
+		_stack_indicator.material_override = _make_line_material(_accent_color)
+	else:
+		material.albedo_color = _accent_color
+		material.emission = _accent_color
+		material.render_priority = _get_render_priority(true)
 
 func _build_inspection_label() -> void:
 	_inspection_label = Label3D.new()

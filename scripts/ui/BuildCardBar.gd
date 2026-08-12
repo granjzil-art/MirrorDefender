@@ -22,6 +22,10 @@ enum CardVisualMode {
 @export var full_art_cost_color: Color = Color(1.0, 0.79, 0.24, 1.0)
 @export_range(0.0, 1.0, 0.01) var full_art_alpha_trim_threshold: float = 0.03
 
+@export_group("Card Description")
+@export var card_description_size: Vector2 = Vector2(360.0, 300.0)
+@export_range(0.0, 48.0, 1.0) var card_description_gap: float = 10.0
+
 @export_group("Procedural Mirror")
 @export var mirror_face_color: Color = Color(0.67, 0.69, 0.70, 0.98)
 @export var mirror_upper_color: Color = Color(0.91, 0.92, 0.93, 0.99)
@@ -54,6 +58,10 @@ var _mirror_cooldown_sweep: Node
 var _reflect_mirror_cooldown_sweep: Node
 var _cards_row: HBoxContainer
 var _status_label: Label
+var _card_description_panel: PanelContainer
+var _card_description_title: Label
+var _card_description_text: Label
+var _hovered_building_button: Button
 var _selected_definition: BuildingDefinition
 var _mirror_selected: bool = false
 var _reflect_mirror_selected: bool = false
@@ -63,6 +71,11 @@ var _trimmed_full_art_cache: Dictionary = {}
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_interface()
+
+
+func _process(_delta: float) -> void:
+	if _card_description_panel != null and _card_description_panel.visible:
+		_position_card_description()
 
 
 func configure(
@@ -203,12 +216,62 @@ func _build_interface() -> void:
 	_cards_row.add_theme_constant_override("separation", int(card_separation))
 	_cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(_cards_row)
+	_build_card_description_panel()
 	_rebuild_cards()
+
+
+func _build_card_description_panel() -> void:
+	_card_description_panel = PanelContainer.new()
+	_card_description_panel.name = "CardDescriptionPanel"
+	_card_description_panel.custom_minimum_size = card_description_size
+	_card_description_panel.size = card_description_size
+	_card_description_panel.z_index = 60
+	_card_description_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_card_description_panel.visible = false
+
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.035, 0.055, 0.09, 0.96)
+	panel_style.border_color = Color(0.32, 0.68, 1.0, 0.9)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(10)
+	panel_style.content_margin_left = 14.0
+	panel_style.content_margin_top = 12.0
+	panel_style.content_margin_right = 14.0
+	panel_style.content_margin_bottom = 12.0
+	_card_description_panel.add_theme_stylebox_override("panel", panel_style)
+	add_child(_card_description_panel)
+
+	var content := VBoxContainer.new()
+	content.name = "Content"
+	content.add_theme_constant_override("separation", 8)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_card_description_panel.add_child(content)
+
+	_card_description_title = Label.new()
+	_card_description_title.name = "Title"
+	_card_description_title.add_theme_font_size_override("font_size", 18)
+	_card_description_title.add_theme_color_override("font_color", Color(0.78, 0.9, 1.0))
+	_card_description_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(_card_description_title)
+
+	_card_description_text = Label.new()
+	_card_description_text.name = "Description"
+	_card_description_text.custom_minimum_size = Vector2(
+		card_description_size.x - 28.0,
+		card_description_size.y - 64.0
+	)
+	_card_description_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_card_description_text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_card_description_text.add_theme_font_size_override("font_size", 15)
+	_card_description_text.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
+	_card_description_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(_card_description_text)
 
 
 func _rebuild_cards() -> void:
 	if _cards_row == null:
 		return
+	_hide_card_description()
 	for child in _cards_row.get_children():
 		_cards_row.remove_child(child)
 		child.queue_free()
@@ -216,7 +279,7 @@ func _rebuild_cards() -> void:
 	_mirror_button = _create_card_button(
 		_mirror_definition.display_name if _mirror_definition != null else "复制镜",
 		_mirror_definition.card_icon if _mirror_definition != null else null,
-		0.0,
+		_mirror_definition.placement_cost if _mirror_definition != null else 0.0,
 		true
 	)
 	_mirror_button.name = "MirrorCard"
@@ -227,7 +290,7 @@ func _rebuild_cards() -> void:
 		_reflect_mirror_button = _create_card_button(
 			_reflect_mirror_definition.display_name,
 			_reflect_mirror_definition.card_icon,
-			0.0,
+			_reflect_mirror_definition.placement_cost,
 			true
 		)
 		_reflect_mirror_button.name = "ReflectMirrorCard"
@@ -255,6 +318,8 @@ func _rebuild_cards() -> void:
 			)
 			button.name = "BuildingCard%d" % (index + 1)
 			button.pressed.connect(_on_building_pressed.bind(definition))
+			button.mouse_entered.connect(_on_building_card_mouse_entered.bind(button, definition))
+			button.mouse_exited.connect(_on_building_card_mouse_exited.bind(button))
 			_cards_row.add_child(button)
 			_building_buttons[definition] = button
 		else:
@@ -276,7 +341,7 @@ func _create_full_art_card_button(
 	button.clip_contents = true
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.tooltip_text = "%s · 费用 %d" % [display_name, ceili(cost)]
+	button.tooltip_text = ""
 	_apply_empty_button_styles(button)
 
 	var artwork := TextureRect.new()
@@ -318,7 +383,7 @@ func _create_card_button(
 	button.clip_contents = true
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.tooltip_text = "%s · 放置冷却" % display_name if is_mirror else "%s · 费用 %d" % [display_name, ceili(cost)]
+	button.tooltip_text = "%s · 放置冷却" % display_name if is_mirror else ""
 
 	var mirror_surface := _create_mirror_surface()
 	button.add_child(mirror_surface)
@@ -394,7 +459,7 @@ func _create_card_button(
 	cost_label.add_theme_font_size_override("font_size", 16)
 	cost_label.add_theme_color_override(
 		"font_color",
-		Color(0.72, 0.94, 1.0) if is_mirror else Color(1.0, 0.79, 0.24)
+		Color(0.72, 0.94, 1.0) if is_mirror else full_art_cost_color
 	)
 	cost_label.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.04, 0.96))
 	cost_label.add_theme_constant_override("outline_size", 3)
@@ -478,12 +543,22 @@ func _apply_mirror_button_state(
 	definition: MirrorDefinition,
 	selected: bool
 ) -> void:
-	var has_capacity := _resource_manager != null and _resource_manager.can_add_mirror()
-	var ready := _mirror_manager == null or _mirror_manager.is_mirror_kind_ready(mirror_kind)
-	var available := definition != null and has_capacity and ready
+	var has_capacity := _resource_manager != null and _resource_manager.can_add_mirror(mirror_kind)
+	var uses_cooldown := _mirror_manager != null and _mirror_manager.uses_placement_cooldown()
+	var ready := not uses_cooldown or _mirror_manager.is_mirror_kind_ready(mirror_kind)
+	var affordable := (
+		definition != null
+		and _resource_manager != null
+		and (uses_cooldown or _resource_manager.can_afford(definition.placement_cost))
+	)
+	var available := definition != null and has_capacity and ready and affordable
 	var blocked_by_cap := definition == null or not has_capacity
 	button.disabled = not available
-	button.self_modulate = Color.WHITE
+	button.self_modulate = (
+		Color.WHITE
+		if available or (uses_cooldown and not ready and not blocked_by_cap)
+		else unavailable_tint
+	)
 	var border := selected_frame_color if selected else frame_color
 	var width := 5 if selected else 3
 	button.add_theme_stylebox_override("normal", _make_frame_style(mirror_face_color, border, width))
@@ -497,7 +572,7 @@ func _apply_mirror_button_state(
 			width
 		)
 	)
-	_set_button_surface_state(button, not blocked_by_cap, selected)
+	_set_button_surface_state(button, not blocked_by_cap and affordable, selected)
 	_set_inner_frame_state(button, border, selected)
 	var ready_ratio := (
 		_mirror_manager.get_placement_cooldown_ready_ratio(mirror_kind)
@@ -505,17 +580,26 @@ func _apply_mirror_button_state(
 		else 1.0
 	)
 	if sweep != null:
-		sweep.call("set_state", ready_ratio, blocked_by_cap)
+		sweep.set("visible", uses_cooldown)
+		if uses_cooldown:
+			sweep.call("set_state", ready_ratio, blocked_by_cap)
 	var footer := button.get_node_or_null("Content/Footer") as Label
 	if footer != null:
 		if blocked_by_cap:
 			footer.text = "已达上限" if definition != null else "未配置"
-		elif not ready and _mirror_manager != null:
+		elif uses_cooldown and not ready:
 			footer.text = "%.1fs" % _mirror_manager.get_placement_cooldown_remaining(mirror_kind)
-		elif _mirror_manager != null:
+		elif uses_cooldown:
 			footer.text = "×%d" % _mirror_manager.get_available_mirror_count(mirror_kind)
+		elif definition != null:
+			footer.text = "◆ %d" % ceili(definition.placement_cost)
 		else:
-			footer.text = "就绪"
+			footer.text = "未配置"
+		var displays_coin_cost := not uses_cooldown and definition != null and not blocked_by_cap
+		footer.add_theme_color_override(
+			"font_color",
+			full_art_cost_color if displays_coin_cost else Color(0.72, 0.94, 1.0)
+		)
 
 
 func _apply_button_state(button: Button, available: bool, selected: bool) -> void:
@@ -681,6 +765,48 @@ func _set_card_hovered(button: Button, hovered: bool) -> void:
 	(surface.material as ShaderMaterial).set_shader_parameter("hover_strength", 1.0 if hovered else 0.0)
 
 
+func _on_building_card_mouse_entered(
+	button: Button,
+	definition: BuildingDefinition
+) -> void:
+	if button == null or definition == null or _card_description_panel == null:
+		return
+	_hovered_building_button = button
+	_card_description_title.text = "%s · 说明" % definition.get_resolved_inspection_display_name()
+	_card_description_text.text = definition.get_formatted_inspection_description()
+	_card_description_panel.visible = true
+	_position_card_description()
+
+
+func _on_building_card_mouse_exited(button: Button) -> void:
+	if _hovered_building_button == button:
+		_hide_card_description()
+
+
+func _hide_card_description() -> void:
+	_hovered_building_button = null
+	if _card_description_panel != null:
+		_card_description_panel.visible = false
+
+
+func _position_card_description() -> void:
+	if (
+		_card_description_panel == null
+		or _hovered_building_button == null
+		or not is_instance_valid(_hovered_building_button)
+		or not _hovered_building_button.is_inside_tree()
+	):
+		_hide_card_description()
+		return
+	var button_rect := _hovered_building_button.get_global_rect()
+	var bar_origin := get_global_rect().position
+	var panel_size := _card_description_panel.size
+	_card_description_panel.position = Vector2(
+		button_rect.get_center().x - bar_origin.x - panel_size.x * 0.5,
+		button_rect.position.y - bar_origin.y - panel_size.y - card_description_gap
+	)
+
+
 func _set_button_surface_state(button: Button, available: bool, selected: bool) -> void:
 	var surface := button.get_node_or_null("MirrorSurface") as ColorRect
 	_set_surface_state(surface, 1.0 if selected else 0.0, 0.0 if available else 0.42)
@@ -719,24 +845,28 @@ func _is_building_available(definition: BuildingDefinition) -> bool:
 
 
 func _is_mirror_available() -> bool:
+	var uses_cooldown := _mirror_manager != null and _mirror_manager.uses_placement_cooldown()
 	return (
 		_mirror_definition != null
 		and _resource_manager != null
-		and _resource_manager.can_add_mirror()
+		and _resource_manager.can_add_mirror(MirrorPlacementData.MirrorKind.COPY)
+		and (uses_cooldown or _resource_manager.can_afford(_mirror_definition.placement_cost))
 		and (
-			_mirror_manager == null
+			not uses_cooldown
 			or _mirror_manager.is_mirror_kind_ready(MirrorPlacementData.MirrorKind.COPY)
 		)
 	)
 
 
 func _is_reflect_mirror_available() -> bool:
+	var uses_cooldown := _mirror_manager != null and _mirror_manager.uses_placement_cooldown()
 	return (
 		_reflect_mirror_definition != null
 		and _resource_manager != null
-		and _resource_manager.can_add_mirror()
+		and _resource_manager.can_add_mirror(MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT)
+		and (uses_cooldown or _resource_manager.can_afford(_reflect_mirror_definition.placement_cost))
 		and (
-			_mirror_manager == null
+			not uses_cooldown
 			or _mirror_manager.is_mirror_kind_ready(
 				MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
 			)
@@ -766,8 +896,10 @@ func _on_resource_changed(_current: float, _delta: float, _reason: String) -> vo
 func _on_limits_changed(
 	_building_count: int,
 	_building_limit: int,
-	_mirror_count: int,
-	_mirror_limit: int
+	_copy_mirror_count: int,
+	_copy_mirror_limit: int,
+	_reflect_mirror_count: int,
+	_reflect_mirror_limit: int
 ) -> void:
 	_refresh_card_states()
 

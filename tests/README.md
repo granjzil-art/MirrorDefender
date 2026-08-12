@@ -6,7 +6,13 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps1
 ```
 
-可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 48 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
+七类语义音效的程序回退素材、UI 接入、玩法信号映射与静音测试：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/sound_effect_system_test.gd
+```
+
+可通过 `-GodotBinary <path>` 或环境变量 `GODOT_BIN` 指定 Godot。入口会运行全部 57 个套件，并同时检查非零退出码、`SCRIPT ERROR`、引擎 `ERROR` 和泄漏警告，避免脚本错误被测试自己的 `quit(0)` 遮蔽。
 
 导弹塔正式资源、箭塔/导弹塔对空优先、目标标记跟随、无碰撞绕圈、追踪/朝向飞行、对空范围爆炸、反射、Stuff 引爆、拖尾与拆塔后续飞回归：
 
@@ -27,6 +33,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run_all_tests.ps
 ```
 
 输出：`outputs/laser_visual/continuous_laser_wave_preview.png`。
+
+正式敌人原模型与寒冷状态深蓝表面 Shader 的手动 Forward+ 对照截图：
+
+```powershell
+& "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --path "E:\MirrorDefender副本" --script res://tests/cold_surface_visual_capture.gd
+```
+
+输出：`outputs/laser_visual/cold_surface_shader_preview.png`。
 
 脉冲镭射塔的独立类型/正式资源、无目标周期开火、保持入口单次伤害、反射分段多次命中、共享总射程、七色循环和 Stuff 截断回归：
 

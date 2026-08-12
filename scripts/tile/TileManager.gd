@@ -124,6 +124,12 @@ func get_tiles() -> Array[TileCellData]:
 func get_level_resource() -> LevelResource:
 	return _get_level()
 
+
+func clear_level() -> void:
+	_clear_runtime_obstacles()
+	_tiles.clear()
+	level = null
+
 func get_world_height(cell: Vector3i) -> float:
 	if _surface_height_resolver.is_valid():
 		var resolved: Variant = _surface_height_resolver.call(cell)

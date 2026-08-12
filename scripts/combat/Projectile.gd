@@ -3,6 +3,8 @@
 class_name Projectile
 extends Node3D
 
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
+
 signal impacted(target: CombatTarget, applied_damage: float)
 signal reflected(mirror: CopyMirror, world_position: Vector3, direction: Vector3)
 
@@ -139,6 +141,10 @@ func has_reflected() -> bool:
 	return _has_reflected
 
 
+func get_source_building() -> Building:
+	return _source_building if is_instance_valid(_source_building) else null
+
+
 func is_ballistic() -> bool:
 	return _ballistic_mode
 
@@ -164,6 +170,11 @@ func _advance(travel_budget: float) -> void:
 			nearest_interaction if is_finite(nearest_interaction) else remaining
 		)
 		var segment_end := start + _direction * segment_distance
+		var reflecting_target := (
+			mirror_hit.get("reflector") as CombatTarget
+			if not blocker_is_first and is_finite(mirror_distance)
+			else null
+		)
 		var target_center_limit := (
 			blocker_distance
 			if blocker_is_first and is_finite(blocker_distance)
@@ -172,7 +183,8 @@ func _advance(travel_budget: float) -> void:
 		var target_hit := _find_first_target_hit(
 			start,
 			segment_end,
-			target_center_limit
+			target_center_limit,
+			reflecting_target
 		)
 		if bool(target_hit.get("hit", false)):
 			var target_distance := clampf(float(target_hit.get("distance", 0.0)), 0.0, segment_distance)
@@ -223,7 +235,10 @@ func _advance(travel_budget: float) -> void:
 		if normal.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
 			remaining = 0.0
 			break
+		ReflectionDamageScript.apply(mirror_hit, _damage)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
+		if reflecting_target != null and is_instance_valid(reflecting_target):
+			_contact_targets[reflecting_target.get_instance_id()] = reflecting_target
 		_has_reflected = true
 		_ballistic_mode = true
 		reflections_this_frame += 1
@@ -269,7 +284,8 @@ func _valid_interaction_distance(hit: Dictionary, maximum_distance: float) -> fl
 func _find_first_target_hit(
 	start: Vector3,
 	end: Vector3,
-	maximum_center_distance: float = INF
+	maximum_center_distance: float = INF,
+	excluded_target: CombatTarget = null
 ) -> Dictionary:
 	var candidates: Array = []
 	if _ballistic_mode and _target_query.is_valid():
@@ -287,6 +303,8 @@ func _find_first_target_hit(
 			continue
 		var candidate := raw_target as CombatTarget
 		if not is_instance_valid(candidate) or not candidate.is_alive():
+			continue
+		if candidate == excluded_target:
 			continue
 		if _contact_targets.has(candidate.get_instance_id()):
 			continue

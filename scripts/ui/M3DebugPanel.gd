@@ -169,13 +169,15 @@ func _refresh_summary() -> void:
 		_resource_label.text = "经济未连接"
 		return
 	var target_count := _combat_manager.get_targets().size() if _combat_manager != null else 0
-	_resource_label.text = "资源 %d | +%.1f/s | 建筑 %d/%d | 镜子 %d/%d | 靶标 %d" % [
+	_resource_label.text = "资源 %d | +%.1f/s | 建筑 %d/%d | 复制镜 %d/%d | 反射镜 %d/%d | 靶标 %d" % [
 		floori(_resource_manager.main_resource),
 		_resource_manager.get_total_resource_per_second(),
 		_resource_manager.get_building_count(),
 		_resource_manager.building_cap,
-		_resource_manager.get_mirror_count(),
-		_resource_manager.mirror_cap,
+		_resource_manager.get_copy_mirror_count(),
+		_resource_manager.copy_mirror_cap,
+		_resource_manager.get_reflect_mirror_count(),
+		_resource_manager.reflect_mirror_cap,
 		target_count,
 	]
 
@@ -241,8 +243,10 @@ func _on_resource_changed(_current: float, _delta: float, _reason: String) -> vo
 func _on_limits_changed(
 	_building_count: int,
 	_building_limit: int,
-	_mirror_count: int,
-	_mirror_limit: int
+	_copy_mirror_count: int,
+	_copy_mirror_limit: int,
+	_reflect_mirror_count: int,
+	_reflect_mirror_limit: int
 ) -> void:
 	_refresh_summary()
 

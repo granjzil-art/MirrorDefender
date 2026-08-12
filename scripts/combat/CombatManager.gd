@@ -32,6 +32,7 @@ var _next_entry_order: int = 0
 var _target_exit_callbacks: Dictionary = {}
 var _projectile_reflection_resolver: Callable
 var _projectile_reflection_owner: Object
+var _projectile_reflection_providers: Dictionary = {}
 var _projectile_blocker_resolver: Callable
 var _projectile_blocker_owner: Object
 
@@ -52,11 +53,94 @@ func get_projectile_reflection_resolver() -> Callable:
 	return Callable(self, "trace_projectile_reflection")
 
 
+func register_projectile_reflection_provider(owner: Object, resolver: Callable) -> bool:
+	if owner == null or not is_instance_valid(owner) or not resolver.is_valid():
+		return false
+	_projectile_reflection_providers[owner.get_instance_id()] = {
+		"owner": weakref(owner),
+		"resolver": resolver,
+	}
+	return true
+
+
+func unregister_projectile_reflection_provider(owner: Object) -> void:
+	if owner != null:
+		_projectile_reflection_providers.erase(owner.get_instance_id())
+
+
+func get_projectile_reflection_provider_count() -> int:
+	_purge_projectile_reflection_providers()
+	return _projectile_reflection_providers.size()
+
+
 func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
-	if not _projectile_reflection_resolver.is_valid():
-		return {"hit": false}
-	var result: Variant = _projectile_reflection_resolver.call(start, end)
-	return result if result is Dictionary else {"hit": false}
+	var result: Dictionary = {"hit": false}
+	var best_distance := INF
+	if _projectile_reflection_resolver.is_valid():
+		var base_value: Variant = _projectile_reflection_resolver.call(start, end)
+		if base_value is Dictionary:
+			var base_candidate: Dictionary = base_value
+			var base_distance := _get_reflection_candidate_distance(base_candidate, start, end)
+			if bool(base_candidate.get("hit", false)) and is_finite(base_distance):
+				result = base_candidate
+				best_distance = base_distance
+	var stale_provider_ids: Array[int] = []
+	for raw_provider_id in _projectile_reflection_providers.keys():
+		var provider_id := int(raw_provider_id)
+		var entry: Dictionary = _projectile_reflection_providers.get(provider_id, {})
+		var owner_reference := entry.get("owner") as WeakRef
+		var owner: Object = owner_reference.get_ref() if owner_reference != null else null
+		var resolver: Callable = entry.get("resolver", Callable())
+		if owner == null or not is_instance_valid(owner) or not resolver.is_valid():
+			stale_provider_ids.append(provider_id)
+			continue
+		var candidate_value: Variant = resolver.call(start, end)
+		if not candidate_value is Dictionary:
+			continue
+		var candidate: Dictionary = candidate_value
+		var candidate_distance := _get_reflection_candidate_distance(candidate, start, end)
+		if (
+			bool(candidate.get("hit", false))
+			and is_finite(candidate_distance)
+			and candidate_distance < best_distance - 0.000001
+		):
+			result = candidate
+			best_distance = candidate_distance
+	for provider_id in stale_provider_ids:
+		_projectile_reflection_providers.erase(provider_id)
+	return result
+
+
+func _get_reflection_candidate_distance(
+	candidate: Dictionary,
+	start: Vector3,
+	end: Vector3
+) -> float:
+	if not bool(candidate.get("hit", false)):
+		return INF
+	var segment_length := start.distance_to(end)
+	var distance := float(candidate.get("distance", INF))
+	if not is_finite(distance):
+		var position_value: Variant = candidate.get("position")
+		if position_value is Vector3:
+			distance = start.distance_to(position_value as Vector3)
+	if not is_finite(distance) or distance < 0.0 or distance > segment_length + 0.0001:
+		return INF
+	return distance
+
+
+func _purge_projectile_reflection_providers() -> void:
+	var stale_provider_ids: Array[int] = []
+	for raw_provider_id in _projectile_reflection_providers.keys():
+		var provider_id := int(raw_provider_id)
+		var entry: Dictionary = _projectile_reflection_providers.get(provider_id, {})
+		var owner_reference := entry.get("owner") as WeakRef
+		var owner: Object = owner_reference.get_ref() if owner_reference != null else null
+		var resolver: Callable = entry.get("resolver", Callable())
+		if owner == null or not is_instance_valid(owner) or not resolver.is_valid():
+			stale_provider_ids.append(provider_id)
+	for provider_id in stale_provider_ids:
+		_projectile_reflection_providers.erase(provider_id)
 
 
 func set_projectile_blocker_resolver(resolver: Callable) -> void:
@@ -190,7 +274,7 @@ func spawn_projectile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver,
+		get_projectile_reflection_resolver(),
 		penetration_count,
 		_projectile_blocker_resolver
 	)
@@ -231,7 +315,7 @@ func spawn_directional_projectile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver,
+		get_projectile_reflection_resolver(),
 		penetration_count,
 		_projectile_blocker_resolver
 	)
@@ -271,7 +355,7 @@ func spawn_targeted_missile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver,
+		get_projectile_reflection_resolver(),
 		_projectile_blocker_resolver,
 		configuration
 	)
@@ -311,7 +395,7 @@ func spawn_directional_missile(
 		model_asset,
 		source_building,
 		Callable(self, "get_targets"),
-		_projectile_reflection_resolver,
+		get_projectile_reflection_resolver(),
 		_projectile_blocker_resolver,
 		configuration
 	)
@@ -354,7 +438,7 @@ func spawn_pulse_laser(
 		fade_out_time,
 		colors,
 		maximum_reflections,
-		_projectile_reflection_resolver,
+		get_projectile_reflection_resolver(),
 		_projectile_blocker_resolver
 	):
 		beam.free()
@@ -399,6 +483,24 @@ func clear_projectiles() -> void:
 	_pulse_lasers.clear()
 	for beam in pulse_lasers:
 		if is_instance_valid(beam):
+			beam.queue_free()
+
+
+## Cancels attacks owned by one runtime building without disturbing attacks
+## from other towers. Used when combat-data editing rebuilds that building.
+func clear_attacks_from_building(source_building: Building) -> void:
+	if source_building == null:
+		return
+	for projectile in _projectiles.duplicate():
+		if (
+			is_instance_valid(projectile)
+			and projectile.get_source_building() == source_building
+		):
+			_projectiles.erase(projectile)
+			projectile.queue_free()
+	for beam in _pulse_lasers.duplicate():
+		if is_instance_valid(beam) and beam.get_source_building() == source_building:
+			_pulse_lasers.erase(beam)
 			beam.queue_free()
 
 func _cleanup_targets() -> void:

@@ -279,10 +279,15 @@ func _load_level_into_preview() -> void:
 
 func _clear_level_content() -> void:
 	_clear_marker_nodes()
-	if _terrain_manager != null:
-		_terrain_manager.clear_level()
-	if _stuff_manager != null:
-		_stuff_manager.clear_level()
+	if _level_loader != null:
+		_level_loader.clear_level()
+	else:
+		if _terrain_manager != null:
+			_terrain_manager.clear_level()
+		if _stuff_manager != null:
+			_stuff_manager.clear_level()
+		if _tile_manager != null:
+			_tile_manager.clear_level()
 	_content_root.position = Vector3.ZERO
 	_content_root.scale = Vector3.ONE
 	_content_scale = 1.0

@@ -19,7 +19,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var card_style_toggle: Button = $CardStyleToggle
 @onready var tile_inspection_service: TileInspectionServiceScript = $TileInspectionService
 @onready var tile_inspector_panel: TileInspectorPanelScript = $TileInspectorPanel
-@onready var economy_panel: EconomyPanel = $EconomyPanel
+@onready var economy_panel: EconomyPanel = $GlobalInfoPanel/StatsGrid/EconomyPanel
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
 @onready var pause_menu: PauseMenu = $PauseMenu
@@ -167,10 +167,9 @@ func configure_inspection(
 	_sync_world_selection()
 
 
-func apply_level_configuration(level: LevelResource, source_path: String = "") -> void:
+func apply_level_configuration(level: LevelResource, _source_path: String = "") -> void:
 	if level != null:
 		build_card_bar.set_slot_count(level.building_card_slot_count)
-	global_info_panel.set_level_context(level, source_path)
 	wave_control_panel.set_level(level)
 
 

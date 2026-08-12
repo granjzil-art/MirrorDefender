@@ -132,6 +132,19 @@ layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
+[node name="RenderQualityRow" type="HBoxContainer" parent="Shade/ModalPanel/Content/SettingsPanel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Shade/ModalPanel/Content/SettingsPanel/RenderQualityRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "渲染质量"
+
+[node name="RenderQuality" type="OptionButton" parent="Shade/ModalPanel/Content/SettingsPanel/RenderQualityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
 [node name="ScaleRow" type="HBoxContainer" parent="Shade/ModalPanel/Content/SettingsPanel"]
 layout_mode = 2
 

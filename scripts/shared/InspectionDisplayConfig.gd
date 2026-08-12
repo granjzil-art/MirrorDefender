@@ -11,6 +11,12 @@ extends Resource
 ## Empty text uses the built-in description for legacy resources.
 @export_multiline var function_description: String = ""
 
+@export_group("Building Level Descriptions")
+## Optional per-level copy appended after the shared base description.
+@export_multiline var level_1_description: String = ""
+@export_multiline var level_2_description: String = ""
+@export_multiline var level_3_description: String = ""
+
 @export_group("Header Fields")
 @export var show_icon: bool = true
 @export var show_category: bool = true
@@ -46,3 +52,19 @@ func resolve_display_name(fallback: String) -> String:
 func resolve_function_description(fallback: String) -> String:
 	var configured := function_description.strip_edges()
 	return configured if not configured.is_empty() else fallback
+
+
+func format_building_description(fallback: String) -> String:
+	return "\n".join([
+		"基础描述",
+		resolve_function_description(fallback),
+		"",
+		"1级：",
+		level_1_description.strip_edges(),
+		"",
+		"2级：",
+		level_2_description.strip_edges(),
+		"",
+		"3级：",
+		level_3_description.strip_edges(),
+	])

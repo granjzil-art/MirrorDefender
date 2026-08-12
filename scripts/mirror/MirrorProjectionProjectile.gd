@@ -1,7 +1,9 @@
-## Fixed-end copy projectile until its first reflection, then a straight
-## ballistic projectile. It never acquires an independent homing target.
+## Copy projectile supporting a legacy fixed endpoint or a from-start straight
+## ballistic path. It never acquires an independent homing target.
 class_name MirrorProjectionProjectile
 extends Node3D
+
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
 signal impacted(target: CombatTarget, applied_damage: float)
 signal reflected(mirror: CopyMirror, world_position: Vector3, direction: Vector3)
@@ -117,6 +119,11 @@ func _advance(travel_budget: float) -> void:
 			nearest_interaction if is_finite(nearest_interaction) else remaining
 		)
 		var segment_end := start + _direction * segment_distance
+		var reflecting_target := (
+			mirror_hit.get("reflector") as CombatTarget
+			if not blocker_is_first and is_finite(mirror_distance)
+			else null
+		)
 		if _has_reflected or _ballistic_from_start:
 			var target_center_limit := (
 				blocker_distance
@@ -126,7 +133,8 @@ func _advance(travel_budget: float) -> void:
 			var target_hit := _find_first_target_hit(
 				start,
 				segment_end,
-				target_center_limit
+				target_center_limit,
+				reflecting_target
 			)
 			if bool(target_hit.get("hit", false)):
 				var target_distance := clampf(float(target_hit.get("distance", 0.0)), 0.0, segment_distance)
@@ -177,7 +185,10 @@ func _advance(travel_budget: float) -> void:
 		if normal.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
 			remaining = 0.0
 			break
+		ReflectionDamageScript.apply(mirror_hit, _damage)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
+		if reflecting_target != null and is_instance_valid(reflecting_target):
+			_contact_targets[reflecting_target.get_instance_id()] = reflecting_target
 		_has_reflected = true
 		reflections_this_frame += 1
 		reflected.emit(mirror_hit.get("mirror") as CopyMirror, global_position, _direction)
@@ -221,7 +232,8 @@ func _valid_interaction_distance(hit: Dictionary, maximum_distance: float) -> fl
 func _find_first_target_hit(
 	start: Vector3,
 	end: Vector3,
-	maximum_center_distance: float = INF
+	maximum_center_distance: float = INF,
+	excluded_target: CombatTarget = null
 ) -> Dictionary:
 	var best: CombatTarget
 	var best_distance := INF
@@ -235,6 +247,8 @@ func _find_first_target_hit(
 		return {"hit": false}
 	for target in _combat_manager.get_targets():
 		if not target.is_alive() or not _source_building.affects_target(target):
+			continue
+		if target == excluded_target:
 			continue
 		if _contact_targets.has(target.get_instance_id()):
 			continue

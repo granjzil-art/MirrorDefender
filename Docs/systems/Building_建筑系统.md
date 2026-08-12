@@ -9,12 +9,12 @@
 ## 分类 / 做法
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
-- **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑右侧详情中的显示名称、功能说明、对象可见性和字段行；不参与建筑玩法结算，虚像沿用根源建筑配置。
+- **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑显示名称、基础功能说明、1–3 级说明、对象可见性和字段行。四段说明同时供建筑卡悬停框与选中建筑说明页使用；不参与玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔仍可逐级选择 `TARGET_ONLY` / `TARGET_OR_FACING`，但不启用导弹开关。
 - **钉锤 / 固定多方向齐射**：`resources/buildings/MaceTower.tres` 使用独立 `MACE_TOWER` 类型。1级按当前逻辑朝向四等分齐射，2级解锁八等分齐射；1、2级只有在半径 `targeting_range` 内存在有效敌人时开火。3级保持八向，提升本级伤害、飞行距离、攻速和穿透，并解锁 `TARGET_OR_FACING`，没有敌人时也持续齐射。钉锤不选择单个目标，也不自动转向。
-- **激光塔**：不索敌，使用 `FIXED_FACING`。持续光路与其它塔共用反射镜和 Stuff 查询，所有反射段共享 `attack_range`；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，下一个敌人承伤后截断光路。每次持续命中附带寒冷；2 级起每隔可调时间在当前可见终点产生一次圆形伤害/减速爆发，3 级再追加冻结。表现保留较粗直线主轴，并由两条左右平移、持续传播且带平滑噪声的细正弦光丝夹住；波形只作用于渲染顶点。复制塔从镜像起点独立重算同一套光路和效果，并复用相同光丝表现。
+- **激光塔**：不索敌，使用 `FIXED_FACING`。持续光路与其它塔共用反射镜和 Stuff 查询，所有反射段共享 `attack_range`；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，下一个敌人承伤后截断光路。每次持续命中附带寒冷，目标模型表面临时切换为深蓝脉动 Shader；2 级起每隔可调时间在当前可见终点产生一次圆形伤害/减速爆发，3 级再追加冻结。表现保留较粗直线主轴，并由两条左右平移、持续传播且带平滑噪声的细正弦光丝夹住；波形只作用于渲染顶点。复制塔从镜像起点独立重算同一套光路和效果，并复用相同光丝表现。
 - **脉冲镭射塔**：保留旧激光塔的同时新增独立 `PULSE_LASER_TOWER`。固定朝向且无论有无敌人都按 `attacks_per_second` 周期开火；发射时瞬间固化整条可反射路径，渐入、保持、渐出均为线性可调。只在进入保持阶段的一瞬间按 `base_damage × level_factor × extra_factor` 结算；各反射光段独立无限穿透敌人，因此同一敌人可被不同光段多次命中。
 - **空中适用性与优先级**：每级 `affects_airborne` 统一控制箭塔候选、激光线段伤害、屏障阻挡与反伤是否作用于飞行敌人；`prioritizes_airborne` 在有效候选中先取空中分组，再应用最近/最远/血量/锁定等原优先级。箭塔与导弹塔正式三级全部启用，空中敌人进入范围会打断旧的对地锁定。
 - **屏障**：`BuildingDefinition.Kind.BARRIER`，只允许放在敌人路径格；可跨越不可建造路面规则占格，但不能覆盖未清障障碍、出生点、据点、已有占用或敌人当前所在格。普通塔不能占据路径格。
@@ -121,7 +121,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 一项建筑等级的完整可编辑参数。 |
-| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名和最多三项等级数据。 |
+| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名、格式化说明入口和最多三项等级数据。 |
 | `scripts/building/BuildingPlacementData.gd` | `BuildingPlacementData` / `Resource` | 一个开局真实建筑的 Definition、格/边、逻辑朝向和等级快照。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | BuildingDefinition/BuildingLevelStats 共用的有限数、范围、颜色和嵌套错误校验。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |

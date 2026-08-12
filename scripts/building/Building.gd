@@ -85,7 +85,35 @@ func configure(
 		tile_manager,
 		combat_manager,
 		initial_level,
-		preview_mode
+		preview_mode,
+		null
+	)
+
+
+## Runtime combat-data entry. The supplied level_data is authoritative for this
+## instance and is intentionally not resolved through definition.levels.
+func configure_runtime_level_data(
+	building_definition: BuildingDefinition,
+	level_data: BuildingLevelStats,
+	building_level: int,
+	building_cell: Vector3i,
+	grid_manager: GridManager,
+	tile_manager: TileManager,
+	combat_manager: CombatManager,
+	preview_mode: bool = false
+) -> bool:
+	edge_to_cell = Vector3i.ZERO
+	edge_index = -1
+	edge_id = ""
+	return _configure_common(
+		building_definition,
+		building_cell,
+		grid_manager,
+		tile_manager,
+		combat_manager,
+		building_level,
+		preview_mode,
+		level_data
 	)
 
 
@@ -93,12 +121,38 @@ func set_preview_valid(valid: bool) -> void:
 	if not _preview_mode or _preview_valid == valid:
 		return
 	_preview_valid = valid
-	_build_visual()
-	set_facing_index(facing_index)
+	_refresh_preview_materials(_visual_root)
 
 
 func is_preview_valid() -> bool:
 	return _preview_valid
+
+
+## Moves an existing tile-placement ghost without rebuilding its model tree.
+func relocate_tile_preview(building_cell: Vector3i) -> bool:
+	if not _preview_mode or is_edge_placement():
+		return false
+	cell = building_cell
+	refresh_world_transform()
+	return true
+
+
+## Moves an existing edge-placement ghost without rebuilding its model tree.
+func relocate_edge_preview(
+	from_cell: Vector3i,
+	to_cell: Vector3i,
+	placement_edge_index: int,
+	placement_edge_id: String
+) -> bool:
+	if not _preview_mode or not definition.is_edge_building():
+		return false
+	cell = from_cell
+	edge_to_cell = to_cell
+	edge_index = placement_edge_index
+	edge_id = placement_edge_id
+	refresh_world_transform()
+	set_facing_index(placement_edge_index)
+	return true
 
 func configure_edge(
 	building_definition: BuildingDefinition,
@@ -122,7 +176,37 @@ func configure_edge(
 		tile_manager,
 		combat_manager,
 		initial_level,
-		preview_mode
+		preview_mode,
+		null
+	)
+
+
+## Edge-placement counterpart of configure_runtime_level_data().
+func configure_edge_runtime_level_data(
+	building_definition: BuildingDefinition,
+	level_data: BuildingLevelStats,
+	building_level: int,
+	from_cell: Vector3i,
+	to_cell: Vector3i,
+	placement_edge_index: int,
+	placement_edge_id: String,
+	grid_manager: GridManager,
+	tile_manager: TileManager,
+	combat_manager: CombatManager,
+	preview_mode: bool = false
+) -> bool:
+	edge_to_cell = to_cell
+	edge_index = placement_edge_index
+	edge_id = placement_edge_id
+	return _configure_common(
+		building_definition,
+		from_cell,
+		grid_manager,
+		tile_manager,
+		combat_manager,
+		building_level,
+		preview_mode,
+		level_data
 	)
 
 func _configure_common(
@@ -132,8 +216,9 @@ func _configure_common(
 	tile_manager: TileManager,
 	combat_manager: CombatManager,
 	initial_level: int,
-	preview_mode: bool
-) -> void:
+	preview_mode: bool,
+	level_data_override: BuildingLevelStats
+) -> bool:
 	definition = building_definition
 	cell = building_cell
 	_grid = grid_manager
@@ -142,8 +227,15 @@ func _configure_common(
 	_preview_mode = preview_mode
 	feature_enabled = not preview_mode
 	refresh_world_transform()
-	apply_level(initial_level)
+	var configured := (
+		apply_runtime_level_data(initial_level, level_data_override)
+		if level_data_override != null
+		else apply_level(initial_level)
+	)
+	if not configured:
+		return false
 	set_facing_index(edge_index if is_edge_placement() else 0)
+	return true
 
 
 ## Re-samples the canonical terrain surface without rebuilding combat state.
@@ -169,11 +261,22 @@ func apply_level(value: int) -> bool:
 	var next_stats := definition.get_level_stats(value)
 	if next_stats == null:
 		return false
+	return apply_runtime_level_data(value, next_stats)
+
+
+## Lightweight explicit level-data application used by runtime authoring. It
+## never looks up definition.levels, so a temporary working copy can be applied
+## without mutating the persistent Resource.
+func apply_runtime_level_data(value: int, level_data: BuildingLevelStats) -> bool:
+	if definition == null or level_data == null:
+		return false
+	if not level_data.validate_configuration().is_empty():
+		return false
 	var was_configured := _stats != null
 	if _attack_strategy != null:
 		_attack_strategy.reset(self)
 	level = clampi(value, 1, definition.get_max_level())
-	_stats = next_stats
+	_stats = level_data
 	_locked_target = null
 	_targeting_strategy = PriorityTargetingStrategy.new(_stats.target_priority)
 	_configure_attack_strategy()
@@ -574,7 +677,7 @@ func get_pulse_laser_reflection_colors() -> Array[Color]:
 
 
 func get_pulse_laser_reflect_max() -> int:
-	return definition.pulse_laser_reflect_max if definition != null else 0
+	return _stats.pulse_laser_reflect_max if _stats != null else 0
 
 
 func launch_pulse_laser() -> PulseLaserBeam:
@@ -864,6 +967,22 @@ func _apply_preview_materials(node: Node) -> void:
 	for child in node.get_children():
 		_apply_preview_materials(child)
 
+
+func _refresh_preview_materials(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if node is MeshInstance3D:
+		var mesh_instance := node as MeshInstance3D
+		var material := mesh_instance.material_override as StandardMaterial3D
+		if material != null and material.has_meta(&"preview_source_color"):
+			_apply_preview_material_state(
+				material,
+				material.get_meta(&"preview_source_color", Color.WHITE),
+				bool(material.get_meta(&"preview_emissive", false))
+			)
+	for child in node.get_children():
+		_refresh_preview_materials(child)
+
 func _sanitize_copy_visual_snapshot(node: Node) -> void:
 	for child in node.get_children():
 		if (
@@ -927,6 +1046,17 @@ func _on_durability_depleted(attacker: Node) -> void:
 
 func _make_material(color: Color, emissive: bool) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
+	material.set_meta(&"preview_source_color", color)
+	material.set_meta(&"preview_emissive", emissive)
+	_apply_preview_material_state(material, color, emissive)
+	return material
+
+
+func _apply_preview_material_state(
+	material: StandardMaterial3D,
+	color: Color,
+	emissive: bool
+) -> void:
 	var base_color := invalid_preview_color if _preview_mode and not _preview_valid else color
 	var resolved_color := base_color
 	if _preview_mode:
@@ -934,11 +1064,11 @@ func _make_material(color: Color, emissive: bool) -> StandardMaterial3D:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = resolved_color
 	material.roughness = 0.65
+	material.emission_enabled = false
 	if emissive or (_preview_mode and not _preview_valid):
 		material.emission_enabled = true
 		material.emission = base_color
 		material.emission_energy_multiplier = 2.8 if _preview_mode and not _preview_valid else 2.0
-	return material
 
 func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> void:
 	notify_attack(target, applied_damage, false)

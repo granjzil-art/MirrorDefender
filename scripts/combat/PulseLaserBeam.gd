@@ -4,6 +4,8 @@
 class_name PulseLaserBeam
 extends Node3D
 
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
+
 signal impacted(target: CombatTarget, applied_damage: float, segment_index: int)
 
 const MIN_SEGMENT_LENGTH := 0.0001
@@ -103,6 +105,10 @@ func has_applied_damage() -> bool:
 	return _damage_applied
 
 
+func get_source_building() -> Building:
+	return _source_building if is_instance_valid(_source_building) else null
+
+
 func debug_get_visual_factor() -> float:
 	return _visual_factor
 
@@ -118,6 +124,7 @@ func _trace_path(
 	var direction := direction_value
 	var remaining_distance := maximum_distance
 	var reflection_count := 0
+	var previous_reflector: CombatTarget
 	while remaining_distance > MIN_SEGMENT_LENGTH:
 		var candidate_end := current_start + direction * remaining_distance
 		var reflection_hit := _query_reflection(current_start, candidate_end)
@@ -130,12 +137,23 @@ func _trace_path(
 			nearest_hit_distance if is_finite(nearest_hit_distance) else remaining_distance
 		)
 		var segment_end := current_start + direction * segment_distance
+		var terminal_reflector := (
+			reflection_hit.get("reflector") as CombatTarget
+			if not blocker_is_first and is_finite(reflection_distance)
+			else null
+		)
+		var excluded_targets: Array[CombatTarget] = []
+		if previous_reflector != null and is_instance_valid(previous_reflector):
+			excluded_targets.append(previous_reflector)
+		if terminal_reflector != null and not excluded_targets.has(terminal_reflector):
+			excluded_targets.append(terminal_reflector)
 		_append_segment(
 			current_start,
 			segment_end,
 			colors[reflection_count % colors.size()],
 			reflection_count,
-			blocker_is_first and is_finite(blocker_distance)
+			blocker_is_first and is_finite(blocker_distance),
+			excluded_targets
 		)
 		remaining_distance = maxf(0.0, remaining_distance - segment_distance)
 		if blocker_is_first and is_finite(blocker_distance):
@@ -149,8 +167,13 @@ func _trace_path(
 		if normal.length_squared() <= MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH:
 			break
 		normal = normal.normalized()
+		if not _segments.is_empty():
+			var reflected_segment: Dictionary = _segments[_segments.size() - 1]
+			reflected_segment["reflection_hit"] = reflection_hit.duplicate()
+			_segments[_segments.size() - 1] = reflected_segment
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
+		previous_reflector = terminal_reflector
 		var epsilon := minf(
 			maxf(MIN_SEGMENT_LENGTH, float(reflection_hit.get("epsilon", MIN_SEGMENT_LENGTH))),
 			remaining_distance
@@ -164,7 +187,8 @@ func _append_segment(
 	end: Vector3,
 	color: Color,
 	reflection_index: int,
-	blocked: bool
+	blocked: bool,
+	excluded_targets: Array[CombatTarget] = []
 ) -> void:
 	var length := start.distance_to(end)
 	if length <= MIN_SEGMENT_LENGTH:
@@ -176,6 +200,7 @@ func _append_segment(
 		"color": color,
 		"reflection_index": reflection_index,
 		"blocked": blocked,
+		"excluded_targets": excluded_targets,
 	})
 
 
@@ -229,7 +254,13 @@ func _apply_damage_once() -> void:
 	if _damage_applied:
 		return
 	_damage_applied = true
-	if _combat_manager == null or _damage <= 0.0:
+	if _damage <= 0.0:
+		return
+	for segment in _segments:
+		var reflection_value: Variant = segment.get("reflection_hit")
+		if reflection_value is Dictionary:
+			ReflectionDamageScript.apply(reflection_value, _damage)
+	if _combat_manager == null:
 		return
 	for segment_index in range(_segments.size()):
 		var segment: Dictionary = _segments[segment_index]
@@ -237,6 +268,9 @@ func _apply_damage_once() -> void:
 		var end: Vector3 = segment.get("end", Vector3.ZERO)
 		var include_end_caps := not bool(segment.get("blocked", false))
 		for target in _combat_manager.get_targets_on_segment(start, end, include_end_caps):
+			var excluded_targets: Array = segment.get("excluded_targets", [])
+			if excluded_targets.has(target):
+				continue
 			if _source_building != null and is_instance_valid(_source_building):
 				if not _source_building.affects_target(target):
 					continue

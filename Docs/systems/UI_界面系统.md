@@ -5,18 +5,19 @@
 
 ## 分类 / 做法
 - **M6 批次 1 正式 HUD（已实现）**：底部为独立复制镜/反射镜卡加单行建筑卡；建筑卡数由关卡配置。建筑卡顺序为箭塔、旧持续激光塔、脉冲镭射塔、弩箭塔、钉锤，后续位置为空槽；镭射塔替代了原屏障的第三卡位，屏障玩法仍保留但不进入默认卡组。Level1 配置 5 个建筑槽，Level2 配置 6 个建筑槽。边障同样不进入默认卡组。
-- **卡片状态**：建筑卡显示名称、可替换图标和建造费用；复制镜与反射镜共享镜子 cap，各自拥有可累积的独立库存，不显示费用。有库存时卡底显示 `×数量`；库存为 0 时镜卡置灰并由 `CardCooldownSweep` 绘制下一枚从上向下的水平恢复扫描。达到镜子 cap 时整卡灰化且不可新选，后台库存仍继续累计，选中卡使用金色镜框。
+- **卡片状态**：建筑卡显示名称、可替换图标和建造费用；复制镜与反射镜使用各自的独立 cap。默认金币模式在卡底显示 Definition 费用，余额不足或该种镜子达 cap 时只置灰该卡。开启保留冷却开关后，有库存时改显示 `×数量`；库存为 0 时由 `CardCooldownSweep` 绘制下一枚从上向下的水平恢复扫描。选中卡继续使用金色镜框。
 - **单次放置**：`RuntimeInteractionController` 是正式交互事实源。每次选卡只允许一次世界点击；成功、资源不足、上限、非法地块、非法边或未命中都会取消卡片/预览/实体选择并回 `SELECT`，成功放置的实体不会保持自动选中。
-- **取消和输入消费**：左键执行肯定操作；右键短点击在释放时全局取消并回选择模式，右键拖动超过阈值后改为运行时相机旋转且不取消。中/右键仅从世界区域起手可导航相机；正式卡片和按钮消费左键，点击 UI 不会穿透到世界。
+- **取消和输入消费**：左键执行肯定操作；右键短点击在释放时全局取消并回选择模式，右键拖动超过阈值后改为运行时相机旋转且不取消。中/右键通常仅从世界区域起手可导航相机；正式卡片和按钮消费左键，点击 UI 不会穿透到世界。选中建筑的悬浮操作区是右键旋转例外，可从图标上直接起手拖动视角。
 - **正式时间控制（批次 3 已实现）**：右下独立慢放、2x 和暂停/继续按钮，`GameTimeController` 固定按 `暂停 0x > 战术慢放 0.1x > 快速 2x > 正常 1x` 求解。暂停前的 2x 请求会保留，继续后恢复。选卡或选中实体建筑/镜子时仍默认触发 0.1x。
 - **运行时关卡元素编辑**：左侧“关卡元素编辑”开启 Stuff-only 作者工作区。进入后隐藏建筑卡、冻结玩法时间但保留 UI/镜头输入；目录按钮选择元素，左键放置或选择，`R` 旋转，“删除选中元素”按钮或 `Delete` 删除，`Ctrl+Z/Ctrl+Y` 撤销/重做，右键取消当前工具。删除按钮只在选中已有 Stuff 时启用，同格多实例逐个删除。真实模型预览以绿/红叠色表示可放置/非法或断路警告。
 - **运行时保存边界**：工作区提供“保存元素”“全量保存”、保存并退出、放弃并退出。“保存元素”只更新 Stuff；“全量保存”额外把当前实体建筑与全部实体镜子种类写成开局陈列，明确排除虚像和战斗临时状态。编辑器运行时可写回当前 `res://` 关卡；导出游戏默认另存 `user://levels/`。脏会话不会被静默关闭，切关会终止旧会话且绝不把旧快照覆盖到新关卡。
 - **M6 批次 2 地块详情（已实现）**：选择模式点击含实体块建筑、任一相邻边建筑/复制镜、同格虚像或关卡元素的格时，右侧展开镜面详情板；空格、取消、选卡或放置完成时收起。条目可滚动，显示类型、实体/虚像、图标灰盒、等级、耐久、朝向、根源格、产生镜子及元素运行时状态。
 - **两级显示配置（已实现）**：`InspectionDisplayConfig.visible` 是对象级开关；关闭后实体和由它产生的虚像都不进入列表。其余 `show_*` 是字段级开关，分别控制图标、类型、实体/虚像、功能、位置、高度、权限、等级、耐久、朝向、战斗、经济、容量、时序、对空及虚像谱系行。全部默认 `true`，保持已有显示。
 - **名称与功能说明**：建筑、复制镜和地块定义各自持有 `inspection_display`；可编辑 `display_name` 和 `function_description`。空值向后兼容原显示名和内置说明，面板统一增加“功能：”行；虚像使用根源对象配置。
+- **建筑卡悬停说明（2026-08-12）**：悬停建筑卡时，`BuildCardBar` 在该卡槽水平居中的正上方显示无输入拦截的说明框，移出即隐藏。内容固定按“基础描述 / 1级：/ 2级：/ 3级：”排版，与选中建筑的说明按钮共用同一格式化文本入口。程序镜面和完整卡面模式都支持；镜子卡与空槽不触发。
 - **复制建筑参数一致性**：实体建筑与建筑虚像共用同一详情行生成入口；虚像除来源/镜子/链深度外，继续展示源实体当前等级的索敌、射程、攻击速率、产出、对空或屏障耐久/恢复/反伤信息，并服从源定义的同一组 `show_*` 开关。单发塔与镭射塔展示攻速，持续激光塔展示 `laser_dps × level_factor × extra_factor` 的最终 DPS。
-- **右上全局信息（批次 3 已实现）**：`GlobalInfoPanel` 展示关卡显示名、据点生命、场上敌人数、建筑数/上限与镜子数/上限。数据只读来自 `LevelResource`、`BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
-- **右下经济反馈（批次 3 已实现）**：`EconomyPanel` 保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
+- **右上图标统计（2026-08-11）**：`GlobalInfoPanel` 无底板、无边框，按三行两列展示透明图标和白色数字：第一行是剩余据点生命、当前/总波次，第二行是复制镜数/上限、反射镜数/上限，第三行是金币、建筑数/上限。数据只读来自 `BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
+- **右上经济反馈（批次 3 已实现）**：`EconomyPanel` 是 `GlobalInfoPanel` 第三行第一列的金币单元，保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放和景深开关即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
 - **关卡失败画面（2026-08-11）**：`WaveManager.defeat` 打开比暂停菜单更高的输入阻断层，并经 `GameTimeController` 锁定 0x。失败画面直接复用第二个 `PauseMenu` 实例和同一个 `RuntimeSettings` 对象，因此设置控件、配置文件与即时应用语义一致。“重新挑战”复用当前关卡深重载，“返回选关”复用 AppFlow 退关；Esc/通用关闭不会跳过失败结果。
 - **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；最后一波释放后禁用，另外两按钮仍可用。
@@ -25,16 +26,16 @@
 - **F1 调试控制台（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。控制台、暂停菜单与失败画面共享 `RuntimeHud.is_modal_open()` 输入边界；控制台打开时阻断世界、相机、六机位和波次路径预览，但不自动改变游戏时间。
 - **左上常驻调试信息（批次 6 已实现）**：控制台勾选或 `debug set` 启用的分类会同步显示在游戏画面左上角；关闭控制台后继续按真实时间刷新，全部关闭时自动收起。旧“波次时间轴上方预留区”仅是历史布局描述，现役左侧无正式时间轴。
 - **只读检视模型**：`TileInspectionService` 订阅交互选择和 Manager 状态信号，`TileInspectionModelBuilder` 仅通过公共查询生成稳定 Dictionary；`TileInspectorPanel` 不持有玩法 Manager，也不提供修改回调。详情板位于画面最左侧中部；虚像/单纯元素检视不触发慢放，实体建筑/镜子的慢放与世界悬浮操作保持原逻辑。
-- **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，左侧中部是按需地块详情，右上是全局信息，最右侧中部是三波次按钮，右下是经济/时间，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
-- **全局信息**：右上显示我方据点生命、当前场上敌人数、建筑/镜子容量与关卡名；不维护“本波剩余”第二份状态。
-- 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、释放游标、场上敌人、选中对象和 AppFlow 生命周期）。
+- **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，左侧中部是按需地块详情，右上是六项无框图标统计，最右侧中部是三波次按钮，右下只保留时间控制，暂停与控制台位于模态层。左侧不再实例化正式波次时间轴。
+- **全局信息**：右上显示剩余据点生命、当前/总波次、金币、建筑容量与两种镜子的独立容量；不显示关卡名、场上敌人数或“本波剩余”第二份状态。
+- 面板与逻辑解耦，通过信号/数据绑定更新（资源变化、释放游标、据点生命、容量、选中对象和 AppFlow 生命周期）。
 - **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`：下一页时当前页左滑、目标页从右滑入，上一页反向，默认 0.25 秒 QUAD 缓出；双页面缓冲避免中间黑屏。动画期间槽位锁定，最多保存最后一次合法翻页请求，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
-- **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 作为 Main 内开发快捷入口保留，但不属于正式 `RuntimeHud`、不替代 AppFlow 选关。F1 注册表仍并行提供关卡加载、资源修改、逐波释放和敌人生成命令。
+- **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 已从 Main 移除，不再显示关卡名或“加载关卡”按钮。F1 注册表仍提供开发用关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
-- **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 在该建筑上方显示删除、升级、旋转；空格无效果。满级仅升级按钮置灰，删除显示当前等级配置的退款行为，旋转免费。
+- **选中建筑操作**：选择模式点击有建筑地块后，`BuildingActionPanel` 以建筑动作锚点的实时屏幕投影为原点，在上方按左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后，菜单都在相机更新结束时重新投影，不做会造成相对漂移的屏幕边缘钳制。实体建筑选中后滚轮用于旋转建筑，未选中建筑时才用于相机缩放；右键可从悬浮图标上起手旋转视角。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明会展开信息页，文本读取每种建筑 `inspection_display.function_description` 的可编辑配置。面板不再提供旋转选项。
 - **旋转弹道参考**：选中实体投射物建筑或旋转放置虚影时，世界层显示当前逻辑朝向的粗红色半透明弹道；单向/4向/8向、实际射程、实际投射物宽度及反射镜/亚克力侧板反射均读取运行时事实源。取消选择或预览即清理；该 UI 不创建攻击、目标或伤害。
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
-- **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后删除/升级可用，旋转因边对齐锁定而置灰。
+- **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后说明/升级/售卖可用，面板不提供旋转选项。
 - **复制镜反馈**：“复制镜”模式显示镜面生效侧、最近源格、对称目标格、整格内容名称与青蓝虚像；无源只警告仍可放置。`R` 翻面立即重算。选中后 `MirrorActionPanel` 悬浮提供删除/翻面，实体镜与建筑选择互斥。
 - **反射镜反馈**：“反射镜”模式复用真实镜框/实时镜面预览、边权限、红色非法提示、`R` 翻面和删除操作，但不生成复制内容预览；提示当前生效面将反射我方投射物。
 - **旧波次 UI 兼容**：`WaveStatusPanel` 与 `WaveTimelinePanel` 均保留脚本/场景用于历史兼容和模型回归，但二者都不在正式 `RuntimeHud.tscn` 实例化；现役操作统一由右侧 `WaveControlPanel` 承担。
@@ -73,10 +74,12 @@
 | TileInspectorPanel.`entry_minimum_height` / `compact_entry_minimum_height` / `entry_separation` | 112 / 54 / 8 | 有图标条目、隐藏图标后的紧凑条目最小高度及间距；超出面板高度后滚动。 |
 | TileInspectorPanel.`fallback_icon` | null | 全局条目占位图；为空时用内容名称前两字灰盒。 |
 | Definition.`inspection_display` | 独立资源 | 建筑、复制镜、地块定义的对象级开关、可编辑名称/功能说明和字段级开关。 |
+| InspectionDisplayConfig.`level_1/2/3_description` | `""` | 建筑 1–3 级说明文本；与 `function_description` 基础描述一起显示。 |
+| BuildCardBar.`card_description_size/card_description_gap` | `(360,300) / 10` | 卡片悬停说明框尺寸和与卡槽顶部间距。 |
 | GameTimeController.`tactical_slow_enabled` | true | 是否在选卡/选中实体时自动慢放。 |
 | GameTimeController.`tactical_slow_scale` | 0.1 | 战术慢放倍率。 |
 | GameTimeController.`fast_scale` | 2.0 | 批次 3 正式按钮使用的快速倍率。 |
-| EconomyPanel.`feature_enabled` | true | 右下经济显示总开关。 |
+| EconomyPanel.`feature_enabled` | true | 右上金币单元显示总开关。 |
 | EconomyPanel.`number_roll_duration` / `popup_duration` / `popup_rise_distance` | 0.35 / 0.9 / 54 | 资源主数字滚动时长、增减弹字时长与上浮距离。 |
 | EconomyPanel.`resource_icon` / `gain_color` / `spend_color` | null / 金 / 橙 | 资源图标与正负反馈颜色美术接口。 |
 | GlobalInfoPanel.`feature_enabled` | true | 右上全局信息总开关。 |
@@ -111,14 +114,14 @@
 | `scenes/ui/RuntimeStuffEditorPanel.tscn` | 无 / `Control` 场景 | RuntimeHud 内的运行时元素编辑面板实例。 |
 | `scripts/ui/RuntimeSettings.gd` | `RuntimeSettings` / `RefCounted` | 读写主音量、窗口模式、UI 缩放和景深开关；前三项可直接应用到运行时。 |
 | `scripts/ui/EconomyPanel.gd` / `scenes/ui/EconomyPanel.tscn` | `EconomyPanel` / `Control` | 真实时间资源数字滚动和多事件弹字。 |
-| `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的关卡/据点/敌人/容量摘要。 |
+| `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的生命/波次/两种镜子/金币/建筑无框图标统计。 |
 | `scripts/ui/TimeControlPanel.gd` / `scenes/ui/TimeControlPanel.tscn` | `TimeControlPanel` / `Control` | 慢放、2x 和暂停的正式控件。 |
 | `scripts/ui/PauseMenu.gd` / `scenes/ui/PauseMenu.tscn` | `PauseMenu` / `Control` | 可参数化的输入阻断菜单；RuntimeHud 同时用于暂停和失败画面。 |
 | `scripts/ui/WaveTimelineModel.gd` | `WaveTimelineModel` / `RefCounted` | 把关卡波次资源只读投影为稳定摘要；现役供下一波详情复用。 |
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧释放下一波/重启/退出三按钮、下一波详情与路径预览信号。 |
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 正式 HUD 的三个圆形按钮和向左展开详情板。 |
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧左侧纵向时间轴兼容文件；正式 HUD 不实例化。 |
-| `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 可切换程序镜面/原画卡面、自动透明裁边、实时费用，以及独立镜子卡、可调建筑槽、共享 cap 和状态反馈。 |
+| `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 可切换程序镜面/原画卡面、自动透明裁边、实时费用和建筑卡悬停说明，以及独立镜子卡、可调建筑槽、分种类 cap 和金币/冷却状态反馈。 |
 | `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 跨建筑、镜子、地块共享的两级只读检视显示策略。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 保存检视选择、订阅动态状态并调度只读模型刷新。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 将地块、建筑、边实体、镜子、虚像和元素状态聚合为稳定只读模型。 |
@@ -134,16 +137,16 @@
 | `resources/level_select/LevelSelectPage*.tres` | `LevelSelectPageDefinition` / `Resource` | 各页固定六槽的作者关卡顺序；null 位置保持透明占位。 |
 | `scripts/ui/DebugConsole.gd` / `scenes/ui/DebugConsole.tscn` | `DebugConsole` / `Control` | 响应式镜面 F1 模态、分类勾选、实时摘要和命令输入；业务实现外置。 |
 | `scripts/ui/DebugOverlayPanel.gd` / `scenes/ui/DebugOverlayPanel.tscn` | `DebugOverlayPanel` / `Control` | 在控制台关闭后仍持续显示已启用分类的左上角只读摘要。 |
-| `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 右上角运行时选关快捷入口；显示当前关卡并通过正式 LevelLoader 打开资源选择器。 |
+| `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 已退出正式主场景的旧运行时选关快捷脚本，仅保留源文件兼容。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 旧 M3 灰盒兼容脚本；正式主场景隐藏且不配置。 |
-| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，提供删除、升级、旋转三项上下文操作。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，以左/上/右图标提供说明、升级、售卖三项上下文操作。 |
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，提供删除和生效侧翻面。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 58 项只读模型、自定义功能说明、实体/复制塔 Combat 一致性、激光最终 DPS、动态刷新、选择语义、滚动和三档分辨率回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 94 项默认兼容、正式资源/BuildingManager 箭塔深加载绑定、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
-| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 92 项全局/经济信号、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
+| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 96 项图标统计/经济信号、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 47 项只读波次模型、单悬停窗、窄时间轴、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 77 项 F1、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、胜利和 Debug 终态边界回归。 |
@@ -170,10 +173,11 @@ project.godot -> AppRoot.tscn -> AppFlowController (persistent)
 
 RuntimeHud (Main/HUD)
   ├─ BuildCardBar: 底部镜子/建筑卡
-  ├─ GlobalInfoPanel: 右上关卡/据点/敌人/容量
+  ├─ GlobalInfoPanel: 右上生命/波次/双镜子/金币/建筑图标数字
+  │    └─ EconomyPanel: 第三行金币数字滚动与增减浮字
   ├─ WaveControlPanel: 最右侧下一波/重启/退出三按钮
   ├─ TileInspectorPanel: 左侧按需只读详情
-  ├─ EconomyPanel + TimeControlPanel: 右下经济/慢放/2x/暂停
+  ├─ TimeControlPanel: 右下慢放/2x/暂停
   ├─ PauseMenu + DefeatMenu: 共享 RuntimeSettings 的模态设置/重启/返回选关
   └─ DebugConsole + DebugOverlayPanel
 
@@ -214,7 +218,8 @@ DebugCategoryRegistry -> DebugConsole + DebugOverlayPanel + optional Path/Route 
 WaveManager.defeat -> RuntimeHud.DefeatMenu + GameTimeController 0x
 DebugConsole.open_changed + PauseMenu/DefeatMenu -> RuntimeHud unified modal -> Main input lock
 
-BuildingActionPanel -> BuildingManager remove / upgrade / rotate
+BuildingActionPanel -> BuildingManager remove / upgrade
+BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description()
 MirrorActionPanel -> MirrorManager remove / flip
 WaveTimelinePanel / WaveStatusPanel / M3DebugPanel：兼容文件保留，正式 RuntimeHud 不实例化
 LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
@@ -258,7 +263,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `M3DebugPanel.gd` | `_on_preview_updated(building: Building) -> void` | 显示预览塔种、1 级和离散朝向。 |
 | `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/删除信号。 |
 | `BuildingActionPanel.gd` | `_update_projection() -> void` | 将选中建筑动作锚点投影到屏幕，越过相机背面时隐藏。 |
-| `BuildingActionPanel.gd` | `_on_delete_pressed()` / `_on_upgrade_pressed()` / `_on_rotate_pressed()` | 调用三个 BuildingManager 公共操作。 |
+| `BuildingActionPanel.gd` | `_on_info_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 展开逐塔说明页，或调用 BuildingManager 的升级、售卖公共操作。 |
 | `BuildingSelectionVisualizer.gd` | `set_projectile_reflection_resolver(value: Callable) -> void` | 接收 Main 注入的统一投射物反射查询并重建当前预览。 |
 | `BuildingSelectionVisualizer.gd` | `debug_get_projectile_trajectory_segments() -> Array[Dictionary]` | 返回当前多段弹道的只读深副本供自动化检查。 |
 | `ProjectileTrajectoryPreview.gd` | `rebuild(building: Building) -> void` | 读取当前级实际方向、射程、宽度并构造含镜面反射的粗射线。 |
@@ -285,8 +290,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `GameTimeController.gd` | `reset_runtime_state() -> void` | 退关前清除快速、玩家暂停和作者暂停请求并恢复 `Engine.time_scale = 1.0`。 |
 | `EconomyPanel.gd` | `configure(resource_manager) -> void` | 订阅资源变化，不持有任何经济修改入口。 |
 | `EconomyPanel.gd` | `advance_ui_time(real_delta: float) -> void` | 以不受 `Engine.time_scale` 影响的 delta 推进滚动数字和弹字。 |
-| `GlobalInfoPanel.gd` | `configure(resource_manager, wave_manager, base_core) -> void` | 订阅容量、敌人数和据点生命信号。 |
-| `GlobalInfoPanel.gd` | `set_level_context(level, source_path="") -> void` | 使用可编辑关卡名，空值时回退到资源文件名。 |
+| `GlobalInfoPanel.gd` | `configure(resource_manager, wave_manager, base_core) -> void` | 订阅容量、波次和据点生命信号并更新三行图标数字。 |
 | `TimeControlPanel.gd` | `configure(time_controller) -> void` | 将正式按钮与时间状态双向同步。 |
 | `PauseMenu.gd` | `configure(root_window: Window, shared_settings: RuntimeSettings = null) -> void` | 读取、应用设置并绑定目标窗口；传入对象时与另一菜单共享状态。 |
 | `PauseMenu.gd` | `open_menu() -> void` / `close_menu() -> void` / `is_open() -> bool` | 管理模态可见性及设置折叠状态。 |
@@ -294,6 +298,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeSettings.gd` | `load_from_file(path)` / `save_to_file(path)` | 使用 `ConfigFile` 持久化局外设置。 |
 | `RuntimeSettings.gd` | `apply_to_runtime(root_window) -> void` | 应用主音量、窗口模式与 UI 缩放。 |
 | `BuildCardBar.gd` | `configure(resource_manager, mirror_definition, building_definitions, slot_count, reflect_mirror_definition = null, mirror_manager = null) -> void` | 构造独立复制/反射镜卡、建筑卡和空镜面，订阅经济/容量/镜子冷却信号。 |
+| `BuildingDefinition.get_formatted_inspection_description` | `() -> String` | 把基础说明和 1–3 级说明格式化为卡片悬停/选中建筑共用文本。 |
 | `CardCooldownSweep.gd` | `set_state(ready_ratio, blocked) -> void` | 绘制镜卡灰层与自上而下扫描线；不读取或修改任何美术资产。 |
 | `RuntimeHud.gd` | `configure(interaction: RuntimeInteractionController, time_controller: GameTimeController, resource_manager: ResourceManager, building_manager: BuildingManager, mirror_manager: MirrorManager, slot_count: int = 6, stuff_editor_controller: Node = null) -> void` | 组合卡槽、交互、经济、时间、暂停与可选运行时元素编辑器。 |
 | `RuntimeStuffEditorPanel.gd` | `configure(controller: RuntimeStuffEditorController) -> void` | 注入统一作者控制器，构建地形、高度、斜坡与Stuff工具并同步历史、选择和保存状态。 |
@@ -349,10 +354,10 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 - `LevelThumbnail` 缓存只读绘制数据；不补齐稀疏地块、不创建 Grid/Tile/Path/Wave Manager、不写回 LevelResource。
 
 ## 已知限制 / 初版不做的部分
-- 不做敌方据点相关 UI；右上只展示共享我方据点生命和当前场上敌人数。
+- 不做敌方据点相关 UI；右上只展示共享我方据点剩余生命、波次、金币、建筑容量和两种镜子的独立容量。
 - 已实现基础分页选关，但不含主菜单、关卡解锁、星级、通关进度或选关状态持久化。
-- F1 `load` 与 Main 内 `LevelDebugPanel` 是开发入口，不改变正式选关目录，也不代表解锁流程。
-- 旧 `LevelDebugPanel`、`M3DebugPanel`、`WaveStatusPanel`、`WaveTimelinePanel` 文件继续登记兼容；正式 `RuntimeHud.tscn` 不实例化 M3/Status/Timeline，LevelDebugPanel 位于 Main 的 HUD 兼容层而非正式 RuntimeHud。
+- F1 `load` 是保留的开发入口，不改变正式选关目录，也不代表解锁流程；Main 内不再实例化 `LevelDebugPanel`。
+- 旧 `LevelDebugPanel`、`M3DebugPanel`、`WaveStatusPanel`、`WaveTimelinePanel` 文件继续登记兼容；正式主场景不实例化 LevelDebug/M3/Status/Timeline。
 - 下一波详情仍把同一波多个组聚合为一个条目；组级波内延迟/间隔保留在策划配置中，悬停不显示。
 - 当前选关缩略图是只读程序化 2D 示意，不是局内小地图；不做迷雾或交互点选。
 - 本轮全屏等分布局已通过 `level_select_test.gd` 三档分辨率专项及全量测试入口；真机仍需以 `AppRoot.tscn` 验收最终视觉占比。

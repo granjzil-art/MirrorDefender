@@ -22,6 +22,8 @@ func _run() -> void:
 
 func _test_manual_release_flow() -> void:
 	var level := _make_three_wave_level()
+	_expect(is_equal_approx(level.get_enemy_hp_multiplier(-1), 1.0), "debug spawns remain at base HP")
+	_expect(is_equal_approx(level.get_enemy_hp_multiplier(100), 5.0), "long levels respect the configured HP multiplier cap")
 	var fixture := _make_runtime_fixture(level)
 	var host: Node3D = fixture["host"]
 	var manager: WaveManager = fixture["wave"]
@@ -36,12 +38,14 @@ func _test_manual_release_flow() -> void:
 	path_display.configure(manager, path_manager)
 	var continuous_preview := path_display.get_continuous_preview()
 	var spawned_names: Array[String] = []
+	var spawned_max_hp: Array[float] = []
 	var released_numbers: Array[int] = []
 	var started_numbers: Array[int] = []
 	var next_numbers: Array[int] = []
 	manager.enemy_spawned.connect(
 		func(unit: EnemyUnit) -> void:
 			spawned_names.append(unit.definition.display_name)
+			spawned_max_hp.append(unit.max_hp)
 	)
 	manager.wave_released.connect(
 		func(wave_number: int, _wave: WaveDefinition) -> void:
@@ -94,6 +98,7 @@ func _test_manual_release_flow() -> void:
 	_expect(manager.get_released_wave_count() == 1 and released_numbers == [1], "one click releases exactly one wave")
 	_expect(manager.get_current_wave_number() == 1 and manager.get_next_wave_number() == 2, "current and next wave numbers follow the release cursor")
 	_expect(spawned_names == ["W1 Early"], "the earliest group starts immediately even with a non-zero authored delay")
+	_expect(is_equal_approx(spawned_max_hp[0], 100.0), "wave one keeps the authored base HP")
 	_expect(started_numbers == [1], "wave_started still reports the first successfully registered enemy")
 
 	manager._process(1.99)
@@ -104,6 +109,7 @@ func _test_manual_release_flow() -> void:
 	_expect(manager.start_next_wave(), "the next wave can be released while earlier enemies remain")
 	_expect(manager.get_released_wave_count() == 2 and released_numbers == [1, 2], "the second click releases only wave two")
 	_expect(spawned_names.back() == "W2" and manager.get_active_enemy_count() == 3, "overlapping release keeps earlier enemies and starts wave two immediately")
+	_expect(is_equal_approx(spawned_max_hp.back(), 110.0), "wave two applies one HP growth step")
 	_expect(started_numbers == [1, 2], "each released wave emits wave_started only after its first spawn succeeds")
 
 	await _clear_active_enemies(manager)
@@ -126,6 +132,7 @@ func _test_manual_release_flow() -> void:
 	_expect(manager.get_next_wave_number() == 3 and manager.can_start_next_wave(), "the final unreleased wave remains explicitly available")
 
 	_expect(manager.start_next_wave(), "the final wave can be released manually")
+	_expect(is_equal_approx(spawned_max_hp.back(), 121.0), "wave three compounds the configured HP growth")
 	_expect(manager.are_all_waves_released() and released_numbers == [1, 2, 3], "all-waves query changes only after the final release")
 	_expect(manager.get_next_wave_path_requests().is_empty(), "no continuous path request remains after the final release")
 	_expect(next_numbers == [2, 3, 0], "next-wave signal advances after each release and reports zero after the last")

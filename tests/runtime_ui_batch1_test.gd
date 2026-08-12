@@ -4,6 +4,7 @@ const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFacto
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
+const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
 var _failures: int = 0
 var _checks: int = 0
@@ -51,6 +52,8 @@ func _test_level_and_asset_interfaces() -> void:
 	_expect(mirror.card_icon == null, "copy mirror definitions expose an optional card icon")
 	var production_arrow := load("res://resources/buildings/ArrowTower.tres") as BuildingDefinition
 	var production_mace := load("res://resources/buildings/MaceTower.tres") as BuildingDefinition
+	var production_copy := load("res://resources/mirrors/CopyMirror.tres") as CopyMirrorDefinition
+	var production_reflector := load("res://resources/mirrors/ReflectMirror.tres") as ReflectMirrorDefinition
 	_expect(
 		production_arrow != null and production_arrow.full_card_art != null,
 		"the production arrow tower configures a no-cost complete card face"
@@ -58,6 +61,12 @@ func _test_level_and_asset_interfaces() -> void:
 	_expect(
 		production_mace != null and production_mace.full_card_art != null,
 		"the production mace configures the supplied at.png complete card face"
+	)
+	_expect(
+		production_copy != null and production_reflector != null
+		and production_copy.placement_cost > 0.0
+		and production_reflector.placement_cost > 0.0,
+		"production mirror definitions expose editable positive placement costs"
 	)
 
 
@@ -76,6 +85,11 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	var test_icon := _make_test_card_icon()
 	building_manager.arrow_tower.card_icon = test_icon
 	building_manager.arrow_tower.full_card_art = _make_test_full_card_art()
+	building_manager.arrow_tower.inspection_display = InspectionDisplayConfigScript.new()
+	building_manager.arrow_tower.inspection_display.function_description = "基础攻击建筑。"
+	building_manager.arrow_tower.inspection_display.level_1_description = "一级效果。"
+	building_manager.arrow_tower.inspection_display.level_2_description = "二级效果。"
+	building_manager.arrow_tower.inspection_display.level_3_description = "三级效果。"
 	card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
@@ -126,6 +140,34 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		(arrow_card.get_node("Content/Footer") as Label).text.begins_with("◆ "),
 		"card cost remains data-driven below the supplied artwork"
 	)
+	var building_cost_color := (arrow_card.get_node("Content/Footer") as Label).get_theme_color("font_color")
+	var copy_mirror_cost_color := (configured_cards_row.get_node("MirrorCard/Content/Footer") as Label).get_theme_color("font_color")
+	var reflect_mirror_cost_color := (configured_cards_row.get_node("ReflectMirrorCard/Content/Footer") as Label).get_theme_color("font_color")
+	_expect(
+		copy_mirror_cost_color.is_equal_approx(building_cost_color)
+		and reflect_mirror_cost_color.is_equal_approx(building_cost_color),
+		"both mirror costs use the same yellow as procedural building costs"
+	)
+	arrow_card.mouse_entered.emit()
+	await process_frame
+	var description_panel := card_bar.get_node("CardDescriptionPanel") as PanelContainer
+	var description_title := card_bar.get_node("CardDescriptionPanel/Content/Title") as Label
+	var description_text := card_bar.get_node("CardDescriptionPanel/Content/Description") as Label
+	_expect(description_panel.visible, "hovering a building card opens its description panel")
+	_expect(
+		description_title.text == "%s · 说明" % building_manager.arrow_tower.get_resolved_inspection_display_name()
+		and description_text.text == building_manager.arrow_tower.get_formatted_inspection_description(),
+		"card hover and the selected-building info action share one formatted text source"
+	)
+	var hovered_card_rect := arrow_card.get_global_rect()
+	var description_rect := description_panel.get_global_rect()
+	_expect(
+		absf(description_rect.get_center().x - hovered_card_rect.get_center().x) < 0.1
+		and description_rect.end.y <= hovered_card_rect.position.y - card_bar.card_description_gap + 0.1,
+		"the description panel is centered directly above its building slot"
+	)
+	arrow_card.mouse_exited.emit()
+	_expect(not description_panel.visible, "leaving the building card closes its description panel")
 	_expect(
 		configured_cards_row.get_node_or_null("EmptyCard4/MirrorSurface") != null,
 		"empty slots reuse the generated mirror treatment"
@@ -143,9 +185,10 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		float(mirror_material.get_shader_parameter("disabled_strength")) > 0.0,
 		"resource shortage desaturates the generated mirror surface"
 	)
-	_expect(card_bar.is_mirror_card_available(), "mirror cards no longer depend on the main-resource balance")
+	_expect(not card_bar.is_mirror_card_available(), "coin-mode mirror cards follow the main-resource balance")
 	resource_manager.gain(500.0, "test_restore_wallet")
 	_expect(card_bar.is_building_card_available(building_manager.arrow_tower), "resource gain immediately restores card availability")
+	_expect(card_bar.is_mirror_card_available(), "resource gain immediately restores an affordable mirror card")
 	card_bar.set_card_visual_mode(BuildCardBarScript.CardVisualMode.FULL_ARTWORK)
 	_expect(
 		card_bar.get_card_visual_mode() == BuildCardBarScript.CardVisualMode.FULL_ARTWORK,
@@ -158,6 +201,16 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		full_artwork != null and full_artwork.texture is AtlasTexture,
 		"complete artwork automatically trims transparent source padding"
 	)
+	full_art_card.mouse_entered.emit()
+	await process_frame
+	description_panel = card_bar.get_node("CardDescriptionPanel") as PanelContainer
+	_expect(
+		description_panel.visible
+		and (card_bar.get_node("CardDescriptionPanel/Content/Description") as Label).text
+		== building_manager.arrow_tower.get_formatted_inspection_description(),
+		"complete-artwork building cards use the same hover description"
+	)
+	full_art_card.mouse_exited.emit()
 	_expect(
 		full_art_card.get_node_or_null("MirrorSurface") == null
 		and full_art_card.get_node_or_null("InnerFrame") == null
@@ -454,6 +507,9 @@ func _make_fixture() -> Dictionary:
 	var mirror_manager := MirrorManager.new()
 	host.add_child(mirror_manager)
 	mirror_manager.copy_mirror_definition = TestDefinitionFactory.make_copy_mirror_definition()
+	mirror_manager.copy_mirror_definition.placement_cost = 40.0
+	mirror_manager.reflect_mirror_definition = TestDefinitionFactory.make_reflect_mirror_definition()
+	mirror_manager.reflect_mirror_definition.placement_cost = 60.0
 	mirror_manager.configure(grid, tile_manager, resource_manager, combat_manager, building_manager, registry)
 	var loader := LevelLoader.new()
 	host.add_child(loader)
@@ -493,7 +549,8 @@ func _make_level() -> LevelResource:
 	level.grid_size = Vector2i(4, 3)
 	level.initial_resource = 500
 	level.building_cap = 20
-	level.mirror_cap = 6
+	level.copy_mirror_cap = 5
+	level.reflect_mirror_cap = 10
 	level.base_resource_per_second = 0.0
 	level.base_cell = Vector3i(3, 2, 0)
 	return level

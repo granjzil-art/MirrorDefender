@@ -11,11 +11,21 @@ const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStra
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Preview Performance")
+@export var reuse_placement_preview_instances: bool = true
+
+@export_group("Placement Availability")
+## Disabled by default: mirror placement spends placement_cost with no cooldown.
+## Enable to restore the retained independent cooldown/inventory implementation.
+@export var placement_cooldown_enabled: bool = false
+
 @export_group("Definition")
 @export var copy_mirror_definition: CopyMirrorDefinition
 @export var reflect_mirror_definition: ReflectMirrorDefinition
 
 signal mirror_placed(mirror: CopyMirror)
+## Runtime/player placement only; authored initial mirrors stay silent in SFX.
+signal mirror_constructed(mirror: CopyMirror)
 signal mirror_removed(mirror: CopyMirror)
 signal mirror_selected(mirror: CopyMirror)
 signal mirror_changed(mirror: CopyMirror)
@@ -164,6 +174,17 @@ func set_cooldown_time_scale_resolver(value: Callable) -> void:
 	_cooldown_time_scale_resolver = value
 
 
+func set_placement_cooldown_enabled(value: bool) -> void:
+	if placement_cooldown_enabled == value:
+		return
+	placement_cooldown_enabled = value
+	reset_placement_cooldowns()
+
+
+func uses_placement_cooldown() -> bool:
+	return placement_cooldown_enabled
+
+
 ## Resets both independently configured mirror kinds to one available placement
 ## and starts the next accumulation cycle.
 func reset_placement_cooldowns() -> void:
@@ -181,7 +202,7 @@ func reset_placement_cooldowns() -> void:
 
 ## Advances cooldowns using already game-scaled delta and the injected wave-phase multiplier.
 func advance_placement_cooldowns(delta: float) -> void:
-	if not is_finite(delta) or delta <= 0.0:
+	if not placement_cooldown_enabled or not is_finite(delta) or delta <= 0.0:
 		return
 	var phase_scale := 1.0
 	if _cooldown_time_scale_resolver.is_valid():
@@ -199,6 +220,8 @@ func advance_placement_cooldowns(delta: float) -> void:
 
 
 func is_mirror_kind_ready(mirror_kind: MirrorPlacementData.MirrorKind) -> bool:
+	if not placement_cooldown_enabled:
+		return true
 	return (
 		get_placement_cooldown_duration(mirror_kind) <= 0.000001
 		or get_available_mirror_count(mirror_kind) > 0
@@ -208,6 +231,8 @@ func is_mirror_kind_ready(mirror_kind: MirrorPlacementData.MirrorKind) -> bool:
 func get_available_mirror_count(
 	mirror_kind: MirrorPlacementData.MirrorKind
 ) -> int:
+	if not placement_cooldown_enabled:
+		return 1
 	if get_placement_cooldown_duration(mirror_kind) <= 0.000001:
 		return 1
 	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
@@ -218,6 +243,8 @@ func get_available_mirror_count(
 func get_placement_cooldown_remaining(
 	mirror_kind: MirrorPlacementData.MirrorKind
 ) -> float:
+	if not placement_cooldown_enabled:
+		return 0.0
 	if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT:
 		return maxf(0.0, _reflect_placement_cooldown_remaining)
 	return maxf(0.0, _copy_placement_cooldown_remaining)
@@ -226,6 +253,8 @@ func get_placement_cooldown_remaining(
 func get_placement_cooldown_duration(
 	mirror_kind: MirrorPlacementData.MirrorKind
 ) -> float:
+	if not placement_cooldown_enabled:
+		return 0.0
 	var definition := _get_definition(mirror_kind)
 	if definition == null or not is_finite(definition.placement_cooldown_seconds):
 		return 0.0
@@ -270,6 +299,8 @@ func _advance_placement_cooldown(
 
 
 func _consume_available_mirror(mirror_kind: MirrorPlacementData.MirrorKind) -> bool:
+	if not placement_cooldown_enabled:
+		return true
 	if get_placement_cooldown_duration(mirror_kind) <= 0.000001:
 		return true
 	var available := get_available_mirror_count(mirror_kind)
@@ -281,6 +312,8 @@ func _consume_available_mirror(mirror_kind: MirrorPlacementData.MirrorKind) -> b
 
 
 func _grant_available_mirror(mirror_kind: MirrorPlacementData.MirrorKind) -> void:
+	if not placement_cooldown_enabled:
+		return
 	if get_placement_cooldown_duration(mirror_kind) > 0.000001:
 		_set_available_mirror_count(
 			mirror_kind,
@@ -426,6 +459,11 @@ func _place_mirror(
 		placement_failed.emit(from_cell, validation.failure)
 		return null
 	var definition := _get_definition(mirror_kind)
+	var placement_cost := (
+		0.0
+		if not runtime_placement or placement_cooldown_enabled
+		else maxf(0.0, definition.placement_cost)
+	)
 	var resolved_side := definition.active_from_side_by_default if active_from_side == null else bool(active_from_side)
 	var mirror: CopyMirror = ReflectMirror.new() if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT else CopyMirror.new()
 	add_child(mirror)
@@ -451,19 +489,30 @@ func _place_mirror(
 		placement_failed.emit(from_cell, connectivity_failure)
 		return null
 	var registered := (
-		_resource_manager.try_register_mirror()
+		_resource_manager.try_register_mirror(
+			mirror_kind,
+			placement_cost,
+			"reflect_mirror_cost" if mirror_kind == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT else "copy_mirror_cost"
+		)
 		if runtime_placement
-		else _resource_manager.try_register_initial_mirror()
+		else _resource_manager.try_register_initial_mirror(mirror_kind)
 	)
 	if not registered:
 		mirror.queue_free()
-		placement_failed.emit(from_cell, "已达到镜子上限" if runtime_placement else "初始镜子超过镜子上限")
+		placement_failed.emit(
+			from_cell,
+			"%s放置条件不满足" % definition.display_name
+			if runtime_placement
+			else "初始%s超过独立上限" % definition.display_name
+		)
 		return null
 	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(validation.edge_id, mirror):
-		_resource_manager.unregister_mirror()
+		_resource_manager.unregister_mirror(mirror_kind, placement_cost)
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
+	if placement_cost > 0.0:
+		mirror._record_investment(placement_cost)
 	_next_placement_order += 1
 	mirror.side_changed.connect(_on_mirror_side_changed)
 	var exit_callback := _on_mirror_tree_exited.bind(mirror)
@@ -477,6 +526,8 @@ func _place_mirror(
 	if rebuild_after_placement:
 		rebuild_now()
 	mirror_placed.emit(mirror)
+	if runtime_placement:
+		mirror_constructed.emit(mirror)
 	return mirror
 
 func validate_placement(
@@ -517,17 +568,44 @@ func validate_placement(
 		result.failure = "敌人当前占据该边的相邻格"
 		return result
 	if check_runtime_availability:
-		if not _resource_manager.can_add_mirror():
-			result.failure = "已达到镜子上限"
-		elif not is_mirror_kind_ready(mirror_kind):
+		if not _resource_manager.can_add_mirror(mirror_kind):
+			result.failure = "已达到%s上限" % definition.display_name
+		elif placement_cooldown_enabled and not is_mirror_kind_ready(mirror_kind):
 			result.failure = "%s冷却中（%.1f 秒）" % [
 				definition.display_name,
 				get_placement_cooldown_remaining(mirror_kind),
 			]
+		elif not placement_cooldown_enabled and not _resource_manager.can_afford(definition.placement_cost):
+			result.failure = "金币不足，需要 %d" % ceili(definition.placement_cost)
 	return result
 
 func remove_selected_mirror() -> bool:
 	return remove_mirror(get_selected_mirror())
+
+
+## Atomically spends and records later investment so demolition can return the
+## exact lifetime total without trusting the mirror definition's current cost.
+func invest_in_mirror(
+	mirror: CopyMirror,
+	amount: float,
+	reason: String = "mirror_investment"
+) -> bool:
+	if (
+		mirror == null
+		or not is_instance_valid(mirror)
+		or not _mirrors.has(mirror.edge_id)
+		or _mirrors[mirror.edge_id] != mirror
+		or _resource_manager == null
+		or not is_finite(amount)
+		or amount <= 0.0
+	):
+		return false
+	if not _resource_manager.spend(amount, reason):
+		return false
+	if mirror._record_investment(amount):
+		return true
+	_resource_manager.gain(amount, "mirror_investment_rollback")
+	return false
 
 func remove_mirror(mirror: CopyMirror) -> bool:
 	if mirror == null or not is_instance_valid(mirror) or not _mirrors.has(mirror.edge_id):
@@ -537,7 +615,11 @@ func remove_mirror(mirror: CopyMirror) -> bool:
 	if _edge_occupancy_registry != null:
 		_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 	if _resource_manager != null:
-		_resource_manager.unregister_mirror()
+		_resource_manager.unregister_mirror(
+			mirror_kind,
+			mirror.get_refund_amount(),
+			"mirror_refund"
+		)
 	if _selected_mirror == mirror:
 		select_mirror(null)
 	if mirror.side_changed.is_connected(_on_mirror_side_changed):
@@ -556,7 +638,7 @@ func clear_mirrors(update_resource_count: bool = true) -> void:
 		if _edge_occupancy_registry != null:
 			_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 		if update_resource_count and _resource_manager != null:
-			_resource_manager.unregister_mirror()
+			_resource_manager.unregister_mirror(_get_mirror_kind(mirror))
 		_disconnect_mirror_exit(mirror)
 		mirror.queue_free()
 	_mirror_exit_callbacks.clear()
@@ -577,6 +659,40 @@ func select_at_edge(edge_id: String) -> CopyMirror:
 	var mirror: CopyMirror = occupant if occupant is CopyMirror else null
 	select_mirror(mirror)
 	return mirror
+
+
+## Picks the nearest real mirror body under a viewport position. Copy and
+## projectile-reflect mirrors share the same two-sided body hit contract.
+func pick_mirror(camera: Camera3D, screen_position: Vector2) -> Dictionary:
+	if camera == null:
+		return {"hit": false}
+	return pick_mirror_from_ray(
+		camera.project_ray_origin(screen_position),
+		camera.project_ray_normal(screen_position)
+	)
+
+
+func pick_mirror_from_ray(ray_origin: Vector3, ray_direction: Vector3) -> Dictionary:
+	if ray_direction.length_squared() <= 0.000001:
+		return {"hit": false}
+	var direction := ray_direction.normalized()
+	var nearest_mirror: CopyMirror
+	var nearest_distance := INF
+	for mirror in get_mirrors():
+		var distance := mirror.get_pick_distance(ray_origin, direction)
+		if distance >= 0.0 and distance < nearest_distance:
+			nearest_mirror = mirror
+			nearest_distance = distance
+	if nearest_mirror == null:
+		return {"hit": false}
+	return {
+		"hit": true,
+		"mirror": nearest_mirror,
+		"distance": nearest_distance,
+		"position": ray_origin + direction * nearest_distance,
+		"cell": nearest_mirror.from_cell,
+		"edge_id": nearest_mirror.edge_id,
+	}
 
 func select_mirror(mirror: CopyMirror) -> void:
 	if _selected_mirror != null and is_instance_valid(_selected_mirror):
@@ -936,9 +1052,9 @@ func _update_mirror_preview(
 		return false
 	var edge_id: String = validation.edge_id
 	if (
-		_preview_mirror == null
-		or _preview_mirror.edge_id != edge_id
-		or _preview_mirror.from_cell != from_cell
+		not reuse_placement_preview_instances
+		or _preview_mirror == null
+		or not is_instance_valid(_preview_mirror)
 		or _preview_kind != mirror_kind
 	):
 		clear_preview()
@@ -961,6 +1077,13 @@ func _update_mirror_preview(
 			true
 		)
 		_preview_mirror.set_reflection_camera(_reflection_camera)
+	else:
+		_preview_mirror.relocate_preview(
+			from_cell,
+			validation.to_cell,
+			edge_index,
+			edge_id
+		)
 	_refresh_preview_projection()
 	return true
 
@@ -995,6 +1118,39 @@ func get_preview_projections() -> Array[MirrorProjection]:
 	for projection in _preview_projections:
 		if projection != null and is_instance_valid(projection):
 			result.append(projection)
+	return result
+
+
+## Supplies the source Building and generated copy payloads belonging to the
+## active copy-mirror placement preview. Reflect-mirror previews return empty.
+func get_preview_projectile_trajectory() -> Dictionary:
+	var result := {
+		"building": null,
+		"payloads": [],
+	}
+	if (
+		_preview_mirror == null
+		or not is_instance_valid(_preview_mirror)
+		or not _preview_mirror.is_copy_mirror()
+	):
+		return result
+	var source_building: Building
+	var payloads: Array[MirrorCopyPayload] = []
+	for projection in get_preview_projections():
+		var payload := projection.payload
+		if (
+			payload == null
+			or not payload.is_source_valid()
+			or not payload.root_source is Building
+		):
+			continue
+		var candidate := payload.root_source as Building
+		if source_building == null:
+			source_building = candidate
+		if candidate == source_building:
+			payloads.append(payload)
+	result.building = source_building
+	result.payloads = payloads
 	return result
 
 
@@ -1219,10 +1375,11 @@ func _append_building_content(content: Dictionary, building: Building, key_prefi
 	_append_content(content, building.cell, payload)
 
 func _refresh_preview_projection() -> void:
-	_clear_preview_projections()
 	if _preview_mirror == null or not is_instance_valid(_preview_mirror):
+		_clear_preview_projections()
 		return
 	if not _preview_mirror.is_copy_mirror():
+		_clear_preview_projections()
 		_preview_mirror.set_preview_valid(true)
 		_preview_info = {
 			"edge_id": _preview_mirror.edge_id,
@@ -1259,27 +1416,39 @@ func _refresh_preview_projection() -> void:
 		"mirror_kind": MirrorPlacementData.MirrorKind.COPY,
 	}
 	var stack_index := 0
+	var next_projections: Array[MirrorProjection] = []
+	var reusable_projections: Array = _preview_projections.duplicate() if reuse_placement_preview_instances else []
+	if not reuse_placement_preview_instances:
+		_clear_preview_projections()
 	for payload in group:
 		_preview_info.types.append(payload.display_name)
-		var projection := MirrorProjection.new()
-		add_child(projection)
-		projection.configure(
+		var projection := _take_reusable_preview_projection(
+			reusable_projections,
 			payload,
-			_grid,
-			_tile_manager,
-			copy_mirror_definition,
 			stack_index,
-			true,
-			_tile_visual_snapshot_resolver,
 			preview_valid
 		)
-		_preview_projections.append(projection)
+		if projection == null:
+			projection = MirrorProjection.new()
+			add_child(projection)
+			projection.configure(
+				payload,
+				_grid,
+				_tile_manager,
+				copy_mirror_definition,
+				stack_index,
+				true,
+				_tile_visual_snapshot_resolver,
+				preview_valid
+			)
+		next_projections.append(projection)
 		stack_index += 1
+	_release_unused_preview_projections(reusable_projections)
+	_preview_projections = next_projections
 	preview_updated.emit(_preview_info)
 
 
 func _refresh_building_preview_projections(building: Building) -> void:
-	_clear_building_preview_projections()
 	if (
 		building == null
 		or not is_instance_valid(building)
@@ -1288,30 +1457,68 @@ func _refresh_building_preview_projections(building: Building) -> void:
 		or _grid == null
 		or _tile_manager == null
 	):
+		_clear_building_preview_projections()
 		building_preview_projections_rebuilt.emit(0)
 		return
 	var stack_counts: Dictionary = {}
 	for raw_cell in _projections_by_cell:
 		stack_counts[raw_cell] = (_projections_by_cell[raw_cell] as Array).size()
+	var next_projections: Array[MirrorProjection] = []
+	var reusable_projections: Array = _building_preview_projections.duplicate() if reuse_placement_preview_instances else []
+	if not reuse_placement_preview_instances:
+		_clear_building_preview_projections()
 	for payload in _calculate_projection_payloads(get_copy_mirrors(), building):
 		if not payload.is_source_valid() or payload.root_source != building:
 			continue
 		var stack_index := int(stack_counts.get(payload.projected_cell, 0))
 		stack_counts[payload.projected_cell] = stack_index + 1
-		var projection := MirrorProjection.new()
-		add_child(projection)
-		projection.configure(
+		var projection := _take_reusable_preview_projection(
+			reusable_projections,
 			payload,
-			_grid,
-			_tile_manager,
-			copy_mirror_definition,
 			stack_index,
-			true,
-			_tile_visual_snapshot_resolver,
 			building.is_preview_valid()
 		)
-		_building_preview_projections.append(projection)
+		if projection == null:
+			projection = MirrorProjection.new()
+			add_child(projection)
+			projection.configure(
+				payload,
+				_grid,
+				_tile_manager,
+				copy_mirror_definition,
+				stack_index,
+				true,
+				_tile_visual_snapshot_resolver,
+				building.is_preview_valid()
+			)
+		next_projections.append(projection)
+	_release_unused_preview_projections(reusable_projections)
+	_building_preview_projections = next_projections
 	building_preview_projections_rebuilt.emit(_building_preview_projections.size())
+
+
+func _take_reusable_preview_projection(
+	candidates: Array,
+	payload: MirrorCopyPayload,
+	stack_index: int,
+	preview_valid: bool
+) -> MirrorProjection:
+	for index in range(candidates.size()):
+		var candidate := candidates[index] as MirrorProjection
+		if candidate == null or not is_instance_valid(candidate):
+			continue
+		if candidate.retarget_preview(payload, stack_index, preview_valid):
+			candidates.remove_at(index)
+			return candidate
+	return null
+
+
+func _release_unused_preview_projections(candidates: Array) -> void:
+	for candidate_value in candidates:
+		var candidate := candidate_value as MirrorProjection
+		if candidate != null and is_instance_valid(candidate):
+			candidate.visible = false
+			candidate.queue_free()
 
 
 func _validate_path_connectivity(change: Dictionary) -> String:
@@ -1507,8 +1714,8 @@ func _on_copy_attack_triggered(
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
 				building.get_projectile_model_asset(),
 				building.get_attack_range_world(),
-				Callable(self, "trace_projectile_reflection"),
-				false,
+				_combat_manager.get_projectile_reflection_resolver(),
+				true,
 				building.get_projectile_penetration_count(),
 				Callable(self, "trace_ballistic_blocker")
 			)
@@ -1531,7 +1738,7 @@ func _on_copy_attack_triggered(
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
 				building.get_projectile_model_asset(),
 				building.get_attack_range_world(),
-				Callable(self, "trace_projectile_reflection"),
+				_combat_manager.get_projectile_reflection_resolver(),
 				true,
 				building.get_projectile_penetration_count(),
 				Callable(self, "trace_ballistic_blocker")
@@ -1665,7 +1872,7 @@ func _on_mirror_tree_exited(mirror: CopyMirror) -> void:
 	if _edge_occupancy_registry != null:
 		_edge_occupancy_registry.unregister(mirror.edge_id, mirror)
 	if _resource_manager != null:
-		_resource_manager.unregister_mirror()
+		_resource_manager.unregister_mirror(_get_mirror_kind(mirror))
 	if _selected_mirror == mirror:
 		select_mirror(null)
 	_mirror_exit_callbacks.erase(mirror)

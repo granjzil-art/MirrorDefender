@@ -15,9 +15,9 @@ extends Control
 @export var gain_color: Color = Color(1.0, 0.82, 0.24, 1.0)
 @export var spend_color: Color = Color(1.0, 0.58, 0.24, 1.0)
 
-@onready var resource_icon_rect: TextureRect = $GlassPanel/Content/ResourceIcon
-@onready var fallback_icon_label: Label = $GlassPanel/Content/FallbackIcon
-@onready var resource_label: Label = $GlassPanel/Content/ResourceValue
+@onready var resource_icon_rect: TextureRect = $Content/ResourceIcon
+@onready var fallback_icon_label: Label = $Content/FallbackIcon
+@onready var resource_label: Label = $Content/ResourceValue
 @onready var popup_layer: Control = $PopupLayer
 
 var _resource_manager: ResourceManager
@@ -100,7 +100,7 @@ func _spawn_popup(delta: float) -> void:
 	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", gain_color if delta > 0.0 else spend_color)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.position = Vector2(120.0, 30.0 - float(_popup_serial % 4) * 8.0)
+	label.position = Vector2(-28.0, 4.0 - float(_popup_serial % 4) * 8.0)
 	label.size = Vector2(160.0, 32.0)
 	popup_layer.add_child(label)
 	_popups.append({"label": label, "elapsed": 0.0, "start_y": label.position.y})

@@ -142,7 +142,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		return
 	if event.pressed:
 		_right_drag_active = true
-		_right_orbit_allowed = _can_start_mouse_navigation()
+		_right_orbit_allowed = _can_start_mouse_navigation(true)
 		_right_dragging = false
 		_right_drag_distance = 0.0
 		if _right_orbit_allowed:
@@ -178,13 +178,27 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 	return
 
 
-func _can_start_mouse_navigation() -> bool:
+func _can_start_mouse_navigation(allow_contextual_orbit: bool = false) -> bool:
 	if not mouse_navigation_enabled:
 		return false
 	if _pointer_over_gui_override_enabled:
 		return not _pointer_over_gui_override
 	var viewport := get_viewport()
-	return viewport != null and viewport.gui_get_hovered_control() == null
+	if viewport == null:
+		return false
+	var hovered_control := viewport.gui_get_hovered_control()
+	if hovered_control == null:
+		return true
+	return allow_contextual_orbit and _control_allows_camera_orbit(hovered_control)
+
+
+func _control_allows_camera_orbit(control: Control) -> bool:
+	var current := control
+	while current != null:
+		if current.has_meta(&"allows_camera_orbit") and bool(current.get_meta(&"allows_camera_orbit")):
+			return true
+		current = current.get_parent_control()
+	return false
 
 
 func set_pointer_over_gui_for_test(enabled: bool, over_gui: bool = false) -> void:

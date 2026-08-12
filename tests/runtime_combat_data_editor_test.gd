@@ -1,0 +1,292 @@
+extends SceneTree
+
+var _checks: int = 0
+var _failures: int = 0
+
+
+func _initialize() -> void:
+	_run.call_deferred()
+
+
+func _run() -> void:
+	print("[RuntimeCombatDataEditor] running")
+	await _test_building_working_copy_rebuild_save_and_discard()
+	await _test_test_enemies_are_wave_isolated_but_keep_normal_settlement()
+	if _failures == 0:
+		print("[RuntimeCombatDataEditor] PASS: %d checks" % _checks)
+		quit(0)
+	else:
+		push_error("[RuntimeCombatDataEditor] FAIL: %d/%d checks failed" % [_failures, _checks])
+		quit(1)
+
+
+func _test_building_working_copy_rebuild_save_and_discard() -> void:
+	var save_path := "user://runtime_combat_data_editor_test_building.tres"
+	if ResourceLoader.exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+	var source := _make_building_definition()
+	_expect(ResourceSaver.save(source, save_path) == OK, "fixture building .tres is created")
+	var loaded := ResourceLoader.load(save_path, "", ResourceLoader.CACHE_MODE_IGNORE) as BuildingDefinition
+	var host := Node3D.new()
+	root.add_child(host)
+	var level := _make_plain_level()
+	var grid := GridManager.new()
+	host.add_child(grid)
+	grid.apply_configuration(level.grid_shape, level.grid_cell_size, level.grid_size)
+	var tile := TileManager.new()
+	host.add_child(tile)
+	tile.set_grid(grid)
+	var resources := ResourceManager.new()
+	host.add_child(resources)
+	resources.apply_level_configuration(level)
+	var combat := CombatManager.new()
+	host.add_child(combat)
+	var manager := BuildingManager.new()
+	host.add_child(manager)
+	manager.arrow_tower = loaded
+	manager.configure(grid, tile, resources, combat)
+	_expect(tile.load_level(level), "building fixture level loads")
+	var original := manager.place_building(Vector3i(0, 0, 0), loaded, 7)
+	_expect(original != null, "fixture places the source building")
+	var wave := WaveManager.new()
+	host.add_child(wave)
+	var loader := LevelLoader.new()
+	host.add_child(loader)
+	var session := RuntimeCombatDataEditSession.new()
+	host.add_child(session)
+	_expect(session.configure(manager, wave, loader), "combat data session discovers the building .tres")
+	var test_spawner := RuntimeTestEnemySpawner.new()
+	host.add_child(test_spawner)
+	test_spawner.configure(wave)
+	var editor_window := RuntimeCombatDataEditorWindow.new()
+	editor_window.visible = false
+	host.add_child(editor_window)
+	editor_window.configure(session, test_spawner)
+	_expect(editor_window.force_native and not editor_window.transient, "editor uses an independent native non-transient window")
+	_expect(editor_window._building_select.item_count == 1, "native editor lists the discovered building resource")
+	var edit := session.set_building_value(
+		BuildingDefinition.Kind.ARROW_TOWER,
+		1,
+		&"attack_range",
+		12.5
+	)
+	_expect(bool(edit.get("success", false)), "building attack range edit is accepted")
+	_expect(
+		is_equal_approx(manager.get_definition(BuildingDefinition.Kind.ARROW_TOWER).get_level_stats(2).attack_range, 9.0),
+		"editing level 1 leaves level 2 level_data unchanged"
+	)
+	var rejected_model := session.set_building_value(
+		BuildingDefinition.Kind.ARROW_TOWER,
+		1,
+		&"projectile_model_asset",
+		null
+	)
+	_expect(not bool(rejected_model.get("success", false)), "projectile model editing is intentionally unavailable")
+	var rebuilt := manager.get_building(Vector3i(0, 0, 0))
+	_expect(rebuilt != null and rebuilt != original, "existing building is recreated in place")
+	_expect(rebuilt.facing_index == 7 and rebuilt.level == 1, "runtime rebuild preserves facing and level")
+	_expect(is_equal_approx(rebuilt.get_level_stats().attack_range, 12.5), "rebuilt building uses explicit working level_data")
+	var future := manager.place_building(Vector3i(1, 0, 0), loaded, 3)
+	_expect(future != null and is_equal_approx(future.get_level_stats().attack_range, 12.5), "future placement resolves the working definition")
+	var save_result := session.save()
+	_expect(bool(save_result.get("success", false)), "permanent save writes the dirty building .tres")
+	var persisted := ResourceLoader.load(save_path, "", ResourceLoader.CACHE_MODE_IGNORE) as BuildingDefinition
+	_expect(persisted != null and is_equal_approx(persisted.get_level_stats(1).attack_range, 12.5), "saved level_data round-trips from the unique .tres")
+	var second_edit := session.set_building_value(
+		BuildingDefinition.Kind.ARROW_TOWER,
+		1,
+		&"attack_range",
+		4.25
+	)
+	_expect(bool(second_edit.get("success", false)), "a second unsaved edit is accepted")
+	var discard_result := session.discard()
+	_expect(bool(discard_result.get("success", false)), "discard reloads the disk .tres")
+	var discarded_building := manager.get_building(Vector3i(0, 0, 0))
+	_expect(
+		discarded_building != null and is_equal_approx(discarded_building.get_level_stats().attack_range, 12.5),
+		"discard rebuilds existing buildings with the persisted level_data"
+	)
+	host.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+
+
+func _test_test_enemies_are_wave_isolated_but_keep_normal_settlement() -> void:
+	var level := _make_wave_level()
+	var host := Node3D.new()
+	root.add_child(host)
+	var grid := GridManager.new()
+	host.add_child(grid)
+	grid.apply_configuration(level.grid_shape, level.grid_cell_size, level.grid_size)
+	var tile := TileManager.new()
+	host.add_child(tile)
+	tile.set_grid(grid)
+	_expect(tile.load_level(level), "test-enemy fixture level loads")
+	var path_manager := PathManager.new()
+	host.add_child(path_manager)
+	path_manager.configure(grid, tile)
+	path_manager.load_level(level)
+	var combat := CombatManager.new()
+	host.add_child(combat)
+	var resources := ResourceManager.new()
+	host.add_child(resources)
+	resources.apply_level_configuration(level)
+	var base := BaseCore.new()
+	host.add_child(base)
+	base.configure(grid, tile)
+	base.load_level(level)
+	var wave := WaveManager.new()
+	host.add_child(wave)
+	wave.configure(path_manager, combat, resources, base)
+	wave.load_level(level)
+	var building_manager := BuildingManager.new()
+	building_manager.arrow_tower = load("res://resources/buildings/ArrowTower.tres")
+	host.add_child(building_manager)
+	var loader := LevelLoader.new()
+	host.add_child(loader)
+	var session := RuntimeCombatDataEditSession.new()
+	host.add_child(session)
+	_expect(session.configure(building_manager, wave, loader), "enemy working-copy resolver starts")
+	var working_enemy: EnemyDefinition
+	for candidate in session.get_enemy_definitions():
+		if candidate.enemy_id == &"grunt":
+			working_enemy = candidate
+			break
+	if working_enemy == null and not session.get_enemy_definitions().is_empty():
+		working_enemy = session.get_enemy_definitions()[0]
+	var enemy_edits_ok := working_enemy != null
+	if working_enemy != null:
+		for edit in [
+			session.set_enemy_value(working_enemy.resource_path, &"max_hp", 30.0),
+			session.set_enemy_value(working_enemy.resource_path, &"reward", 17.0),
+			session.set_enemy_value(working_enemy.resource_path, &"base_damage", 13.0),
+			session.set_enemy_value(working_enemy.resource_path, &"projectile_speed", 2.0),
+		]:
+			enemy_edits_ok = enemy_edits_ok and bool(edit.get("success", false))
+	_expect(enemy_edits_ok, "enemy edits update the runtime working copy")
+	var enemy := (
+		ResourceLoader.load(working_enemy.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as EnemyDefinition
+		if working_enemy != null
+		else _make_enemy(&"isolated_test", "Isolated Test")
+	)
+	var resource_before := resources.main_resource
+	var spawn := wave.spawn_test_enemy(enemy, level.paths[0])
+	_expect(bool(spawn.get("success", false)), "test enemy spawns through the isolated entry")
+	_expect(wave.get_active_enemy_count() == 0 and wave.get_test_enemy_count() == 1, "test enemy is excluded from authored active-unit count")
+	wave._state = WaveManager.State.ACTIVE
+	wave._released_wave_count = level.waves.size()
+	wave._spawn_states.clear()
+	wave._finish_battle_if_complete()
+	_expect(wave.get_state() == WaveManager.State.VICTORY, "a living test enemy does not block authored wave completion")
+	var spawned_unit := _first_enemy_unit(wave)
+	_expect(spawned_unit != null, "spawned test unit remains a normal EnemyUnit")
+	enemy.projectile_speed = 25.0
+	_expect(
+		spawned_unit != null and is_equal_approx(spawned_unit.definition.projectile_speed, 2.0),
+		"an already spawned enemy owns an immutable definition snapshot"
+	)
+	if spawned_unit != null:
+		spawned_unit.take_damage(100000.0)
+	await process_frame
+	_expect(is_equal_approx(resources.main_resource, resource_before + 17.0), "test enemy death grants its normal reward")
+	var second_spawn := wave.spawn_test_enemy(enemy, level.paths[0])
+	_expect(bool(second_spawn.get("success", false)), "test enemy spawning remains independent after wave victory")
+	var second_unit := _first_enemy_unit(wave)
+	var base_before := base.current_hp
+	if second_unit != null:
+		second_unit.reached_base.emit(second_unit, second_unit.damage_to_base)
+	_expect(is_equal_approx(base.current_hp, base_before - 13.0), "test enemy reaching the base applies normal base damage")
+	_expect(wave.clear_test_enemies() >= 1, "test enemies can be cleared independently")
+	if session.is_dirty():
+		session.discard()
+	host.queue_free()
+	await process_frame
+
+
+func _make_building_definition() -> BuildingDefinition:
+	var definition := BuildingDefinition.new()
+	definition.kind = BuildingDefinition.Kind.ARROW_TOWER
+	definition.display_name = "Runtime Test Arrow"
+	definition.aim_mode = BuildingDefinition.AimMode.TRACK_TARGET
+	var stats := BuildingLevelStats.new()
+	stats.cost = 10.0
+	stats.base_damage = 10.0
+	stats.targeting_range = 8.0
+	stats.attack_range = 5.0
+	stats.attacks_per_second = 1.0
+	definition.levels.append(stats)
+	var level_two := stats.duplicate(true) as BuildingLevelStats
+	level_two.cost = 15.0
+	level_two.attack_range = 9.0
+	definition.levels.append(level_two)
+	return definition
+
+
+func _make_plain_level() -> LevelResource:
+	var level := LevelResource.new()
+	level.grid_shape = GridManager.Shape.SQUARE
+	level.grid_cell_size = 1.0
+	level.grid_size = Vector2i(3, 2)
+	level.base_cell = Vector3i(2, 1, 0)
+	level.initial_resource = 1000
+	level.building_cap = 10
+	level.base_resource_per_second = 0.0
+	return level
+
+
+func _make_wave_level() -> LevelResource:
+	var level := LevelResource.new()
+	level.grid_shape = GridManager.Shape.SQUARE
+	level.grid_cell_size = 1.0
+	level.grid_size = Vector2i(3, 1)
+	level.base_cell = Vector3i(2, 0, 0)
+	level.base_max_hp = 100.0
+	level.initial_resource = 100.0
+	level.base_resource_per_second = 0.0
+	var path := PathDefinition.new()
+	path.path_id = &"runtime_test_path"
+	path.display_name = "Runtime Test Path"
+	path.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(2, 0, 0)]
+	var spawn := SpawnPointDefinition.new()
+	spawn.spawn_id = &"runtime_test_spawn"
+	spawn.display_name = "Runtime Test Spawn"
+	spawn.cell = path.get_start_cell()
+	path.spawn_point = spawn
+	level.paths.append(path)
+	level.spawn_points.append(spawn)
+	var group := SpawnGroupDefinition.new()
+	group.enemy = _make_enemy(&"authored", "Authored")
+	group.path = path
+	group.spawn_point = spawn
+	group.count = 1
+	group.interval = 1.0
+	var authored_wave := WaveDefinition.new()
+	authored_wave.display_name = "Authored Wave"
+	authored_wave.spawn_groups.append(group)
+	level.waves.append(authored_wave)
+	return level
+
+
+func _make_enemy(enemy_id: StringName, display_name: String) -> EnemyDefinition:
+	var enemy := EnemyDefinition.new()
+	enemy.enemy_id = enemy_id
+	enemy.display_name = display_name
+	enemy.max_hp = 30.0
+	enemy.move_speed = 1.0
+	return enemy
+
+
+func _first_enemy_unit(wave: WaveManager) -> EnemyUnit:
+	for child in wave.get_children():
+		if child is EnemyUnit and not child.is_queued_for_deletion():
+			return child as EnemyUnit
+	return null
+
+
+func _expect(condition: bool, message: String) -> void:
+	_checks += 1
+	if condition:
+		print("  PASS: %s" % message)
+		return
+	_failures += 1
+	push_error("  FAIL: %s" % message)

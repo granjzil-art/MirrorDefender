@@ -42,7 +42,7 @@
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | 逐路径段查询共享边阻挡，并沿折线路径移动到攻击射程。 |
 | `scripts/combat/EnemyAttackStrategy.gd` | `EnemyAttackStrategy` / `IAttackStrategy` | 仅在攻击或投射物创建成功后写入冷却。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 提供“边障”模式与方向/耐久状态。 |
-| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 边建筑保留删除/升级并禁用旋转。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 边建筑使用说明/升级/售卖三项操作，且不显示旋转选项。 |
 | `resources/buildings/EdgeBarrier.tres` | `BuildingDefinition` | 默认三级边屏障数值。 |
 | `tests/directional_edge_barrier_test.gd` | `SceneTree` | 形状、占位、方向、生命周期和敌人联调回归。 |
 
@@ -92,7 +92,7 @@ WaveManager
 
 ## 使用入口
 
-运行 `scenes/Main.tscn`，在右上建筑面板选择“边障”。鼠标靠近任意内部共享边：合法时显示贴边蓝色双向虚影，左键建造。无需先制作敌人路径；选择已建边屏障后可删除或升级，旋转按钮会置灰。
+运行 `scenes/Main.tscn`，在右上建筑面板选择“边障”。鼠标靠近任意内部共享边：合法时显示贴边蓝色双向虚影，左键建造。无需先制作敌人路径；选择已建边屏障后可查看说明、售卖或升级，建筑操作面板不显示旋转按钮。
 
 ## 已知限制
 

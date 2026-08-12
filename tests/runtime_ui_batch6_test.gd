@@ -177,11 +177,10 @@ func _test_main_scene_migration() -> void:
 	await process_frame
 	var hud_panel := main.get_node("HUD/Panel") as Control
 	var hint := main.get_node("HUD/Hint") as Control
-	var level_debug := main.get_node("HUD/LevelDebugPanel") as Control
 	var m3_debug := main.get_node("HUD/M3DebugPanel") as Control
 	_expect(not hud_panel.visible and not hint.visible, "scattered main debug text is hidden")
-	_expect(level_debug.visible and not m3_debug.visible, "legacy level load panel is restored while M3 debug panel stays hidden")
-	_expect(_has_level_load_controls(level_debug), "legacy level load panel exposes current-level status and load button")
+	_expect(main.get_node_or_null("HUD/LevelDebugPanel") == null, "runtime HUD removes the legacy level name and load-level controls")
+	_expect(not m3_debug.visible, "M3 debug panel stays hidden")
 	_expect(main.runtime_debug_bindings != null, "Main composes one runtime debug bindings module")
 	_expect(
 		main.runtime_hud.debug_console != null and main.runtime_hud.debug_overlay_panel != null,
@@ -213,17 +212,3 @@ func _expect(condition: bool, description: String) -> void:
 		return
 	_failures += 1
 	push_error("  FAIL: %s" % description)
-
-
-func _has_level_load_controls(panel: Control) -> bool:
-	var has_load_button := false
-	var has_level_status := false
-	for child in panel.find_children("*", "Button", true, false):
-		if (child as Button).text == "加载关卡":
-			has_load_button = true
-			break
-	for child in panel.find_children("*", "Label", true, false):
-		if (child as Label).text.begins_with("关卡："):
-			has_level_status = true
-			break
-	return has_load_button and has_level_status

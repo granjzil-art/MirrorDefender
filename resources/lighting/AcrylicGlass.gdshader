@@ -13,6 +13,7 @@ uniform float border_width : hint_range(0.001, 0.1) = 0.025;
 uniform float stripe_position : hint_range(0.0, 1.5) = 0.55;
 uniform float stripe_width : hint_range(0.01, 0.5) = 0.16;
 uniform float stripe_strength : hint_range(0.0, 0.25) = 0.035;
+uniform float surface_specular : hint_range(0.0, 1.0) = 0.9;
 
 void fragment() {
 	float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
@@ -28,7 +29,7 @@ void fragment() {
 
 	ALBEDO = glass_tint.rgb;
 	ROUGHNESS = 0.08;
-	SPECULAR = 0.9;
+	SPECULAR = surface_specular;
 	EMISSION = stripe_color.rgb * stripe * stripe_strength + glass_tint.rgb * border * 0.04;
 	ALPHA = clamp(
 		base_alpha + fresnel * fresnel_alpha + border * border_alpha + stripe * stripe_strength,

@@ -96,6 +96,9 @@ enum ProjectileFireMode {
 @export_storage var visual_scene: PackedScene
 
 @export_group("Pulse Laser")
+## Per-level reflection budget. BuildingDefinition keeps its old root value only
+## as serialized compatibility; runtime combat reads this level_data field.
+@export_range(0, 64, 1) var pulse_laser_reflect_max: int = 8
 @export_range(0.01, 2.0, 0.01, "or_greater") var pulse_laser_width: float = 0.12
 @export_range(0.0, 32.0, 0.1, "or_greater") var pulse_laser_emission_energy: float = 3.0
 @export_range(0.0, 10.0, 0.01, "or_greater") var pulse_laser_fade_in_time: float = 0.05
@@ -169,6 +172,7 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "脉冲镭射渐入时间", pulse_laser_fade_in_time, 0.0)
 	ConfigValidator.require_number(errors, "脉冲镭射保持时间", pulse_laser_hold_time, 0.0)
 	ConfigValidator.require_number(errors, "脉冲镭射渐出时间", pulse_laser_fade_out_time, 0.0)
+	ConfigValidator.require_integer_range(errors, "脉冲镭射最大反射次数", pulse_laser_reflect_max, 0, 64)
 	ConfigValidator.require_color(errors, "建筑颜色", tower_color)
 	ConfigValidator.require_color(errors, "攻击颜色", attack_color)
 	var effective_model_asset := get_model_asset()
