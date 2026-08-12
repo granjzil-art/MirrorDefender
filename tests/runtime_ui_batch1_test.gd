@@ -38,8 +38,12 @@ func _test_level_and_asset_interfaces() -> void:
 	_expect(level.building_card_slot_count == 6, "levels default to six building card slots")
 	var level1 := load("res://resources/levels/Level1.tres") as LevelResource
 	var level2 := load("res://resources/levels/Level2.tres") as LevelResource
+	var level3 := load("res://resources/levels/Level3.tres") as LevelResource
+	var level4 := load("res://resources/levels/Level4.tres") as LevelResource
 	_expect(level1 != null and level1.building_card_slot_count == 5, "Level1 exposes five building card slots")
-	_expect(level2 != null and level2.building_card_slot_count == 6, "Level2 exposes six building card slots")
+	_expect(level2 != null and level2.building_card_slot_count == 5, "Level2 exposes five building card slots")
+	_expect(level3 != null and level3.building_card_slot_count == 5, "Level3 exposes five building card slots")
+	_expect(level4 != null and level4.building_card_slot_count == 5, "Level4 exposes five building card slots")
 	level.building_card_slot_count = 13
 	_expect(
 		level.validate_runtime().any(func(message: String) -> bool: return message.contains("卡槽")),

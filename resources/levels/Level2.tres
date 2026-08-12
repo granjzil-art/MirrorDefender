@@ -1387,6 +1387,7 @@ spawn_point_model_asset = SubResource("Resource_g7pwb")
 initial_resource = 300
 building_cap = 4
 base_resource_per_second = 0.0
+building_card_slot_count = 5
 base_max_hp = 20.0
 camera_presets = Array[ExtResource("2_mwvsq")]([SubResource("Resource_0yenb"), SubResource("Resource_wg47p")])
 base_cell = Vector3i(7, 10, 0)

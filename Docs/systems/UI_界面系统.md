@@ -53,7 +53,7 @@
 | DebugOverlayPanel.`feature_enabled` / `refresh_interval` | true / 0.2 | 左上常驻调试摘要总开关和真实时间刷新间隔。 |
 | DebugOverlayPanel.`panel_texture` | null | 左上常驻摘要镜面背景美术接口。 |
 | WaveStatusPanel.`feature_enabled` | true | 旧 M4 兼容面板开关；正式主场景不再实例化。 |
-| LevelResource.`building_card_slot_count` | 6 | 正式建筑携带槽数，范围 1～12；复制镜与反射镜独立卡不计入。 |
+| LevelResource.`building_card_slot_count` | 6 | 正式建筑携带槽数，范围 1～12；Level1–Level4 均设为5，与五张正式建筑卡一一对应；复制镜与反射镜独立卡不计入。 |
 | 默认建筑卡第3格 | 脉冲镭射塔 | 替代原屏障卡位；屏障定义与玩法不删除。 |
 | 默认建筑卡第4格 | 弩箭塔 | 由 RuntimeHud 的正式携带顺序注入；不占独立镜子卡。 |
 | 建筑卡第5格 | 钉锤 | 固定多方向齐射塔；Level1 显示到第5格，Level2 显示到第6格。 |
@@ -137,7 +137,7 @@
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
 | `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售。 |
-| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 111 项底部卡槽、建筑/两类镜子紧凑富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
+| `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 113 项底部卡槽、四关五槽配置、建筑/两类镜子紧凑富文本悬停说明、程序/原画模式、费用颜色、正式 HUD 布局和放置交互回归。 |
 | `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 26 项建筑说明/升级/售卖图标、经济数字、富文本说明页和相机投影回归。 |
 | `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 40 项镜子三级战斗修正、升级/退款/持久化，以及与建筑一致的三操作布局和说明文本回归。 |
 | `tests/mirror_ui_visual_capture.gd` | 无 / `SceneTree` | 手工 Forward+ 截取镜子卡悬停说明与实体镜三操作布局。 |

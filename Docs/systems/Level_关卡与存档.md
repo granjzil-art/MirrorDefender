@@ -52,7 +52,7 @@
 | LevelResource.`initial_building_placements` | `[]` | 开局真实建筑的 Definition、格/边、逻辑朝向和等级。 |
 | LevelResource.`initial_mirror_placements` | `[]` | 开局实体镜子的 `mirror_kind`、边与生效侧；数组顺序同时保持复制镜链装配顺序。 |
 | LevelResource.`base_resource_per_second` | 0.5 | 关卡基础每秒资源。 |
-| LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；Level1 显式配置为5，Level2 显式配置为6；复制镜与反射镜独立。 |
+| LevelResource.`building_card_slot_count` | 6 | 正式 HUD 建筑携带槽，范围 1～12；Level1–Level4 均显式配置为5，正好容纳五张正式建筑卡且不生成尾部空槽；复制镜与反射镜独立。 |
 | LevelResource.`base_points/base_max_hp` | `[] / 20` | 多个据点位置共享一份生命；四个正式关卡均显式为 20，据点是有朝向的 3×2 占地。 |
 | LevelResource.`base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 空时只读映射为据点 1。 |
 | LevelResource.`paths/spawn_points/waves` | `[]` | 本关路径、独立出生点和作者顺序波次。 |
