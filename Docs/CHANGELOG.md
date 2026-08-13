@@ -1,5 +1,11 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime UI · 说明文本自定义高亮与颜色 — 2026-08-13
+**模块**：Runtime UI / Inspection / Building / Mirror / Tests / Docs。
+- 建筑与镜子的基础/1–3 级说明字段支持 `[color=#RRGGBB]`、`[highlight=#RRGGBB]` 和 `[b]` 成对标记，悬停卡与选中说明页保持同源。
+- 纯文本入口自动移除受支持标记；非白名单 BBCode 显示为普通文字，未闭合的支持标记在当前字段内自动收口。
+**影响面**：只扩展说明文本表现；现有等级标签配色、无标记文本、卡片交互与玩法数值不变。
+
 ## Runtime UI / Wave · 胜利评价与结算操作 — 2026-08-13
 **模块**：Runtime UI / Wave / Level Flow / Tests / Docs。
 - `WaveManager.victory` 现在打开不可由 Esc 跳过的正式胜利画面，并按据点剩余生命显示本关评价：`1～5` 为 1 星、`6～15` 为 2 星、`>15` 为 3 星；生命归零仍进入失败画面。

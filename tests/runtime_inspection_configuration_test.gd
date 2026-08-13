@@ -30,6 +30,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[RuntimeInspectionConfiguration] running")
 	_test_config_defaults()
+	_test_authored_description_markup()
 	_test_production_resources()
 	_test_runtime_arrow_resource_binding()
 	await _test_filtering_and_adaptive_layout()
@@ -78,6 +79,37 @@ func _test_config_defaults() -> void:
 		&"show_producing_mirror", &"show_copy_chain",
 	]:
 		_expect(bool(config.get(property)), "%s preserves its existing display by default" % property)
+
+
+func _test_authored_description_markup() -> void:
+	var config: InspectionDisplayConfigScript = InspectionDisplayConfigScript.new()
+	config.function_description = "造成[color=#7dd3fc]冰霜伤害[/color]。"
+	config.level_1_description = "[b]穿透1[/b]"
+	config.level_2_description = "[highlight=#704214]范围提升[/highlight]"
+	config.level_3_description = "[url=https://example.com]不允许的链接[/url]"
+	var plain_description := config.format_level_description("原说明")
+	var rich_description := config.format_level_description_bbcode("原说明")
+	_expect(
+		plain_description
+		== "造成冰霜伤害。\n1级： 穿透1\n2级： 范围提升\n3级： [url=https://example.com]不允许的链接[/url]",
+		"plain descriptions remove supported author markup and preserve unsupported tags literally"
+	)
+	_expect(
+		rich_description.contains("[color=#7dd3fc]冰霜伤害[/color]")
+		and rich_description.contains("[b]穿透1[/b]")
+		and rich_description.contains("[bgcolor=#704214]范围提升[/bgcolor]"),
+		"authored text color, bold and background highlight markup is converted to safe BBCode"
+	)
+	_expect(
+		rich_description.contains("[lb]url=https://example.com]")
+		and rich_description.contains("[lb]/url]"),
+		"unsupported BBCode remains visible instead of becoming active rich text"
+	)
+	config.function_description = "不完整[color=#ff0000]颜色"
+	_expect(
+		config.format_level_description_bbcode("原说明").contains("不完整[color=#ff0000]颜色[/color]"),
+		"unclosed supported markup is closed within its authored description field"
+	)
 
 
 func _test_production_resources() -> void:
