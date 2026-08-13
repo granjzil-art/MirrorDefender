@@ -9,6 +9,8 @@ extends Control
 @export var menu_title: String = "已暂停"
 @export var restart_button_text: String = "重启关卡"
 @export var exit_button_text: String = "退出当前关卡"
+@export_multiline var result_text: String = ""
+@export var show_settings_button: bool = true
 
 @export_group("Persistence")
 @export_file("*.cfg") var settings_path: String = "user://settings.cfg"
@@ -28,6 +30,7 @@ signal exit_level_requested
 signal settings_changed(settings: Dictionary)
 
 @onready var title_label: Label = $Shade/ModalPanel/Content/Title
+@onready var result_label: Label = $Shade/ModalPanel/Content/Result
 @onready var settings_button: Button = $Shade/ModalPanel/Content/ActionButtons/SettingsButton
 @onready var restart_button: Button = $Shade/ModalPanel/Content/ActionButtons/RestartButton
 @onready var exit_button: Button = $Shade/ModalPanel/Content/ActionButtons/ExitButton
@@ -54,6 +57,8 @@ func _ready() -> void:
 	settings_panel.visible = false
 	_update_panel_height()
 	title_label.text = menu_title
+	set_result_text(result_text)
+	settings_button.visible = show_settings_button
 	restart_button.text = restart_button_text
 	exit_button.text = exit_button_text
 	window_mode.clear()
@@ -107,6 +112,14 @@ func get_settings_snapshot() -> Dictionary:
 	return _settings.to_dictionary()
 
 
+func set_result_text(text: String) -> void:
+	result_text = text
+	if result_label == null:
+		return
+	result_label.text = result_text
+	result_label.visible = not result_text.is_empty()
+
+
 func get_runtime_settings() -> RuntimeSettings:
 	return _settings
 
@@ -116,6 +129,8 @@ func sync_settings_controls() -> void:
 
 
 func _on_settings_pressed() -> void:
+	if not show_settings_button:
+		return
 	settings_panel.visible = not settings_panel.visible
 	_update_panel_height()
 

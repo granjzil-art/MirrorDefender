@@ -19,10 +19,11 @@
 - **右上经济反馈（批次 3 已实现）**：`EconomyPanel` 是 `GlobalInfoPanel` 第三行第一列的金币单元，保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放和景深开关即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
 - **关卡失败画面（2026-08-11）**：`WaveManager.defeat` 打开比暂停菜单更高的输入阻断层，并经 `GameTimeController` 锁定 0x。失败画面直接复用第二个 `PauseMenu` 实例和同一个 `RuntimeSettings` 对象，因此设置控件、配置文件与即时应用语义一致。“重新挑战”复用当前关卡深重载，“返回选关”复用 AppFlow 退关；Esc/通用关闭不会跳过失败结果。
+- **关卡胜利画面（2026-08-13）**：`WaveManager.victory` 打开同级结果模态并锁定 0x，根据共享据点剩余生命显示即时评价：`1～5` 为 `★☆☆`、`6～15` 为 `★★☆`、`>15` 为 `★★★`；生命归零仍进入失败画面。胜利画面只显示“重启关卡”和“返回标题”两个按钮，不显示设置；两者分别复用当前关卡深重载与 AppFlow 返回现役选关页，Esc/通用关闭不会跳过胜利结果。
 - **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；最后一波释放后禁用，另外两按钮仍可用。
 - **下一波悬停预览（2026-08-03）**：悬停释放按钮时，`WaveTimelineModel` 聚合下一波敌人构成、唯一路径及地面/空中路线档案；请求经 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发并读取周期刷新的真实弯折路线。离开、点击、切关、暂停或控制台模态打开都会清除预览。
 - **旧左侧时间轴（历史兼容）**：`WaveTimelinePanel.gd/.tscn` 保留 2026-07-22 批次 4 历史实现，但 `RuntimeHud.tscn` 已不再实例化；“首波手动、后续自动”和纵向绝对时间轴不再是现役事实。
-- **F1 调试控制台（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。控制台、暂停菜单与失败画面共享 `RuntimeHud.is_modal_open()` 输入边界；控制台打开时阻断世界、相机、六机位和波次路径预览，但不自动改变游戏时间。
+- **F1 调试控制台（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。控制台、暂停菜单与胜利/失败画面共享 `RuntimeHud.is_modal_open()` 输入边界；控制台打开时阻断世界、相机、六机位和波次路径预览，但不自动改变游戏时间。
 - **左上常驻调试信息（批次 6 已实现）**：控制台勾选或 `debug set` 启用的分类会同步显示在游戏画面左上角；关闭控制台后继续按真实时间刷新，全部关闭时自动收起。旧“波次时间轴上方预留区”仅是历史布局描述，现役左侧无正式时间轴。
 - **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，右上是六项无框图标统计，最右侧中部是三波次按钮，右下只保留时间控制，暂停与控制台位于模态层。左侧不实例化地块详情或正式波次时间轴。
 - **全局信息**：右上显示剩余据点生命、当前/总波次、金币、建筑容量与两种镜子的独立容量；不显示关卡名、场上敌人数或“本波剩余”第二份状态。
@@ -86,6 +87,7 @@
 | PauseMenu.`settings_path` | `user://settings.cfg` | 局外设置持久化路径。 |
 | PauseMenu.`collapsed_height` / `expanded_height` | 230 / 450 | 设置折叠与展开时的模态板高度；失败实例覆盖为 250 / 470。 |
 | PauseMenu.`menu_title` / `restart_button_text` / `exit_button_text` | 已暂停 / 重启关卡 / 退出当前关卡 | 允许同一可复用菜单场景表达暂停或失败语义。 |
+| PauseMenu.`result_text` / `show_settings_button` | `""` / true | 可选结果文本与设置按钮显隐；胜利实例显示星级并隐藏设置，只保留重启/返回标题。 |
 | PauseMenu.`settings_icon` / `restart_icon` / `exit_icon` | null | 三个模态操作按钮的可选图标接口。 |
 | WaveControlPanel.`feature_enabled` | true | 右侧三按钮总开关。 |
 | WaveControlPanel.`button_size` | 68 | 释放、重启、退出三个圆形按钮边长，范围 48～96。 |
@@ -113,7 +115,7 @@
 | `scripts/ui/EconomyPanel.gd` / `scenes/ui/EconomyPanel.tscn` | `EconomyPanel` / `Control` | 真实时间资源数字滚动和多事件弹字。 |
 | `scripts/ui/GlobalInfoPanel.gd` / `scenes/ui/GlobalInfoPanel.tscn` | `GlobalInfoPanel` / `Control` | 信号驱动的生命/波次/两种镜子/金币/建筑无框图标统计。 |
 | `scripts/ui/TimeControlPanel.gd` / `scenes/ui/TimeControlPanel.tscn` | `TimeControlPanel` / `Control` | 浅紫慢放、三色 1x/2x/4x 循环倍率和浅灰暂停的正式控件。 |
-| `scripts/ui/PauseMenu.gd` / `scenes/ui/PauseMenu.tscn` | `PauseMenu` / `Control` | 可参数化的输入阻断菜单；RuntimeHud 同时用于暂停和失败画面。 |
+| `scripts/ui/PauseMenu.gd` / `scenes/ui/PauseMenu.tscn` | `PauseMenu` / `Control` | 可参数化的输入阻断菜单；RuntimeHud 同时用于暂停及胜利/失败画面。 |
 | `scripts/ui/WaveTimelineModel.gd` | `WaveTimelineModel` / `RefCounted` | 把关卡波次资源只读投影为稳定摘要；现役供下一波详情复用。 |
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧释放下一波/重启/退出三按钮、下一波详情与路径预览信号。 |
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 正式 HUD 的三个圆形按钮和向左展开详情板。 |
@@ -123,8 +125,8 @@
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 兼容保留的只读检视调度器；正式 RuntimeHud 不实例化或配置。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 兼容保留的地块、建筑、镜子、虚像和元素只读模型聚合器。 |
 | `scripts/ui/TileInspectorPanel.gd` / `scenes/ui/TileInspectorPanel.tscn` | `TileInspectorPanel` / `Control` | 兼容保留的镜面滚动详情板；正式 RuntimeHud 不实例化。 |
-| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、全局/经济、时间、暂停/失败模态、右侧波次三按钮和调试控制台。 |
-| `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 PauseMenu/DefeatMenu 与 WaveControlPanel，不实例化 TileInspectorPanel 或旧 WaveTimelinePanel。 |
+| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、全局/经济、时间、暂停/胜利/失败模态、右侧波次三按钮和调试控制台。 |
+| `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 PauseMenu/DefeatMenu/VictoryMenu 与 WaveControlPanel，不实例化 TileInspectorPanel 或旧 WaveTimelinePanel。 |
 | `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 纯黑幕双页面 2×3 六槽、两侧箭头、滚轮/按钮横向滑动与关卡选择信号。 |
 | `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 无框无文字缩略图槽；空/非法资源透明禁用，滑动期间独立锁定交互。 |
 | `scripts/ui/LevelThumbnail.gd` | `LevelThumbnail` / `Control` | 只读程序化绘制网格、地形、路径、出生点和据点；不创建玩法节点。 |
@@ -146,7 +148,7 @@
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 102 项默认兼容、两种正式镜子与建筑资源、Definition 纯文本/BBCode 入口、等级标签色、对象/字段过滤、名称/功能说明和自适应排版回归；不锁死策划自定义名称、可见性或说明文本。 |
-| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 99 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、失败模态、深重载和三档分辨率回归。 |
+| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 110 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、胜利星级/双按钮、失败模态、深重载和三档分辨率回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 55 项只读波次模型、单悬停窗、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 77 项 F1、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、胜利和 Debug 终态边界回归。 |
@@ -177,7 +179,7 @@ RuntimeHud (Main/HUD)
   │    └─ EconomyPanel: 第三行金币数字滚动与增减浮字
   ├─ WaveControlPanel: 最右侧下一波/重启/退出三按钮
   ├─ TimeControlPanel: 右下慢放/1x→2x→4x/暂停
-  ├─ PauseMenu + DefeatMenu: 共享 RuntimeSettings 的模态设置/重启/返回选关
+  ├─ PauseMenu + DefeatMenu + VictoryMenu: 暂停/结果模态与重启/返回标题
   └─ DebugConsole + DebugOverlayPanel
 
 BuildCardBar -> RuntimeInteractionController -> BuildingManager / MirrorManager
@@ -198,10 +200,10 @@ Pause / console / click / level transition
   -> WaveControlPanel.clear_hover_preview()
   -> RuntimeHud -> Main -> PathHoverPreview.clear_preview()
 
-WaveControlPanel or PauseMenu/DefeatMenu restart
+WaveControlPanel or PauseMenu/DefeatMenu/VictoryMenu restart
   -> RuntimeHud.restart_level_requested
   -> Main -> LevelLoader.reload_current_level()
-WaveControlPanel or PauseMenu/DefeatMenu exit current level
+WaveControlPanel or PauseMenu/DefeatMenu/VictoryMenu exit current level
   -> RuntimeHud.exit_level_requested
   -> Main.prepare_for_level_transition()
   -> Main.return_to_level_select_requested
@@ -212,7 +214,8 @@ DebugConsole -> DebugCommandRegistry -> RuntimeDebugBindings
   -> LevelLoader / ResourceManager / WaveManager public APIs
 DebugCategoryRegistry -> DebugConsole + DebugOverlayPanel + optional Path/Route visuals
 WaveManager.defeat -> RuntimeHud.DefeatMenu + GameTimeController 0x
-DebugConsole.open_changed + PauseMenu/DefeatMenu -> RuntimeHud unified modal -> Main input lock
+WaveManager.victory -> RuntimeHud.VictoryMenu + remaining BaseCore HP rating + GameTimeController 0x
+DebugConsole.open_changed + PauseMenu/DefeatMenu/VictoryMenu -> RuntimeHud unified modal -> Main input lock
 
 BuildingActionPanel -> BuildingManager remove / upgrade
 BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description_bbcode()
@@ -276,7 +279,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `WaveTimelineModel.gd` | `build(level: LevelResource) -> Array[Dictionary]` | 只读生成作者顺序摘要；`paths` 保持唯一路径兼容，`path_requests` 额外区分地面/空中真实路线。 |
 | `WaveTimelinePanel.gd` | `configure(wave_manager: WaveManager) -> void` 等 | 旧纵向时间轴兼容 API；正式 HUD 不调用。 |
 | `WaveStatusPanel.gd` | `configure(wave_manager: WaveManager, base_core: BaseCore) -> void` | 旧 M4 兼容摘要；正式 HUD 不调用。 |
-| `RuntimeHud.gd` | `configure_wave_controls(wave_manager: WaveManager) -> void` | 注入现役 WaveManager，由 WaveControlPanel 驱动逐波操作并订阅失败终态。 |
+| `RuntimeHud.gd` | `configure_wave_controls(wave_manager: WaveManager) -> void` | 注入现役 WaveManager，由 WaveControlPanel 驱动逐波操作并订阅胜利/失败终态。 |
 | `RuntimeInteractionController.gd` | `select_building_card(definition) -> bool` | 清除实体选择并进入块/边建筑放置状态。 |
 | `RuntimeInteractionController.gd` | `select_copy_mirror_card() -> bool` | 清除实体选择并进入复制镜边放置状态。 |
 | `RuntimeInteractionController.gd` | `select_reflect_mirror_card() -> bool` | 清除实体选择并进入投射物反射镜边放置状态。 |
@@ -295,6 +298,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `TimeControlPanel.gd` | `configure(time_controller) -> void` | 将慢放、三档倍率、暂停按钮及其状态颜色与时间控制器双向同步。 |
 | `PauseMenu.gd` | `configure(root_window: Window, shared_settings: RuntimeSettings = null) -> void` | 读取、应用设置并绑定目标窗口；传入对象时与另一菜单共享状态。 |
 | `PauseMenu.gd` | `open_menu() -> void` / `close_menu() -> void` / `is_open() -> bool` | 管理模态可见性及设置折叠状态。 |
+| `PauseMenu.gd` | `set_result_text(text: String) -> void` | 写入并按空值自动显隐结果文本，供胜利星级显示复用。 |
 | `PauseMenu.gd` | `get_runtime_settings() -> RuntimeSettings` / `sync_settings_controls() -> void` | 提供两个菜单共享设置对象并同步控件的入口。 |
 | `RuntimeSettings.gd` | `load_from_file(path)` / `save_to_file(path)` | 使用 `ConfigFile` 持久化局外设置。 |
 | `RuntimeSettings.gd` | `apply_to_runtime(root_window) -> void` | 应用主音量、窗口模式与 UI 缩放。 |
@@ -314,8 +318,9 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `DebugOverlayPanel.gd` | `configure(category_registry: DebugCategoryRegistry) -> void` | 订阅与控制台相同的分类事实源。 |
 | `DebugOverlayPanel.gd` | `refresh_now() -> void` | 刷新左上角摘要并在无启用分类时收起。 |
 | `RuntimeHud.gd` | `apply_level_configuration(level: LevelResource, source_path: String = "") -> void` | 切关时应用建筑槽数、关卡显示名及下一波摘要。 |
-| `RuntimeHud.gd` | `prepare_for_level_transition() -> void` | 退关前清理波次预览、控制台、暂停/失败菜单和时间倍率。 |
-| `RuntimeHud.gd` | `is_modal_open() -> bool` / `is_defeat_menu_open() -> bool` / `close_top_modal() -> void` | 合并失败、暂停和控制台状态；失败画面不响应通用关闭。 |
+| `RuntimeHud.gd` | `prepare_for_level_transition() -> void` | 退关前清理波次预览、控制台、暂停/胜利/失败菜单和时间倍率。 |
+| `RuntimeHud.gd` | `is_modal_open() -> bool` / `is_victory_menu_open() -> bool` / `is_defeat_menu_open() -> bool` / `close_top_modal() -> void` | 合并胜利、失败、暂停和控制台状态；结果画面不响应通用关闭。 |
+| `RuntimeHud.gd` | `get_victory_star_count(remaining_hp: float) -> int` / `get_displayed_victory_star_count() -> int` | 按 `0 / 1～5 / 6～15 / >15` 返回失败/1/2/3 星，并暴露当前显示星数供回归验证。 |
 | `RuntimeHud.gd` | `get_settings_snapshot() -> Dictionary` | 返回共享设置快照，供 Main 应用景深开关。 |
 | `TileInspectionService.gd` | `configure(...) -> void` / `set_selected_cell(...) -> void` / `inspect_cell(...) -> Dictionary` | 兼容工具的直接只读检视 API；正式 RuntimeHud 不再调用。 |
 | `InspectionDisplayConfig.gd` | `resolve_display_name(fallback: String) -> String` / `resolve_function_description(fallback: String) -> String` | 使用非空自定义文本，否则回退到当前名称或内置说明。 |
@@ -332,10 +337,10 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `LevelSelectView.level_selected` | `(level: LevelResource)` | 合法非空槽被点击；不直接装配关卡。 |
 | `MainController.startup_level_load_resolved` | `(success: bool, reason: String)` | 候选 Main 的首次 LevelLoader 事务结束，供 AppFlow 提交或回滚。 |
 | `MainController.return_to_level_select_requested` | `()` | 局内请求返回选关页；不退出 SceneTree。 |
-| `RuntimeHud.restart_level_requested` | `()` | 来自 PauseMenu、DefeatMenu 或 WaveControlPanel 的统一重启请求。 |
-| `RuntimeHud.exit_level_requested` | `()` | 来自 PauseMenu、DefeatMenu 或 WaveControlPanel 的统一退关请求。 |
+| `RuntimeHud.restart_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 的统一重启请求。 |
+| `RuntimeHud.exit_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 的统一退关请求。 |
 | `RuntimeHud.settings_changed` | `(settings: Dictionary)` | 任一复用菜单修改设置后发出同一快照，并先同步另一菜单控件。 |
-| `RuntimeHud.modal_state_changed` | `(open: bool)` | 失败/暂停/控制台任一开启状态，供 Main 锁定世界与相机输入。 |
+| `RuntimeHud.modal_state_changed` | `(open: bool)` | 胜利/失败/暂停/控制台任一开启状态，供 Main 锁定世界与相机输入。 |
 | `RuntimeHud.wave_paths_preview_requested` | `(paths: Array)` | 把下一波唯一路径转发给 Main。 |
 | `RuntimeHud.wave_paths_preview_cleared` | `()` | 请求 Main 清理世界路径预览。 |
 | `WaveControlPanel.restart_level_requested` | `()` | 右侧重启按钮的高层请求。 |
@@ -358,7 +363,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 
 ## 已知限制 / 初版不做的部分
 - 不做敌方据点相关 UI；右上只展示共享我方据点剩余生命、波次、金币、建筑容量和两种镜子的独立容量。
-- 已实现基础分页选关，但不含主菜单、关卡解锁、星级、通关进度或选关状态持久化。
+- 已实现单局胜利即时星级，但基础分页选关仍不含关卡解锁、星级/通关进度持久化或选关状态保存。
 - F1 `load` 是保留的开发入口，不改变正式选关目录，也不代表解锁流程；Main 内不再实例化 `LevelDebugPanel`。
 - 旧 `LevelDebugPanel`、`M3DebugPanel`、`WaveStatusPanel`、`WaveTimelinePanel` 文件继续登记兼容；正式主场景不实例化 LevelDebug/M3/Status/Timeline。
 - `TileInspectionService`、`TileInspectionModelBuilder` 与 `TileInspectorPanel` 同样只作兼容件保留；正式 HUD 不提供选中地块详情 UI。

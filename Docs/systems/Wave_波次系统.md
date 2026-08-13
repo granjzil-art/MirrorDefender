@@ -30,7 +30,7 @@ next_spawn_time += max(0.01, group.interval)
 - **失败与配置错误**：共享 `BaseCore` 生命归零进入 `DEFEAT`；预检/生成失败进入 `CONFIG_ERROR`。二者都会停止生成并清理活动敌人和敌方投射物，不得误判胜利。
 - **统一漏怪惩罚**：任何正式或测试敌人抵达据点时，`WaveManager` 忽略单位上报的历史伤害值，统一按 `enemy_leak_health_penalty` 扣除共享生命；现役默认为 `1`。
 - **Debug spawn 边界**：`spawn_debug_enemy()` 不释放作者波次、不推进游标、不增加组生成计数；要求非空 EnemyDefinition、当前关卡路径，且当前状态不是 `VICTORY/DEFEAT/CONFIG_ERROR`。F1 `spawn` 业务绑定会额外把敌人限制为当前关卡波次已引用定义；WaveManager 公共入口本身不扫描或验证敌人资源归属。终态一律拒绝。
-- **正式 UI**：右侧 `WaveControlPanel` 提供“释放下一波 / 快速重启 / 退出当前关卡”三个按钮。`WaveManager.defeat` 由 `RuntimeHud` 转为锁时、阻断输入的失败画面，并复用重启/返回选关事务。`WaveTimelineModel` 只复用为下一波悬停摘要；旧 `WaveTimelinePanel` 与 `WaveStatusPanel` 不在正式 `RuntimeHud.tscn` 实例化。
+- **正式 UI**：右侧 `WaveControlPanel` 提供“释放下一波 / 快速重启 / 退出当前关卡”三个按钮。`WaveManager.defeat` 由 `RuntimeHud` 转为锁时、阻断输入的失败画面；`WaveManager.victory` 打开胜利画面，并按剩余据点生命将 `1～5 / 6～15 / >15` 映射为 1/2/3 星。胜利画面只提供重启当前关卡与返回标题两个操作，结果模态均不可由通用关闭跳过。`WaveTimelineModel` 只复用为下一波悬停摘要；旧 `WaveTimelinePanel` 与 `WaveStatusPanel` 不在正式 `RuntimeHud.tscn` 实例化。
 
 ## 关键参数
 
@@ -63,13 +63,13 @@ next_spawn_time += max(0.01, group.interval)
 | `scripts/ui/WaveTimelineModel.gd` | `WaveTimelineModel` / `RefCounted` | 把波次资源只读聚合为敌人、端点、路径和摘要 Dictionary；现役仅供下一波详情复用。 |
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧三按钮、下一波悬停详情及路径预览信号；不维护释放游标。 |
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 三个 68px 圆形按钮与向左展开的下一波详情板。 |
-| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | 注入 WaveManager，把 defeat 转为正式失败模态，转发重启/退出和路径预览信号。 |
+| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | 注入 WaveManager，把 victory/defeat 转为正式胜利评价/失败模态，转发重启/退出和路径预览信号。 |
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧纵向时间轴兼容实现；不在正式 HUD 实例化。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 首波/摘要兼容脚本；不在正式 HUD 实例化。 |
 | `scripts/debug/RuntimeDebugBindings.gd` | `RuntimeDebugBindings` / `Node` | 把 `wave start` 绑定到 `start_next_wave()`，并为 `spawn` 解析当前关卡敌人与路径。 |
 | `resources/levels/M4DemoLevel.tres` | `LevelResource` / `Resource` | 默认正式上架关卡；作者波次数组保持原顺序。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、游标、信号、胜利、配置失败和终态 Debug spawn 回归。 |
-| `tests/manual_wave_and_level_flow_test.gd` | 无 class_name / `SceneTree` | 正式三按钮、失败画面重启/返回选关、连续 `wave start` 和直接 Main 兼容回归。 |
+| `tests/manual_wave_and_level_flow_test.gd` | 无 class_name / `SceneTree` | 正式三按钮、胜利评价及其重启/返回标题、失败重启、连续 `wave start` 和直接 Main 兼容回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 class_name / `SceneTree` | 历史时间轴模型与路径摘要兼容回归；不证明旧 Panel 仍为现役 HUD。 |
 
 ### 模块调用关系 / 数据流
@@ -116,6 +116,11 @@ BaseCore.defeated -> WaveManager -> DEFEAT
   -> RuntimeHud.DefeatMenu + GameTimeController.set_paused(true)
   -> restart: Main -> LevelLoader.reload_current_level()
   -> exit: Main -> AppFlowController -> LevelSelectView
+
+WaveManager -> VICTORY
+  -> RuntimeHud reads BaseCore.current_hp -> 1/2/3-star VictoryMenu
+  -> restart: Main -> LevelLoader.reload_current_level()
+  -> return title: Main -> AppFlowController -> LevelSelectView
 
 all waves released
 + every spawn state remaining == 0

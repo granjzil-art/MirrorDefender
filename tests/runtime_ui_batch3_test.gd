@@ -272,6 +272,15 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	_expect(hud.get_node_or_null("TimeControlPanel") != null, "runtime HUD owns formal time controls")
 	_expect(hud.get_node_or_null("PauseMenu") != null, "runtime HUD owns the pause modal")
 	_expect(hud.get_node_or_null("DefeatMenu") != null, "runtime HUD owns the defeat modal")
+	_expect(hud.get_node_or_null("VictoryMenu") != null, "runtime HUD owns the victory modal")
+	_expect(
+		hud.get_victory_star_count(0.0) == 0
+		and hud.get_victory_star_count(5.0) == 1
+		and hud.get_victory_star_count(5.1) == 2
+		and hud.get_victory_star_count(15.0) == 2
+		and hud.get_victory_star_count(15.1) == 3,
+		"victory rating uses non-overlapping 0/5/15 remaining-health boundaries"
+	)
 	var modal_changes: Array[bool] = []
 	hud.modal_state_changed.connect(func(open: bool) -> void: modal_changes.append(open))
 	fixture["time"].set_paused(true)
@@ -310,6 +319,42 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	wave_manager.defeat.emit()
 	defeat_menu.exit_button.pressed.emit()
 	_expect(defeat_exit_requests.size() == 1, "defeat exit reuses the return-to-level-selection request")
+	hud.prepare_for_level_transition()
+
+	var base_core: BaseCore = fixture["base"]
+	var victory_menu := hud.get_node("VictoryMenu") as PauseMenu
+	base_core.current_hp = 5.0
+	wave_manager.victory.emit()
+	await process_frame
+	_expect(hud.is_victory_menu_open() and hud.is_modal_open(), "victory opens the input-blocking result modal")
+	_expect(hud.get_displayed_victory_star_count() == 1 and victory_menu.result_label.text.contains("★☆☆"), "five remaining health displays one star")
+	_expect(not victory_menu.settings_button.visible, "victory result hides settings and keeps only two choices")
+	var visible_victory_choices := 0
+	for child in victory_menu.settings_button.get_parent().get_children():
+		if child is Button and (child as Button).visible:
+			visible_victory_choices += 1
+	_expect(visible_victory_choices == 2, "victory result exposes exactly restart and return-title buttons")
+	hud.close_top_modal()
+	_expect(hud.is_victory_menu_open(), "generic modal cancellation cannot dismiss the victory result")
+	hud.prepare_for_level_transition()
+	base_core.current_hp = 15.0
+	wave_manager.victory.emit()
+	_expect(hud.get_displayed_victory_star_count() == 2 and victory_menu.result_label.text.contains("★★☆"), "fifteen remaining health displays two stars")
+	hud.prepare_for_level_transition()
+	base_core.current_hp = 16.0
+	wave_manager.victory.emit()
+	_expect(hud.get_displayed_victory_star_count() == 3 and victory_menu.result_label.text.contains("★★★"), "more than fifteen remaining health displays three stars")
+	var victory_restart_requests: Array[bool] = []
+	hud.restart_level_requested.connect(func() -> void: victory_restart_requests.append(true))
+	victory_menu.restart_button.pressed.emit()
+	_expect(victory_restart_requests.size() == 1, "victory restart reuses the current-level reload request")
+	hud.prepare_for_level_transition()
+	base_core.current_hp = 15.0
+	wave_manager.victory.emit()
+	var victory_exit_requests: Array[bool] = []
+	hud.exit_level_requested.connect(func() -> void: victory_exit_requests.append(true))
+	victory_menu.exit_button.pressed.emit()
+	_expect(victory_exit_requests.size() == 1, "victory return-title reuses the safe level-exit request")
 	hud.prepare_for_level_transition()
 
 	hud.set_anchors_preset(Control.PRESET_TOP_LEFT)

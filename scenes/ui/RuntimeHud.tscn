@@ -126,6 +126,15 @@ exit_button_text = "返回选关"
 collapsed_height = 250.0
 expanded_height = 470.0
 
+[node name="VictoryMenu" parent="." instance=ExtResource("8_pause_menu")]
+z_index = 110
+menu_title = "关卡胜利"
+restart_button_text = "重启关卡"
+exit_button_text = "返回标题"
+result_text = "本关评价\n☆☆☆"
+show_settings_button = false
+collapsed_height = 300.0
+
 [node name="TimeControlPanel" parent="." instance=ExtResource("7_time_controls")]
 z_index = 90
 layout_mode = 1

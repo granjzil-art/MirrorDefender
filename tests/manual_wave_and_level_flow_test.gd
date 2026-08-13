@@ -81,6 +81,23 @@ func _test_app_flow() -> void:
 	main.runtime_hud.restart_level_requested.connect(func() -> void: restart_requests.append(true))
 	wave_controls.restart_button.pressed.emit()
 	_expect(restart_requests.size() == 1, "round button emits one high-level restart request")
+	var level_source_before_victory_restart := main.level_loader.get_current_source_path()
+	main.base_core.current_hp = 15.0
+	main.wave_manager.victory.emit()
+	await process_frame
+	_expect(
+		main.runtime_hud.is_victory_menu_open()
+		and main.runtime_hud.get_displayed_victory_star_count() == 2,
+		"victory opens the formal result with the remaining-health rating"
+	)
+	main.runtime_hud.victory_menu.restart_button.pressed.emit()
+	await process_frame
+	_expect(
+		main.level_loader.get_current_source_path() == level_source_before_victory_restart
+		and main.base_core.current_hp > 0.0
+		and not main.runtime_hud.is_victory_menu_open(),
+		"victory restart reloads the same level and closes the result"
+	)
 	var level_source_before_defeat_restart := main.level_loader.get_current_source_path()
 	main.base_core.take_damage(main.base_core.current_hp)
 	await process_frame
@@ -96,10 +113,11 @@ func _test_app_flow() -> void:
 	_expect(not main.runtime_hud.is_defeat_menu_open() and is_equal_approx(Engine.time_scale, 1.0), "failure restart closes the result and restores normal time")
 	var return_requests: Array[bool] = []
 	main.return_to_level_select_requested.connect(func() -> void: return_requests.append(true))
-	main.base_core.take_damage(main.base_core.current_hp)
+	main.base_core.current_hp = 16.0
+	main.wave_manager.victory.emit()
 	await process_frame
-	main.runtime_hud.defeat_menu.exit_button.pressed.emit()
-	_expect(return_requests.size() == 1, "failure exit requests return to selection without quitting SceneTree")
+	main.runtime_hud.victory_menu.exit_button.pressed.emit()
+	_expect(return_requests.size() == 1, "victory return-title requests the selection screen without quitting SceneTree")
 	await _wait_until(func() -> bool: return app.is_release_barrier_active())
 	_expect(
 		app.get_release_barrier_direction() == AppFlowController.TRANSITION_TO_LEVEL_SELECT,

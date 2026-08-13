@@ -1,6 +1,6 @@
 # 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器/运行时原子加载、六机位、持久 AppFlow 与基础六槽分页选关。尚未实现关卡解锁、星级、通关进度、选关状态存档、局内读档或云存档。
+> 实现状态：已实现 LevelResource、编辑器/运行时原子加载、六机位、持久 AppFlow、基础六槽分页选关与单局胜利即时评价。尚未实现关卡解锁、星级/通关进度持久化、选关状态存档、局内读档或云存档。
 >
 > 正式内容范围（2026-08-10 起）：唯一正式关卡目录是 `res://resources/levels/`，目录内全部关卡均要求随新系统持续迁移、校验和验收；目录外关卡资源全部废弃，不作为后续功能兼容目标。正式产品只维护 SQUARE，HEX 已废弃。
 
@@ -10,7 +10,7 @@
 - 以 `LevelLoader` 作为**唯一局内装配事务入口**，保证非法/失败加载不留下半装配状态。
 - 以 `LevelSelectCatalog -> LevelSelectPageDefinition -> LevelResource` 显式维护正式上架目录、页面顺序和每页固定六槽顺序。
 - 以持久 `AppFlowController` 管理“启动选关 -> 候选 Main 首载 -> 提交局内 -> 退出返回选关”的程序生命周期。
-- 本系统当前只提供关卡选择与加载，不承担解锁、星级、通关进度或存档策略。
+- 本系统当前提供关卡选择与加载；胜利画面可显示本局即时星级，但不承担解锁、星级/通关进度持久化或存档策略。
 
 ## 分类 / 做法
 
@@ -27,8 +27,8 @@
 - **持久 AppFlow**：`project.godot` 启动 `AppRoot.tscn`。`AppFlowController` 自身不随单局销毁，`Content` 中任一时刻只提交一个选关页或一个活动 Main。
 - **选关加载事务**：选中合法关卡后，AppFlow 先实例化隐藏且禁用处理的候选 Main，在入树前调用 `configure_startup_level(level)`；Main 入树后仍由 `LevelLoader.load_level()` 装配。只有 `startup_level_load_resolved(true, ...)` 才释放选关页并启用 Main；失败释放候选 Main并保留当前选关页。
 - **直接 Main 兼容**：独立运行 `Main.tscn` 时若未注入启动关卡，仍调用 `LevelLoader.load_initial_level()`，便于编辑器和历史测试直接启动。
-- **局内重启**：右侧按钮或暂停菜单只发高层请求；Main 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新深加载 `.tres`，内存关卡深复制后再走同一加载事务。
-- **退出当前关卡**：右侧叉号和暂停菜单退出按钮语义一致。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。不会调用 SceneTree 退出。
+- **局内重启**：右侧按钮、暂停菜单或胜利/失败结果画面只发高层请求；Main 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新深加载 `.tres`，内存关卡深复制后再走同一加载事务。
+- **退出当前关卡**：右侧叉号、暂停菜单和结果画面的返回按钮语义一致。胜利画面的“返回标题”返回现役选关页。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。不会调用 SceneTree 退出。
 - **调试入口**：正式 Main 已不实例化 `LevelDebugPanel`；F1 `load` 仍作为开发入口复用 LevelLoader，不修改正式 Catalog，也不代表正式解锁/选关流程。
 - **当前上架范围**：`LevelSelectPage01.tres` 前两槽显式引用正式目录中的 `Level1.tres`、`Level2.tres`；其它页面当前为空。正式维护范围由 `res://resources/levels/` 决定，但选关顺序仍由 Catalog/Page 显式配置，不依赖目录扫描。
 - **据点生命统一**：`LevelResource.base_max_hp` 默认为 `20`，`resources/levels/` 中 Level1–Level4 全部显式保存 `20`；多据点仍共享这一份生命。
@@ -268,7 +268,7 @@ RuntimeStuffEditorPanel 全量保存
 
 ## 已知限制 / 初版不做的部分
 
-- 基础分页选关已实现，但没有 SaveManager、关卡解锁、星级、通关进度、关卡完成记录或选关状态恢复。
+- 单局胜利即时评价已实现，但没有 SaveManager、关卡解锁、星级/通关进度持久化、关卡完成记录或选关状态恢复。
 - 不做局内保存/读取、多存档槽、云存档和外部关卡包导入。
 - 退出当前关卡固定返回第一页；当前不保存上次页面索引或焦点槽位。
 - 程序化缩略图不显示运行时建筑、敌人、镜像、动态效果或相机截图。

@@ -3,6 +3,10 @@
 class_name RuntimeHud
 extends Control
 
+@export_group("Victory Rating")
+@export_range(0.0, 1000.0, 0.1, "or_greater") var one_star_max_remaining_hp: float = 5.0
+@export_range(0.0, 1000.0, 0.1, "or_greater") var two_star_max_remaining_hp: float = 15.0
+
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
@@ -20,6 +24,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var time_control_panel: TimeControlPanel = $TimeControlPanel
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var defeat_menu: PauseMenu = $DefeatMenu
+@onready var victory_menu: PauseMenu = $VictoryMenu
 @onready var wave_control_panel: WaveControlPanelScript = $WaveControlPanel
 @onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
 @onready var debug_console: DebugConsoleScript = $DebugConsole
@@ -37,7 +42,10 @@ var _time_controller: GameTimeControllerScript
 var _last_modal_state: bool = false
 var _stuff_editor_controller: Node
 var _wave_manager: WaveManager
+var _base_core: BaseCore
 var _defeat_active: bool = false
+var _victory_active: bool = false
+var _victory_star_count: int = 0
 
 
 func _ready() -> void:
@@ -47,7 +55,9 @@ func _ready() -> void:
 	pause_menu.settings_changed.connect(_on_pause_settings_changed)
 	defeat_menu.restart_requested.connect(_on_restart_requested)
 	defeat_menu.exit_level_requested.connect(_on_exit_requested)
-	defeat_menu.settings_changed.connect(_on_defeat_settings_changed)
+	defeat_menu.settings_changed.connect(_on_result_settings_changed)
+	victory_menu.restart_requested.connect(_on_restart_requested)
+	victory_menu.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
 	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
@@ -95,6 +105,9 @@ func configure(
 	defeat_menu.settings_path = pause_menu.settings_path
 	defeat_menu.apply_runtime_settings = pause_menu.apply_runtime_settings
 	defeat_menu.configure(get_window(), pause_menu.get_runtime_settings())
+	victory_menu.settings_path = pause_menu.settings_path
+	victory_menu.apply_runtime_settings = pause_menu.apply_runtime_settings
+	victory_menu.configure(get_window(), pause_menu.get_runtime_settings())
 	_stuff_editor_controller = stuff_editor_controller
 	runtime_stuff_editor_panel.configure(_stuff_editor_controller)
 	if _stuff_editor_controller != null and _stuff_editor_controller.has_signal(&"active_changed"):
@@ -119,16 +132,17 @@ func configure_global_info(
 	wave_manager: WaveManager,
 	base_core: BaseCore
 ) -> void:
+	_base_core = base_core
 	global_info_panel.configure(resource_manager, wave_manager, base_core)
 
 
 func configure_wave_controls(wave_manager: WaveManager) -> void:
-	if _wave_manager != null and _wave_manager.defeat.is_connected(_on_defeat):
-		_wave_manager.defeat.disconnect(_on_defeat)
+	_disconnect_wave_result_signals()
 	_wave_manager = wave_manager
 	wave_control_panel.configure(wave_manager)
 	if _wave_manager != null:
 		_wave_manager.defeat.connect(_on_defeat)
+		_wave_manager.victory.connect(_on_victory)
 
 
 func configure_debug_console(
@@ -146,7 +160,9 @@ func apply_level_configuration(level: LevelResource, _source_path: String = "") 
 
 
 func is_modal_open() -> bool:
-	return (defeat_menu != null and defeat_menu.is_open()) or (
+	return (victory_menu != null and victory_menu.is_open()) or (
+		defeat_menu != null and defeat_menu.is_open()
+	) or (
 		pause_menu != null and pause_menu.is_open()
 	) or (
 		debug_console != null and debug_console.is_open()
@@ -155,6 +171,24 @@ func is_modal_open() -> bool:
 
 func is_defeat_menu_open() -> bool:
 	return defeat_menu != null and defeat_menu.is_open()
+
+
+func is_victory_menu_open() -> bool:
+	return victory_menu != null and victory_menu.is_open()
+
+
+func get_victory_star_count(remaining_hp: float) -> int:
+	if remaining_hp <= 0.0:
+		return 0
+	if remaining_hp <= one_star_max_remaining_hp:
+		return 1
+	if remaining_hp <= maxf(one_star_max_remaining_hp, two_star_max_remaining_hp):
+		return 2
+	return 3
+
+
+func get_displayed_victory_star_count() -> int:
+	return _victory_star_count
 
 
 func get_settings_snapshot() -> Dictionary:
@@ -166,7 +200,7 @@ func is_debug_console_open() -> bool:
 
 
 func close_top_modal() -> void:
-	if is_defeat_menu_open():
+	if is_victory_menu_open() or is_defeat_menu_open():
 		return
 	if debug_console != null and debug_console.is_open():
 		debug_console.close_console()
@@ -184,9 +218,13 @@ func close_pause_menu() -> void:
 
 func prepare_for_level_transition() -> void:
 	_defeat_active = false
+	_victory_active = false
+	_victory_star_count = 0
 	wave_control_panel.clear_hover_preview()
 	if defeat_menu != null:
 		defeat_menu.close_menu()
+	if victory_menu != null:
+		victory_menu.close_menu()
 	if debug_console != null:
 		debug_console.close_console()
 	if _time_controller != null:
@@ -234,8 +272,15 @@ func _on_status_changed(message: String) -> void:
 func _on_paused_changed(paused: bool) -> void:
 	if pause_menu == null:
 		return
+	if _victory_active:
+		pause_menu.close_menu()
+		defeat_menu.close_menu()
+		victory_menu.open_menu()
+		_sync_modal_state()
+		return
 	if _defeat_active:
 		pause_menu.close_menu()
+		victory_menu.close_menu()
 		defeat_menu.open_menu()
 		_sync_modal_state()
 		return
@@ -298,7 +343,32 @@ func _on_exit_requested() -> void:
 
 func _on_defeat() -> void:
 	_defeat_active = true
+	_victory_active = false
+	_victory_star_count = 0
 	defeat_menu.open_menu()
+	victory_menu.close_menu()
+	pause_menu.close_menu()
+	if debug_console != null:
+		debug_console.close_console()
+	wave_control_panel.clear_hover_preview()
+	_sync_modal_state()
+	if _time_controller != null:
+		_time_controller.set_paused(true)
+
+
+func _on_victory() -> void:
+	_victory_active = true
+	_defeat_active = false
+	var remaining_hp := _base_core.current_hp if _base_core != null else 0.0
+	_victory_star_count = get_victory_star_count(remaining_hp)
+	victory_menu.set_result_text(
+		"本关评价\n%s%s" % [
+			"★".repeat(_victory_star_count),
+			"☆".repeat(3 - _victory_star_count),
+		]
+	)
+	victory_menu.open_menu()
+	defeat_menu.close_menu()
 	pause_menu.close_menu()
 	if debug_console != null:
 		debug_console.close_console()
@@ -310,11 +380,13 @@ func _on_defeat() -> void:
 
 func _on_pause_settings_changed(settings: Dictionary) -> void:
 	defeat_menu.sync_settings_controls()
+	victory_menu.sync_settings_controls()
 	settings_changed.emit(settings)
 
 
-func _on_defeat_settings_changed(settings: Dictionary) -> void:
+func _on_result_settings_changed(settings: Dictionary) -> void:
 	pause_menu.sync_settings_controls()
+	victory_menu.sync_settings_controls()
 	settings_changed.emit(settings)
 
 
@@ -349,6 +421,15 @@ func _disconnect_sources() -> void:
 		if _stuff_editor_controller.is_connected(&"active_changed", callback):
 			_stuff_editor_controller.disconnect(&"active_changed", callback)
 	_stuff_editor_controller = null
-	if _wave_manager != null and _wave_manager.defeat.is_connected(_on_defeat):
-		_wave_manager.defeat.disconnect(_on_defeat)
+	_disconnect_wave_result_signals()
 	_wave_manager = null
+	_base_core = null
+
+
+func _disconnect_wave_result_signals() -> void:
+	if _wave_manager == null:
+		return
+	if _wave_manager.defeat.is_connected(_on_defeat):
+		_wave_manager.defeat.disconnect(_on_defeat)
+	if _wave_manager.victory.is_connected(_on_victory):
+		_wave_manager.victory.disconnect(_on_victory)
