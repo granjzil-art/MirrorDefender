@@ -184,7 +184,7 @@ test panel "实树 开/关"
 
 ## 测试与调整入口
 
-- 运行 Level2 后，点击左上角“7 白色柔光 / 8 黄色暖光 / 9 青红对比 / 6 夜晚聚光”，或直接按对应数字键。“树影”和“实树”是彼此独立且与四套灯光方案平级的 A/B 开关；推荐先保持“树影 关 / 实树 开”观察真实模型，再切换为“树影 开 / 实树 关”观察程序方案，双关即为无额外树影基线。
+- 运行 Level2 后，点击左上角“白色柔光 / 黄色暖光 / 青红对比 / 夜晚聚光”切换方案；灯光不再占用数字键。“树影”和“实树”是彼此独立且与四套灯光方案平级的 A/B 开关；推荐先保持“树影 关 / 实树 开”观察真实模型，再切换为“树影 开 / 实树 关”观察程序方案，双关即为无额外树影基线。
 - 调整单关柜体：打开对应 `resources/levels/Level*.tres`，在 `Presentation > Display Case Definition` 中修改边距、高度、底座、顶板和反射参数。各关子资源实例互不共享。
 - 新建灯光方案：复制任一灯光方案 `.tres`，调整 Environment、灯源、亚克力色调和探针子资源，再把新 `LightingProfile` 注入 `Main.gd` 的方案数组；若是关卡专用艺术方案，可设置 `LevelResource.lighting_profile`。灯光方案切换不会覆盖关卡的柜体构造参数。
 - 自动回归：`godot --headless --path <project> --script res://tests/lighting_display_case_test.gd`。

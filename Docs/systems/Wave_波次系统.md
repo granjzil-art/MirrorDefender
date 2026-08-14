@@ -30,7 +30,7 @@ next_spawn_time += max(0.01, group.interval)
 - **失败与配置错误**：共享 `BaseCore` 生命归零进入 `DEFEAT`；预检/生成失败进入 `CONFIG_ERROR`。二者都会停止生成并清理活动敌人和敌方投射物，不得误判胜利。
 - **统一漏怪惩罚**：任何正式或测试敌人抵达据点时，`WaveManager` 忽略单位上报的历史伤害值，统一按 `enemy_leak_health_penalty` 扣除共享生命；现役默认为 `1`。
 - **Debug spawn 边界**：`spawn_debug_enemy()` 不释放作者波次、不推进游标、不增加组生成计数；要求非空 EnemyDefinition、当前关卡路径，且当前状态不是 `VICTORY/DEFEAT/CONFIG_ERROR`。F1 `spawn` 业务绑定会额外把敌人限制为当前关卡波次已引用定义；WaveManager 公共入口本身不扫描或验证敌人资源归属。终态一律拒绝。
-- **正式 UI**：右侧 `WaveControlPanel` 提供“释放下一波 / 快速重启 / 退出当前关卡”三个按钮。`WaveManager.defeat` 由 `RuntimeHud` 转为锁时、阻断输入的失败画面；`WaveManager.victory` 打开胜利画面，并按剩余据点生命将 `1～5 / 6～15 / >15` 映射为 1/2/3 星。胜利画面只提供重启当前关卡与返回标题两个操作，结果模态均不可由通用关闭跳过。`WaveTimelineModel` 只复用为下一波悬停摘要；旧 `WaveTimelinePanel` 与 `WaveStatusPanel` 不在正式 `RuntimeHud.tscn` 实例化。
+- **正式 UI**：右侧 `WaveControlPanel` 提供“释放下一波 / 快速重启 / 退出当前关卡”三个按钮。玩家点击并成功释放下一波时，面板发送独立操作信号，`RuntimeHud` 统一取消当前选卡、建筑、镜子和世界选择，从而退出选中战术时缓并恢复已记住的 1x/2x/4x；F1 `wave start` 命令不触发该 UI 事务。`WaveManager.defeat` 由 `RuntimeHud` 转为锁时、阻断输入的失败画面；`WaveManager.victory` 打开胜利画面，并按剩余据点生命将 `1～5 / 6～15 / >15` 映射为 1/2/3 星。胜利画面只提供重启当前关卡与返回标题两个操作，结果模态均不可由通用关闭跳过。`WaveTimelineModel` 只复用为下一波悬停摘要；旧 `WaveTimelinePanel` 与 `WaveStatusPanel` 不在正式 `RuntimeHud.tscn` 实例化。
 
 ## 关键参数
 
@@ -94,8 +94,10 @@ LevelLoader.level_loaded(level)
         -> enemy_spawned(unit)
         -> first success of wave -> wave_started(wave_number, wave)
      -> successful release -> released_wave_count += 1
-        -> wave_released(wave_number, wave)
-        -> next_wave_changed(next_number or 0, next_wave or null)
+         -> wave_released(wave_number, wave)
+         -> next_wave_changed(next_number or 0, next_wave or null)
+  -> UI success only: next_wave_released_by_player
+     -> RuntimeHud -> RuntimeInteractionController.cancel_to_select(true)
 
 WaveControlPanel hover start button
   -> WaveManager.get_next_wave_number()

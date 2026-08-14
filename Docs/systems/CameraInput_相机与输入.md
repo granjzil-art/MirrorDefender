@@ -18,12 +18,12 @@
 - **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；普通 HUD 上起手禁止相机旋转，但跟随选中建筑的悬浮操作图标显式允许右键拖动穿过，避免旋转视角时被菜单阻断。
 - **战术慢放相机**：CameraController 将缩放后的 `delta` 除以当前非零 `Engine.time_scale`，因此 0.1x 战术慢放下 WASD/QE/XC 手感仍按真实时间运行；暂停 0x 时不人为放大 delta。
 - **模态输入边界**：M6 失败画面、暂停菜单或调试控制台展开时，`Main` 停止世界拾取/交互并通过 `CameraController.set_input_enabled(false)` 锁定 WASD/QE/XC/滚轮及鼠标拖动，并清除未完成的中/右键手势；继续或切关后统一解锁。
-- **六机位预设**：数字键 `1`～`6` 读取当前 `LevelResource` 的同号可选机位。已配置槽位按真实时间平滑过渡焦点、yaw、pitch 和缩放距离；空槽、无效槽或未加载关卡无动作。
+- **正式镜头预设**：数字键 `1/2` 读取当前 `LevelResource` 的前两个机位。它们是游戏功能，不受 F1 调试工具总开关影响；已配置槽位按真实时间平滑过渡焦点、yaw、pitch 和缩放距离。六槽资源与编辑器格式继续兼容，但槽位 3～6 不再绑定运行时数字键。
 - **过渡输入边界**：过渡期间 `CameraController` 只抑制手动移动/旋转/俯仰/滚轮；结束或切关后恢复。暂停及后续控制台通过既有 `input_enabled` 总锁冻结过渡，避免模态层背后移动镜头。
 - **移轴 / 微缩景深**：`MiniatureDofController` 使用 Godot `CameraAttributesPractical` 同时开启近景与远景 DOF。焦平面跟随 CameraRig pivot（或显式目标），清晰带和过渡距离都以当前网格单格尺寸换算，因此镜头平移、缩放、预设切换及不同尺寸 SQUARE/HEX 关卡共用同一套参数。它是深度缓冲驱动的真实景深，不是固定屏幕上下遮罩。
 - **用户景深开关**：暂停和失败菜单共享 `RuntimeSettings.depth_of_field_enabled`，默认开启并持久化到 `user://settings.cfg`。`RuntimeHud.settings_changed` 把快照转给 Main，Main 只通过 `MiniatureDofController.set_effect_enabled()` 即时应用；关闭时恢复相机原 CameraAttributes。
 - **反射隔离**：地表与镜面 SubViewport 相机不继承最终视口 DOF，保持反射纹理清晰；主相机只在最后一次合成中虚化，避免反射先糊一次、主视口再糊一次。
-- **开发对比键**：原始键 `0` 可即时开关微缩景深，便于 A/B 调参；由 `miniature_dof_test_shortcut_enabled` 单独关闭，不写入 InputMap。
+- **数字键边界**：运行时只消费 `1/2` 两个正式镜头键；`0` 与 `3`～`9` 不绑定景深、镜头、灯光或其它功能。
 - **可改键**：所有键位通过 Godot **InputMap** 定义，玩家可重映射。
 - 支持屏幕边缘平移 `edge_pan`（可开关）。
 
@@ -49,7 +49,7 @@
 | pitch_angle | Pitch | 50.0 | 当前俯仰角（度） |
 | pitch_min / pitch_max | Pitch | 18.0 / 82.0 | XC 调节时的俯仰角边界，避免水平穿地或垂直奇异点 |
 | pitch_speed | Pitch | 55.0 | XC 持续调节俯仰的速度（度/秒） |
-| camera_presets_enabled | Main / M6 Camera Presets | true | 六机位运行时总开关；装配时写入 CameraPresetController。 |
+| camera_presets_enabled | Main / M6 Camera Presets | true | 正式镜头 1/2 运行时总开关；装配时写入 CameraPresetController，不受 F1 调试开关改写。 |
 | camera_preset_transition_duration | Main / M6 Camera Presets | 0.35 | 镜头切换时长（真实秒）；0 表示立即切换。 |
 | camera_preset_transition_curve | Main / M6 Camera Presets | 空 | 可选 0～1 Curve；空时使用 smoothstep。 |
 | selected_rotation_hold_delay | Main / Building Rotation Repeat | 0.3 | 选中实体建筑后按住 R，首次旋转到开始连续旋转之间的真实秒延迟。 |
@@ -59,7 +59,6 @@
 | transition_duration | CameraPresetController / Transition | 0.35 | 控制器实际使用的切换时长。 |
 | transition_curve | CameraPresetController / Transition | 空 | 控制器实际使用的可选缓动曲线。 |
 | miniature_dof_enabled | Main / Miniature Depth Of Field | true | 主视口微缩景深总开关。 |
-| miniature_dof_test_shortcut_enabled | Main / Miniature Depth Of Field | true | 是否允许开发期原始键 `0` A/B 开关。 |
 | feature_enabled | MiniatureDofDefinition / Feature | true | 默认景深资源总开关。 |
 | focus_height_offset_cells | MiniatureDofDefinition / Focus Plane | 0.35 | 焦点相对 CameraRig pivot 向上的单格倍数偏移。 |
 | near_focus_margin_cells / far_focus_margin_cells | MiniatureDofDefinition / Focus Plane | 2.0 / 2.0 | 焦点前后保持清晰的深度范围，单位为格。 |
@@ -81,14 +80,14 @@ CameraController (本节点 = pivot 焦点)
 - **移动方向随 yaw 旋转**：WASD 输入向量按当前 `rotation.y` 变换到世界方向，保证"往屏幕上方走"符合视角。
 - **场景装配**：`Main.tscn` 中节点名 `CameraRig`（挂本脚本），其下有一个 `Camera3D` 子节点；`Main.gd` 通过 `cam_rig.get_camera()` 拿相机做拾取。
 
-### 六机位数据流
+### 正式双镜头数据流
 
 ```text
 LevelLoader.level_loaded
   -> Main._on_level_loaded
 	 -> CameraPresetController.load_level(level)
 
-InputMap camera_preset_1 ... camera_preset_6
+InputMap camera_preset_1 / camera_preset_2
   -> CameraPresetController.request_preset(slot_index)
 	 -> LevelResource.get_camera_preset(slot_index)
 	 -> CameraController.get_view_state()
@@ -258,7 +257,7 @@ LevelReflectionSurface / MirrorReflectionView
 | `cam_move_forward/back/left/right` | W/S/A/D | 平移镜头 | CameraController |
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_pitch_lower/raise` | X/C | 降低/提高相机俯仰角 | CameraController |
-| `camera_preset_1` ... `camera_preset_6` | 1～6 | 切换当前关卡的六个可选镜头预设 | CameraPresetController |
+| `camera_preset_1` / `camera_preset_2` | 1 / 2 | 切换当前关卡的两个正式游戏镜头；F1 不影响 | CameraPresetController |
 | `rotate_facing` | R | 正常模式翻转镜子/旋转建筑；运行时关卡编辑中旋转 Stuff 预览/实体或斜坡预览/实体 | Main -> RuntimeStuffEditorController / MirrorManager / BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择或一次正式卡片放置 | Main.gd -> RuntimeInteractionController |
 | `cancel_action` | 鼠标右键 | 模态层按下关闭；非模态由 CameraController 在短点击释放后请求取消 | CameraController -> Main -> RuntimeInteractionController |

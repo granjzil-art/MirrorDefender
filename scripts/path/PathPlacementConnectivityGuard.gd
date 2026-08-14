@@ -35,10 +35,12 @@ func load_level(level_resource: LevelResource) -> void:
 	_level = level_resource
 
 
-## change supports three optional hypothetical objects:
+## change supports four optional hypothetical objects:
 ## - extra_tile_blocker: an unregistered tile Building copied by mirrors too;
 ## - extra_edge_blocker: an unregistered directional edge Building;
 ## - candidate_mirror: an unregistered CopyMirror included in the full graph.
+## - removed_blocker: a live Building omitted while testing atomic relocation.
+## - removed_mirror: a live mirror omitted while testing atomic relocation.
 ## Returns an empty string when placement remains safe, otherwise a player-facing
 ## reason. Pre-existing disconnected routes do not reject unrelated placements.
 func validate_change(change: Dictionary = {}) -> String:
@@ -52,7 +54,9 @@ func validate_change(change: Dictionary = {}) -> String:
 		var changed_projected := _get_projected_blocked_cells(
 			change.get("extra_tile_blocker"),
 			change.get("candidate_mirror"),
-			profile
+			profile,
+			change.get("removed_blocker"),
+			change.get("removed_mirror")
 		)
 		if not _is_requirement_reachable(requirement, profile, baseline_projected, {}):
 			continue
@@ -190,7 +194,7 @@ func _segment_is_blocked(
 ) -> bool:
 	if _physical_blocker_resolver.is_valid():
 		var physical: Variant = _physical_blocker_resolver.call(from_cell, to_cell, profile)
-		if physical is Node:
+		if physical is Node and physical != change.get("removed_blocker"):
 			return true
 	var extra_edge := change.get("extra_edge_blocker") as Node
 	if extra_edge == null or not _blocker_affects_target(extra_edge, profile):
@@ -209,11 +213,30 @@ func _blocker_affects_target(blocker: Node, target: Node) -> bool:
 func _get_projected_blocked_cells(
 	extra_source: Variant,
 	candidate_mirror: Variant,
-	target: Node
+	target: Node,
+	removed_source: Variant = null,
+	removed_mirror: Variant = null
 ) -> Dictionary:
 	if not _projected_blocked_cells_resolver.is_valid():
 		return {}
-	var result: Variant = _projected_blocked_cells_resolver.call(extra_source, candidate_mirror, target)
+	var result: Variant
+	if removed_source == null and removed_mirror == null:
+		result = _projected_blocked_cells_resolver.call(extra_source, candidate_mirror, target)
+	elif removed_mirror == null:
+		result = _projected_blocked_cells_resolver.call(
+			extra_source,
+			candidate_mirror,
+			target,
+			removed_source
+		)
+	else:
+		result = _projected_blocked_cells_resolver.call(
+			extra_source,
+			candidate_mirror,
+			target,
+			removed_source,
+			removed_mirror
+		)
 	return result if result is Dictionary else {}
 
 

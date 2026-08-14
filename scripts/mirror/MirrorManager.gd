@@ -29,6 +29,7 @@ signal mirror_constructed(mirror: CopyMirror)
 signal mirror_removed(mirror: CopyMirror)
 signal mirror_selected(mirror: CopyMirror)
 signal mirror_changed(mirror: CopyMirror)
+signal mirror_relocated(mirror: CopyMirror, previous_cell: Vector3i, previous_edge_id: String)
 signal mirror_upgraded(mirror: CopyMirror, previous_level: int, new_level: int)
 signal placement_failed(cell: Vector3i, reason: String)
 signal placement_cooldown_changed(
@@ -77,6 +78,7 @@ var _building_preview_projections: Array[MirrorProjection] = []
 var _preview_info: Dictionary = {}
 var _preview_active_from_side: bool = true
 var _preview_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
+var _preview_relocation_source: CopyMirror
 
 func _process(delta: float) -> void:
 	advance_placement_cooldowns(delta)
@@ -111,6 +113,7 @@ func configure(
 		_building_manager.building_placed.connect(_on_building_placed)
 		_building_manager.building_removed.connect(_on_building_removed)
 		_building_manager.building_upgraded.connect(_on_building_upgraded)
+		_building_manager.building_relocated.connect(_on_building_relocated)
 		_building_manager.preview_updated.connect(_on_building_preview_updated)
 		_building_manager.preview_cleared.connect(_on_building_preview_cleared)
 		for building in _building_manager.get_buildings():
@@ -426,6 +429,10 @@ func load_initial_placements(placements: Array) -> Array[String]:
 			errors.append("初始镜子 %d 数据类型无效" % (index + 1))
 			continue
 		var placement: MirrorPlacementData = raw_placement
+		var placement_errors := placement.validate_configuration()
+		if not placement_errors.is_empty():
+			errors.append("初始镜子 %d 配置无效：%s" % [index + 1, "；".join(placement_errors)])
+			continue
 		var mirror := _place_mirror(
 			placement.from_cell,
 			placement.edge_index,
@@ -519,8 +526,13 @@ func _place_mirror(
 		mirror.queue_free()
 		placement_failed.emit(from_cell, "该物理边已被占用")
 		return null
-	if placement_cost > 0.0:
-		mirror._record_investment(placement_cost)
+	var refundable_value := (
+		definition.get_cumulative_cost(initial_level)
+		if not runtime_placement
+		else placement_cost
+	)
+	if refundable_value > 0.0:
+		mirror._record_investment(refundable_value)
 	_next_placement_order += 1
 	mirror.side_changed.connect(_on_mirror_side_changed)
 	var exit_callback := _on_mirror_tree_exited.bind(mirror)
@@ -542,7 +554,8 @@ func validate_placement(
 	from_cell: Vector3i,
 	edge_index: int,
 	check_runtime_availability: bool = true,
-	mirror_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
+	mirror_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY,
+	ignored_edge_occupant: Node = null
 ) -> Dictionary:
 	var result := {"failure": "", "to_cell": Vector3i.ZERO, "edge_id": ""}
 	var definition := _get_definition(mirror_kind)
@@ -569,11 +582,9 @@ func validate_placement(
 		return result
 	var edge_id := _grid.canonical_edge_id(from_cell, edge_index)
 	result.edge_id = edge_id
-	if _get_edge_occupant(edge_id) != null:
+	var edge_occupant := _get_edge_occupant(edge_id)
+	if edge_occupant != null and edge_occupant != ignored_edge_occupant:
 		result.failure = "该物理边已被占用"
-		return result
-	if _has_enemy_on_adjacent_cell(from_cell, to_cell):
-		result.failure = "敌人当前占据该边的相邻格"
 		return result
 	if check_runtime_availability:
 		if not _resource_manager.can_add_mirror(mirror_kind):
@@ -586,6 +597,130 @@ func validate_placement(
 		elif not placement_cooldown_enabled and not _resource_manager.can_afford(definition.placement_cost):
 			result.failure = "金币不足，需要 %d" % ceili(definition.placement_cost)
 	return result
+
+
+func update_relocation_preview(
+	source: CopyMirror,
+	selected_cell: Vector3i,
+	edge_index: int
+) -> bool:
+	if source == null or not is_instance_valid(source) or get_mirror(source.edge_id) != source:
+		clear_preview()
+		return false
+	return _update_mirror_preview(
+		selected_cell,
+		edge_index,
+		_get_mirror_kind(source),
+		true,
+		source
+	)
+
+
+## Moves one live mirror without spending/refunding resources or changing the
+## cooldown stock. The same object retains upgrades and its investment ledger.
+func relocate_mirror(
+	source: CopyMirror,
+	selected_cell: Vector3i,
+	edge_index: int
+) -> bool:
+	if source == null or not is_instance_valid(source) or get_mirror(source.edge_id) != source:
+		return false
+	var mirror_kind := _get_mirror_kind(source)
+	var validation := validate_placement(
+		selected_cell,
+		edge_index,
+		false,
+		mirror_kind,
+		source
+	)
+	var failure: String = validation.failure
+	if failure.is_empty() and source.is_copy_mirror():
+		var candidate := CopyMirror.new()
+		add_child(candidate)
+		candidate.configure(
+			source.definition,
+			selected_cell,
+			validation.to_cell,
+			edge_index,
+			validation.edge_id,
+			_grid,
+			_tile_manager,
+			true,
+			true
+		)
+		candidate.set_level(source.level)
+		candidate.placement_order = source.placement_order
+		failure = _validate_path_connectivity({
+			"candidate_mirror": candidate,
+			"removed_mirror": source,
+		})
+		candidate.free()
+	if not failure.is_empty():
+		placement_failed.emit(selected_cell, failure)
+		return false
+	var previous_cell := source.from_cell
+	var previous_to_cell := source.to_cell
+	var previous_edge_index := source.edge_index
+	var previous_edge_id := source.edge_id
+	var previous_active_from_side := source.active_from_side
+	_mirrors.erase(previous_edge_id)
+	if _edge_occupancy_registry != null:
+		_edge_occupancy_registry.unregister(previous_edge_id, source)
+	if not source.relocate_runtime(
+		selected_cell,
+		validation.to_cell,
+		edge_index,
+		validation.edge_id,
+		true
+	):
+		_restore_mirror_relocation(
+			source,
+			previous_cell,
+			previous_to_cell,
+			previous_edge_index,
+			previous_edge_id,
+			previous_active_from_side
+		)
+		return false
+	if (
+		_edge_occupancy_registry != null
+		and not _edge_occupancy_registry.try_register(validation.edge_id, source)
+	):
+		_restore_mirror_relocation(
+			source,
+			previous_cell,
+			previous_to_cell,
+			previous_edge_index,
+			previous_edge_id,
+			previous_active_from_side
+		)
+		return false
+	_mirrors[validation.edge_id] = source
+	select_mirror(source)
+	mirror_relocated.emit(source, previous_cell, previous_edge_id)
+	mirror_changed.emit(source)
+	rebuild_now()
+	return true
+
+
+func _restore_mirror_relocation(
+	source: CopyMirror,
+	previous_cell: Vector3i,
+	previous_to_cell: Vector3i,
+	previous_edge_index: int,
+	previous_edge_id: String,
+	previous_active_from_side: bool
+) -> void:
+	source.relocate_runtime(
+		previous_cell,
+		previous_to_cell,
+		previous_edge_index,
+		previous_edge_id,
+		previous_active_from_side
+	)
+	if _edge_occupancy_registry != null:
+		_edge_occupancy_registry.try_register(previous_edge_id, source)
+	_mirrors[previous_edge_id] = source
 
 func remove_selected_mirror() -> bool:
 	return remove_mirror(get_selected_mirror())
@@ -691,6 +826,21 @@ func flip_selected() -> bool:
 		return false
 	mirror.flip_side()
 	return true
+
+
+## Rotates a selected live mirror around its currently active tile. Unlike R,
+## this changes the occupied edge while keeping the reflective side inward.
+func rotate_selected_mirror(step: int = 1) -> bool:
+	var mirror := get_selected_mirror()
+	if mirror == null or _grid == null or _grid.edge_count() <= 0 or step == 0:
+		return false
+	var active_cell := mirror.get_active_cell()
+	var passive_cell := mirror.to_cell if mirror.active_from_side else mirror.from_cell
+	var current_edge := _grid.find_edge_index(active_cell, passive_cell)
+	if current_edge < 0:
+		return false
+	var target_edge := wrapi(current_edge + step, 0, _grid.edge_count())
+	return relocate_mirror(mirror, active_cell, target_edge)
 
 func select_at_edge(edge_id: String) -> CopyMirror:
 	var occupant := _get_edge_occupant(edge_id)
@@ -998,14 +1148,18 @@ func get_projections(cell: Variant = null) -> Array[MirrorProjection]:
 func get_prospective_blocked_cells(
 	extra_source: Variant = null,
 	candidate_mirror: Variant = null,
-	target: Node = null
+	target: Node = null,
+	excluded_source: Variant = null,
+	excluded_mirror: Variant = null
 ) -> Dictionary:
 	var mirrors := get_mirrors()
+	if excluded_mirror is CopyMirror:
+		mirrors.erase(excluded_mirror)
 	if candidate_mirror is CopyMirror and is_instance_valid(candidate_mirror):
 		mirrors.append(candidate_mirror)
 		mirrors.sort_custom(func(a: CopyMirror, b: CopyMirror) -> bool: return a.placement_order < b.placement_order)
 	var blocked: Dictionary = {}
-	for payload in _calculate_projection_payloads(mirrors, extra_source):
+	for payload in _calculate_projection_payloads(mirrors, extra_source, excluded_source):
 		if not _payload_blocks_enemy_navigation(payload, target):
 			continue
 		blocked[payload.projected_cell] = true
@@ -1075,35 +1229,61 @@ func resolve_projected_navigation_blocker(cell: Vector3i, target: Node = null) -
 			return projection
 	return null
 
-func update_preview(from_cell: Vector3i, edge_index: int) -> bool:
-	return _update_mirror_preview(from_cell, edge_index, MirrorPlacementData.MirrorKind.COPY)
-
-
-func update_reflect_preview(from_cell: Vector3i, edge_index: int) -> bool:
+func update_preview(
+	from_cell: Vector3i,
+	edge_index: int,
+	active_from_side: Variant = null
+) -> bool:
 	return _update_mirror_preview(
 		from_cell,
 		edge_index,
-		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+		MirrorPlacementData.MirrorKind.COPY,
+		active_from_side
+	)
+
+
+func update_reflect_preview(
+	from_cell: Vector3i,
+	edge_index: int,
+	active_from_side: Variant = null
+) -> bool:
+	return _update_mirror_preview(
+		from_cell,
+		edge_index,
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT,
+		active_from_side
 	)
 
 
 func _update_mirror_preview(
 	from_cell: Vector3i,
 	edge_index: int,
-	mirror_kind: MirrorPlacementData.MirrorKind
+	mirror_kind: MirrorPlacementData.MirrorKind,
+	active_from_side: Variant = null,
+	relocation_source: CopyMirror = null
 ) -> bool:
-	var validation := validate_placement(from_cell, edge_index, false, mirror_kind)
+	var validation := validate_placement(
+		from_cell,
+		edge_index,
+		false,
+		mirror_kind,
+		relocation_source
+	)
 	if not validation.failure.is_empty():
 		clear_preview()
 		return false
+	if active_from_side != null:
+		_preview_active_from_side = bool(active_from_side)
 	var edge_id: String = validation.edge_id
 	if (
 		not reuse_placement_preview_instances
 		or _preview_mirror == null
 		or not is_instance_valid(_preview_mirror)
 		or _preview_kind != mirror_kind
+		or _preview_relocation_source != relocation_source
 	):
 		clear_preview()
+		_preview_relocation_source = relocation_source
 		_preview_kind = mirror_kind
 		_preview_mirror = (
 			ReflectMirror.new()
@@ -1123,6 +1303,9 @@ func _update_mirror_preview(
 			true
 		)
 		_preview_mirror.set_reflection_camera(_reflection_camera)
+		if relocation_source != null:
+			_preview_mirror.set_level(relocation_source.level)
+			_preview_mirror.placement_order = relocation_source.placement_order
 	else:
 		_preview_mirror.relocate_preview(
 			from_cell,
@@ -1130,6 +1313,8 @@ func _update_mirror_preview(
 			edge_index,
 			edge_id
 		)
+		if _preview_mirror.active_from_side != _preview_active_from_side:
+			_preview_mirror.flip_side()
 	_refresh_preview_projection()
 	return true
 
@@ -1146,6 +1331,7 @@ func clear_preview() -> void:
 	if _preview_mirror != null and is_instance_valid(_preview_mirror):
 		_preview_mirror.queue_free()
 	_preview_mirror = null
+	_preview_relocation_source = null
 	_clear_preview_projections()
 	_preview_info = {}
 	if had_preview:
@@ -1284,9 +1470,10 @@ func rebuild_now() -> void:
 
 func _calculate_projection_payloads(
 	mirrors: Array[CopyMirror],
-	extra_source: Variant = null
+	extra_source: Variant = null,
+	excluded_source: Variant = null
 ) -> Array[MirrorCopyPayload]:
-	var base_content := _build_base_content_map(extra_source)
+	var base_content := _build_base_content_map(extra_source, excluded_source)
 	var current: Array[MirrorCopyPayload] = []
 	var maximum_passes := maxi(2, copy_mirror_definition.copy_chain_max * maxi(1, mirrors.size()) + 2)
 	for _pass_index in range(maximum_passes):
@@ -1294,13 +1481,11 @@ func _calculate_projection_payloads(
 		for payload in current:
 			_append_content(content, payload.projected_cell, payload)
 		var next: Array[MirrorCopyPayload] = []
-		var claimed_targets: Dictionary = {}
 		for mirror in mirrors:
 			if not mirror.is_copy_mirror():
 				continue
-			var group := _build_projection_group(mirror, content, claimed_targets)
+			var group := _build_projection_group(mirror, content)
 			if not group.is_empty():
-				claimed_targets[group[0].projected_cell] = true
 				next.append_array(group)
 		if _payload_signature(next) == _payload_signature(current):
 			return next
@@ -1309,8 +1494,7 @@ func _calculate_projection_payloads(
 
 func _build_projection_group(
 	mirror: CopyMirror,
-	content: Dictionary,
-	claimed_targets: Dictionary
+	content: Dictionary
 ) -> Array[MirrorCopyPayload]:
 	var result: Array[MirrorCopyPayload] = []
 	var endpoints := mirror.get_axis_endpoints()
@@ -1334,9 +1518,10 @@ func _build_projection_group(
 		if eligible.is_empty():
 			continue
 		eligible.sort_custom(func(a: MirrorCopyPayload, b: MirrorCopyPayload) -> bool: return a.stable_key < b.stable_key)
-		if not copy_mirror_definition.projection_ignores_occupancy:
-			if _building_manager.get_building(pair.target_cell) != null or claimed_targets.has(pair.target_cell):
-				return result
+		# Projections are presentation/combat overlays, never tile occupants. They
+		# may overlap any one real entity and any number of other projections.
+		# projection_ignores_occupancy remains serialized only for old resources;
+		# the runtime invariant is now unconditional.
 		for source_payload in eligible:
 			result.append(source_payload.copy_through(
 				mirror.edge_id,
@@ -1344,15 +1529,21 @@ func _build_projection_group(
 				endpoints[0],
 				endpoints[1],
 				mirror.get_damage_multiplier(),
-				mirror.get_penetration_bonus()
+				mirror.get_penetration_bonus(),
+				copy_mirror_definition.get_projection_alpha(mirror.level)
 			))
 		return result
 	return result
 
-func _build_base_content_map(extra_source: Variant = null) -> Dictionary:
+func _build_base_content_map(
+	extra_source: Variant = null,
+	excluded_source: Variant = null
+) -> Dictionary:
 	var content: Dictionary = {}
 	if _building_manager != null:
 		for building in _building_manager.get_buildings():
+			if building == excluded_source:
+				continue
 			_append_building_content(content, building)
 	if extra_source is Building and is_instance_valid(extra_source):
 		_append_building_content(content, extra_source as Building, "candidate")
@@ -1448,12 +1639,28 @@ func _refresh_preview_projection() -> void:
 		}
 		preview_updated.emit(_preview_info)
 		return
-	var content := _build_base_content_map()
-	for projection in _projections:
-		if projection.payload != null and projection.payload.is_source_valid():
-			_append_content(content, projection.payload.projected_cell, projection.payload)
-	var group := _build_projection_group(_preview_mirror, content, {})
-	var connectivity_failure := _validate_path_connectivity({"candidate_mirror": _preview_mirror})
+	var group: Array[MirrorCopyPayload] = []
+	if _preview_relocation_source != null:
+		var prospective_mirrors := get_mirrors()
+		prospective_mirrors.erase(_preview_relocation_source)
+		prospective_mirrors.append(_preview_mirror)
+		prospective_mirrors.sort_custom(
+			func(a: CopyMirror, b: CopyMirror) -> bool:
+				return a.placement_order < b.placement_order
+		)
+		for payload in _calculate_projection_payloads(prospective_mirrors):
+			if payload.lineage.has(_preview_mirror.edge_id):
+				group.append(payload)
+	else:
+		var content := _build_base_content_map()
+		for projection in _projections:
+			if projection.payload != null and projection.payload.is_source_valid():
+				_append_content(content, projection.payload.projected_cell, projection.payload)
+		group = _build_projection_group(_preview_mirror, content)
+	var connectivity_change := {"candidate_mirror": _preview_mirror}
+	if _preview_relocation_source != null:
+		connectivity_change["removed_mirror"] = _preview_relocation_source
+	var connectivity_failure := _validate_path_connectivity(connectivity_change)
 	var preview_valid := connectivity_failure.is_empty()
 	_preview_mirror.set_preview_valid(preview_valid)
 	_preview_info = {
@@ -1687,13 +1894,6 @@ func _get_edge_occupant(edge_id: String) -> Object:
 			return building
 	return get_mirror(edge_id)
 
-func _has_enemy_on_adjacent_cell(from_cell: Vector3i, to_cell: Vector3i) -> bool:
-	for target in _combat_manager.get_targets():
-		var cell := _grid.world_to_cell(target.global_position)
-		if cell == from_cell or cell == to_cell:
-			return true
-	return false
-
 func _connect_attack_source(building: Building) -> void:
 	if building == null or not is_instance_valid(building):
 		return
@@ -1892,6 +2092,14 @@ func _on_building_upgraded(_building: Building, _previous_level: int, _new_level
 	rebuild_now()
 
 
+func _on_building_relocated(
+	_building: Building,
+	_previous_cell: Vector3i,
+	_previous_edge_id: String
+) -> void:
+	rebuild_now()
+
+
 func _on_building_preview_updated(building: Building) -> void:
 	_refresh_building_preview_projections(building)
 
@@ -1990,6 +2198,8 @@ func _disconnect_dependencies() -> void:
 			_building_manager.building_removed.disconnect(_on_building_removed)
 		if _building_manager.building_upgraded.is_connected(_on_building_upgraded):
 			_building_manager.building_upgraded.disconnect(_on_building_upgraded)
+		if _building_manager.building_relocated.is_connected(_on_building_relocated):
+			_building_manager.building_relocated.disconnect(_on_building_relocated)
 		if _building_manager.preview_updated.is_connected(_on_building_preview_updated):
 			_building_manager.preview_updated.disconnect(_on_building_preview_updated)
 		if _building_manager.preview_cleared.is_connected(_on_building_preview_cleared):

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TileEditorCanvasScript := preload("res://addons/mirror_tile_editor/tile_editor_canvas.gd")
+const CameraPresetControllerScript := preload("res://scripts/camera/CameraPresetController.gd")
 
 var _checks: int = 0
 var _failures: int = 0
@@ -21,6 +22,37 @@ func _run() -> void:
 	_expect(InputMap.has_action("cam_pitch_lower") and InputMap.has_action("cam_pitch_raise"), "X/C use dedicated pitch InputMap actions")
 	_expect(not InputMap.has_action("cam_zoom_in") and not InputMap.has_action("cam_zoom_out"), "keyboard zoom actions are removed")
 	_expect(not InputMap.has_action("toggle_grid_shape"), "the runtime T grid-shape toggle action is removed")
+	_expect(
+		InputMap.has_action("camera_preset_1") and InputMap.has_action("camera_preset_2"),
+		"gameplay camera shortcuts 1 and 2 remain available"
+	)
+	_expect(
+		not InputMap.has_action("camera_preset_3")
+		and not InputMap.has_action("camera_preset_4")
+		and not InputMap.has_action("camera_preset_5")
+		and not InputMap.has_action("camera_preset_6"),
+		"all other numeric camera InputMap actions are removed"
+	)
+	var preset_controller := CameraPresetControllerScript.new()
+	var preset_constants: Dictionary = preset_controller.get_script().get_script_constant_map()
+	preset_controller.free()
+	_expect(
+		preset_constants.get("PRESET_ACTIONS", []) == [
+			&"camera_preset_1",
+			&"camera_preset_2",
+		],
+		"camera preset input routing consumes only numeric keys 1 and 2"
+	)
+	var lighting_source := FileAccess.get_file_as_string("res://scripts/lighting/LightingController.gd")
+	var dof_source := FileAccess.get_file_as_string("res://scripts/camera/MiniatureDofController.gd")
+	_expect(
+		not lighting_source.contains("KEY_6")
+		and not lighting_source.contains("KEY_7")
+		and not lighting_source.contains("KEY_8")
+		and not lighting_source.contains("KEY_9")
+		and not dof_source.contains("KEY_0"),
+		"numeric keys 0 and 6 through 9 have no runtime debug handlers"
+	)
 	_expect(is_equal_approx(rig.zoom_min, 2.0) and is_equal_approx(rig.zoom_max, 30.0), "runtime camera supports the larger 2-to-30 zoom distance range")
 	_expect(rig.mouse_navigation_enabled and rig.pan_sensitivity > 0.0 and rig.orbit_sensitivity > 0.0, "runtime mouse navigation is parameterized and enabled by default")
 	var contextual_panel := Control.new()

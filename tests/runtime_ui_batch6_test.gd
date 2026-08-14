@@ -34,13 +34,14 @@ func _run() -> void:
 
 
 func _test_input_and_command_registry() -> void:
-	_expect(InputMap.has_action("toggle_debug_console"), "InputMap exposes the F1 console action")
-	var events := InputMap.action_get_events("toggle_debug_console")
+	_expect(InputMap.has_action("toggle_debug_tools"), "InputMap exposes the F1 debug-tools action")
+	_expect(not InputMap.has_action("toggle_debug_console"), "the legacy console-only action is removed")
+	var events := InputMap.action_get_events("toggle_debug_tools")
 	var has_f1 := false
 	for event in events:
 		if event is InputEventKey and (event as InputEventKey).physical_keycode == KEY_F1:
 			has_f1 = true
-	_expect(has_f1, "the console action is bound to physical F1")
+	_expect(has_f1, "the unified debug-tools action is bound to physical F1")
 	var registry := DebugCommandRegistryScript.new()
 	_expect(
 		registry.register_command(&"echo", "echo <text>", "echo arguments", Callable(self, "_echo_command")),
@@ -106,12 +107,9 @@ func _test_console_scene(bindings: RuntimeDebugBindingsScript) -> void:
 		host.add_child(console)
 		await process_frame
 		console.configure(bindings.command_registry, bindings.category_registry)
-		var toggle_event := InputEventAction.new()
-		toggle_event.action = &"toggle_debug_console"
-		toggle_event.pressed = true
-		console._input(toggle_event)
+		console.open_console()
 		await process_frame
-		_expect(console.is_open(), "F1 action opens the console as a modal at %s" % str(viewport_size))
+		_expect(console.is_open(), "the explicit console entry opens a modal at %s" % str(viewport_size))
 		var frame := console.get_node("Shade/ConsoleFrame") as Control
 		var rect := frame.get_global_rect()
 		_expect(rect.position.x >= 0.0 and rect.position.y >= 0.0, "console stays inside the top-left viewport edge at %s" % str(viewport_size))
@@ -141,8 +139,20 @@ func _test_runtime_hud_modal(bindings: RuntimeDebugBindingsScript) -> void:
 	await process_frame
 	bindings.category_registry.set_enabled(&"fps", true)
 	hud.configure_debug_console(bindings.command_registry, bindings.category_registry)
-	_expect(hud.debug_console != null, "runtime HUD owns the F1 console")
+	hud.configure_debug_tool_entries(true, null)
+	_expect(hud.debug_console != null, "runtime HUD owns the button-opened console")
 	_expect(hud.debug_overlay_panel != null, "runtime HUD owns the persistent debug overlay")
+	var debug_entries := hud.runtime_stuff_editor_panel
+	_expect(
+		debug_entries.get_debug_console_button() != null
+		and debug_entries.get_level_editor_button() != null
+		and debug_entries.get_runtime_parameter_editor_button() != null,
+		"console, level editor, and parameter editor expose one persistent button group"
+	)
+	_expect(
+		debug_entries.get_runtime_parameter_editor_button().disabled,
+		"parameter button stays visible but disabled when its development window is unavailable"
+	)
 	_expect(
 		hud.debug_overlay_panel.visible and hud.debug_overlay_panel.get_display_text().contains("[性能]"),
 		"an enabled console category renders in the game-view overlay"
@@ -153,12 +163,28 @@ func _test_runtime_hud_modal(bindings: RuntimeDebugBindingsScript) -> void:
 		overlay_rect.position.x >= 0.0 and overlay_rect.position.y >= 0.0 and not overlay_rect.intersects(wave_controls_rect),
 		"debug overlay stays clear of the right-side wave controls"
 	)
-	hud.debug_console.open_console()
+	debug_entries.get_debug_console_button().pressed.emit()
 	await process_frame
 	_expect(hud.is_modal_open() and hud.is_debug_console_open(), "console participates in the unified HUD modal boundary")
 	hud.close_top_modal()
 	_expect(not hud.is_modal_open(), "closing the top modal restores world input eligibility")
 	_expect(hud.debug_overlay_panel.visible, "closing the console keeps enabled debug information on the game view")
+	hud.set_debug_tools_enabled(false)
+	_expect(
+		not debug_entries.visible
+		and not hud.card_style_toggle.visible
+		and not hud.debug_overlay_panel.visible
+		and bindings.category_registry.is_suspended(),
+		"debug master switch hides entries and suspends enabled debug output"
+	)
+	hud.set_debug_tools_enabled(true)
+	_expect(
+		debug_entries.visible
+		and hud.card_style_toggle.visible
+		and hud.debug_overlay_panel.visible
+		and not bindings.category_registry.is_suspended(),
+		"restoring debug tools restores buttons and prior category state"
+	)
 	for entry in bindings.category_registry.list_categories():
 		bindings.category_registry.set_enabled(entry.get("id", &""), false)
 	_expect(not hud.debug_overlay_panel.visible, "debug overlay hides when every category is disabled")
@@ -186,10 +212,38 @@ func _test_main_scene_migration() -> void:
 		main.runtime_hud.debug_console != null and main.runtime_hud.debug_overlay_panel != null,
 		"Main exposes debug through the formal HUD console and persistent overlay"
 	)
+	var debug_entries = main.runtime_hud.runtime_stuff_editor_panel
+	_expect(
+		debug_entries.get_debug_console_button().text == "调试控制台"
+		and debug_entries.get_level_editor_button().text == "运行时关卡编辑"
+		and debug_entries.get_runtime_parameter_editor_button().text == "运行时参数编辑",
+		"Main groups all three debug editor entries with stable labels"
+	)
 	var marker_labels: Array[String] = main.path_manager.get_spawn_marker_labels()
 	_expect(not main.path_manager.show_paths and not marker_labels.is_empty(), "path debug lines default off while numbered endpoints remain")
 	var path_on: Dictionary = main.runtime_debug_bindings.command_registry.execute("debug set path on")
 	_expect(bool(path_on.get("success", false)) and main.path_manager.show_paths, "path category enables only the debug route lines")
+	var debug_toggle := InputEventAction.new()
+	debug_toggle.action = &"toggle_debug_tools"
+	debug_toggle.pressed = true
+	main._input(debug_toggle)
+	await process_frame
+	_expect(
+		not debug_entries.visible
+		and main.lighting_test_panel != null
+		and not main.lighting_test_panel.visible
+		and not main.path_manager.show_paths
+		and main.camera_preset_controller.feature_enabled,
+		"F1 hides the unified debug UI and suspends active world debug visuals"
+	)
+	main._input(debug_toggle)
+	await process_frame
+	_expect(
+		debug_entries.visible
+		and main.lighting_test_panel.visible
+		and main.path_manager.show_paths,
+		"F1 restores the unified debug UI and prior world debug visuals"
+	)
 	var path_off: Dictionary = main.runtime_debug_bindings.command_registry.execute("debug set path off")
 	_expect(bool(path_off.get("success", false)) and not main.path_manager.show_paths, "path category disables the debug route lines")
 	await process_frame

@@ -152,6 +152,29 @@ function Get-ImportLimit {
 }
 
 
+function Get-RuntimeCacheSnapshot {
+    param([string]$ImportPath)
+
+    $content = [IO.File]::ReadAllText($ImportPath)
+    $match = [regex]::Match($content, 'path\.s3tc="res://([^"]+)"')
+    if (-not $match.Success) {
+        $match = [regex]::Match($content, '(?m)^path="res://([^"]+)"')
+    }
+    if (-not $match.Success) {
+        return [pscustomobject]@{ Path = ''; Bytes = 0L }
+    }
+    $relativePath = $match.Groups[1].Value.Replace('\', '/')
+    $fullPath = Convert-ToFullProjectPath -RelativePath $relativePath
+    $bytes = if (Test-Path -LiteralPath $fullPath) {
+        [long](Get-Item -LiteralPath $fullPath).Length
+    }
+    else {
+        0L
+    }
+    return [pscustomobject]@{ Path = $relativePath; Bytes = $bytes }
+}
+
+
 function Set-ImportLimit {
     param(
         [string]$ImportPath,
@@ -263,15 +286,27 @@ $previousByImportPath = @{}
 if (Test-Path -LiteralPath $manifestFullPath) {
     $previousManifest = [IO.File]::ReadAllText($manifestFullPath) | ConvertFrom-Json
     foreach ($entry in $previousManifest.entries) {
-        $previousByImportPath[[string]$entry.import_path] = [int]$entry.previous_limit
+        $previousByImportPath[[string]$entry.import_path] = $entry
     }
 }
 
 $manifestEntries = @()
 foreach ($candidate in $candidates) {
     $previousLimit = $candidate.current_limit
+    $cacheSnapshot = Get-RuntimeCacheSnapshot -ImportPath (
+        Convert-ToFullProjectPath -RelativePath $candidate.import_path
+    )
+    $previousCachePath = $cacheSnapshot.Path
+    $previousCacheBytes = $cacheSnapshot.Bytes
     if ($previousByImportPath.ContainsKey($candidate.import_path)) {
-        $previousLimit = $previousByImportPath[$candidate.import_path]
+        $previousEntry = $previousByImportPath[$candidate.import_path]
+        $previousLimit = [int]$previousEntry.previous_limit
+        if ($null -ne $previousEntry.PSObject.Properties['previous_cache_path']) {
+            $previousCachePath = [string]$previousEntry.previous_cache_path
+        }
+        if ($null -ne $previousEntry.PSObject.Properties['previous_cache_bytes']) {
+            $previousCacheBytes = [long]$previousEntry.previous_cache_bytes
+        }
     }
     $manifestEntries += [ordered]@{
         source_path = $candidate.source_path
@@ -279,6 +314,8 @@ foreach ($candidate in $candidates) {
         width = $candidate.width
         height = $candidate.height
         previous_limit = [int]$previousLimit
+        previous_cache_path = $previousCachePath
+        previous_cache_bytes = [long]$previousCacheBytes
     }
 }
 

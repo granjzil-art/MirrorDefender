@@ -17,6 +17,7 @@ if ([string]::IsNullOrWhiteSpace($GodotBinary) -or -not (Test-Path -LiteralPath 
 }
 
 $Tests = @(
+	"campaign_preflight_test.gd",
 	"acrylic_top_highlight_test.gd",
 	"airborne_effects_test.gd",
 	"ballistic_stuff_blocking_test.gd",
@@ -28,6 +29,8 @@ $Tests = @(
 	"crossbow_tower_test.gd",
 	"directional_edge_barrier_test.gd",
 	"enemy_health_bar_test.gd",
+	"enemy_animation_states_test.gd",
+	"enemy_model_assets_test.gd",
 	"enemy_spawn_interval_jitter_test.gd",
 	"enemy_specialists_test.gd",
 	"foliage_shadow_test.gd",
@@ -35,6 +38,8 @@ $Tests = @(
 	"initial_layout_persistence_test.gd",
 	"level_reflection_test.gd",
 	"level_select_test.gd",
+	"level1_wave_balance_test.gd",
+	"level234_wave_balance_test.gd",
 	"level1_sky_decoration_test.gd",
 	"level_celestial_decoration_test.gd",
 	"lighting_display_case_test.gd",
@@ -54,6 +59,7 @@ $Tests = @(
 	"path_terrain_color_test.gd",
 	"performance_optimization_test.gd",
 	"projectile_trajectory_preview_test.gd",
+	"projectile_fire_mode_test.gd",
 	"pulse_laser_tower_test.gd",
 	"reflect_mirror_test.gd",
 	"robustness_baseline_test.gd",
@@ -75,7 +81,8 @@ $Tests = @(
 	"terrain_stuff_contract_test.gd",
 	"terrain_stuff_editor_test.gd",
 	"terrain_runtime_test.gd",
-	"tile_elements_and_rerouting_test.gd"
+	"tile_elements_and_rerouting_test.gd",
+	"tutorial_system_test.gd"
 )
 
 $FailedTests = [System.Collections.Generic.List[string]]::new()

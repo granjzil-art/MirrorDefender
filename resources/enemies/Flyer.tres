@@ -1,12 +1,13 @@
 [gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://jhoves7q4q0h"]
 
-[ext_resource type="PackedScene" uid="uid://d2g3b076vp1jk" path="res://assets/enemies/Flyers/flyer.tscn" id="1_1ve48"]
+[ext_resource type="PackedScene" path="res://assets/enemies/Flyers/flyer_runtime.tscn" id="1_1ve48"]
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_jvrr6"]
 
 [sub_resource type="Resource" id="Resource_5q7gv"]
 script = ExtResource("2_jvrr6")
 scene = ExtResource("1_1ve48")
+runtime_scale = Vector3(0.9, 0.9, 0.9)
 metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
@@ -14,10 +15,10 @@ script = ExtResource("1_enemy")
 enemy_id = &"flyer"
 display_name = "飞行侦察兵"
 max_hp = 60.0
-move_speed = 1.2000000000000002
+move_speed = 1.1
 base_damage = 6.0
 reward = 8.0
-hit_radius = 0.4
+hit_radius = 0.5
 is_airborne = true
 flight_height = 0.9
 attack_damage = 8.0

@@ -277,14 +277,15 @@ func _is_valid_fit_bounds(bounds: AABB) -> bool:
 	)
 
 
-func _find_duplicate_sibling_name(parent: Node) -> String:
+func _find_duplicate_sibling_name(parent: Node, parent_path: String = "/") -> String:
 	var child_names: Dictionary = {}
 	for child in parent.get_children():
 		var child_name := String(child.name)
+		var child_path := "%s%s" % [parent_path, child_name]
 		if child_names.has(child_name):
-			return "%s/%s" % [String(parent.get_path()), child_name]
+			return child_path
 		child_names[child_name] = true
-		var nested_duplicate := _find_duplicate_sibling_name(child)
+		var nested_duplicate := _find_duplicate_sibling_name(child, "%s/" % child_path)
 		if not nested_duplicate.is_empty():
 			return nested_duplicate
 	return ""

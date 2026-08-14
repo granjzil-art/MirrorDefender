@@ -48,10 +48,25 @@ func _test_alternate_route_then_last_route() -> void:
 	var building: BuildingManager = fixture.building
 	var first_cell := Vector3i(2, 2, 0)
 	var last_cell := Vector3i(2, 1, 0)
-	_expect(building.place_building(first_cell, building.barrier) != null, "blocking one branch is allowed while an alternate target route remains")
+	var first_barrier := building.place_building(first_cell, building.barrier)
+	_expect(first_barrier != null, "blocking one branch is allowed while an alternate target route remains")
 	_expect(building.update_preview(last_cell, building.barrier), "last-branch blocker keeps its red preview visible")
 	_expect(not building.get_preview_building().is_preview_valid(), "last alternate branch is detected before placement")
 	_expect(building.place_building(last_cell, building.barrier) == null, "second barrier cannot close every route to the same target base")
+	_expect(
+		building.update_relocation_preview(first_barrier, last_cell)
+		and building.get_preview_building().is_preview_valid(),
+		"relocation preview evaluates the destination with the source blocker removed"
+	)
+	_expect(
+		building.relocate_building_to_cell(first_barrier, last_cell),
+		"moving the existing branch blocker succeeds because its old branch is reopened"
+	)
+	_expect(
+		building.get_building(first_cell) == null
+		and building.get_building(last_cell) == first_barrier,
+		"connectivity-safe relocation transfers path occupancy atomically"
+	)
 	await _dispose_fixture(fixture)
 
 

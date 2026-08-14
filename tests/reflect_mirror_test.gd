@@ -16,6 +16,7 @@ func _run() -> void:
 	print("[ReflectMirror] running")
 	var fixture := await _make_fixture()
 	_test_definition_and_preview(fixture)
+	_test_placement_with_adjacent_enemies(fixture)
 	_test_reflection_geometry(fixture)
 	_test_pulse_laser_reflection(fixture)
 	_test_external_reflector_composition(fixture)
@@ -47,6 +48,47 @@ func _test_definition_and_preview(fixture: Dictionary) -> void:
 	var info := mirror_manager.get_preview_info()
 	_expect(int(info.get("mirror_kind", -1)) == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT, "preview identifies the reflector kind")
 	mirror_manager.clear_preview()
+
+
+func _test_placement_with_adjacent_enemies(fixture: Dictionary) -> void:
+	var mirror_manager: MirrorManager = fixture.mirror
+	var combat: CombatManager = fixture.combat
+	var grid: GridManager = fixture.grid
+	var from_cell := Vector3i(0, 0, 0)
+	var to_cell := Vector3i(1, 0, 0)
+	var edge_index := grid.find_edge_index(from_cell, to_cell)
+	var from_enemy := CombatTarget.new()
+	var to_enemy := CombatTarget.new()
+	combat.add_child(from_enemy)
+	combat.add_child(to_enemy)
+	from_enemy.configure_debug_target(grid.cell_to_world(from_cell), 100.0, 0.0, 0.0)
+	to_enemy.configure_debug_target(grid.cell_to_world(to_cell), 100.0, 0.0, 0.0)
+	combat.register_target(from_enemy)
+	combat.register_target(to_enemy)
+	var copy_validation := mirror_manager.validate_placement(
+		from_cell,
+		edge_index,
+		true,
+		MirrorPlacementData.MirrorKind.COPY
+	)
+	_expect(copy_validation.failure.is_empty(), "adjacent enemies no longer invalidate copy-mirror placement")
+	var copy := mirror_manager.place_copy_mirror(from_cell, edge_index, true)
+	_expect(copy != null, "copy mirror can be placed while enemies occupy both adjacent cells")
+	_expect(mirror_manager.remove_mirror(copy), "adjacent-enemy copy-mirror test releases its edge")
+	var reflect_validation := mirror_manager.validate_placement(
+		from_cell,
+		edge_index,
+		true,
+		MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+	)
+	_expect(reflect_validation.failure.is_empty(), "adjacent enemies no longer invalidate reflect-mirror placement")
+	var reflector := mirror_manager.place_reflect_mirror(from_cell, edge_index, true)
+	_expect(reflector != null, "reflect mirror can be placed while enemies occupy both adjacent cells")
+	_expect(mirror_manager.remove_mirror(reflector), "adjacent-enemy reflector test releases its edge")
+	combat.unregister_target(from_enemy)
+	combat.unregister_target(to_enemy)
+	from_enemy.queue_free()
+	to_enemy.queue_free()
 
 
 func _test_reflection_geometry(fixture: Dictionary) -> void:

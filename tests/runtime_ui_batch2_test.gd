@@ -138,11 +138,16 @@ func _test_runtime_hud_selection_and_layout(fixture: Dictionary) -> void:
 		"runtime HUD omits the selected-tile detail service and panel"
 	)
 
+	interaction.handle_primary({"hit": true, "cell": Vector3i(1, 1, 0)}, {"hit": false})
+	_expect(
+		fixture["building"].get_selected_building() != null and interaction.has_world_selection(),
+		"blank-click regression starts from an active building selection"
+	)
 	interaction.handle_primary({"hit": true, "cell": Vector3i(4, 3, 0)}, {"hit": false})
 	await process_frame
 	_expect(
-		fixture["building"].get_selected_building() == null,
-		"selecting an empty tile remains a valid world-selection action without detail UI"
+		fixture["building"].get_selected_building() == null and not interaction.has_world_selection(),
+		"left-clicking an empty tile clears world selection like right-click cancellation"
 	)
 
 	interaction.handle_primary({"hit": true, "cell": Vector3i(1, 1, 0)}, {"hit": false})

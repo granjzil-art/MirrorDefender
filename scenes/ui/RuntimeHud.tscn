@@ -89,6 +89,19 @@ grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("2_build_card_bar")
 
+[node name="ActionFeedback" type="Label" parent="."]
+z_index = 100
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.46, 0.38, 1)
+theme_override_font_sizes/font_size = 28
+text = "该格子不可放置！"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="GlobalInfoPanel" parent="." instance=ExtResource("5_global_info")]
 layout_mode = 1
 anchor_left = 1.0

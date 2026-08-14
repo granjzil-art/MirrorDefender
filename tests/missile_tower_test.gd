@@ -19,6 +19,7 @@ func _run() -> void:
 	var fixture := _make_fixture()
 	_test_airborne_priority(fixture)
 	await _test_targeted_missile(fixture)
+	await _test_directional_airborne_direct_hit(fixture)
 	await _test_range_explosion(fixture)
 	await _test_reflection_and_stuff(fixture)
 	await _test_source_removal(fixture)
@@ -117,6 +118,27 @@ func _test_range_explosion(fixture: Dictionary) -> void:
 		missile._process(1.0)
 	_expect(is_equal_approx(endpoint_target.current_hp, 80.0), "reaching maximum flight distance triggers a one-cell explosion")
 	_remove_target(combat, endpoint_target)
+	await process_frame
+
+
+func _test_directional_airborne_direct_hit(fixture: Dictionary) -> void:
+	var combat := fixture.get("combat") as CombatManager
+	var building := fixture.get("building") as Building
+	var origin := building.get_attack_origin()
+	var airborne_target := _make_target(
+		combat,
+		Vector3(origin.x, origin.y + 4.0, origin.z + 2.0),
+		true
+	)
+	_last_projectile = building.launch_directional_projectile(20.0, Vector3.BACK)
+	var missile := _last_projectile as MissileProjectile
+	if missile != null:
+		missile._process(0.5)
+	_expect(
+		is_equal_approx(airborne_target.current_hp, 80.0),
+		"no-target directional missile directly contacts an airborne enemy on its combat-plane path"
+	)
+	_remove_target(combat, airborne_target)
 	await process_frame
 
 

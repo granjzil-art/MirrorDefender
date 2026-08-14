@@ -237,7 +237,13 @@ func is_path_cell(cell: Vector3i) -> bool:
 
 func allows_tile_building(cell: Vector3i) -> bool:
 	var grid_cell := get_grid_cell(cell)
-	return grid_cell != null and grid_cell.allows_tile_building
+	# Water contributes a terrain-derived default veto on top of the authored
+	# Grid permission, so existing levels do not need per-cell migration.
+	return (
+		grid_cell != null
+		and grid_cell.allows_tile_building
+		and not _is_water_terrain(cell)
+	)
 
 
 func allows_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
@@ -251,6 +257,10 @@ func allows_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
 	if _grid == null or edge_index >= _grid.edge_count():
 		return false
 	var neighbor := _grid.neighbor_across_edge(cell, edge_index)
+	# Only an interior water-water edge is blocked. Shoreline edges continue to
+	# use the independently authored permissions on their two adjacent cells.
+	if _is_water_terrain(cell) and _is_water_terrain(neighbor):
+		return false
 	var owner: Variant = _base_footprint_owners.get(cell)
 	return owner == null or _base_footprint_owners.get(neighbor) != owner
 
@@ -264,6 +274,11 @@ func get_terrain(cell: Vector3i) -> TerrainDefinitionScript:
 	)
 	var ramp := get_ramp_for_cell(cell)
 	return ramp.get_effective_terrain(base_terrain) if ramp != null else base_terrain
+
+
+func _is_water_terrain(cell: Vector3i) -> bool:
+	var terrain := get_terrain(cell)
+	return terrain != null and terrain.is_water()
 
 
 func get_terrain_color(cell: Vector3i) -> Color:

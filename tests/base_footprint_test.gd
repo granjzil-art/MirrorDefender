@@ -17,6 +17,14 @@ func _run() -> void:
 		return
 	var errors := level.validate_runtime()
 	_expect(errors.is_empty(), "Level2 remains valid after 3x2 base migration: %s" % "; ".join(errors))
+	var save_copy := level.duplicate(true) as LevelResource
+	_expect(save_copy != null, "Level2 can create the deep copy used by runtime saving")
+	if save_copy != null:
+		var mirror_levels: Array[int] = []
+		for placement: MirrorPlacementData in save_copy.initial_mirror_placements:
+			mirror_levels.append(placement.level)
+		_expect(mirror_levels == [1, 1, 1], "runtime-save copy preserves legacy initial mirrors as level one")
+		_expect(save_copy.validate_runtime().is_empty(), "runtime-save copy remains valid with legacy initial mirrors")
 	var base_point := level.get_base_point(&"base_1")
 	_expect(base_point != null, "Level2 resolves base_1")
 	if base_point == null:

@@ -210,6 +210,9 @@ func _build_interface() -> void:
 	_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_status_label.custom_minimum_size = Vector2(0.0, 22.0)
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Production action feedback is rendered at the click position by RuntimeHud.
+	# Keep this legacy node/API for compatibility without showing fixed debug text.
+	_status_label.visible = false
 	layout.add_child(_status_label)
 
 	_cards_row = HBoxContainer.new()
@@ -550,7 +553,31 @@ func _refresh_card_states() -> void:
 	for raw_definition in _building_buttons:
 		var definition: BuildingDefinition = raw_definition
 		var button: Button = _building_buttons[definition]
-		_apply_button_state(button, _is_building_available(definition), _selected_definition == definition)
+		_apply_building_button_state(button, definition, _selected_definition == definition)
+
+
+func _apply_building_button_state(
+	button: Button,
+	definition: BuildingDefinition,
+	selected: bool
+) -> void:
+	var blocked_by_cap := _resource_manager != null and not _resource_manager.can_add_building()
+	_apply_button_state(button, _is_building_available(definition), selected)
+	var stats := definition.get_level_stats(1) if definition != null else null
+	var status_text := (
+		"已达上限"
+		if blocked_by_cap
+		else "◆ %d" % ceili(stats.cost) if stats != null else "未配置"
+	)
+	var status_color := Color(0.72, 0.94, 1.0) if blocked_by_cap else full_art_cost_color
+	var footer := button.get_node_or_null("Content/Footer") as Label
+	if footer != null:
+		footer.text = status_text
+		footer.add_theme_color_override("font_color", status_color)
+	var full_art_cost := button.get_node_or_null("Cost") as Label
+	if full_art_cost != null:
+		full_art_cost.text = status_text
+		full_art_cost.add_theme_color_override("font_color", status_color)
 
 
 func _apply_mirror_button_state(

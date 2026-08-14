@@ -25,6 +25,9 @@ const ProjectileTrajectoryPreviewScript := preload("res://scripts/building/Proje
 @export_range(0.0, 10.0, 0.05, "or_greater") var projectile_preview_width_multiplier: float = 1.5
 @export_range(0.0, 0.5, 0.001, "or_greater") var projectile_preview_lift: float = 0.04
 @export_range(1, 64, 1) var projectile_preview_max_segments_per_direction: int = 32
+@export var projectile_multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0)
+@export_range(0.0, 2.0, 0.01, "or_greater") var projectile_multiplier_label_height: float = 0.18
+@export_range(0.0, 2.0, 0.01, "or_greater") var projectile_multiplier_label_stack_spacing: float = 0.22
 
 var _grid: GridManager
 var _building_manager: BuildingManager
@@ -112,6 +115,12 @@ func debug_get_projectile_trajectory_segments() -> Array[Dictionary]:
 	return _trajectory_preview.debug_get_segments()
 
 
+func debug_get_projectile_multiplier_labels() -> Array[Dictionary]:
+	if _trajectory_preview == null:
+		return []
+	return _trajectory_preview.debug_get_multiplier_labels()
+
+
 func get_visualized_occupied_cells() -> Array[Vector3i]:
 	return _visualized_cells.duplicate()
 
@@ -185,12 +194,16 @@ func _rebuild_visuals() -> void:
 			projectile_preview_minimum_width,
 			projectile_preview_width_multiplier,
 			projectile_preview_lift,
-			projectile_preview_max_segments_per_direction
+			projectile_preview_max_segments_per_direction,
+			projectile_multiplier_label_color,
+			projectile_multiplier_label_height,
+			projectile_multiplier_label_stack_spacing
 		)
 		_trajectory_preview.set_reflection_resolver(_projectile_reflection_resolver)
 		_trajectory_preview.set_blocker_resolver(_projectile_blocker_resolver)
 		var trajectory_building := active_preview_building
 		var copy_payloads: Array[MirrorCopyPayload] = []
+		var show_multiplier_labels := trajectory_building != null
 		if trajectory_building != null and _projectile_copy_resolver.is_valid():
 			var raw_payloads: Variant = _projectile_copy_resolver.call(trajectory_building)
 			if raw_payloads is Array:
@@ -203,12 +216,17 @@ func _rebuild_visuals() -> void:
 				var raw_building: Variant = raw_preview.get("building", null)
 				if raw_building is Building and is_instance_valid(raw_building):
 					trajectory_building = raw_building as Building
+					show_multiplier_labels = false
 					var raw_payloads: Variant = raw_preview.get("payloads", [])
 					if raw_payloads is Array:
 						for raw_payload in raw_payloads:
 							if raw_payload is MirrorCopyPayload:
 								copy_payloads.append(raw_payload)
-		_trajectory_preview.rebuild(trajectory_building, copy_payloads)
+		_trajectory_preview.rebuild(
+			trajectory_building,
+			copy_payloads,
+			show_multiplier_labels
+		)
 
 
 func _rebuild_targeting_circle(center: Vector3, radius: float) -> void:

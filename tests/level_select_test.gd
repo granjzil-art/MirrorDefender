@@ -110,6 +110,15 @@ func _test_view_portal_cube_and_signal() -> void:
 	_expect(first_preview.is_loaded(), "valid sparse level loads into the preview renderer stack")
 	_expect(first_preview.get_content_scale() > 0.0, "preview content is normalized into the canonical display volume")
 	_expect(first_preview.get_preview_camera().projection == Camera3D.PROJECTION_FRUSTUM, "visible preview uses an off-axis frustum")
+	for face_index in range(4):
+		var preview = view.get_preview(face_index)
+		var label_instance := preview.get_level_label_mesh() as MeshInstance3D
+		var label_geometry := label_instance.mesh as TextMesh
+		_expect(preview.get_level_label_text() == "Level%d" % (face_index + 1), "face %d owns its stable level number" % (face_index + 1))
+		_expect(label_geometry != null and label_geometry.depth > 0.0, "face %d level number is extruded TextMesh geometry" % (face_index + 1))
+	_expect(view.get_preview(0).get_level_label_mesh().visible, "loaded level shows its physical number above the scene")
+	_expect(not view.get_preview(1).get_level_label_mesh().visible, "empty level keeps its physical number hidden")
+	_expect(absf(view.get_preview(0).get_level_label_mesh().position.z) < 0.75, "level number is suspended over the normalized scene center instead of the cabinet edge")
 
 	var camera_transform := view.get_cube_camera().global_transform
 	var yaw_before := view.get_cube_yaw()
@@ -117,8 +126,8 @@ func _test_view_portal_cube_and_signal() -> void:
 	var observer_before := first_preview.get_last_observer_local()
 	view.apply_drag_for_test(Vector2(36.0, -18.0))
 	await process_frame
-	_expect(not is_equal_approx(view.get_cube_yaw(), yaw_before), "horizontal drag rotates the cube yaw pivot")
-	_expect(not is_equal_approx(view.get_cube_pitch(), pitch_before), "vertical drag rotates the cube pitch pivot")
+	_expect(view.get_cube_yaw() > yaw_before, "rightward drag increases cube yaw after horizontal direction inversion")
+	_expect(view.get_cube_pitch() < pitch_before, "upward drag decreases cube pitch after vertical direction inversion")
 	_expect(view.get_cube_camera().global_transform.is_equal_approx(camera_transform), "dragging changes the cube, never the fixed external camera")
 	_expect(not first_preview.get_last_observer_local().is_equal_approx(observer_before), "cube rotation remaps the observer inside the face preview world")
 

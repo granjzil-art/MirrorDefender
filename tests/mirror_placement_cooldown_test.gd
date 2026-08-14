@@ -266,8 +266,18 @@ func _test_independent_cooldowns_and_card_sweep(fixture: Dictionary) -> void:
 	_expect(resource_manager.main_resource == 0.0, "initial layout reload leaves the economy unchanged")
 	var initial_mirrors := mirror_manager.get_mirrors()
 	if not initial_mirrors.is_empty():
+		var expected_initial_refund := initial_mirrors[0].definition.get_cumulative_cost(
+			initial_mirrors[0].level
+		)
+		_expect(
+			is_equal_approx(initial_mirrors[0].get_refund_amount(), expected_initial_refund),
+			"authored initial mirror owns its full configured cumulative refund"
+		)
 		_expect(mirror_manager.remove_mirror(initial_mirrors[0]), "authored initial mirror can still be demolished")
-		_expect(resource_manager.main_resource == 0.0, "authored initial mirror never creates a resource refund")
+		_expect(
+			is_equal_approx(resource_manager.main_resource, expected_initial_refund),
+			"authored initial mirror demolition returns its full configured cumulative value"
+		)
 	card_bar.queue_free()
 	await process_frame
 

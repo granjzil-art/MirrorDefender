@@ -18,7 +18,7 @@
 - **攻击范围**：所选目标必须在独立的 `attack_range` 内才会发射；投射物最大飞行距离也使用该范围。激光用它作为线段长度。
 - **投射物表现**：建筑、敌人与复制体投射物均可读取 `ModelAssetDefinition`；模型可视包围盒会精确拟合到 `visual_length/visual_width`，不再依赖资产根 Transform 或旧 Scale 校尺寸。为空或非法时使用同尺寸 BoxMesh 短直线回退；复制体沿用源建筑当前等级投射物资产并叠加虚像发光层。
 - **投射物跟踪与反射**：首次命中反射面之前保持原追踪行为；命中反射镜生效面或亚克力柜内侧面后用 `r = d - 2(d·n)n` 转为直线弹道，可连续反射并命中后续线段上的首个有效敌人。实体反射镜同时按自身等级把伤害倍率乘入当前伤害、把穿透加成加入剩余预算；多次反射逐次累计。亚克力柜默认返回 `×1/+0`。背面不反射。每段移动（含防重入偏移）都累计到同一个 `attack_range` 世界距离预算，达到上限立即销毁。
-- **可配置无目标直射**：箭塔类每级通过 `projectile_fire_mode` 选择 `TARGET_ONLY` 或 `TARGET_OR_FACING`。后者有索敌候选时仍使用原追踪弹；候选为空时沿建筑逻辑朝向发射直线弹，从生成起对每一移动段查询所有适用敌人并命中最近者。冷却、伤害、速度、对空过滤、累计射程和反射规则与普通投射物共用。
+- **三种投射物开火模式**：`TARGET_ONLY` 只在索敌成功且目标处于攻击范围时发射追踪弹；`TARGET_OR_FACING` 有目标时保持追踪，索敌候选为空时沿逻辑朝向直射；`FACING_ONLY` 完全不调用索敌，无论场上是否存在目标都按冷却沿逻辑朝向直射。两种方向弹都从生成起逐段查询弹道上的有效敌人；适用的空中敌人按战斗平面投影参与接触检测。三种模式共用伤害、速度、对空过滤、累计射程、Stuff、穿透与反射规则。
 - **导弹弹道**：`projectile_is_missile` 启用后，发射时快照塔的世界起点和初始方向，随机顺/逆时针走完一次可调偏心环线并轻微起伏。绕圈阶段只是表现，不查询敌人、Stuff 或镜面，也不消耗射程。索敌导弹同时创建 `aim.png` 地面标记，出圈后按可调转向速度持续追踪同一目标；无目标导弹则沿发射时的朝向直飞。
 - **导弹引爆与反射**：实体飞行阶段碰到任意敌人、弹道阻挡 Stuff 或达到共享总路程时立即引爆；爆炸用 XZ 圆形范围结算一次全额伤害，忽略高度差，因此命中空中单位。反射镜有效面和亚克力柜内侧只改变导弹真实方向、不引爆；复制镜未注册到两条查询链，因此直接穿过。速度正弦波动作用于真实路程，小幅侧移/滚转只作用于模型子根，不污染追踪和碰撞。
 - **固定多方向齐射**：MaceAttackStrategy 不选择目标，只以 `has_target_in_range()` 作为1、2级的发射门控，并在每次冷却到期时围绕建筑逻辑朝向一次生成4或8枚水平投射物。3级的 `TARGET_OR_FACING` 允许无目标时绕过门控；每枚投射物仍共享普通投射物的速度、最大总距离、反射查询、对空过滤和穿透预算。
@@ -54,7 +54,7 @@
 | BuildingLevelStats | `pulse_laser_width` / `pulse_laser_emission_energy` | 脉冲光线最大宽度与发光强度。 |
 | BuildingLevelStats | `pulse_laser_fade_in_time` / `pulse_laser_hold_time` / `pulse_laser_fade_out_time` | 三阶段表现时长。 |
 | BuildingDefinition | `pulse_laser_reflect_max` / `pulse_laser_reflection_colors` | 单次脉冲反射上限与赤橙黄绿青蓝紫循环。 |
-| BuildingLevelStats | `projectile_fire_mode` | 仅有目标射击，或在无目标时沿逻辑朝向继续直射；逐等级独立。 |
+| BuildingLevelStats | `projectile_fire_mode` | `TARGET_ONLY`、`TARGET_OR_FACING`、`FACING_ONLY` 三选一；逐等级独立，现有数值0/1保持序列化兼容，新模式追加为2。 |
 | BuildingLevelStats | `projectile_speed` | 投射物格/秒速度。 |
 | BuildingLevelStats | `projectile_length` / `projectile_width` | 恒定短直线尺寸。 |
 | BuildingLevelStats | `projectile_direction_count` | 固定多方向齐射的方向数；钉锤1级4、2/3级8。 |

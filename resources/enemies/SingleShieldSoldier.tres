@@ -1,6 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://cq14squqcxx2b"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://b71vldsacf0ij"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="PackedScene" uid="uid://bukbhr12uh63p" path="res://assets/enemies/low_poly_wild_boar/wild_boar.tscn" id="2_model"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_model_asset"]
+
+[sub_resource type="Resource" id="Resource_wild_boar_model"]
+script = ExtResource("3_model_asset")
+scene = ExtResource("2_model")
+runtime_scale = Vector3(0.45, 0.45, 0.45)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
@@ -9,14 +17,13 @@ display_name = "单盾士兵"
 max_hp = 120.0
 move_speed = 0.7
 reward = 10.0
-hit_radius = 0.4
+hit_radius = 0.5
 reflection_pattern = 1
+reflection_side_length = 1.2000000000000002
+reflection_height = 1.6
 attack_damage = 13.0
 attacks_per_second = 0.75
+model_asset = SubResource("Resource_wild_boar_model")
 body_color = Color(0.24, 0.52, 0.82, 1)
 body_height = 0.82
 attack_color = Color(0.46, 0.82, 1, 1)
-hit_particle_color = null
-hit_particle_brightness = null
-hit_particle_size = null
-hit_particle_count = null

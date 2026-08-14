@@ -68,6 +68,13 @@ func _test_free_facing_contract(fixture: Dictionary) -> void:
 	building.set_facing_index(9)
 	_expect(building.get_facing_slot_count() == 36, "runtime building uses the free-facing contract")
 	_expect(building.get_facing_direction().is_equal_approx(Vector3.BACK), "facing slot 9 resolves to positive Z at 90 degrees")
+	var visual_root := building.get("_visual_root") as Node3D
+	var has_direction_box := false
+	if visual_root != null:
+		for child in visual_root.get_children():
+			if child is MeshInstance3D and (child as MeshInstance3D).mesh is BoxMesh:
+				has_direction_box = true
+	_expect(not has_direction_box, "tower visuals omit the former yellow facing box")
 
 
 func _test_card_order(fixture: Dictionary) -> void:
@@ -118,12 +125,13 @@ func _test_directional_and_targeted_fire(fixture: Dictionary) -> void:
 		)
 		var crossing_target := CombatTarget.new()
 		crossing_target.debug_visual_enabled = false
+		crossing_target.airborne = true
 		combat.add_child(crossing_target)
-		crossing_target.configure_debug_target(Vector3(0.0, 0.0, 1.0), 100.0, 0.0, 0.0)
+		crossing_target.configure_debug_target(Vector3(0.0, 4.0, 1.0), 100.0, 0.0, 0.0)
 		combat.register_target(crossing_target)
 		var crossing_hp := crossing_target.current_hp
 		_last_projectile._process(0.2)
-		_expect(crossing_target.current_hp < crossing_hp, "directional projectile damages the first enemy crossing its straight path")
+		_expect(crossing_target.current_hp < crossing_hp, "no-target directional projectile directly hits an airborne enemy crossing its combat-plane path")
 		combat.unregister_target(crossing_target)
 		crossing_target.queue_free()
 	combat.clear_projectiles()

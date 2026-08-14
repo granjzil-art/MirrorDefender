@@ -7,6 +7,7 @@ const ConfigValidator := preload("res://scripts/shared/ConfigurationValidator.gd
 enum ProjectileFireMode {
 	TARGET_ONLY,
 	TARGET_OR_FACING,
+	FACING_ONLY,
 }
 
 @export_group("Economy")
@@ -53,8 +54,8 @@ enum ProjectileFireMode {
 @export_range(0.0, 1.0, 0.01) var damage_reflection_ratio: float = 0.0
 
 @export_group("Projectile")
-## TARGET_OR_FACING keeps the normal target-tracking shot while a target exists,
-## then fires a straight ballistic projectile along the logical building facing.
+## TARGET_OR_FACING tracks a target when available and otherwise fires along the
+## logical facing. FACING_ONLY never queries targets and always uses that facing.
 @export var projectile_fire_mode: ProjectileFireMode = ProjectileFireMode.TARGET_ONLY
 @export_range(0.1, 100.0, 0.1, "or_greater") var projectile_speed: float = 7.0
 @export_range(0.1, 5.0, 0.05, "or_greater") var projectile_length: float = 0.32
@@ -123,7 +124,7 @@ func validate_configuration() -> Array[String]:
 		"投射物开火模式",
 		projectile_fire_mode,
 		ProjectileFireMode.TARGET_ONLY,
-		ProjectileFireMode.TARGET_OR_FACING
+		ProjectileFireMode.FACING_ONLY
 	)
 	ConfigValidator.require_number(errors, "造价", cost, 0.0)
 	ConfigValidator.require_number(errors, "每秒资源产出", resource_per_second, 0.0)

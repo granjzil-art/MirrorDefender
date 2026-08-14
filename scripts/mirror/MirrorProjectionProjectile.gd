@@ -274,11 +274,11 @@ func _find_first_target_hit(
 		)
 		if center_distance >= maximum_center_distance - 0.000001:
 			continue
-		var distance := _ray_sphere_entry_distance(
+		var distance := Projectile.get_target_entry_distance(
 			start,
 			end,
-			target.get_target_position(),
-			maxf(0.0, target.hit_radius)
+			target,
+			_has_reflected or _ballistic_from_start
 		)
 		if distance >= 0.0 and distance < best_distance:
 			best = target
@@ -348,11 +348,16 @@ func _refresh_contact_targets() -> void:
 			_contact_targets.erase(instance_id)
 			continue
 		var target := target_value as CombatTarget
-		if (
-			target == null
-			or not target.is_alive()
-			or global_position.distance_to(target.get_target_position()) > target.hit_radius + CONTACT_CLEARANCE
-		):
+		if target == null or not target.is_alive():
+			_contact_targets.erase(instance_id)
+			continue
+		var target_distance := global_position.distance_to(target.get_target_position())
+		if (_has_reflected or _ballistic_from_start) and target.is_airborne_unit():
+			target_distance = Vector2(
+				global_position.x - target.get_target_position().x,
+				global_position.z - target.get_target_position().z
+			).length()
+		if target_distance > target.hit_radius + CONTACT_CLEARANCE:
 			_contact_targets.erase(instance_id)
 
 

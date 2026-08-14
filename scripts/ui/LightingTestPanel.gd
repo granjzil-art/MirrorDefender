@@ -45,7 +45,7 @@ func _build_content() -> void:
 	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title.text = "灯光测试"
 	row.add_child(_title)
-	var labels := ["7 白色柔光", "8 黄色暖光", "9 青红对比", "6 夜晚聚光"]
+	var labels := ["白色柔光", "黄色暖光", "青红对比", "夜晚聚光"]
 	for index in range(labels.size()):
 		var button := Button.new()
 		button.text = labels[index]

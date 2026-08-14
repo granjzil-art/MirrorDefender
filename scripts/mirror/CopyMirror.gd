@@ -3,6 +3,8 @@
 class_name CopyMirror
 extends Node3D
 
+const SelectionHighlightScript := preload("res://scripts/presentation/SelectionHighlight.gd")
+
 const MirrorReflectionViewScript := preload("res://scripts/mirror/MirrorReflectionView.gd")
 const MirrorOvalMeshFactory := preload("res://scripts/mirror/MirrorOvalMeshFactory.gd")
 const PICK_MARGIN: float = 0.01
@@ -98,6 +100,29 @@ func relocate_preview(
 	return true
 
 
+## Atomically relocates the live physical mirror while retaining this instance,
+## its level, investment ledger, reflection viewport and selection state.
+func relocate_runtime(
+	p_from_cell: Vector3i,
+	p_to_cell: Vector3i,
+	p_edge_index: int,
+	p_edge_id: String,
+	p_active_from_side: bool
+) -> bool:
+	if preview_mode or p_edge_index < 0 or p_edge_id.is_empty():
+		return false
+	from_cell = p_from_cell
+	to_cell = p_to_cell
+	edge_index = p_edge_index
+	edge_id = p_edge_id
+	active_from_side = p_active_from_side
+	_update_transform()
+	if _body != null and is_instance_valid(_body):
+		_body.rotation.y = -atan2(get_edge_direction().z, get_edge_direction().x)
+	_update_active_side_visual()
+	return true
+
+
 func flip_side() -> void:
 	active_from_side = not active_from_side
 	_update_active_side_visual()
@@ -173,8 +198,9 @@ func get_action_anchor() -> Vector3:
 	return global_position + Vector3(0.0, get_mirror_height() + 0.2, 0.0)
 
 
-## Tracks the resource actually paid into this runtime mirror. Authored initial
-## mirrors and cooldown-mode placements remain at zero because they cost zero.
+## Tracks the mirror's refundable lifetime value. Runtime coin placements add
+## actual spending; authored initial mirrors seed the equivalent configured
+## construction/upgrade value; free cooldown placements remain at zero.
 func _record_investment(amount: float) -> bool:
 	if not is_finite(amount) or amount <= 0.0:
 		return false
@@ -298,6 +324,17 @@ func set_selected(selected: bool) -> void:
 	if _frame_material != null:
 		_frame_material.emission_energy_multiplier = (
 			3.6 if selected or (preview_mode and not _preview_valid) else 1.5
+		)
+	if _body != null and is_instance_valid(_body):
+		SelectionHighlightScript.apply_recursive(_body, _selected and not preview_mode)
+	# The copy mirror's large oval reflection surface visually covers almost the
+	# entire body from its active side. Highlight it as well, otherwise the red
+	# body overlay remains hidden behind a bright reflection.
+	var reflection_surface := get_reflection_surface()
+	if reflection_surface != null and is_instance_valid(reflection_surface):
+		SelectionHighlightScript.apply_recursive(
+			reflection_surface,
+			_selected and not preview_mode
 		)
 
 func _update_transform() -> void:

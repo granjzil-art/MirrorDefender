@@ -21,6 +21,7 @@ const LightingProfileScript := preload("res://scripts/lighting/LightingProfile.g
 const AcrylicDisplayCaseDefinitionScript := preload("res://scripts/lighting/AcrylicDisplayCaseDefinition.gd")
 const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
 const InitialLayoutValidatorScript := preload("res://scripts/level/InitialLayoutValidator.gd")
+const TutorialDefinitionScript := preload("res://scripts/tutorial/TutorialDefinition.gd")
 const DefaultGrassTerrainResource := preload("res://resources/terrains/Grass.tres")
 
 const GEOMETRY_TAG_HEX: StringName = &"hex"
@@ -68,6 +69,10 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 @export_group("Presentation")
 ## Optional per-level lighting. Runtime falls back to the project's first test profile.
 @export var lighting_profile: LightingProfileScript
+## Whether the procedural foliage-shadow overlay starts enabled for this level.
+@export var foliage_shadow_enabled: bool = false
+## Whether the authored realistic tree starts enabled for this level.
+@export var realistic_tree_shadow_enabled: bool = true
 ## Per-level cabinet construction and material-response settings. Stored as a level-owned subresource.
 @export var display_case_definition: AcrylicDisplayCaseDefinitionScript = AcrylicDisplayCaseDefinitionScript.new()
 ## Optional non-gameplay scene placed around the level (for example hanging showcase ornaments).
@@ -97,6 +102,10 @@ const CAMERA_PRESET_SLOT_COUNT: int = 6
 
 @export_group("M6 Runtime HUD")
 @export_range(1, 12, 1) var building_card_slot_count: int = 6
+
+@export_group("Tutorial")
+## Optional live-authored tutorial timeline. Empty levels keep unrestricted wave behaviour.
+@export var tutorial: TutorialDefinitionScript
 
 @export_group("M6 Camera Presets")
 ## Optional slots 1-6. An empty array is the compatibility form for old levels.
@@ -361,6 +370,28 @@ func get_spawn_point_model_asset(spawn_point: SpawnPointDefinition) -> ModelAsse
 	var point_asset := spawn_point.get_model_asset() if spawn_point != null else null
 	return point_asset if point_asset != null else spawn_point_model_asset
 
+
+## Presentation-only facing derived from the first segment of the first
+## serialized path that uses this spawn point. Navigation continues to consume
+## PathDefinition.cells directly; this value is only for rotating marker models.
+func get_spawn_point_model_facing_direction(
+	spawn_point: SpawnPointDefinition,
+	grid: GridManager
+) -> Vector3:
+	if spawn_point == null or grid == null or not spawn_points.has(spawn_point):
+		return Vector3.ZERO
+	for path in paths:
+		if path == null or path.cells.size() < 2:
+			continue
+		if resolve_path_spawn_point(path) != spawn_point:
+			continue
+		var first := grid.cell_to_world(path.cells[0])
+		var second := grid.cell_to_world(path.cells[1])
+		var direction := Vector3(second.x - first.x, 0.0, second.z - first.z)
+		if not direction.is_zero_approx():
+			return direction.normalized()
+	return Vector3.ZERO
+
 ## Collects every plausible pair without mutating legacy data. More than one
 ## result is intentionally treated as ambiguous by get_spawn_point_for_path().
 func get_spawn_point_candidates_for_path(path: PathDefinition) -> Array[SpawnPointDefinition]:
@@ -439,6 +470,8 @@ func validate_runtime() -> Array[String]:
 		errors.append_array(InitialLayoutValidatorScript.validate(self, content_shape))
 	_validate_level_parameters(errors)
 	_validate_m4_content(errors)
+	if tutorial != null:
+		errors.append_array(tutorial.validate_configuration(waves.size()))
 	return errors
 
 ## Compatibility entry retained for the level editor's M4 validation button.
@@ -672,6 +705,8 @@ func _validate_m4_content(errors: Array[String]) -> void:
 		if wave == null:
 			errors.append("存在空波次")
 			continue
+		if not is_finite(wave.enemy_drop_multiplier) or wave.enemy_drop_multiplier < 0.0:
+			errors.append("波次 %s 的敌人掉落倍率必须为有限非负数" % wave.display_name)
 		if wave.spawn_groups.is_empty():
 			errors.append("波次 %s 没有出怪组" % wave.display_name)
 		for group in wave.spawn_groups:

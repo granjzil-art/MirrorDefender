@@ -24,6 +24,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	print("[MirrorUpgrade] running")
+	_test_legacy_initial_level_migration()
 	_test_configured_level_rules()
 	_test_copy_chain_accumulation()
 	_test_actual_projectile_reflection_state()
@@ -38,6 +39,15 @@ func _run() -> void:
 	else:
 		push_error("[MirrorUpgrade] FAIL: %d/%d checks failed" % [_failures, _checks])
 		quit(1)
+
+
+func _test_legacy_initial_level_migration() -> void:
+	var legacy := MirrorPlacementData.new()
+	legacy.level = 0
+	_expect(legacy.validate_configuration().is_empty(), "legacy mirror without a serialized level validates as level one")
+	_expect(legacy.level == 1, "legacy mirror level is migrated before saving or loading")
+	legacy.level = 4
+	_expect(not legacy.validate_configuration().is_empty(), "non-legacy mirror levels above the cap remain invalid")
 
 
 func _test_configured_level_rules() -> void:
@@ -56,6 +66,12 @@ func _test_configured_level_rules() -> void:
 		and copy.get_penetration_bonus(2) == 1
 		and copy.get_penetration_bonus(3) == 2,
 		"copy mirror exposes the configured 0/1/2 penetration levels"
+	)
+	_expect(
+		copy.get_projection_alpha(1) < copy.get_projection_alpha(2)
+		and copy.get_projection_alpha(2) < copy.get_projection_alpha(3)
+		and copy.get_projection_alpha(3) <= 0.75,
+		"copy upgrades reduce transparency while level three remains visibly virtual"
 	)
 	_expect(
 		is_equal_approx(reflect.get_damage_multiplier(1), 1.1)
@@ -235,10 +251,10 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	)
 	_expect(
 		info_button.position.x < upgrade_button.position.x
-		and sell_button.position.x > upgrade_button.position.x
-		and upgrade_button.position.y < info_button.position.y
-		and upgrade_button.position.y < sell_button.position.y,
-		"mirror action icons use the same left/top/right placement as building actions"
+		and upgrade_button.position.y == info_button.position.y
+		and sell_button.position.y < info_button.position.y
+		and sell_button.position.y < upgrade_button.position.y,
+		"mirror sell action is above the left-info/right-upgrade actions"
 	)
 	_expect(
 		info_button.size == upgrade_button.size and upgrade_button.size == sell_button.size,
@@ -290,8 +306,7 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	source_payload.root_source = RefCounted.new()
 	var runtime_group: Array[MirrorCopyPayload] = manager._build_projection_group(
 		copy,
-		{pair.source_cell: [source_payload]},
-		{}
+		{pair.source_cell: [source_payload]}
 	)
 	_expect(
 		runtime_group.size() == 1
@@ -299,12 +314,30 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and runtime_group[0].penetration_bonus == 1,
 		"runtime copy graph reads the upgraded mirror's damage and penetration"
 	)
+	_expect(
+		runtime_group.size() == 1
+		and is_equal_approx(
+			runtime_group[0].projection_alpha,
+			manager.copy_mirror_definition.get_projection_alpha(2)
+		),
+		"level-two mirror writes its configured opacity into the generated virtual image"
+	)
 	_expect(manager.upgrade_mirror(copy), "copy mirror upgrades from level two to level three")
 	_expect(
 		copy.level == 3
 		and is_equal_approx(resource.main_resource, 160.0)
 		and is_equal_approx(copy.get_refund_amount(), 140.0),
 		"second copy upgrade also spends 50 and joins the demolition refund"
+	)
+	var level_three_group: Array[MirrorCopyPayload] = manager._build_projection_group(
+		copy,
+		{pair.source_cell: [source_payload]}
+	)
+	_expect(
+		level_three_group.size() == 1
+		and level_three_group[0].projection_alpha > runtime_group[0].projection_alpha
+		and level_three_group[0].projection_alpha <= 0.75,
+		"level-three virtual image is less transparent than level two but remains translucent"
 	)
 	_expect(
 		not manager.upgrade_mirror(copy)
@@ -357,9 +390,17 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	_expect(manager.remove_mirror(reflect) and is_equal_approx(resource.main_resource, 300.0), "reflect demolition refunds construction plus both upgrades")
 	_expect(manager.load_initial_placements(placements).is_empty(), "authored level-three mirror reloads without spending resources")
 	var loaded := manager.get_mirrors()[0] if not manager.get_mirrors().is_empty() else null
+	var authored_refund := manager.reflect_mirror_definition.get_cumulative_cost(3)
 	_expect(
-		loaded != null and loaded.level == 3 and is_zero_approx(loaded.get_refund_amount()),
-		"reloaded authored mirror keeps level three without creating refundable investment"
+		loaded != null
+		and loaded.level == 3
+		and is_equal_approx(loaded.get_refund_amount(), authored_refund),
+		"reloaded authored mirror keeps level three and its full configured refund"
+	)
+	_expect(
+		manager.remove_mirror(loaded)
+		and is_equal_approx(resource.main_resource, 300.0 + authored_refund),
+		"demolishing the reloaded authored mirror grants construction plus both upgrade costs"
 	)
 	panel.queue_free()
 

@@ -1,4 +1,4 @@
-## Persistent read-only debug summary shown independently from the F1 console.
+## Persistent read-only debug summary shown alongside the button-opened console.
 class_name DebugOverlayPanel
 extends Control
 

@@ -1,6 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://8xklxjqg4e0d"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://y1nwbjgbow70"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="PackedScene" path="res://assets/enemies/low_poly_mammoth/mammoth.tscn" id="2_model"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_model_asset"]
+
+[sub_resource type="Resource" id="Resource_titan_model"]
+script = ExtResource("3_model_asset")
+scene = ExtResource("2_model")
+runtime_scale = Vector3(0.84, 0.84, 0.84)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
@@ -10,19 +18,18 @@ max_hp = 1000.0
 move_speed = 0.5
 base_damage = 20.0
 reward = 50.0
-hit_radius = 0.48
+hit_radius = 0.55
 is_elite = true
 movement_active_duration = 5.0
 movement_pause_duration = 2.0
 reflection_pattern = 3
+reflection_side_length = 1.2000000000000002
+reflection_height = 1.8
 reflection_max_durability = 300.0
 attack_damage = 28.0
 attacks_per_second = 0.5
 attack_range = 0.8
+model_asset = SubResource("Resource_titan_model")
 body_color = Color(0.18, 0.58, 0.68, 1)
 body_height = 1.3
 attack_color = Color(0.42, 0.94, 1, 1)
-hit_particle_color = null
-hit_particle_brightness = null
-hit_particle_size = null
-hit_particle_count = null

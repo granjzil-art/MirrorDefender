@@ -2,6 +2,8 @@
 class_name MirrorActionPanel
 extends Control
 
+signal upgrade_feedback_requested(screen_position: Vector2)
+
 const INFO_ICON: Texture2D = preload("res://assets/ui/building_actions/exclamation-mark.png")
 const UPGRADE_ICON: Texture2D = preload("res://assets/ui/building_actions/upgrade.png")
 const SELL_ICON: Texture2D = preload("res://assets/ui/building_actions/dollar.png")
@@ -14,8 +16,8 @@ const INFO_PAGE_WIDTH := 360.0
 const INFO_PAGE_CONTENT_WIDTH := INFO_PAGE_WIDTH - 28.0
 const INFO_PAGE_BOTTOM_Y := -150.0
 const INFO_BUTTON_OFFSET := Vector2(-70.0, -58.0)
-const UPGRADE_BUTTON_OFFSET := Vector2(0.0, -128.0)
-const SELL_BUTTON_OFFSET := Vector2(70.0, -58.0)
+const UPGRADE_BUTTON_OFFSET := Vector2(70.0, -58.0)
+const SELL_BUTTON_OFFSET := Vector2(0.0, -128.0)
 ## The supplied dollar icon has a 37 px transparent inset on every side.
 const SELL_ICON_REGION := Rect2(37.0, 37.0, 406.0, 406.0)
 
@@ -275,8 +277,8 @@ func _on_info_pressed() -> void:
 
 
 func _on_upgrade_pressed() -> void:
-	if _mirror_manager != null:
-		_mirror_manager.upgrade_selected_mirror()
+	if _mirror_manager != null and not _mirror_manager.upgrade_selected_mirror():
+		upgrade_feedback_requested.emit(get_viewport().get_mouse_position())
 
 
 func _on_sell_pressed() -> void:

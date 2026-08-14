@@ -4,6 +4,8 @@ extends Window
 
 const DEFAULT_SIZE := Vector2i(540, 780)
 
+signal debug_tools_toggle_requested
+
 var _session: RuntimeCombatDataEditSession
 var _test_spawner: RuntimeTestEnemySpawner
 var _status_label: Label
@@ -23,6 +25,7 @@ var _close_dialog: ConfirmationDialog
 var _message_dialog: AcceptDialog
 var _refreshing: bool = false
 var _test_status_elapsed: float = 0.0
+var _feature_enabled: bool = true
 
 
 func _ready() -> void:
@@ -57,6 +60,8 @@ func configure(
 
 
 func open_editor() -> void:
+	if not _feature_enabled:
+		return
 	if _session == null or not _session.is_active():
 		_show_message("战斗数据编辑会话未就绪")
 		return
@@ -67,6 +72,8 @@ func open_editor() -> void:
 
 
 func toggle_editor() -> void:
+	if not _feature_enabled:
+		return
 	if visible:
 		_on_close_requested()
 	else:
@@ -89,12 +96,20 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if not key.pressed or key.echo:
 		return
-	if key.ctrl_pressed and key.keycode == KEY_S:
+	if event.is_action_pressed("toggle_debug_tools"):
+		debug_tools_toggle_requested.emit()
+		set_input_as_handled()
+	elif key.ctrl_pressed and key.keycode == KEY_S:
 		_save_changes()
 		set_input_as_handled()
-	elif key.keycode == KEY_F2:
-		_on_close_requested()
-		set_input_as_handled()
+
+
+func set_feature_enabled(enabled: bool) -> void:
+	_feature_enabled = enabled
+	if not _feature_enabled:
+		_close_dialog.hide()
+		_message_dialog.hide()
+		hide()
 
 
 func _build_interface() -> void:
@@ -454,7 +469,7 @@ func _building_fields(kind: int) -> Array[Dictionary]:
 		_float_field("attacks_per_second", "每秒攻击次数", 0.01, 100.0, 0.01),
 		_float_field("projectile_speed", "投射物速度（格/秒）", 0.1, 100.0, 0.1),
 		_int_field("projectile_penetration_count", "额外穿透目标数", 0, 32),
-		_enum_field("projectile_fire_mode", "无目标发射模式", ["仅有目标", "目标或朝向"]),
+		_enum_field("projectile_fire_mode", "投射物开火模式", ["仅索敌", "索敌或朝向", "仅固定朝向"]),
 	]
 	if kind == BuildingDefinition.Kind.MACE_TOWER:
 		fields.append(_int_field("projectile_direction_count", "齐射方向数", 1, 8))

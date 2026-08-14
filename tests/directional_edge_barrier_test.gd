@@ -65,6 +65,51 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 	_expect(not building_manager.is_path_cell(arbitrary_from) and not building_manager.is_path_cell(arbitrary_to), "arbitrary placement fixture is outside every enemy path")
 	var arbitrary_barrier := building_manager.place_edge_building(arbitrary_from, arbitrary_edge_index, building_manager.edge_barrier)
 	_expect(arbitrary_barrier != null, "%s edge barrier can be placed on a non-path shared edge" % grid.get_geometry_tag())
+	if arbitrary_barrier != null:
+		var relocation_from := arbitrary_to
+		var relocation_edge_index := -1
+		for neighbor in grid.get_neighbors(relocation_from):
+			var candidate_index := grid.find_edge_index(relocation_from, neighbor)
+			if (
+				candidate_index >= 0
+				and grid.canonical_edge_id(relocation_from, candidate_index) != arbitrary_barrier.edge_id
+				and not building_manager.is_path_cell(relocation_from)
+				and not building_manager.is_path_cell(neighbor)
+			):
+				relocation_edge_index = candidate_index
+				break
+		_expect(relocation_edge_index >= 0, "edge drag fixture resolves another non-path edge")
+		if relocation_edge_index >= 0:
+			var previous_edge_id := arbitrary_barrier.edge_id
+			var resource_before_relocation := resource_manager.main_resource
+			var building_count_before_relocation := resource_manager.get_building_count()
+			_expect(
+				building_manager.update_edge_relocation_preview(
+					arbitrary_barrier,
+					relocation_from,
+					relocation_edge_index
+				),
+				"edge building exposes a legal drag-relocation preview"
+			)
+			_expect(
+				building_manager.relocate_edge_building(
+					arbitrary_barrier,
+					relocation_from,
+					relocation_edge_index
+				),
+				"edge building relocates without reconstruction"
+			)
+			_expect(
+				building_manager.get_edge_building(previous_edge_id) == null
+				and building_manager.get_edge_building(arbitrary_barrier.edge_id) == arbitrary_barrier,
+				"edge relocation atomically transfers canonical occupancy"
+			)
+			_expect(
+				is_equal_approx(resource_manager.main_resource, resource_before_relocation)
+				and resource_manager.get_building_count() == building_count_before_relocation,
+				"edge relocation does not spend resources or change cap usage"
+			)
+		building_manager.clear_preview()
 	var boundary_cell := Vector3i(-5, 0, 5) if shape == GridManager.Shape.HEX else Vector3i(0, 0, 0)
 	var outside_neighbor := Vector3i(-6, 0, 6) if shape == GridManager.Shape.HEX else Vector3i(-1, 0, 0)
 	var boundary_edge_index := grid.find_edge_index(boundary_cell, outside_neighbor)

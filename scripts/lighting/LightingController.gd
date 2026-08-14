@@ -13,9 +13,6 @@ const RealisticTreeShadowControllerScript := preload("res://scripts/lighting/Rea
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
-@export_group("Testing")
-@export var test_shortcuts_enabled: bool = true
-
 @export_group("Foliage Shadow")
 @export var foliage_shadow_enabled: bool = true
 
@@ -103,6 +100,8 @@ func apply_level(level_resource: LevelResource) -> bool:
 		_foliage_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
 	if _realistic_tree_shadow != null:
 		_realistic_tree_shadow.rebuild(_level_bounds, _grid.cell_size if _grid != null else 1.0)
+	set_foliage_shadow_enabled(level_resource.foliage_shadow_enabled)
+	set_realistic_tree_shadow_enabled(level_resource.realistic_tree_shadow_enabled)
 	if level_resource.lighting_profile != null:
 		_active_profile = level_resource.lighting_profile
 		_active_profile_index = _profiles.find(_active_profile)
@@ -184,26 +183,6 @@ func is_realistic_tree_shadow_enabled() -> bool:
 
 func get_generated_light_count() -> int:
 	return _active_lights_root.get_child_count() if _active_lights_root != null else 0
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not feature_enabled or not test_shortcuts_enabled:
-		return
-	var key_event := event as InputEventKey
-	if key_event == null or not key_event.pressed or key_event.echo:
-		return
-	var index := -1
-	match key_event.keycode:
-		KEY_6:
-			index = 3
-		KEY_7:
-			index = 0
-		KEY_8:
-			index = 1
-		KEY_9:
-			index = 2
-	if index >= 0 and apply_profile_by_index(index):
-		get_viewport().set_input_as_handled()
 
 
 func _apply_profile_runtime(profile: LightingProfile, duration: float) -> void:

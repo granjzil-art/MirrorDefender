@@ -23,6 +23,7 @@ enum State {
 signal state_changed(state: State, current_wave: int, total_waves: int, active_enemy_count: int)
 signal wave_released(wave_number: int, wave: WaveDefinition)
 signal next_wave_changed(wave_number: int, wave: WaveDefinition)
+signal next_wave_availability_changed
 signal wave_started(wave_number: int, wave: WaveDefinition)
 signal wave_completed(wave_number: int)
 signal enemy_spawned(unit: EnemyUnit)
@@ -44,6 +45,7 @@ var _spawn_states: Array[Dictionary] = []
 var _active_units: Array[EnemyUnit] = []
 var _test_units: Array[EnemyUnit] = []
 var _unit_wave_indices: Dictionary = {}
+var _unit_enemy_drop_multipliers: Dictionary = {}
 var _started_wave_indices: Dictionary = {}
 var _completed_wave_indices: Dictionary = {}
 var _path_blocker_resolver: Callable
@@ -54,6 +56,7 @@ var _tile_stay_resolver: Callable
 var _navigation_blocker_resolver: Callable
 var _configuration_error: String = ""
 var _enemy_definition_resolver: Callable
+var _wave_release_guard: Callable
 var _spawn_random := RandomNumberGenerator.new()
 
 
@@ -103,6 +106,17 @@ func configure(
 func set_enemy_definition_resolver(resolver: Callable) -> void:
 	_enemy_definition_resolver = resolver
 
+
+## Optional side-effect-free policy returning an empty string when a wave may release,
+## or a player-facing tutorial objective when it is gated.
+func set_wave_release_guard(guard: Callable) -> void:
+	_wave_release_guard = guard
+	next_wave_availability_changed.emit()
+
+
+func notify_wave_release_guard_changed() -> void:
+	next_wave_availability_changed.emit()
+
 func load_level(level_resource: LevelResource) -> void:
 	_clear_active_units()
 	clear_test_enemies()
@@ -121,6 +135,7 @@ func load_level(level_resource: LevelResource) -> void:
 	_state = State.NO_WAVES if _level == null or _level.waves.is_empty() else State.READY
 	_emit_state_changed()
 	_emit_next_wave_changed()
+	next_wave_availability_changed.emit()
 
 ## Compatibility entry retained for callers that start the first wave as a battle.
 func start_battle() -> bool:
@@ -202,6 +217,17 @@ func get_next_wave() -> WaveDefinition:
 	return _level.waves[_released_wave_count]
 
 func can_start_next_wave() -> bool:
+	return _can_start_next_wave_core() and get_next_wave_release_block_reason().is_empty()
+
+
+func get_next_wave_release_block_reason() -> String:
+	if not _can_start_next_wave_core() or not _wave_release_guard.is_valid():
+		return ""
+	var result: Variant = _wave_release_guard.call(get_next_wave_number())
+	return String(result).strip_edges()
+
+
+func _can_start_next_wave_core() -> bool:
 	return feature_enabled and _level != null and (
 		_state == State.READY or _state == State.ACTIVE
 	) and _released_wave_count < _level.waves.size()
@@ -453,8 +479,7 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 		_combat_manager
 	)
 	var hp_multiplier := _level.get_enemy_hp_multiplier(wave_index) if _level != null else 1.0
-	unit.max_hp = maxf(1.0, unit.max_hp * hp_multiplier)
-	unit.current_hp = unit.max_hp
+	unit.apply_wave_health_multiplier(hp_multiplier)
 	add_child(unit)
 	if _combat_manager == null or not _combat_manager.register_target(unit):
 		unit.queue_free()
@@ -468,8 +493,18 @@ func _spawn_group_unit(group: SpawnGroupDefinition, wave_index: int) -> String:
 	else:
 		_test_units.append(unit)
 		test_enemy_spawned.emit(unit)
+	_unit_enemy_drop_multipliers[unit] = _resolve_enemy_drop_multiplier(wave_index)
 	enemy_spawned.emit(unit)
 	return ""
+
+
+func _resolve_enemy_drop_multiplier(wave_index: int) -> float:
+	if _level == null or wave_index < 0 or wave_index >= _level.waves.size():
+		return 1.0
+	var wave: WaveDefinition = _level.waves[wave_index]
+	if wave == null or not is_finite(wave.enemy_drop_multiplier):
+		return 1.0
+	return maxf(0.0, wave.enemy_drop_multiplier)
 
 
 func _resolve_enemy_definition(source: EnemyDefinition) -> EnemyDefinition:
@@ -549,6 +584,7 @@ func _clear_active_units() -> void:
 	var units := _active_units.duplicate()
 	_active_units.clear()
 	_unit_wave_indices.clear()
+	_unit_enemy_drop_multipliers.clear()
 	for unit in units:
 		if is_instance_valid(unit):
 			unit.queue_free()
@@ -564,15 +600,18 @@ func _cleanup_units() -> void:
 		var unit := _active_units[index]
 		if unit == null or not is_instance_valid(unit):
 			_unit_wave_indices.erase(unit)
+			_unit_enemy_drop_multipliers.erase(unit)
 			_active_units.remove_at(index)
 	for index in range(_test_units.size() - 1, -1, -1):
 		var unit := _test_units[index]
 		if unit == null or not is_instance_valid(unit):
+			_unit_enemy_drop_multipliers.erase(unit)
 			_test_units.remove_at(index)
 
 func _on_enemy_died(target: CombatTarget, reward_amount: float) -> void:
 	if target is EnemyUnit and _resource_manager != null:
-		_resource_manager.grant_enemy_drop(reward_amount)
+		var multiplier := float(_unit_enemy_drop_multipliers.get(target, 1.0))
+		_resource_manager.grant_enemy_drop(reward_amount * multiplier)
 
 
 func _on_enemy_reached_base(unit: EnemyUnit, _reported_damage: float) -> void:
@@ -585,6 +624,7 @@ func _on_enemy_tree_exited(unit: EnemyUnit) -> void:
 	_active_units.erase(unit)
 	_test_units.erase(unit)
 	_unit_wave_indices.erase(unit)
+	_unit_enemy_drop_multipliers.erase(unit)
 
 func _on_base_defeated() -> void:
 	if _state == State.VICTORY or _state == State.DEFEAT or _state == State.CONFIG_ERROR:

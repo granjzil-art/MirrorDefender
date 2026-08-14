@@ -6,6 +6,9 @@ const BuildingSelectionVisualizerScript := preload("res://scripts/building/Build
 var _checks: int = 0
 var _failures: int = 0
 var _reflection_plane_x: float = INF
+var _multiplier_reflectors: Array[ReflectMirror] = []
+var _test_copy_payloads: Array[MirrorCopyPayload] = []
+var _mirror_preview_data: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -17,6 +20,7 @@ func _run() -> void:
 	var fixture := _make_fixture()
 	_test_single_direction_and_rotation(fixture)
 	_test_reflection_and_shared_distance(fixture)
+	_test_multiplier_labels(fixture)
 	_test_multi_direction_levels(fixture)
 	_test_laser_placement_and_adjustment_preview(fixture)
 	_test_targeting_range_placement_previews(fixture)
@@ -113,6 +117,98 @@ func _test_multi_direction_levels(fixture: Dictionary) -> void:
 		visualizer.debug_get_projectile_trajectory_segments().size() == 8,
 		"level_changed rebuilds the Mace preview with eight launch directions"
 	)
+
+
+func _test_multiplier_labels(fixture: Dictionary) -> void:
+	var host: Node3D = fixture.get("host")
+	var manager: BuildingManager = fixture.get("manager")
+	var building: Building = fixture.get("arrow")
+	var visualizer: BuildingSelectionVisualizer = fixture.get("visualizer")
+	building.set_facing_index(0)
+	manager.select_building(building)
+	var origin := building.get_attack_origin()
+	var first := ReflectMirror.new()
+	var second := ReflectMirror.new()
+	host.add_child(first)
+	host.add_child(second)
+	first.global_position = Vector3(origin.x + 1.0, origin.y - 1.0, origin.z)
+	second.global_position = Vector3(origin.x - 2.5, origin.y - 1.0, origin.z)
+	_multiplier_reflectors = [first, second]
+	visualizer.set_projectile_reflection_resolver(
+		Callable(self, "_trace_multiplier_reflections")
+	)
+	var labels := visualizer.debug_get_projectile_multiplier_labels()
+	_expect(labels.size() == 2, "two reflected preview hits create two mirror multiplier labels")
+	if labels.size() == 2:
+		_expect(
+			String(labels[0].get("text", "")) == "1.1"
+			and String(labels[1].get("text", "")) == "1.21",
+			"successive level-one reflectors display 1.1 then 1.21"
+		)
+		_expect(
+			labels[0].get("kind", &"") == &"reflection"
+			and labels[1].get("kind", &"") == &"reflection",
+			"reflection multipliers are classified as mirror-head labels"
+		)
+	var label_node := visualizer.find_child("TrajectoryMultiplierLabel", true, false) as Label3D
+	_expect(
+		label_node != null and label_node.modulate.is_equal_approx(Color(1.0, 0.05, 0.05, 1.0)),
+		"trajectory multiplier labels render in red"
+	)
+	_expect(
+		label_node != null and label_node.font_size == 18 and label_node.outline_size == 3,
+		"trajectory multiplier labels match the upgrade-number font size and outline"
+	)
+	visualizer.set_projectile_reflection_resolver(Callable())
+	var payload := MirrorCopyPayload.new()
+	payload.stable_key = "preview-copy-chain"
+	payload.copy_kind = &"arrow_tower"
+	payload.root_source = building
+	payload.source_cell = building.cell
+	payload.root_source_cell = building.cell
+	payload.projected_cell = Vector3i(4, 4, 0)
+	payload.damage_multiplier = 1.21
+	payload.penetration_bonus = 2
+	_test_copy_payloads = [payload]
+	visualizer.set_projectile_copy_resolver(Callable(self, "_resolve_test_copy_payloads"))
+	labels = visualizer.debug_get_projectile_multiplier_labels()
+	_expect(
+		labels.size() == 1
+		and labels[0].get("kind", &"") == &"copy"
+		and String(labels[0].get("text", "")) == "1.21",
+		"copy-chain multiplier appears above its generated virtual image"
+	)
+	manager.select_building(null)
+	_expect(
+		visualizer.debug_get_projectile_multiplier_labels().is_empty(),
+		"clearing building selection removes multiplier labels"
+	)
+	manager.preview_updated.emit(building)
+	_expect(
+		not visualizer.debug_get_projectile_multiplier_labels().is_empty(),
+		"building placement preview shows multiplier labels"
+	)
+	manager.preview_cleared.emit()
+	_expect(
+		visualizer.debug_get_projectile_multiplier_labels().is_empty(),
+		"clearing building placement removes multiplier labels"
+	)
+	_mirror_preview_data = {"building": building, "payloads": [payload]}
+	visualizer.set_mirror_preview_trajectory_resolver(
+		Callable(self, "_resolve_test_mirror_preview")
+	)
+	_expect(
+		visualizer.has_projectile_trajectory_visual()
+		and visualizer.debug_get_projectile_multiplier_labels().is_empty(),
+		"mirror placement keeps trajectory lines but never shows multiplier numbers"
+	)
+	_mirror_preview_data = {}
+	_test_copy_payloads.clear()
+	visualizer.set_mirror_preview_trajectory_resolver(Callable())
+	visualizer.set_projectile_copy_resolver(Callable())
+	_multiplier_reflectors.clear()
+	first.queue_free()
+	second.queue_free()
 
 
 func _test_laser_placement_and_adjustment_preview(fixture: Dictionary) -> void:
@@ -236,6 +332,47 @@ func _trace_test_reflection(start: Vector3, end: Vector3) -> Dictionary:
 			"max_reflections_per_frame": 8,
 		}
 	return {"hit": false}
+
+
+func _trace_multiplier_reflections(start: Vector3, end: Vector3) -> Dictionary:
+	if _multiplier_reflectors.size() != 2:
+		return {"hit": false}
+	var direction := end - start
+	var mirror: ReflectMirror
+	var plane_x := 0.0
+	var normal := Vector3.ZERO
+	if direction.x > 0.0:
+		mirror = _multiplier_reflectors[0]
+		plane_x = mirror.global_position.x
+		normal = Vector3.RIGHT
+	elif direction.x < 0.0:
+		mirror = _multiplier_reflectors[1]
+		plane_x = mirror.global_position.x
+		normal = Vector3.LEFT
+	else:
+		return {"hit": false}
+	var fraction := (plane_x - start.x) / direction.x
+	if fraction <= 0.0001 or fraction > 1.0:
+		return {"hit": false}
+	var position := start.lerp(end, fraction)
+	return {
+		"hit": true,
+		"position": position,
+		"normal": normal,
+		"distance": start.distance_to(position),
+		"epsilon": 0.01,
+		"mirror": mirror,
+		"damage_multiplier": 1.1,
+		"penetration_bonus": 1,
+	}
+
+
+func _resolve_test_copy_payloads(_building: Building) -> Array[MirrorCopyPayload]:
+	return _test_copy_payloads
+
+
+func _resolve_test_mirror_preview() -> Dictionary:
+	return _mirror_preview_data
 
 
 func _make_fixture() -> Dictionary:

@@ -69,7 +69,7 @@ func _test_production_definitions_and_catalog() -> void:
 			continue
 		_expect(definition.validate_configuration().is_empty(), "%s passes validation" % file_name)
 		_expect(definition.reflection_pattern == int(expected[file_name]), "%s owns the intended reflection pattern" % file_name)
-		_expect(definition.model_asset == null, "%s can use the programmatic fallback while its model slot is empty" % file_name)
+		_expect(definition.model_asset != null, "%s owns its configured production model" % file_name)
 		_expect(definition.reflection_model_asset == null, "%s keeps its enemy and mirror model slots independent" % file_name)
 	var editable := RuntimeCombatDataEditSession.ENEMY_PROPERTIES
 	_expect(
@@ -145,6 +145,37 @@ func _test_reflection_patterns_and_vertical_bounds() -> void:
 				) > 0.0,
 				"Titan %s durability bar is offset toward its mirror" % surface_id
 			)
+	var front_root := titan.get_reflection_surface_root(&"front")
+	var back_root := titan.get_reflection_surface_root(&"back")
+	var left_root := titan.get_reflection_surface_root(&"left")
+	var right_root := titan.get_reflection_surface_root(&"right")
+	var unchanged_lateral_distance := titan.definition.reflection_side_length * 0.5
+	_expect(
+		front_root != null
+		and back_root != null
+		and left_root != null
+		and right_root != null
+		and absf(front_root.position.z) > absf(left_root.position.x)
+		and absf(back_root.position.z) > absf(right_root.position.x),
+		"Titan front and back mirrors sit slightly farther from the body than its side mirrors"
+	)
+	_expect(
+		left_root != null
+		and right_root != null
+		and is_equal_approx(absf(left_root.position.x), unchanged_lateral_distance)
+		and is_equal_approx(absf(right_root.position.x), unchanged_lateral_distance),
+		"moving the front and back mirrors leaves both lateral distances unchanged"
+	)
+	var front_hit := titan.trace_projectile_reflection(
+		Vector3(0.0, 1.0, -2.0),
+		Vector3(0.0, 1.0, 0.0)
+	)
+	var front_hit_position: Vector3 = front_hit.get("position", Vector3.ZERO)
+	_expect(
+		front_root != null
+		and is_equal_approx(absf(front_hit_position.z), absf(front_root.position.z)),
+		"front reflection collision follows the outward-shifted mirror model"
+	)
 	var body_hp_before := titan.current_hp
 	var maximum_front := titan.get_reflection_surface_max_durability(&"front")
 	titan.take_reflection_surface_damage(&"front", 25.0)

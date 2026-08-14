@@ -7,6 +7,11 @@ extends Control
 @export_range(0.0, 1000.0, 0.1, "or_greater") var one_star_max_remaining_hp: float = 5.0
 @export_range(0.0, 1000.0, 0.1, "or_greater") var two_star_max_remaining_hp: float = 15.0
 
+@export_group("Action Feedback")
+@export_range(0.0, 2.0, 0.05, "or_greater") var feedback_hold_duration: float = 0.2
+@export_range(0.05, 3.0, 0.05, "or_greater") var feedback_fade_duration: float = 1.0
+@export var feedback_offset: Vector2 = Vector2(0.0, -12.0)
+
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
@@ -29,6 +34,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
 @onready var debug_console: DebugConsoleScript = $DebugConsole
 @onready var runtime_stuff_editor_panel: RuntimeStuffEditorPanelScript = $RuntimeStuffEditorPanel
+@onready var action_feedback: Label = $ActionFeedback
 
 signal restart_level_requested
 signal exit_level_requested
@@ -46,6 +52,11 @@ var _base_core: BaseCore
 var _defeat_active: bool = false
 var _victory_active: bool = false
 var _victory_star_count: int = 0
+var _debug_tools_enabled: bool = true
+var _debug_console_available: bool = true
+var _runtime_parameter_editor: Node
+var _debug_category_registry: DebugCategoryRegistryScript
+var _feedback_tween: Tween
 
 
 func _ready() -> void:
@@ -60,9 +71,12 @@ func _ready() -> void:
 	victory_menu.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
 	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
+	wave_control_panel.next_wave_released_by_player.connect(_on_next_wave_released_by_player)
 	wave_control_panel.paths_preview_requested.connect(_on_wave_paths_preview_requested)
 	wave_control_panel.paths_preview_cleared.connect(_on_wave_paths_preview_cleared)
 	debug_console.open_changed.connect(_on_debug_console_open_changed)
+	runtime_stuff_editor_panel.debug_console_requested.connect(_on_debug_console_requested)
+	runtime_stuff_editor_panel.runtime_parameter_editor_requested.connect(_on_runtime_parameter_editor_requested)
 	card_style_toggle.pressed.connect(_on_card_style_toggle_pressed)
 	_refresh_card_style_toggle()
 
@@ -114,8 +128,6 @@ func configure(
 		_stuff_editor_controller.connect(&"active_changed", _on_stuff_editor_active_changed)
 	if _interaction != null:
 		_interaction.mode_changed.connect(_on_mode_changed)
-		_interaction.placement_resolved.connect(_on_placement_resolved)
-		_interaction.status_changed.connect(_on_status_changed)
 	if _time_controller != null:
 		_time_controller.paused_changed.connect(_on_paused_changed)
 	_on_mode_changed(_interaction.get_mode() if _interaction != null else RuntimeInteractionControllerScript.Mode.SELECT)
@@ -149,8 +161,44 @@ func configure_debug_console(
 	command_registry: DebugCommandRegistryScript,
 	category_registry: DebugCategoryRegistryScript
 ) -> void:
+	_debug_category_registry = category_registry
 	debug_console.configure(command_registry, category_registry)
 	debug_overlay_panel.configure(category_registry)
+	_debug_category_registry.set_suspended(not _debug_tools_enabled)
+
+
+func configure_debug_tool_entries(
+	debug_console_available: bool,
+	runtime_parameter_editor: Node
+) -> void:
+	_debug_console_available = debug_console_available
+	_runtime_parameter_editor = runtime_parameter_editor
+	runtime_stuff_editor_panel.configure_debug_entries(
+		_debug_console_available,
+		_runtime_parameter_editor != null
+	)
+	set_debug_tools_enabled(_debug_tools_enabled)
+
+
+func set_debug_tools_enabled(enabled: bool) -> void:
+	_debug_tools_enabled = enabled
+	debug_console.set_feature_enabled(_debug_console_available and _debug_tools_enabled)
+	debug_overlay_panel.feature_enabled = _debug_console_available and _debug_tools_enabled
+	if _debug_category_registry != null:
+		_debug_category_registry.set_suspended(not _debug_tools_enabled)
+	debug_overlay_panel.refresh_now()
+	runtime_stuff_editor_panel.set_debug_tools_enabled(_debug_tools_enabled)
+	card_style_toggle.visible = _debug_tools_enabled and not (
+		_stuff_editor_controller != null
+		and _stuff_editor_controller.has_method("is_active")
+		and bool(_stuff_editor_controller.call("is_active"))
+	)
+	if _runtime_parameter_editor != null and _runtime_parameter_editor.has_method("set_feature_enabled"):
+		_runtime_parameter_editor.call("set_feature_enabled", _debug_tools_enabled)
+
+
+func are_debug_tools_enabled() -> bool:
+	return _debug_tools_enabled
 
 
 func apply_level_configuration(level: LevelResource, _source_path: String = "") -> void:
@@ -260,13 +308,72 @@ func _on_mode_changed(mode: RuntimeInteractionControllerScript.Mode) -> void:
 		build_card_bar.set_selected_building(_interaction.get_selected_definition())
 
 
-func _on_placement_resolved(success: bool, reason: String) -> void:
-	build_card_bar.show_status(reason, not success)
-
-
-func _on_status_changed(message: String) -> void:
+## Displays only the player-facing placement failures explicitly approved for
+## the production HUD. Manager reasons remain unchanged for logic and tests.
+func show_placement_failure(reason: String, screen_position: Vector2) -> void:
+	var message := resolve_placement_failure_message(reason)
 	if not message.is_empty():
-		build_card_bar.show_status(message)
+		_show_action_feedback(message, screen_position)
+
+
+func show_upgrade_failure(screen_position: Vector2) -> void:
+	_show_action_feedback("金币不足！", screen_position)
+
+
+static func resolve_placement_failure_message(reason: String) -> String:
+	var normalized := reason.strip_edges()
+	var lowercase := normalized.to_lower()
+	if normalized.contains("堵死") or normalized.contains("全部可用路径"):
+		return "不能将敌人的路堵死！"
+	if normalized.contains("上限"):
+		return "该类建筑已经达到上限！"
+	for token in [
+		"占用",
+		"占据",
+		"不可建造",
+		"不允许放置",
+		"敌人路径",
+		"出生点",
+		"据点格",
+		"有效地块之间",
+		"障碍",
+		"关卡元素",
+	]:
+		if normalized.contains(token):
+			return "该格子不可放置！"
+	if lowercase.contains("stuff"):
+		return "该格子不可放置！"
+	return ""
+
+
+func _show_action_feedback(message: String, screen_position: Vector2) -> void:
+	if action_feedback == null or message.is_empty():
+		return
+	if _feedback_tween != null and _feedback_tween.is_valid():
+		_feedback_tween.kill()
+	action_feedback.text = message
+	action_feedback.modulate = Color.WHITE
+	action_feedback.show()
+	var feedback_size := action_feedback.get_combined_minimum_size() + Vector2(12.0, 6.0)
+	action_feedback.size = feedback_size
+	var target_position := screen_position + feedback_offset - Vector2(
+		feedback_size.x * 0.5,
+		feedback_size.y
+	)
+	var viewport_size := get_viewport_rect().size
+	action_feedback.position = Vector2(
+		clampf(target_position.x, 6.0, maxf(6.0, viewport_size.x - feedback_size.x - 6.0)),
+		clampf(target_position.y, 6.0, maxf(6.0, viewport_size.y - feedback_size.y - 6.0))
+	)
+	_feedback_tween = create_tween().set_ignore_time_scale(true)
+	_feedback_tween.tween_interval(feedback_hold_duration)
+	_feedback_tween.tween_property(
+		action_feedback,
+		"modulate:a",
+		0.0,
+		feedback_fade_duration
+	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	_feedback_tween.tween_callback(action_feedback.hide)
 
 
 func _on_paused_changed(paused: bool) -> void:
@@ -295,9 +402,23 @@ func _on_debug_console_open_changed(_open: bool) -> void:
 	_sync_modal_state()
 
 
+func _on_debug_console_requested() -> void:
+	if _debug_tools_enabled and _debug_console_available:
+		debug_console.open_console()
+
+
+func _on_runtime_parameter_editor_requested() -> void:
+	if (
+		_debug_tools_enabled
+		and _runtime_parameter_editor != null
+		and _runtime_parameter_editor.has_method("toggle_editor")
+	):
+		_runtime_parameter_editor.call("toggle_editor")
+
+
 func _on_stuff_editor_active_changed(active: bool) -> void:
 	build_card_bar.visible = not active
-	card_style_toggle.visible = not active
+	card_style_toggle.visible = _debug_tools_enabled and not active
 
 
 func _on_card_style_toggle_pressed() -> void:
@@ -394,6 +515,11 @@ func _on_wave_paths_preview_requested(paths: Array) -> void:
 	wave_paths_preview_requested.emit(paths)
 
 
+func _on_next_wave_released_by_player() -> void:
+	if _interaction != null:
+		_interaction.cancel_to_select(true)
+
+
 func _on_wave_paths_preview_cleared() -> void:
 	wave_paths_preview_cleared.emit()
 
@@ -409,10 +535,6 @@ func _disconnect_sources() -> void:
 	if _interaction != null:
 		if _interaction.mode_changed.is_connected(_on_mode_changed):
 			_interaction.mode_changed.disconnect(_on_mode_changed)
-		if _interaction.placement_resolved.is_connected(_on_placement_resolved):
-			_interaction.placement_resolved.disconnect(_on_placement_resolved)
-		if _interaction.status_changed.is_connected(_on_status_changed):
-			_interaction.status_changed.disconnect(_on_status_changed)
 	if _time_controller != null:
 		if _time_controller.paused_changed.is_connected(_on_paused_changed):
 			_time_controller.paused_changed.disconnect(_on_paused_changed)

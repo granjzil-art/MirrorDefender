@@ -65,6 +65,19 @@ func get_upgrade_cost(current_level: int) -> float:
 	return maxf(0.0, upgrade_costs[index]) if index < upgrade_costs.size() else 0.0
 
 
+## Level one contributes the placement cost; every later level contributes
+## the configured upgrade cost needed to reach it. Initial mirrors use this as
+## their demolition entitlement even though level assembly spends no resource.
+func get_cumulative_cost(value: int) -> float:
+	var resolved_level := clampi(value, 0, MAX_LEVEL)
+	if resolved_level <= 0:
+		return 0.0
+	var cumulative_cost := maxf(0.0, placement_cost)
+	for current_level in range(1, resolved_level):
+		cumulative_cost += get_upgrade_cost(current_level)
+	return cumulative_cost
+
+
 func get_damage_multiplier(level: int) -> float:
 	var index := clampi(level, 1, MAX_LEVEL) - 1
 	return maxf(0.0, level_damage_multipliers[index]) if index < level_damage_multipliers.size() else 1.0

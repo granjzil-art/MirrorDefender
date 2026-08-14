@@ -1,5 +1,11 @@
 # 技术与玩法决策记录
 
+## 2026-08-13 · 投射物开火模式追加纯固定朝向
+
+**决策**：`BuildingLevelStats.ProjectileFireMode` 在既有 `TARGET_ONLY=0`、`TARGET_OR_FACING=1` 之后追加 `FACING_ONLY=2`。该模式不调用 `acquire_target()`，不建立 `_locked_target`，也不暴露索敌范围；每次冷却到期直接沿建筑逻辑朝向调用方向投射物入口。普通箭和导弹分别因此成为直线弹与无标记的绕圈后直飞弹。
+
+**兼容与边界**：旧枚举数值和所有现有 `.tres` 行为保持不变；新模式只改变显式选择它的等级。方向弹飞行后仍可沿途命中符合 `affects_target` 的敌人，并继续使用同一套 Stuff、穿透、镜面反射和累计 `attack_range`。复制镜接收既有 `directional_projectile` / `directional_missile` 攻击事件，因此无需建立专用复制分支。
+
 ## 2026-08-13 · 说明文本支持受控自定义高亮与颜色
 
 **决策**：`InspectionDisplayConfig` 的基础说明和 1–3 级说明支持轻量成对标记：`[color=#RRGGBB]…[/color]` 自定义文字色、`[highlight=#RRGGBB]…[/highlight]` 自定义背景高亮、`[b]…[/b]` 粗体。卡片悬停与实体说明页依旧共用同一格式化入口，等级标签的默认绿/黄/红不变。

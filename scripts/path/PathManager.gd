@@ -269,6 +269,9 @@ func _create_spawn_marker(spawn_point: SpawnPointDefinition) -> void:
 		else null
 	)
 	if visual_root != null:
+		var facing := _level.get_spawn_point_model_facing_direction(spawn_point, _grid)
+		if not facing.is_zero_approx():
+			visual_root.rotation.y = atan2(-facing.x, -facing.z)
 		marker_root.add_child(visual_root)
 	else:
 		_build_spawn_fallback(marker_root)

@@ -11,6 +11,7 @@ func _initialize() -> void:
 func _run() -> void:
 	print("[ManualWaveRelease] running")
 	await _test_manual_release_flow()
+	await _test_wave_bound_economy()
 	await _test_preflight_failure_is_not_victory()
 	if _failures == 0:
 		print("[ManualWaveRelease] PASS: %d checks" % _checks)
@@ -39,6 +40,7 @@ func _test_manual_release_flow() -> void:
 	var continuous_preview := path_display.get_continuous_preview()
 	var spawned_names: Array[String] = []
 	var spawned_max_hp: Array[float] = []
+	var spawned_mirror_hp: Array[float] = []
 	var released_numbers: Array[int] = []
 	var started_numbers: Array[int] = []
 	var next_numbers: Array[int] = []
@@ -46,6 +48,9 @@ func _test_manual_release_flow() -> void:
 		func(unit: EnemyUnit) -> void:
 			spawned_names.append(unit.definition.display_name)
 			spawned_max_hp.append(unit.max_hp)
+			spawned_mirror_hp.append(
+				unit.get_reflection_surface_max_durability(&"front")
+			)
 	)
 	manager.wave_released.connect(
 		func(wave_number: int, _wave: WaveDefinition) -> void:
@@ -110,6 +115,10 @@ func _test_manual_release_flow() -> void:
 	_expect(manager.get_released_wave_count() == 2 and released_numbers == [1, 2], "the second click releases only wave two")
 	_expect(spawned_names.back() == "W2" and manager.get_active_enemy_count() == 3, "overlapping release keeps earlier enemies and starts wave two immediately")
 	_expect(is_equal_approx(spawned_max_hp.back(), 110.0), "wave two applies one HP growth step")
+	_expect(
+		is_equal_approx(spawned_mirror_hp.back(), 220.0),
+		"wave two applies the same HP growth step to an elite mirror face"
+	)
 	_expect(started_numbers == [1, 2], "each released wave emits wave_started only after its first spawn succeeds")
 
 	await _clear_active_enemies(manager)
@@ -170,6 +179,44 @@ func _test_preflight_failure_is_not_victory() -> void:
 	await process_frame
 
 
+func _test_wave_bound_economy() -> void:
+	var level := _make_three_wave_level()
+	level.waves[0].enemy_drop_multiplier = 1.5
+	level.waves[1].enemy_drop_multiplier = 0.75
+	var fixture := _make_runtime_fixture(level)
+	var host: Node3D = fixture["host"]
+	var manager: WaveManager = fixture["wave"]
+	var resource_manager: ResourceManager = fixture["resource"]
+	var initial_resource := resource_manager.main_resource
+
+	_expect(manager.start_next_wave() and manager.start_next_wave(), "two economy-test waves can overlap")
+	var first_wave_enemy := _find_enemy_named(manager, "W1 Early")
+	var second_wave_enemy := _find_enemy_named(manager, "W2")
+	_expect(first_wave_enemy != null and second_wave_enemy != null, "overlapping waves expose both authored enemies")
+	level.waves[0].enemy_drop_multiplier = 9.0
+	_expect(second_wave_enemy != null and second_wave_enemy.defeat(), "the later-wave enemy can be defeated first")
+	_expect(first_wave_enemy != null and first_wave_enemy.defeat(), "the earlier-wave enemy can be defeated after it")
+	_expect(
+		is_equal_approx(resource_manager.main_resource, initial_resource + 5.0 * 0.75 + 5.0 * 1.5),
+		"each overlapping enemy keeps the drop multiplier snapshotted from its authored wave"
+	)
+
+	var before_debug := resource_manager.main_resource
+	var debug_result := manager.spawn_debug_enemy(_make_enemy(&"debug_economy", "Debug Economy"), level.paths[0])
+	var debug_enemy := _find_enemy_named(manager, "Debug Economy")
+	_expect(bool(debug_result.get("success", false)) and debug_enemy != null and debug_enemy.defeat(), "a debug enemy can be defeated during the economy test")
+	_expect(is_equal_approx(resource_manager.main_resource, before_debug + 5.0), "debug enemies keep the unscaled one-times reward")
+
+	var before_test := resource_manager.main_resource
+	var test_result := manager.spawn_test_enemy(_make_enemy(&"test_economy", "Test Economy"), level.paths[0])
+	var test_enemy := _find_enemy_named(manager, "Test Economy")
+	_expect(bool(test_result.get("success", false)) and test_enemy != null and test_enemy.defeat(), "a test enemy can be defeated during the economy test")
+	_expect(is_equal_approx(resource_manager.main_resource, before_test + 5.0), "test enemies keep the unscaled one-times reward")
+
+	host.queue_free()
+	await process_frame
+
+
 func _make_runtime_fixture(level: LevelResource) -> Dictionary:
 	var host := Node3D.new()
 	root.add_child(host)
@@ -203,6 +250,7 @@ func _make_runtime_fixture(level: LevelResource) -> Dictionary:
 		"combat": combat_manager,
 		"base": base_core,
 		"path": path_manager,
+		"resource": resource_manager,
 	}
 
 
@@ -238,7 +286,11 @@ func _make_three_wave_level() -> LevelResource:
 
 	var second_wave := WaveDefinition.new()
 	second_wave.display_name = "Wave 2"
-	second_wave.spawn_groups.append(_make_group(_make_enemy(&"w2", "W2"), path, spawn_point, 30.0))
+	var second_wave_enemy := _make_enemy(&"w2", "W2")
+	second_wave_enemy.is_elite = true
+	second_wave_enemy.reflection_pattern = EnemyDefinition.ReflectionPattern.FRONT
+	second_wave_enemy.reflection_max_durability = 200.0
+	second_wave.spawn_groups.append(_make_group(second_wave_enemy, path, spawn_point, 30.0))
 	level.waves.append(second_wave)
 
 	var third_wave := WaveDefinition.new()
@@ -277,6 +329,13 @@ func _clear_enemy_named(manager: WaveManager, display_name: String) -> void:
 			child.queue_free()
 	await process_frame
 	manager._process(0.0)
+
+
+func _find_enemy_named(manager: WaveManager, display_name: String) -> EnemyUnit:
+	for child in manager.get_children():
+		if child is EnemyUnit and child.definition.display_name == display_name:
+			return child
+	return null
 
 
 func _clear_active_enemies(manager: WaveManager) -> void:

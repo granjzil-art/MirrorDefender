@@ -17,6 +17,7 @@ func _run() -> void:
 	await _test_square_runtime_surface_and_renderer()
 	await _test_terrain_model_instancing()
 	await _test_flat_terrain_batching()
+	await _test_water_default_building_permissions()
 	await _test_hex_ramp_sampling()
 	await _test_legacy_snapshot_runtime()
 	await _test_loader_rolls_back_terrain()
@@ -157,6 +158,31 @@ func _test_flat_terrain_batching() -> void:
 			instance_count += (child as MultiMeshInstance3D).multimesh.instance_count
 	_expect(batch_count == 1, "identical flat terrain mesh parts collapse into one MultiMesh batch")
 	_expect(instance_count == 25, "MultiMesh preserves one transform per non-ramp voxel layer")
+	fixture["host"].queue_free()
+	await process_frame
+
+
+func _test_water_default_building_permissions() -> void:
+	var fixture := _make_fixture(false)
+	var level := _make_square_ramp_level()
+	var water: TerrainDefinition = load("res://resources/terrains/Water.tres")
+	var first := Vector3i(4, 0, 0)
+	var second := Vector3i(5, 0, 0)
+	var shore := Vector3i(4, 1, 0)
+	for grid_cell in level.grid_cells:
+		if grid_cell.cell == first or grid_cell.cell == second:
+			grid_cell.terrain = water
+	var loader: LevelLoader = fixture["loader"]
+	var grid: GridManager = fixture["grid"]
+	var tile: TileManager = fixture["tile"]
+	_expect(loader.load_level(level, "memory://terrain-water-permissions"), "water permission fixture loads")
+	_expect(not tile.can_place(first), "Water terrain rejects block buildings by default")
+	var water_edge := grid.find_edge_index(first, second)
+	_expect(water_edge >= 0 and not tile.allows_edge_building(first, water_edge), "an edge shared by two Water tiles rejects edge buildings")
+	var reverse_water_edge := grid.find_edge_index(second, first)
+	_expect(reverse_water_edge >= 0 and not tile.allows_edge_building(second, reverse_water_edge), "the Water-to-Water edge restriction is symmetric")
+	var shore_edge := grid.find_edge_index(first, shore)
+	_expect(shore_edge >= 0 and tile.allows_edge_building(first, shore_edge), "a Water-to-land edge keeps its authored edge-building permission")
 	fixture["host"].queue_free()
 	await process_frame
 

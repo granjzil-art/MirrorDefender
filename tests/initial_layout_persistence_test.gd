@@ -25,6 +25,63 @@ func _run() -> void:
 		3
 	)
 	_expect(arrow != null and arrow.apply_level(2), "runtime fixture places and upgrades one real building")
+	var selected_building_mesh := _find_first_mesh(arrow)
+	var building_selection_overlay := (
+		selected_building_mesh.material_overlay as ShaderMaterial
+		if selected_building_mesh != null
+		else null
+	)
+	var building_selection_color: Color = (
+		building_selection_overlay.get_shader_parameter("highlight_color")
+		if building_selection_overlay != null
+		else Color.BLACK
+	)
+	_expect(
+		building_selection_overlay != null
+		and building_selection_color.r > 0.9
+		and building_selection_color.g < 0.1,
+		"selected live building receives the conspicuous red shader overlay"
+	)
+	building_manager.select_building(null)
+	_expect(
+		selected_building_mesh.material_overlay == null,
+		"clearing building selection removes the red shader overlay"
+	)
+	building_manager.select_building(arrow)
+	var resource_before_relocation: float = fixture.resource.main_resource
+	var building_count_before_relocation: int = fixture.resource.get_building_count()
+	_expect(
+		building_manager.update_relocation_preview(arrow, Vector3i(1, 2, 0)),
+		"upgraded building exposes a legal drag-relocation preview"
+	)
+	var relocation_preview := building_manager.get_preview_building()
+	_expect(
+		relocation_preview != null
+		and relocation_preview.level == arrow.level
+		and relocation_preview.facing_index == arrow.facing_index,
+		"drag preview preserves the source level and facing"
+	)
+	_expect(
+		building_manager.relocate_building_to_cell(arrow, Vector3i(1, 2, 0)),
+		"live tile building relocates without reconstruction"
+	)
+	_expect(
+		building_manager.get_building(Vector3i(1, 1, 0)) == null
+		and building_manager.get_building(Vector3i(1, 2, 0)) == arrow,
+		"tile relocation atomically transfers occupancy to the destination"
+	)
+	_expect(
+		arrow.level == 2
+		and arrow.facing_index == 3
+		and is_equal_approx(fixture.resource.main_resource, resource_before_relocation)
+		and fixture.resource.get_building_count() == building_count_before_relocation,
+		"tile relocation preserves upgrades, facing, resources, and building cap usage"
+	)
+	_expect(
+		building_manager.relocate_building_to_cell(arrow, Vector3i(1, 1, 0)),
+		"tile building can be dragged back to its original cell"
+	)
+	building_manager.clear_preview()
 	var mirror: CopyMirror = mirror_manager.place_copy_mirror(Vector3i(2, 1, 0), 0, false)
 	_expect(mirror != null, "runtime fixture places one real copy mirror")
 	var resource_after_runtime_placement: float = fixture.resource.main_resource
@@ -97,6 +154,23 @@ func _run() -> void:
 	_expect(restored_building != null and restored_building.level == 2 and restored_building.facing_index == 3, "reload restores building level and logical facing")
 	var restored_mirror: CopyMirror = mirror_manager.get_mirrors()[0] if not mirror_manager.get_mirrors().is_empty() else null
 	_expect(restored_mirror != null and not restored_mirror.active_from_side, "reload restores mirror active side")
+	var resource_before_initial_demolition: float = fixture.resource.main_resource
+	var expected_building_refund := restored_building.get_refund_amount()
+	var expected_mirror_refund := restored_mirror.get_refund_amount()
+	_expect(
+		expected_building_refund > 0.0 and expected_mirror_refund > 0.0,
+		"authored initial building and mirror expose full configured refunds"
+	)
+	building_manager.select_building(restored_building)
+	_expect(building_manager.remove_selected_building(), "authored initial building can be demolished through the player action")
+	_expect(mirror_manager.remove_mirror(restored_mirror), "authored initial mirror can be demolished through the player action")
+	_expect(
+		is_equal_approx(
+			fixture.resource.main_resource,
+			resource_before_initial_demolition + expected_building_refund + expected_mirror_refund
+		),
+		"initial building and mirror demolition returns construction plus every authored upgrade cost"
+	)
 
 	fixture.host.queue_free()
 	await process_frame
@@ -109,6 +183,68 @@ func _run() -> void:
 	_expect(main.building_manager.get_buildings().size() == 1, "Main level-loaded composition restores initial buildings")
 	_expect(main.mirror_manager.get_mirrors().size() == 1, "Main level-loaded composition restores initial mirrors")
 	_expect(is_equal_approx(main.resource_manager.main_resource, float(saved.initial_resource)), "Main initial layout preserves the configured starting resource")
+	var live_building := main.building_manager.get_building(Vector3i(1, 1, 0))
+	main.building_manager.select_building(live_building)
+	var live_camera := main.cam_rig.get_camera()
+	var drag_start_world := main.grid.cell_to_world(Vector3i(1, 1, 0)) + Vector3(
+		0.0,
+		main.tile_manager.get_world_height(Vector3i(1, 1, 0)),
+		0.0
+	)
+	var drag_end_world := main.grid.cell_to_world(Vector3i(1, 2, 0)) + Vector3(
+		0.0,
+		main.tile_manager.get_world_height(Vector3i(1, 2, 0)),
+		0.0
+	)
+	var drag_start_screen := live_camera.unproject_position(drag_start_world)
+	var drag_end_screen := live_camera.unproject_position(drag_end_world)
+	main._begin_building_drag_candidate(drag_start_screen)
+	main._update_building_drag_gesture(drag_end_screen)
+	main._finish_building_drag(drag_end_screen)
+	_expect(
+		main.building_manager.get_building(Vector3i(1, 2, 0)) == live_building
+		and main.building_manager.get_building(Vector3i(1, 1, 0)) == null,
+		"Main hold-and-drag gesture relocates the selected live building"
+	)
+	_expect(
+		main.runtime_interaction.get_world_selection_cell() == Vector3i(1, 2, 0),
+		"drag relocation keeps world selection attached to the moved building"
+	)
+	var live_mirror := main.mirror_manager.get_mirrors()[0] as CopyMirror
+	var live_mirror_instance_id := live_mirror.get_instance_id()
+	var live_mirror_level := live_mirror.level
+	var live_mirror_refund := live_mirror.get_refund_amount()
+	var mirror_body := live_mirror.get_node("MirrorBody") as MeshInstance3D
+	var mirror_start_screen := live_camera.unproject_position(
+		mirror_body.global_position
+	)
+	var mirror_target_cell := Vector3i(2, 1, 0)
+	var mirror_end_world := main.grid.cell_to_world(mirror_target_cell) + Vector3(
+		0.0,
+		main.tile_manager.get_world_height(mirror_target_cell),
+		0.0
+	)
+	var mirror_end_screen := live_camera.unproject_position(mirror_end_world)
+	var mirror_pick := main.mirror_manager.pick_mirror(live_camera, mirror_start_screen)
+	main.runtime_interaction.handle_primary({"hit": false}, {"hit": false}, mirror_pick)
+	main._begin_building_drag_candidate(mirror_start_screen)
+	main._update_building_drag_gesture(mirror_end_screen)
+	main._finish_building_drag(mirror_end_screen)
+	_expect(
+		live_mirror.get_instance_id() == live_mirror_instance_id
+		and live_mirror.get_active_cell() == mirror_target_cell,
+		"Main hold-and-drag gesture relocates the same selected live mirror"
+	)
+	_expect(
+		live_mirror.level == live_mirror_level
+		and is_equal_approx(live_mirror.get_refund_amount(), live_mirror_refund),
+		"mirror drag preserves its level and cumulative refund"
+	)
+	_expect(
+		main.runtime_interaction.get_world_selection_cell() == mirror_target_cell
+		and main.runtime_interaction.get_world_selection_edge_id() == live_mirror.edge_id,
+		"mirror drag keeps world selection attached to its new edge"
+	)
 	main.queue_free()
 	await process_frame
 	await process_frame
@@ -154,7 +290,9 @@ func _make_fixture() -> Dictionary:
 	building.configure(grid, tile, resource, combat)
 	var mirror := MirrorManager.new()
 	host.add_child(mirror)
-	mirror.copy_mirror_definition = TestDefinitionFactory.make_copy_mirror_definition()
+	var copy_mirror_definition := TestDefinitionFactory.make_copy_mirror_definition()
+	copy_mirror_definition.placement_cost = 40.0
+	mirror.copy_mirror_definition = copy_mirror_definition
 	mirror.configure(grid, tile, resource, combat, building, registry)
 	var loader := LevelLoader.new()
 	host.add_child(loader)
@@ -213,3 +351,13 @@ func _contains(errors: Array[String], needle: String) -> bool:
 		if needle in error:
 			return true
 	return false
+
+
+func _find_first_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _find_first_mesh(child)
+		if found != null:
+			return found
+	return null

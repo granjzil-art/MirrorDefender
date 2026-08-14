@@ -2,11 +2,12 @@
 
 ## 职责
 
-集中承载运行时调试信息、可视化开关和安全命令入口。正式 HUD 实例化一个 F1 控制台和一个左上角只读常驻信息层；业务命令注册、命令解析和 UI 展示相互解耦。
+集中承载运行时调试信息、可视化开关和安全命令入口。正式 HUD 实例化一个按钮打开的控制台和一个左上角只读信息层；业务命令注册、命令解析和 UI 展示相互解耦。
 
 ## 分类 / 做法
 
-- `F1` 打开或关闭控制台；打开时作为最高 HUD 模态层拦截世界选择、建造、相机、六机位和路径悬停预览。`Esc`、右键或关闭按钮关闭最上层控制台。
+- `F1` 是调试工具总开关，统一控制左侧控制台/关卡编辑/参数编辑按钮组、调试摘要、卡槽表现切换及灯光/树影/实树测试栏的显隐和可用性。正式游戏镜头键 `1/2` 不属于调试功能，不受 F1 影响。控制台改由“调试控制台”按钮打开；打开时仍作为最高 HUD 模态层，`Esc`、右键或关闭按钮关闭。
+- F1 关闭期间，已勾选分类进入挂起态：路径、换路等世界调试表现立即关闭，但勾选状态保留；再次开启后恢复。脏的关卡/参数工作副本只隐藏或挂起，不静默丢弃。
 - 固定分类为 `grid`、`pick`、`path`、`reroute`、`mirror`、`combat`、`fps`、`wave`。全部默认关闭，勾选框和 `debug set` 命令写入同一个 `DebugCategoryRegistry`。
 - `path` 开关只控制手工路径调试线；出生点/据点数字是正式关卡信息，不随调试线关闭。`reroute` 控制最近换路调试线。
 - 控制台右侧实时区与游戏画面左上角 `DebugOverlayPanel` 共同读取已启用分类；关闭控制台不关闭已启用信息，全部分类关闭时常驻层自动收起。
@@ -54,7 +55,7 @@
 | `scripts/debug/DebugCommandRegistry.gd` | `DebugCommandRegistry` / `RefCounted` | 命令元数据、分词、分发和结构化结果；内置 `help/clear`。 |
 | `scripts/debug/DebugCategoryRegistry.gd` | `DebugCategoryRegistry` / `RefCounted` | 八类开关、只读提供器与可选可视化切换回调。 |
 | `scripts/debug/RuntimeDebugBindings.gd` | `RuntimeDebugBindings` / `Node` | 将 Level/Resource/Wave/Path/Grid/Combat/Mirror 公共 API 注册为命令和分类提供器。 |
-| `scripts/ui/DebugConsole.gd` | `DebugConsole` / `Control` | F1 模态、分类勾选、实时区、历史和输入框；不实现业务命令。 |
+| `scripts/ui/DebugConsole.gd` | `DebugConsole` / `Control` | 按钮打开的模态、分类勾选、实时区、历史和输入框；不实现业务命令。 |
 | `scenes/ui/DebugConsole.tscn` | `Control` 场景 | 响应式镜面控制台层和可替换美术接口。 |
 | `scripts/ui/DebugOverlayPanel.gd` | `DebugOverlayPanel` / `Control` | 独立于控制台开关状态，持续渲染已启用分类的左上角只读摘要。 |
 | `scenes/ui/DebugOverlayPanel.tscn` | 无 class_name / `Control` 场景 | 左上角固定调试信息区域和可替换背景接口；不依赖旧波次时间轴。 |
@@ -65,7 +66,11 @@
 ### 数据流
 
 ```text
-F1 / close / Esc
+F1
+  -> Main 调试总开关
+  -> RuntimeHud / LightingTestPanel / DebugCategoryRegistry.suspended
+
+console button / close / Esc
   -> DebugConsole.open_changed
   -> RuntimeHud._sync_modal_state
   -> Main._on_runtime_modal_state_changed

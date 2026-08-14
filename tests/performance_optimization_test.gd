@@ -62,8 +62,12 @@ func _test_profile_resources() -> void:
 func _test_world_texture_limits() -> void:
 	const SCRIPT_PATH := "res://tools/performance/apply_world_texture_limits.ps1"
 	const MANIFEST_PATH := "res://tools/performance/world_texture_limit_manifest.json"
+	const PERFORMANCE_SCRIPT_PATH := "res://tools/performance/apply_world_texture_performance_tier.ps1"
+	const PERFORMANCE_MANIFEST_PATH := "res://tools/performance/world_texture_performance_tier_manifest.json"
 	_expect(FileAccess.file_exists(SCRIPT_PATH), "world texture limit batch script is retained")
 	_expect(FileAccess.file_exists(MANIFEST_PATH), "world texture rollback manifest is retained")
+	_expect(FileAccess.file_exists(PERFORMANCE_SCRIPT_PATH), "1K world texture performance-tier script is retained")
+	_expect(FileAccess.file_exists(PERFORMANCE_MANIFEST_PATH), "1K performance-tier rollback manifest is retained")
 	if not FileAccess.file_exists(MANIFEST_PATH):
 		return
 	var parsed_manifest: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH))
@@ -91,7 +95,7 @@ func _test_world_texture_limits() -> void:
 		var normalized_source := source_path.to_lower()
 		all_sources_exist = all_sources_exist and FileAccess.file_exists(source_path)
 		all_exclusions_respected = all_exclusions_respected and not normalized_source.begins_with("res://assets/ui/") and not normalized_source.begins_with("res://assets/png/")
-		all_imports_limited = all_imports_limited and FileAccess.file_exists(import_path) and FileAccess.get_file_as_string(import_path).contains("process/size_limit=2048")
+		all_imports_limited = all_imports_limited and FileAccess.file_exists(import_path) and FileAccess.get_file_as_string(import_path).contains("process/size_limit=1024")
 		if int(entry.get("previous_limit", -1)) == 0:
 			unlimited_before += 1
 		elif int(entry.get("previous_limit", -1)) == 2048:
@@ -99,7 +103,63 @@ func _test_world_texture_limits() -> void:
 	_expect(unlimited_before == 156 and terrain_limited_before == 20, "manifest preserves the exact 156 unlimited and 20 pre-limited rollback baseline")
 	_expect(all_sources_exist, "all limited source textures still exist")
 	_expect(all_exclusions_respected, "UI and assets/png exclusions are respected")
-	_expect(all_imports_limited, "all 176 texture import sidecars remain capped at 2048px")
+	_expect(all_imports_limited, "the original 176 texture sidecars receive the active 1024px performance cap")
+	if not FileAccess.file_exists(PERFORMANCE_MANIFEST_PATH):
+		return
+	var parsed_performance_manifest: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(PERFORMANCE_MANIFEST_PATH)
+	)
+	_expect(typeof(parsed_performance_manifest) == TYPE_DICTIONARY, "1K performance-tier manifest is valid JSON")
+	if typeof(parsed_performance_manifest) != TYPE_DICTIONARY:
+		return
+	var performance_manifest: Dictionary = parsed_performance_manifest
+	var performance_entries: Array = performance_manifest.get("entries", [])
+	_expect(int(performance_manifest.get("target_limit", 0)) == 1024, "performance tier caps 2K+ world textures at 1024px")
+	_expect(int(performance_manifest.get("minimum_source_dimension", 0)) == 2048, "performance tier scans every 2K+ source texture")
+	_expect(performance_entries.size() == 185, "performance tier records all 185 affected textures")
+	var performance_previous_unlimited := 0
+	var performance_previous_2048 := 0
+	var baseline_cache_bytes := 0
+	var current_cache_bytes := 0
+	var all_performance_imports_limited := true
+	var all_runtime_caches_exist := true
+	for entry_value: Variant in performance_entries:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			all_performance_imports_limited = false
+			all_runtime_caches_exist = false
+			continue
+		var entry: Dictionary = entry_value
+		var import_path := "res://%s" % str(entry.get("import_path", ""))
+		var cache_path := "res://%s" % str(entry.get("previous_cache_path", ""))
+		all_performance_imports_limited = (
+			all_performance_imports_limited
+			and FileAccess.file_exists(import_path)
+			and FileAccess.get_file_as_string(import_path).contains("process/size_limit=1024")
+		)
+		baseline_cache_bytes += int(entry.get("previous_cache_bytes", 0))
+		if not FileAccess.file_exists(cache_path):
+			all_runtime_caches_exist = false
+		else:
+			var cache_file := FileAccess.open(cache_path, FileAccess.READ)
+			if cache_file == null:
+				all_runtime_caches_exist = false
+			else:
+				current_cache_bytes += cache_file.get_length()
+		if int(entry.get("previous_limit", -1)) == 0:
+			performance_previous_unlimited += 1
+		elif int(entry.get("previous_limit", -1)) == 2048:
+			performance_previous_2048 += 1
+	_expect(
+		performance_previous_unlimited == 9 and performance_previous_2048 == 176,
+		"performance rollback restores 9 unlimited and 176 2K-capped textures"
+	)
+	_expect(all_performance_imports_limited, "all 185 performance-tier sidecars remain capped at 1024px")
+	_expect(all_runtime_caches_exist, "all 185 performance-tier runtime caches exist")
+	_expect(baseline_cache_bytes > 500 * 1024 * 1024, "performance manifest records the 519MB pre-tier cache baseline")
+	_expect(
+		current_cache_bytes > 0 and current_cache_bytes < baseline_cache_bytes * 0.3,
+		"1K tier keeps the measured runtime cache below 30 percent of baseline"
+	)
 
 
 func _test_production_terrain_batching() -> void:

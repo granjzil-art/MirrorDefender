@@ -7,7 +7,6 @@ signal focus_parameters_changed(focus_depth: float, near_distance: float, far_di
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
-@export var test_shortcut_enabled: bool = true
 
 var _camera: Camera3D
 var _camera_rig: Node3D
@@ -56,16 +55,6 @@ func _exit_tree() -> void:
 
 func _process(_delta: float) -> void:
 	refresh_now()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not feature_enabled or not test_shortcut_enabled:
-		return
-	var key_event := event as InputEventKey
-	if key_event == null or not key_event.pressed or key_event.echo or key_event.keycode != KEY_0:
-		return
-	set_effect_enabled(not _effect_enabled)
-	get_viewport().set_input_as_handled()
 
 
 func set_effect_enabled(enabled: bool) -> void:

@@ -1,0 +1,1677 @@
+{
+    "version":  1,
+    "generated_at":  "2026-08-12T19:32:06+08:00",
+    "target_limit":  1024,
+    "minimum_source_dimension":  2048,
+    "excluded_roots":  [
+                           "assets/ui",
+                           "assets/png"
+                       ],
+    "entries":  [
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_0.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/dalishi_0.png-55f78901cd4ed479698a8bd5388e6c86.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_1.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/dalishi_1.png-2d34f42c5a1f43a41af2830dad3887c9.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_2.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/dalishi_2.png-80f91eaa52b55f2e147298636bf408f7.ctex",
+                        "previous_cache_bytes":  2048274
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/dalishi_3.png",
+                        "import_path":  "assets/blocks/fbx/dalishi_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/dalishi_3.png-ec54aa684a35c30ab21aa82a6ec1b416.ctex",
+                        "previous_cache_bytes":  1887654
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone_0.png-2e3a3371a9629ca53eb375fecba6cf42.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone_1.png-c96c52b48cecaa0fc5f8e4d327a44303.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone_2.png-f1cf21e943c5d64d418f2c271942fb7b.ctex",
+                        "previous_cache_bytes":  3750956
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone_3.png-c87c3656ac09bcdd726b8126bd598660.ctex",
+                        "previous_cache_bytes":  844264
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone1_0.png-045fbf752f3bed8ee3fc758f716f5ff1.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone1_1.png-0060d9a7879f9a0efa58397067f89605.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone1_2.png-ab3bcb9869326d5645fa9bc0d7fc84c5.ctex",
+                        "previous_cache_bytes":  1292890
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone1_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone1_3.png-bb64e5d8dbf2b56192153e00d5d55df0.ctex",
+                        "previous_cache_bytes":  1109842
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_0.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone2_0.png-3e249a441f43189965a7ab3080260f44.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_1.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone2_1.png-228046bcfd618d924180ffbd36693185.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_2.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone2_2.png-7af59ddf06540b63d8d9c1b3b2158949.ctex",
+                        "previous_cache_bytes":  1946858
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/flatstone2_3.png",
+                        "import_path":  "assets/blocks/fbx/flatstone2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/flatstone2_3.png-01936dd91c71ad02b2d1261d2bcfc562.ctex",
+                        "previous_cache_bytes":  1350808
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_0.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassMud_0.png-96ddd11d896248939e13497aacc4d611.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_1.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassMud_1.png-eaf367c4eb602aee1814a505614bb7fd.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_2.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassMud_2.png-482a82379c908ab0b111e24f09a862dc.ctex",
+                        "previous_cache_bytes":  3094496
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassMud_3.png",
+                        "import_path":  "assets/blocks/fbx/GrassMud_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassMud_3.png-05409f9d44c4b184349006afdd686eb9.ctex",
+                        "previous_cache_bytes":  796902
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_0.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grassmud0_0.png-400d17792cbfb6b3d56546a046018629.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_1.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grassmud0_1.png-a098af64cb3f10574c1572f111449658.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_2.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grassmud0_2.png-4c670ce7a2c2dd50191bf9162b72c7cb.ctex",
+                        "previous_cache_bytes":  3257750
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/Grassmud0_3.png",
+                        "import_path":  "assets/blocks/fbx/Grassmud0_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grassmud0_3.png-575c7c58eeeebc1ed522db7bb09dee46.ctex",
+                        "previous_cache_bytes":  2105722
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_0.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassStone_0.png-ec19b35e952bab8f9410617424c4e3a6.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_1.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassStone_1.png-20a3732b930c2c39494bbdd15592fd68.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_2.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassStone_2.png-6e57d4b9ecda328d3d7eaf7eeb0cc13a.ctex",
+                        "previous_cache_bytes":  2443862
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/GrassStone_3.png",
+                        "import_path":  "assets/blocks/fbx/GrassStone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/GrassStone_3.png-d9bd40dd24baaed0a6b8d69cf9716785.ctex",
+                        "previous_cache_bytes":  1716158
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_0.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone_0.png-0e18879055789843a421932f374a37c8.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_1.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone_1.png-2d0844849b21c3fce629a11f82c6a769.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_2.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone_2.png-849a76824b593ba2c25dce0512405d1d.ctex",
+                        "previous_cache_bytes":  2812956
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone_3.png",
+                        "import_path":  "assets/blocks/fbx/greenstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone_3.png-5b452ed7c1b25efa9d0832610cfb44b0.ctex",
+                        "previous_cache_bytes":  2224134
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_0.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone1_0.png-a2055d634c8e94a09a2bbb127a4a4d6a.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_1.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone1_1.png-0de94b45c261a34a8a9705a8d10b03a4.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_2.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone1_2.png-d2f342c5e5af9352f32d4deeb958189c.ctex",
+                        "previous_cache_bytes":  1415632
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/greenstone1_3.png",
+                        "import_path":  "assets/blocks/fbx/greenstone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/greenstone1_3.png-8b38e13c465f98823a221a826a8dcfe6.ctex",
+                        "previous_cache_bytes":  1249200
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_0.png",
+                        "import_path":  "assets/blocks/fbx/mud1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mud1_0.png-85605598124213f4deb14f32fe4261e6.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_1.png",
+                        "import_path":  "assets/blocks/fbx/mud1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mud1_1.png-5545c5287c32f7d2baa000db579aa81a.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_2.png",
+                        "import_path":  "assets/blocks/fbx/mud1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mud1_2.png-772aa2eef7c51a91f2d5e45aed2e406f.ctex",
+                        "previous_cache_bytes":  3037918
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/mud1_3.png",
+                        "import_path":  "assets/blocks/fbx/mud1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mud1_3.png-ed76aebba1a58104a8e159e386f36f1e.ctex",
+                        "previous_cache_bytes":  1369868
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_0.png",
+                        "import_path":  "assets/blocks/fbx/stone1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone1_0.png-f4c1258694ac6c3f257314b724c78ef6.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_1.png",
+                        "import_path":  "assets/blocks/fbx/stone1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone1_1.png-871afc70fa6d6c76089941bf22d6980c.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_2.png",
+                        "import_path":  "assets/blocks/fbx/stone1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone1_2.png-822bc1f95fa22bb4e01b0be76b4dfc48.ctex",
+                        "previous_cache_bytes":  1292890
+                    },
+                    {
+                        "source_path":  "assets/blocks/fbx/stone1_3.png",
+                        "import_path":  "assets/blocks/fbx/stone1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone1_3.png-e731e991567adf8f127b89cbc42d720c.ctex",
+                        "previous_cache_bytes":  1109842
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/ArrowTower_0.png-6d84965091d93d59d4855fb60878361f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/ArrowTower_1.png-b3f03501dbc50df56fc330c309373789.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/ArrowTower_2.png-5344981a9fb648b0ecb279c2b4f58119.ctex",
+                        "previous_cache_bytes":  904040
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/ArrowTower_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/ArrowTower_3.png-eefc82c3dcd7d019f6475abc2975f974.ctex",
+                        "previous_cache_bytes":  907308
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_1_0.png-0bfd7b25c727ffd791765e690a6e4276.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_1_1.png-0dd1cea1774a19b551d75085770da16d.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_1_2.png-3f685ad30f36ea2d43c9a886d99097ac.ctex",
+                        "previous_cache_bytes":  1169180
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_1_3.png-a3234df35a4f5095291fd4a81a1a5b2b.ctex",
+                        "previous_cache_bytes":  1110058
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_2_0.png-d105cbcdbacac4ea1da61fb29d014690.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_2_1.png-4826baa67c139049ce0ebdf1af4ad36e.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_2_2.png-6a4daff634cc58caf03788ef5f520351.ctex",
+                        "previous_cache_bytes":  1584878
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower1_2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower1_2_3.png-4aef50b963f3bd3fa7ca757f072bc396.ctex",
+                        "previous_cache_bytes":  579572
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_1_0.png-3a24ac7162d51b61a0543939524dc007.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_1_1.png-5b693e726e535d5d3a3f9850252e9cca.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_1_2.png-233531103f21777cc77ad0f695ed1424.ctex",
+                        "previous_cache_bytes":  1762112
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_1_3.png-08daed073546c15ed2ec652f3fc7df16.ctex",
+                        "previous_cache_bytes":  629164
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_2_0.png-3c5404793415d0bff1d79fe59d5e16ff.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_2_1.png-2b62cd0be003ce7482225efdf8e1e05b.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_2_2.png-2026417b9327f72213f45af7d38aa685.ctex",
+                        "previous_cache_bytes":  1216678
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower2_2_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower2_2_3.png-b15f7b3c0661083ad6754f1d20bd21a2.ctex",
+                        "previous_cache_bytes":  1128688
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_0.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower3_1_0.png-1d75fdc7a5c6078de989c3a8cfc3275c.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_1.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower3_1_1.png-41b708bb622ebc93ab7f5599a463f16e.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_2.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower3_1_2.png-4b3d78833bcec38022ab91c243d7b65f.ctex",
+                        "previous_cache_bytes":  964440
+                    },
+                    {
+                        "source_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_3.png",
+                        "import_path":  "assets/buildings/ArrowTower/fbx/arrowtower3_1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/arrowtower3_1_3.png-70423a3eca40618948603c759db4b2ce.ctex",
+                        "previous_cache_bytes":  92260
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/bluecastle_0.png-ac3eee0306c57f254d527d02e2985140.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/bluecastle_1.png-7e074d31fe8be9d4c5bd12f56cf67bce.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/bluecastle_2.png-f7dbad2a184057859afc2927b3a6de3d.ctex",
+                        "previous_cache_bytes":  3279822
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/bluecastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/bluecastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/bluecastle_3.png-1339bde01c779fd207d5cf0b7cfc1762.ctex",
+                        "previous_cache_bytes":  1172102
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/castle_0.png-1b1b28193f464c55a86e78128c7a71cc.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/castle_1.png-85bb099e516c957e0e6f153ec045e3de.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/castle_2.png-aa37d80cb3f95060279178523f1243e2.ctex",
+                        "previous_cache_bytes":  2459346
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/castle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/castle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/castle_3.png-f84bb105fd55a65f918e1fecc4f8b991.ctex",
+                        "previous_cache_bytes":  1509488
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/desertcastle_0.png-6693704aa1deaeb09f5d0933fbb73819.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/desertcastle_1.png-affbcf18c076cf0753faba6e7470ab23.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/desertcastle_2.png-87573fa82cc4c075fcd5a17c0b41b32b.ctex",
+                        "previous_cache_bytes":  2353586
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/desertcastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/desertcastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/desertcastle_3.png-a7a5d4f03565fb6bf4f9d89e081e95a1.ctex",
+                        "previous_cache_bytes":  897246
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_0.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/redcastle_0.png-076dd88d20e1b300d5f316e186c5f092.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_1.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/redcastle_1.png-b59d4efd4a3a37e26ab73d4f1a50d506.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_2.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/redcastle_2.png-ea29b62559a583450da521d508e9ff9e.ctex",
+                        "previous_cache_bytes":  3086536
+                    },
+                    {
+                        "source_path":  "assets/buildings/Castle/fbx/redcastle_3.png",
+                        "import_path":  "assets/buildings/Castle/fbx/redcastle_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/redcastle_3.png-536e7025973b3bf920a9cae80959d44e.ctex",
+                        "previous_cache_bytes":  681206
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_0.png",
+                        "import_path":  "assets/buildings/crossbow/crossbow_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/crossbow_0.png-f6cb093d762e8e24e1a04fd282f43c61.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_1.png",
+                        "import_path":  "assets/buildings/crossbow/crossbow_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/crossbow_1.png-361f53543f5e2f7454bd68ca09188001.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/crossbow/crossbow_2.jpg",
+                        "import_path":  "assets/buildings/crossbow/crossbow_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/crossbow_2.jpg-e7a496f98dec28538e6e5c500d4ce39f.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_0.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/enemymirror_0.png-a9d578bc169681214c2bccbee8d03f48.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_1.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/enemymirror_1.png-b916b09f8e634ceab213dabde3627174.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_2.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/enemymirror_2.png-63d295b3d353f6f0beb3dc3a9a8935af.ctex",
+                        "previous_cache_bytes":  1811662
+                    },
+                    {
+                        "source_path":  "assets/buildings/enemymirror/fbx/enemymirror_3.png",
+                        "import_path":  "assets/buildings/enemymirror/fbx/enemymirror_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/enemymirror_3.png-3e45d8827ec21c6d6307019e065a175a.ctex",
+                        "previous_cache_bytes":  1327202
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_0.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/lasertower_0.png-996ec52c82dbc824052a3b72ac04814f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_1.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/lasertower_1.png-3c0874b11f001f24e762a7df6be40210.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_2.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/lasertower_2.png-e68d5128e7dcc99dd563ed0e79e66ba4.ctex",
+                        "previous_cache_bytes":  1006856
+                    },
+                    {
+                        "source_path":  "assets/buildings/LaserTower/lasertower_3.png",
+                        "import_path":  "assets/buildings/LaserTower/lasertower_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/lasertower_3.png-ee114ba0c9927a94b2e52c5398dc196f.ctex",
+                        "previous_cache_bytes":  922004
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_0.png",
+                        "import_path":  "assets/buildings/mace/mace_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace_0.png-15fd9d3270ccf5490371363c820d9a4c.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_1.png",
+                        "import_path":  "assets/buildings/mace/mace_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace_1.png-0d29f410086cae3e0d868fc9d9452c2d.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace_2.jpg-1e634f474d766f5bb4f5226661210b57.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_0.png",
+                        "import_path":  "assets/buildings/mace/mace1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace1_0.png-f0c630be1c4ff7d0f66bb3f2a9dc4036.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_1.png",
+                        "import_path":  "assets/buildings/mace/mace1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace1_1.png-1caec2aa6d34437705806995524d4f38.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace1_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace1_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace1_2.jpg-7aea618a7b05c57b5c2eb59fbef7a50d.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_0.png",
+                        "import_path":  "assets/buildings/mace/mace8_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace8_0.png-65c0cfdca8fd5b71837c3c3a4a0323d2.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_1.png",
+                        "import_path":  "assets/buildings/mace/mace8_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace8_1.png-443e734a8701e321fed78c4a601166d1.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/mace/mace8_2.jpg",
+                        "import_path":  "assets/buildings/mace/mace8_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/mace8_2.jpg-9535af139300f8c1c6f997837a691961.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_0.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/PulseLayer_0.png-947758101894471efd25d1a2f41c5df4.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_1.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/PulseLayer_1.png-cb5274550a9699d197c2886354a26110.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_2.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/PulseLayer_2.png-1ae2d33356ebc42ae1124ac075852ad2.ctex",
+                        "previous_cache_bytes":  913984
+                    },
+                    {
+                        "source_path":  "assets/buildings/PalseLayer/PulseLayer_3.png",
+                        "import_path":  "assets/buildings/PalseLayer/PulseLayer_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/PulseLayer_3.png-a7f88295f29d6d0fd9844bf89c9f845a.ctex",
+                        "previous_cache_bytes":  792914
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_0.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grunt_0.png-36b781d0a83cb80a5fa19b754781776f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_1.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grunt_1.png-9730c60459f5a99bf49f7afdddcd88c6.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_2.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grunt_2.png-585189bc50464404aded9f0bc847539e.ctex",
+                        "previous_cache_bytes":  2369748
+                    },
+                    {
+                        "source_path":  "assets/enemies/Grunt/Grunt_3.png",
+                        "import_path":  "assets/enemies/Grunt/Grunt_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Grunt_3.png-e17107c6fc253bea6ca8dfd838c6f235.ctex",
+                        "previous_cache_bytes":  2362618
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/source/Stone Golem_5_BaseColor.jpg-5_Alpha.png",
+                        "import_path":  "assets/enemies/stone-golem/source/Stone Golem_5_BaseColor.jpg-5_Alpha.png.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/Stone Golem_5_BaseColor.jpg-5_Alpha.png-860af37471327958cf6e733479fa3634.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Emission.jpg",
+                        "import_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Emission.jpg.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/Stone Golem_5_Emission.jpg-1f6758ce29aa9401bc22cc0333a9aa01.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Metallic.jpg-5_Roughness.png",
+                        "import_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Metallic.jpg-5_Roughness.png.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/Stone Golem_5_Metallic.jpg-5_Roughness.png-9e5021be46c8a1922b93751144927d1f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Normal.jpg",
+                        "import_path":  "assets/enemies/stone-golem/source/Stone Golem_5_Normal.jpg.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/Stone Golem_5_Normal.jpg-0b9c691ca8858aa618716646219c8d05.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/textures/5_BaseColor.jpg-5_Alpha.jpg_2.png",
+                        "import_path":  "assets/enemies/stone-golem/textures/5_BaseColor.jpg-5_Alpha.jpg_2.png.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/5_BaseColor.jpg-5_Alpha.jpg_2.png-7e0ae189dc6752e06095aaaff0275f2e.ctex",
+                        "previous_cache_bytes":  3015448
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/textures/5_Emission_0.jpeg",
+                        "import_path":  "assets/enemies/stone-golem/textures/5_Emission_0.jpeg.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/5_Emission_0.jpeg-0ebb8591ca16c74add993ae77020f459.ctex",
+                        "previous_cache_bytes":  12254
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/textures/5_Metallic.jpg-5_Roughness.jpg_3@channels=B.png",
+                        "import_path":  "assets/enemies/stone-golem/textures/5_Metallic.jpg-5_Roughness.jpg_3@channels=B.png.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/5_Metallic.jpg-5_Roughness.jpg_3@channels=B.png-cf1e69d8277995f1fdfe89c088e02ef2.ctex",
+                        "previous_cache_bytes":  274
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/textures/5_Metallic.jpg-5_Roughness.jpg_3@channels=G.png",
+                        "import_path":  "assets/enemies/stone-golem/textures/5_Metallic.jpg-5_Roughness.jpg_3@channels=G.png.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/5_Metallic.jpg-5_Roughness.jpg_3@channels=G.png-8d19112b1ac61beff5abb3e6cb7663b9.ctex",
+                        "previous_cache_bytes":  1265414
+                    },
+                    {
+                        "source_path":  "assets/enemies/stone-golem/textures/5_Normal_1.jpeg",
+                        "import_path":  "assets/enemies/stone-golem/textures/5_Normal_1.jpeg.import",
+                        "width":  2048,
+                        "height":  2048,
+                        "previous_limit":  0,
+                        "previous_cache_path":  ".godot/imported/5_Normal_1.jpeg-5e60c7d54b4948618c8126d7d9303f04.ctex",
+                        "previous_cache_bytes":  6523474
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_baseColor.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_baseColor.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/trunk_baseColor.png-5e4abd76db6599d7751f2d189402e8ed.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_metallicRoughness.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_metallicRoughness.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/trunk_metallicRoughness.png-799727af969c221d20d031fc795bd5a7.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_normal.png",
+                        "import_path":  "assets/greattree/realistic_tree_gltf/textures/trunk_normal.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/trunk_normal.png-f1d23d6aa836a3e6f1e65a30826f3420.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_0.png",
+                        "import_path":  "assets/moon/moon_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/moon_0.png-bced7b3dc6514c7028fcb2b00a648c2d.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_1.png",
+                        "import_path":  "assets/moon/moon_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/moon_1.png-f68e985ae5b424e6b1e666a899ebed65.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_2.png",
+                        "import_path":  "assets/moon/moon_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/moon_2.png-66d13cec0fadecf7ad9a8a65a7d6a586.ctex",
+                        "previous_cache_bytes":  1014626
+                    },
+                    {
+                        "source_path":  "assets/moon/moon_3.png",
+                        "import_path":  "assets/moon/moon_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/moon_3.png-c402b8fbb2956e0e3a0c6b1da8e10166.ctex",
+                        "previous_cache_bytes":  906542
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_0.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Arrow_0.png-9e703ae45fdabdec1da4b795f42faab2.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_1.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Arrow_1.png-eee08e87171165db62eb80796e1117c1.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_2.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Arrow_2.png-883b1421312956dcf68850602107ca43.ctex",
+                        "previous_cache_bytes":  1062258
+                    },
+                    {
+                        "source_path":  "assets/projections/Arrow/Arrow_3.png",
+                        "import_path":  "assets/projections/Arrow/Arrow_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/Arrow_3.png-53d3c6efe3be600e275df8f02f4cb011.ctex",
+                        "previous_cache_bytes":  853970
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_0.png",
+                        "import_path":  "assets/projections/daodan/daodan_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/daodan_0.png-08506b1c956ad75f522db83626817a7f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_1.png",
+                        "import_path":  "assets/projections/daodan/daodan_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/daodan_1.png-8e5ab63fb3c07a4f25b17f5d96fbcda0.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_2.png",
+                        "import_path":  "assets/projections/daodan/daodan_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/daodan_2.png-e4cba981b0c694e8dddebdb9dc7e09ba.ctex",
+                        "previous_cache_bytes":  1017966
+                    },
+                    {
+                        "source_path":  "assets/projections/daodan/daodan_3.png",
+                        "import_path":  "assets/projections/daodan/daodan_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/daodan_3.png-fa2fcdc253fbb75f063dd6c5e5765aa5.ctex",
+                        "previous_cache_bytes":  933770
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_0.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone_ramp_0.png-30cfe523373964e30689296471887f28.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_1.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone_ramp_1.png-c2c4ac56a1852e37ff9b94ea9fb314e6.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_2.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone_ramp_2.png-0359582be1beee9ed9c324d19461341a.ctex",
+                        "previous_cache_bytes":  1090522
+                    },
+                    {
+                        "source_path":  "assets/Ramp/fbx/stone_ramp_3.png",
+                        "import_path":  "assets/Ramp/fbx/stone_ramp_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone_ramp_3.png-c5b94951f8027ab879241389778cab4e.ctex",
+                        "previous_cache_bytes":  1019466
+                    },
+                    {
+                        "source_path":  "assets/star/star1_0.png",
+                        "import_path":  "assets/star/star1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star1_0.png-b152dd6d7216925d54ef06623c4c0ec1.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star1_1.png",
+                        "import_path":  "assets/star/star1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star1_1.png-329d15652762c6ef0b73ee5bbd6bcaa7.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/star/star1_2.png",
+                        "import_path":  "assets/star/star1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star1_2.png-58508b4fc186b79fc36900200ebdcd31.ctex",
+                        "previous_cache_bytes":  963976
+                    },
+                    {
+                        "source_path":  "assets/star/star1_3.png",
+                        "import_path":  "assets/star/star1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star1_3.png-e7e43a2ebfe9542c903b9d519d0bbc06.ctex",
+                        "previous_cache_bytes":  832252
+                    },
+                    {
+                        "source_path":  "assets/star/star2_0.png",
+                        "import_path":  "assets/star/star2_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star2_0.png-8ee8e540b46b9637787ba0dc8558413f.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star2_1.png",
+                        "import_path":  "assets/star/star2_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star2_1.png-f038aed68756f69673506da6e69e2c66.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star2_2.jpg",
+                        "import_path":  "assets/star/star2_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star2_2.jpg-9ee806e606eba8c5ad8f1c22d36c32c8.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/star/star3_0.png",
+                        "import_path":  "assets/star/star3_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star3_0.png-86e2ff58429239b1d86f9ef623e891fd.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star3_1.png",
+                        "import_path":  "assets/star/star3_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star3_1.png-d2d3293872e1fe0d254c7dbb75abc4ab.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/star/star3_2.png",
+                        "import_path":  "assets/star/star3_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star3_2.png-b2f3ad2947be7c279ee1994502efbb0c.ctex",
+                        "previous_cache_bytes":  994814
+                    },
+                    {
+                        "source_path":  "assets/star/star3_3.png",
+                        "import_path":  "assets/star/star3_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star3_3.png-dda2c48f6968fe6bd4c788e62dedd2bb.ctex",
+                        "previous_cache_bytes":  949330
+                    },
+                    {
+                        "source_path":  "assets/star/star4_0.png",
+                        "import_path":  "assets/star/star4_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star4_0.png-5974f21526251fac2353d7943b0eeef8.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star4_1.png",
+                        "import_path":  "assets/star/star4_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star4_1.png-86774095b73de3fdfff616bfb2ec3134.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star4_2.jpg",
+                        "import_path":  "assets/star/star4_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star4_2.jpg-59b659d034208f58d9fa93d99bc0ab9e.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/star/star5_0.png",
+                        "import_path":  "assets/star/star5_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star5_0.png-9ac00150de98191837d3d16f3c5877bb.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star5_1.png",
+                        "import_path":  "assets/star/star5_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star5_1.png-c7961902304adc088993f2f5584925c5.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/star/star5_2.png",
+                        "import_path":  "assets/star/star5_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star5_2.png-d58f6531b296a0bb4017cda8a97aa801.ctex",
+                        "previous_cache_bytes":  933126
+                    },
+                    {
+                        "source_path":  "assets/star/star5_3.png",
+                        "import_path":  "assets/star/star5_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star5_3.png-9eaa20e0769a36ef5fae6f418372f37f.ctex",
+                        "previous_cache_bytes":  971236
+                    },
+                    {
+                        "source_path":  "assets/star/star6_0.png",
+                        "import_path":  "assets/star/star6_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star6_0.png-c3758ddd0e37bbe91109126315344177.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star6_1.png",
+                        "import_path":  "assets/star/star6_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star6_1.png-a95f1581d95a4b66be3828f6460259ad.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/star/star6_2.jpg",
+                        "import_path":  "assets/star/star6_2.jpg.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/star6_2.jpg-b6fa50f187d10e516ce2fefcd276f6e2.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_0.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/highstone_0.png-15431c2deef1cee0f87dc82006157d0b.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_1.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/highstone_1.png-1ac85cea9b89af953efbb26800f59180.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_2.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/highstone_2.png-c599b0da4e66026e86e0528736b22f6f.ctex",
+                        "previous_cache_bytes":  789386
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/highstone_3.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/highstone_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/highstone_3.png-685d1f3f9ffbe0a5d8550476af134ad1.ctex",
+                        "previous_cache_bytes":  644704
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_0.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone0_0.png-1aae43ec5be9d65e22e64b2c9907ce58.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_1.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone0_1.png-cffad7a4a71a0e76219e93b76813be81.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_2.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone0_2.png-9b32167d675f906fdb4534e13fbdb3da.ctex",
+                        "previous_cache_bytes":  3463500
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Rock/fbx/stone0_3.png",
+                        "import_path":  "assets/stuffs/Rock/fbx/stone0_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/stone0_3.png-2900b3b24d5928356257e7904d629614.ctex",
+                        "previous_cache_bytes":  1489050
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/coco_0.png-a2526a03b96ec4a72534f78ac2e137b4.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/coco_1.png-f7e0debfec7eec5f1c911655f8481b19.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/coco_2.png-f457abffaeba148748d289c6ff66d6a7.ctex",
+                        "previous_cache_bytes":  1002450
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/coco_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/coco_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/coco_3.png-e41e3d669ef8f32e1447e28f7d029914.ctex",
+                        "previous_cache_bytes":  936430
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/santree_0.png-a249d00b0f33a72befab813621ed76f2.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/santree_1.png-68b70fc5b63cdf93adbf4185a67e2401.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/santree_2.png-29d5a32c870e0881b52fb1c9003decf1.ctex",
+                        "previous_cache_bytes":  1141070
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/santree_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/santree_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/santree_3.png-ca32b07824e957d2163070bead6e8342.ctex",
+                        "previous_cache_bytes":  1048418
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_0.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/tree1_0.png-29604800b50ec29091797af269ec471d.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_1.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/tree1_1.png-c48797e4c3f30272da15d1f85f12854d.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_2.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/tree1_2.png-3c0cc7cd4e026e95c169d6d7d9f2a71b.ctex",
+                        "previous_cache_bytes":  964942
+                    },
+                    {
+                        "source_path":  "assets/stuffs/Tree/fbx/tree1_3.png",
+                        "import_path":  "assets/stuffs/Tree/fbx/tree1_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/tree1_3.png-71d41e43aaf62e2abaf1eb6d98d50f93.ctex",
+                        "previous_cache_bytes":  808422
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_0.png",
+                        "import_path":  "assets/sun/sun_0.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/sun_0.png-6fe7f89612f4e0aa5d075417f6a08f48.s3tc.ctex",
+                        "previous_cache_bytes":  2796268
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_1.png",
+                        "import_path":  "assets/sun/sun_1.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/sun_1.png-169fa62f3b075ed2a55bb9a0f48e9b6f.s3tc.ctex",
+                        "previous_cache_bytes":  5592484
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_2.png",
+                        "import_path":  "assets/sun/sun_2.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/sun_2.png-6c68043ec405c5e8c57a4ea2ea8ee433.ctex",
+                        "previous_cache_bytes":  894232
+                    },
+                    {
+                        "source_path":  "assets/sun/sun_3.png",
+                        "import_path":  "assets/sun/sun_3.png.import",
+                        "width":  4096,
+                        "height":  4096,
+                        "previous_limit":  2048,
+                        "previous_cache_path":  ".godot/imported/sun_3.png-b2ba08397385585fd9b2738ca209026d.ctex",
+                        "previous_cache_bytes":  705746
+                    }
+                ]
+}

@@ -450,6 +450,7 @@ func _refresh_levels() -> void:
 	for face_index in range(SLOT_COUNT):
 		var level: LevelResource = page.get_level(face_index) if page != null else null
 		_levels[face_index] = level
+		_previews[face_index].set_level_label("Level%d" % (face_index + 1))
 		_previews[face_index].set_level(level)
 		var available := level != null and level.validate_runtime().is_empty()
 		_face_areas[face_index].collision_layer = FACE_COLLISION_MASK if available else 0
@@ -494,8 +495,8 @@ func _on_cube_gui_input(event: InputEvent) -> void:
 func _apply_drag_motion(relative_motion: Vector2) -> void:
 	if _selection_locked:
 		return
-	var yaw_delta := -relative_motion.x * drag_sensitivity
-	var pitch_delta := -relative_motion.y * drag_sensitivity
+	var yaw_delta := relative_motion.x * drag_sensitivity
+	var pitch_delta := relative_motion.y * drag_sensitivity
 	_yaw += yaw_delta
 	_pitch = clampf(
 		_pitch + pitch_delta,

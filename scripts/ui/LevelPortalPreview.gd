@@ -24,12 +24,18 @@ const CONTENT_FLOOR_Y: float = -1.58
 const MIN_EXTENT: float = 0.01
 const MIN_CAMERA_DISTANCE: float = 0.08
 const PREVIEW_RESOLUTION: int = 512
+const LEVEL_LABEL_HEIGHT: float = -0.06
+const LEVEL_LABEL_MAX_WIDTH: float = 1.82
+const LEVEL_LABEL_MAX_HEIGHT: float = 0.38
+const LEVEL_LABEL_DEPTH: float = 0.11
+const LEVEL_LABEL_FONT_SIZE: int = 96
 
 var _level: LevelResource
 var _world_root: Node3D
 var _content_root: Node3D
 var _marker_root: Node3D
 var _portal_anchor: Node3D
+var _level_label_mesh: MeshInstance3D
 var _camera: Camera3D
 var _environment: WorldEnvironment
 var _sun: DirectionalLight3D
@@ -48,6 +54,7 @@ var _last_facing: float = -1.0
 var _last_observer_local := Vector3.ZERO
 var _last_camera_transform := Transform3D.IDENTITY
 var _was_visible_to_observer: bool = false
+var _level_label_text: String = ""
 
 
 func _init() -> void:
@@ -78,6 +85,12 @@ func set_level(value: LevelResource) -> void:
 	return
 
 
+func set_level_label(value: String) -> void:
+	_level_label_text = value
+	_update_level_label_geometry()
+	return
+
+
 func clear() -> void:
 	_level = null
 	_loaded = false
@@ -88,6 +101,14 @@ func clear() -> void:
 
 func get_level() -> LevelResource:
 	return _level
+
+
+func get_level_label_text() -> String:
+	return _level_label_text
+
+
+func get_level_label_mesh() -> MeshInstance3D:
+	return _level_label_mesh
 
 
 func is_loaded() -> bool:
@@ -227,6 +248,7 @@ func _build_preview_world() -> void:
 	_portal_anchor.name = "PreviewPortal"
 	_portal_anchor.position = Vector3(0.0, 0.0, PORTAL_HALF_SIZE)
 	_world_root.add_child(_portal_anchor)
+	_build_level_label()
 
 	_camera = Camera3D.new()
 	_camera.name = "PreviewCamera"
@@ -236,6 +258,47 @@ func _build_preview_world() -> void:
 	_world_root.add_child(_camera)
 	_camera_attributes = CameraAttributesPractical.new()
 	_camera.attributes = _camera_attributes
+	return
+
+
+func _build_level_label() -> void:
+	_level_label_mesh = MeshInstance3D.new()
+	_level_label_mesh.name = "ExtrudedLevelLabel"
+	_level_label_mesh.position = Vector3(0.0, LEVEL_LABEL_HEIGHT, 0.0)
+	_level_label_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_world_root.add_child(_level_label_mesh)
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(1.0, 0.68, 0.16, 1.0)
+	material.metallic = 0.34
+	material.roughness = 0.28
+	_level_label_mesh.material_override = material
+	_update_level_label_geometry()
+	return
+
+
+func _update_level_label_geometry() -> void:
+	if _level_label_mesh == null:
+		return
+	var text_mesh := TextMesh.new()
+	text_mesh.text = _level_label_text
+	text_mesh.font_size = LEVEL_LABEL_FONT_SIZE
+	text_mesh.depth = float(LEVEL_LABEL_FONT_SIZE) * 0.12
+	text_mesh.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	text_mesh.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_level_label_mesh.mesh = text_mesh
+
+	var bounds := text_mesh.get_aabb()
+	if _level_label_text.is_empty() or bounds.size.x <= MIN_EXTENT or bounds.size.y <= MIN_EXTENT:
+		_level_label_mesh.visible = false
+		return
+	var face_scale := minf(
+		LEVEL_LABEL_MAX_WIDTH / bounds.size.x,
+		LEVEL_LABEL_MAX_HEIGHT / bounds.size.y
+	)
+	var depth_scale := LEVEL_LABEL_DEPTH / maxf(bounds.size.z, MIN_EXTENT)
+	_level_label_mesh.scale = Vector3(face_scale, face_scale, depth_scale)
+	_level_label_mesh.visible = _loaded and _level != null
 	return
 
 
@@ -267,8 +330,11 @@ func _load_level_into_preview() -> void:
 	_content_root.scale = Vector3.ONE
 	_loaded = _level_loader.load_level(_level, _level.resource_path)
 	if not _loaded:
+		if _level_label_mesh != null:
+			_level_label_mesh.visible = false
 		render_target_update_mode = SubViewport.UPDATE_DISABLED
 		return
+	_update_level_label_geometry()
 	_add_point_markers()
 	_add_initial_building_visuals()
 	var bounds := _calculate_level_bounds()
@@ -291,6 +357,8 @@ func _clear_level_content() -> void:
 	_content_root.position = Vector3.ZERO
 	_content_root.scale = Vector3.ONE
 	_content_scale = 1.0
+	if _level_label_mesh != null:
+		_level_label_mesh.visible = false
 	_last_facing = -1.0
 	_was_visible_to_observer = false
 	render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -332,6 +400,9 @@ func _add_point_markers() -> void:
 		var asset := _level.get_spawn_point_model_asset(spawn_point)
 		var visual: Node3D = asset.instantiate_grounded_model(&"SpawnModel") if asset != null else null
 		if visual != null:
+			var facing := _level.get_spawn_point_model_facing_direction(spawn_point, _grid)
+			if not facing.is_zero_approx():
+				visual.rotation.y = atan2(-facing.x, -facing.z)
 			root.add_child(visual)
 		else:
 			_add_fallback_marker(root, Color(0.24, 0.95, 0.56, 1.0), 0.28, 0.56)
@@ -424,6 +495,13 @@ func _normalize_content(bounds: AABB) -> void:
 		CONTENT_FLOOR_Y - bounds.position.y * _content_scale,
 		CONTENT_FRONT_Z - bounds.end.z * _content_scale
 	)
+	if _level_label_mesh != null:
+		var normalized_level_center := _content_root.transform * center
+		_level_label_mesh.position = Vector3(
+			normalized_level_center.x,
+			LEVEL_LABEL_HEIGHT,
+			normalized_level_center.z
+		)
 	var focus_source := Vector3(
 		center.x,
 		bounds.position.y + bounds.size.y * 0.38,

@@ -1,7 +1,10 @@
 extends SceneTree
 
 const MainScene := preload("res://scenes/Main.tscn")
+const Level1 := preload("res://resources/levels/Level1.tres")
 const FormalLevel := preload("res://resources/levels/Level2.tres")
+const Level3 := preload("res://resources/levels/Level3.tres")
+const Level4 := preload("res://resources/levels/Level4.tres")
 const CaseDefinition := preload("res://resources/levels/Level2.tres").display_case_definition
 const WhiteSoft := preload("res://resources/lighting/WhiteSoft.tres")
 const WarmYellow := preload("res://resources/lighting/WarmYellow.tres")
@@ -46,6 +49,23 @@ func _test_profile_resources() -> void:
 		== "res://assets/greattree/realistic_tree_gltf/sketchfab_scene.tscn",
 		"realistic tree shadow uses the requested authored scene"
 	)
+	var levels: Array[LevelResource] = [Level1, FormalLevel, Level3, Level4]
+	var expected_profiles: Array[LightingProfile] = [WhiteSoft, WhiteSoft, WarmYellow, WhiteSoft]
+	var expected_foliage := [true, true, false, true]
+	var expected_realistic_tree := [false, true, false, true]
+	for index in range(levels.size()):
+		_expect(
+			levels[index].lighting_profile == expected_profiles[index],
+			"Level%d keeps its configured default lighting profile" % (index + 1)
+		)
+		_expect(
+			levels[index].foliage_shadow_enabled == expected_foliage[index],
+			"Level%d keeps its configured foliage-shadow default" % (index + 1)
+		)
+		_expect(
+			levels[index].realistic_tree_shadow_enabled == expected_realistic_tree[index],
+			"Level%d keeps its configured realistic-tree default" % (index + 1)
+		)
 
 
 func _test_formal_level_runtime() -> void:
@@ -70,7 +90,7 @@ func _test_formal_level_runtime() -> void:
 	_expect(_count_collision_nodes(display_case) == 0, "display case never blocks gameplay picking")
 	var realistic_tree := controller.get_realistic_tree_shadow()
 	_expect(realistic_tree != null and realistic_tree.get_model_root() != null, "Level2 creates the realistic tree comparison layer")
-	_expect(not controller.is_foliage_shadow_enabled(), "Level2 starts with the procedural foliage shadow disabled")
+	_expect(controller.is_foliage_shadow_enabled(), "Level2 starts with the procedural foliage shadow enabled")
 	_expect(controller.is_realistic_tree_shadow_enabled(), "Level2 starts with the realistic tree enabled")
 	_expect(realistic_tree.get_mesh_count() >= 3, "realistic tree keeps its authored crown and trunk meshes")
 	_expect(realistic_tree.get_collision_node_count() == 0, "realistic tree comparison layer adds no gameplay collision")
@@ -134,7 +154,7 @@ func _test_formal_level_runtime() -> void:
 	_expect(
 		main.lighting_test_panel.get_profile_button_count() == 4
 		and night_button != null
-		and night_button.text == "6 夜晚聚光",
+		and night_button.text == "夜晚聚光",
 		"lighting panel exposes the fourth night preset"
 	)
 	main.queue_free()

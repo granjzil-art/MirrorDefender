@@ -77,6 +77,24 @@ func _test_app_flow() -> void:
 	_expect(main.runtime_hud.get_node_or_null("WaveTimelinePanel") == null, "formal HUD no longer instantiates the legacy timeline")
 	var wave_controls := main.runtime_hud.wave_control_panel as WaveControlPanel
 	_expect(wave_controls != null and wave_controls.button_column.get_child_count() == 3, "formal HUD owns the three wave-control buttons")
+	main.game_time_controller.set_playback_scale(4.0)
+	_expect(
+		main.runtime_interaction.select_building_card(main.building_manager.arrow_tower)
+		and is_equal_approx(main.game_time_controller.get_effective_scale(), 0.1),
+		"selecting a card creates tactical slow before a manual wave release"
+	)
+	wave_controls.start_button.pressed.emit()
+	await process_frame
+	_expect(
+		main.runtime_interaction.is_select_mode()
+		and main.building_manager.get_selected_building() == null
+		and main.mirror_manager.get_selected_mirror() == null,
+		"clicking release next wave clears the current card and world selection"
+	)
+	_expect(
+		is_equal_approx(main.game_time_controller.get_effective_scale(), 4.0),
+		"manual wave release exits tactical slow and restores the remembered playback speed"
+	)
 	var restart_requests: Array[bool] = []
 	main.runtime_hud.restart_level_requested.connect(func() -> void: restart_requests.append(true))
 	wave_controls.restart_button.pressed.emit()

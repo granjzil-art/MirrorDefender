@@ -36,8 +36,8 @@ func _run() -> void:
 	_expect(panel.process_priority > 0, "the contextual actions update after the default-priority camera controller")
 	if info_button != null and upgrade_button != null and sell_button != null:
 		_expect(info_button.position.x < upgrade_button.position.x, "the explanation action is on the left")
-		_expect(sell_button.position.x > upgrade_button.position.x, "the sell action is on the right")
-		_expect(upgrade_button.position.y < info_button.position.y and upgrade_button.position.y < sell_button.position.y, "the upgrade action is above the side actions")
+		_expect(upgrade_button.position.x > info_button.position.x, "the upgrade action is on the right")
+		_expect(sell_button.position.y < info_button.position.y and sell_button.position.y < upgrade_button.position.y, "the sell action is above the side actions")
 		_expect(
 			info_button.size == upgrade_button.size and upgrade_button.size == sell_button.size,
 			"all three action controls have exactly the same size: %s / %s / %s" % [info_button.size, upgrade_button.size, sell_button.size]

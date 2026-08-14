@@ -14,6 +14,7 @@
 - **拟合模式**：投射物将完整可视包围盒逐轴精确拟合到玩法 AABB；Terrain 只按目标 XZ 脚印计算一个等比 Scale，Y 轴使用同一倍率，禁止压缩或拉伸模型高度。两种模式的运行时包装节点都归一为 `Vector3.ONE`。
 - **独立配置**：多个 `ModelAssetDefinition` 可引用同一个 `PackedScene`，但保存不同 `runtime_scale`。建筑三个等级因此可以共用模型而采用不同尺寸。
 - **节点树约束**：模型场景根节点必须继承 `Node3D`，任一父节点下不得存在同名兄弟节点；资源校验会实际实例化并递归检查节点树。GLTF 建议由轻量 `.tscn` Prefab 直接继承，不要在继承场景中再次内嵌同名 Mesh。
+- **导入场景二选一**：Prefab 只能保留“导入场景实例”或“完全本地化的节点树”之一。禁止在保留 GLTF/FBX 实例的同时将其子节点再展开保存到同一 `.tscn`。
 - **自动包围盒**：未配置锚点时，递归合并 `MeshInstance3D` / `MultiMeshInstance3D` 的编辑时 AABB，包含节点自身位移、旋转和 Scale。
 - **灰盒回退**：资产为空、无法实例化、根类型错误或无有效三维可视包围盒时，运行时返回 null，由所属模块生成原灰盒。
 - **旧资源兼容**：建筑等级、敌人和地块元素保留隐藏的旧 `visual_scene` 存储字段；新资源必须使用 `model_asset` / `element_model_asset`。
@@ -63,6 +64,7 @@
 | `scripts/combat/EnemyProjectile.gd` | `EnemyProjectile` / `Node3D` | 敌人投射物模型或短方块回退。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 复用源建筑投射物模型，并叠加虚像发光层。 |
 | `tests/model_asset_contract_test.gd` | 无 / `SceneTree` | 共享契约、所有接入链路、Scale 相乘和生产箭塔迁移回归。 |
+| `tests/campaign_preflight_test.gd` | 无 / `SceneTree` | 在全量测试最前面校验 Level1～Level4 及其保存深副本，提前截断共享资产污染。 |
 
 ### 数据流
 
@@ -127,6 +129,7 @@ BuildingLevelStats.projectile_model_asset
 
 - `PackedScene` 内保存的 Transform 属于美术资产；世界高度、格尺寸和子弹尺寸必须来自玩法上下文，禁止用根 Transform 补齐。
 - GLTF 的 `.tscn` 封装只保存根 Transform 与必要覆盖；禁止同时保留导入子节点和再次内嵌同名 Mesh，否则编辑器资源重扫会触发“引入节点名称冲突”。
+- 每次修改公共敌人、建筑或地形模型后，先运行 `tests/campaign_preflight_test.gd` 和对应的模型资产测试，再进入关卡编辑或保存。`tests/run_all_tests.ps1` 已将四关预检放在第一项。
 - `runtime_scale` 三轴必须都是有限正数；镜像翻转由 Mirror 的反射矩阵负责，不能用负 Scale 冒充。
 - 地块基底和地块内容是两个独立槽。复制镜只请求内容快照，不复制基底资产。
 - 新规范进一步固定为Terrain与Stuff两个资源域：Terrain平地/斜坡永不进入镜像内容，Stuff模型可被按格复制。

@@ -1,6 +1,6 @@
 # 关卡与存档 · Level
 
-> 实现状态：已实现 LevelResource、编辑器/运行时原子加载、六机位、持久 AppFlow、基础六槽分页选关与单局胜利即时评价。尚未实现关卡解锁、星级/通关进度持久化、选关状态存档、局内读档或云存档。
+> 实现状态：已实现 LevelResource、编辑器/运行时原子加载、正式双镜头快捷键（六槽数据兼容）、持久 AppFlow、基础六槽分页选关与单局胜利即时评价。尚未实现关卡解锁、星级/通关进度持久化、选关状态存档、局内读档或云存档。
 >
 > 正式内容范围（2026-08-10 起）：唯一正式关卡目录是 `res://resources/levels/`，目录内全部关卡均要求随新系统持续迁移、校验和验收；目录外关卡资源全部废弃，不作为后续功能兼容目标。正式产品只维护 SQUARE，HEX 已废弃。
 
@@ -56,7 +56,7 @@
 | LevelResource.`base_points/base_max_hp` | `[] / 20` | 多个据点位置共享一份生命；四个正式关卡均显式为 20，据点是有朝向的 3×2 占地。 |
 | LevelResource.`base_cell` | `(0,0,0)` | 旧关卡兼容据点；`base_points` 空时只读映射为据点 1。 |
 | LevelResource.`paths/spawn_points/waves` | `[]` | 本关路径、独立出生点和作者顺序波次。 |
-| LevelResource.`camera_presets` | `[]` | 最多六个可空机位；索引 0～5 对应数字键 1～6。 |
+| LevelResource.`camera_presets` | `[]` | 最多六个可空机位；运行时仅索引 0/1 对应数字键 1/2，索引 2～5 仅保留资源与编辑器兼容。 |
 | LevelResource.`lighting_profile` | `null` | 可选关卡灯光方案；空值使用 Main 注入的默认白色柔光。 |
 | LevelSelectPageDefinition.`SLOT_COUNT` | 6 | 每页固定六槽，非可调分页大小。 |
 | LevelSelectPageDefinition.`display_name` | `""` | 页面标题；空值回退“第 N 页”。 |

@@ -406,11 +406,14 @@ func _find_first_missile_target_hit(
 			continue
 		if candidate == excluded_target:
 			continue
-		var hit_distance := _ray_sphere_entry_distance(
+		if _source_building != null and is_instance_valid(_source_building):
+			if not _source_building.affects_target(candidate):
+				continue
+		var hit_distance := get_target_entry_distance(
 			start,
 			end,
-			candidate.get_target_position(),
-			maxf(0.0, candidate.hit_radius)
+			candidate,
+			_ballistic_mode
 		)
 		if hit_distance >= 0.0 and hit_distance < best_distance:
 			best_target = candidate
@@ -438,6 +441,9 @@ func _explode(contact_target: CombatTarget = null) -> void:
 				var candidate := raw_target as CombatTarget
 				if candidate == null or not is_instance_valid(candidate) or not candidate.is_alive():
 					continue
+				if _source_building != null and is_instance_valid(_source_building):
+					if not _source_building.affects_target(candidate):
+						continue
 				var offset := Vector2(
 					candidate.global_position.x - explosion_position.x,
 					candidate.global_position.z - explosion_position.z

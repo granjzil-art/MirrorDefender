@@ -281,8 +281,21 @@ func _test_base_and_spawn_point_models() -> void:
 	fallback_spawn.display_name = "回退出生点"
 	fallback_spawn.display_number = 2
 	fallback_spawn.cell = Vector3i(0, 1, 0)
+	var modeled_path := PathDefinition.new()
+	modeled_path.path_id = &"modeled_spawn_path"
+	modeled_path.display_name = "模型出生点路径"
+	modeled_path.spawn_point = modeled_spawn
+	modeled_path.target_base = fallback_base
+	modeled_path.cells = [modeled_spawn.cell, fallback_spawn.cell, fallback_base.cell]
+	var fallback_path := PathDefinition.new()
+	fallback_path.path_id = &"fallback_spawn_path"
+	fallback_path.display_name = "默认出生点路径"
+	fallback_path.spawn_point = fallback_spawn
+	fallback_path.target_base = fallback_base
+	fallback_path.cells = [fallback_spawn.cell, fallback_base.cell]
 	level.base_points.assign([modeled_base, fallback_base])
 	level.spawn_points.assign([modeled_spawn, fallback_spawn])
+	level.paths.assign([modeled_path, fallback_path])
 	_expect(
 		level.get_base_point_model_asset(modeled_base) == base_override_asset
 		and level.get_base_point_model_asset(fallback_base) == base_asset,
@@ -321,6 +334,14 @@ func _test_base_and_spawn_point_models() -> void:
 	_expect(
 		default_spawn_model != null and default_spawn_model.scale.is_equal_approx(spawn_asset.runtime_scale),
 		"spawn point consumes the ModelAsset configured directly on LevelResource"
+	)
+	_expect(
+		live_spawn_model != null and is_equal_approx(absf(live_spawn_model.rotation.y), PI),
+		"spawn point model faces from the path's first cell toward its second cell"
+	)
+	_expect(
+		default_spawn_model != null and is_equal_approx(default_spawn_model.rotation.y, -PI * 0.5),
+		"each spawn point model derives rotation from the path that uses it"
 	)
 	_expect(
 		live_base_model != null and live_base_model.scale.is_equal_approx(base_override_asset.runtime_scale),

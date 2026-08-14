@@ -18,6 +18,7 @@ func _run() -> void:
 	await _test_building_preview_and_copy_trajectory()
 	await _test_mirror_placement_preview_trajectory()
 	await _test_whole_tile_preview_stacking_and_tower_attacks()
+	await _test_unlimited_projection_overlap_with_single_real_entity()
 	await _test_projected_barrier_and_shared_edge_occupancy()
 	await _test_projected_rock_after_overlapping_barrier_breaks()
 	await _test_projected_rock_void_and_recursive_copy()
@@ -294,7 +295,22 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var projected_model_material := _get_effective_standard_material(projected_model_mesh)
 	_expect(projected_model_material.albedo_color == source_model_material.albedo_color, "projection preserves the source model material color without tinting")
 	_expect(projected_model_material.albedo_texture == source_model_material.albedo_texture, "projection preserves the source model texture resource")
-	_expect(is_equal_approx(projected_model_mesh.transparency, 1.0 - mirror_manager.copy_mirror_definition.projection_alpha), "projection_alpha is the only model-opacity adjustment")
+	_expect(
+		is_equal_approx(projected_model_mesh.transparency, 1.0 - tower_projection.payload.projection_alpha),
+		"the producing mirror level controls copied-model opacity"
+	)
+	var projection_overlay := projected_model_material.next_pass as ShaderMaterial
+	var projection_accent: Color = (
+		projection_overlay.get_shader_parameter("accent")
+		if projection_overlay != null
+		else Color.BLACK
+	)
+	_expect(
+		projection_overlay != null
+		and projection_accent.b > projection_accent.r * 2.0
+		and projection_accent.b > projection_accent.g,
+		"the copied model itself receives a strongly blue shader overlay"
+	)
 	source_snapshot.free()
 	var source_center := grid.cell_to_world(source_cell)
 	var mirrored_source_center := tile_projection.payload.transform_point(source_center)
@@ -609,7 +625,10 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	_expect(not mirror_manager.get_projections(target_cell).is_empty(), "default occupancy switch keeps projections over a real building")
 	mirror_manager.copy_mirror_definition.projection_ignores_occupancy = false
 	mirror_manager.rebuild_now()
-	_expect(mirror_manager.get_projections(target_cell).is_empty(), "strict occupancy switch suppresses the mirror's whole projection group")
+	_expect(
+		not mirror_manager.get_projections(target_cell).is_empty(),
+		"legacy strict-occupancy data cannot suppress projections that coexist with a real entity"
+	)
 	mirror_manager.copy_mirror_definition.projection_ignores_occupancy = true
 	_expect(resource_manager.get_mirror_count() == 1, "only the physical mirror consumes mirror cap")
 	var replacement_building_manager := BuildingManager.new()
@@ -631,6 +650,57 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	)
 	host.queue_free()
 	await process_frame
+
+func _test_unlimited_projection_overlap_with_single_real_entity() -> void:
+	var fixture := _make_fixture(_make_level(false))
+	var host: Node3D = fixture.host
+	var grid: GridManager = fixture.grid
+	var tile_manager: TileManager = fixture.tile
+	var building_manager: BuildingManager = fixture.building
+	var mirror_manager: MirrorManager = fixture.mirror
+	var target_cell := Vector3i(5, 1, 0)
+	var left_source := building_manager.place_building(
+		Vector3i(2, 1, 0),
+		building_manager.arrow_tower
+	)
+	var right_source := building_manager.place_building(
+		Vector3i(6, 1, 0),
+		building_manager.arrow_tower
+	)
+	_expect(left_source != null and right_source != null, "two independent projection sources are placed")
+	var left_edge := grid.find_edge_index(Vector3i(3, 1, 0), Vector3i(4, 1, 0))
+	var right_edge := grid.find_edge_index(Vector3i(6, 1, 0), target_cell)
+	var left_mirror := mirror_manager.place_copy_mirror(Vector3i(3, 1, 0), left_edge, true)
+	var right_mirror := mirror_manager.place_copy_mirror(Vector3i(6, 1, 0), right_edge, true)
+	_expect(left_mirror != null and right_mirror != null, "two mirrors may project independent sources onto one target tile")
+	mirror_manager.rebuild_now()
+	_expect(
+		mirror_manager.get_projections(target_cell).size() == 2,
+		"one tile retains both independent virtual images"
+	)
+	_expect(
+		tile_manager.get_occupant(target_cell) == null,
+		"multiple virtual images never create a real tile occupant"
+	)
+	var real_building := building_manager.place_building(target_cell, building_manager.arrow_tower)
+	_expect(
+		real_building != null and tile_manager.get_occupant(target_cell) == real_building,
+		"one real entity can be placed on a tile containing multiple virtual images"
+	)
+	mirror_manager.copy_mirror_definition.projection_ignores_occupancy = false
+	mirror_manager.rebuild_now()
+	_expect(
+		mirror_manager.get_projections(target_cell).size() == 2,
+		"legacy strict-occupancy data cannot remove either overlapping virtual image"
+	)
+	_expect(
+		building_manager.place_building(target_cell, building_manager.arrow_tower) == null
+		and tile_manager.get_occupant(target_cell) == real_building,
+		"a second real entity is rejected while the first entity remains intact"
+	)
+	host.queue_free()
+	await process_frame
+
 
 func _test_projected_barrier_and_shared_edge_occupancy() -> void:
 	var level := _make_level(true)

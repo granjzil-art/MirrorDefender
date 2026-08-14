@@ -383,11 +383,12 @@ func _append_building_gameplay_lines(
 					lines.append("冻结 %.1fs，解冻后继续剩余寒冷" % building.get_laser_freeze_duration())
 		else:
 			attack_rate_text = "攻速 %.2f/s" % stats.attacks_per_second
-		if (
-			_shows(config, &"show_combat")
-			and stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
-		):
-			lines.append("无目标：沿逻辑朝向持续射击")
+		if _shows(config, &"show_combat"):
+			match stats.projectile_fire_mode:
+				BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING:
+					lines.append("无目标：沿逻辑朝向持续射击")
+				BuildingLevelStats.ProjectileFireMode.FACING_ONLY:
+					lines.append("不索敌：仅沿逻辑朝向持续射击")
 		if _shows(config, &"show_combat") and _shows(config, &"show_economy"):
 			lines.append("%s · 产出 %.1f/s" % [attack_rate_text, stats.resource_per_second])
 		elif _shows(config, &"show_combat"):

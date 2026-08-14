@@ -7,6 +7,7 @@ signal categories_changed
 
 var _categories: Dictionary = {}
 var _category_order: Array[StringName] = []
+var _suspended: bool = false
 
 
 func register_category(
@@ -29,7 +30,7 @@ func register_category(
 		"toggle_handler": toggle_handler,
 	}
 	if toggle_handler.is_valid():
-		toggle_handler.call(enabled)
+		toggle_handler.call(enabled and not _suspended)
 	categories_changed.emit()
 	return true
 
@@ -45,9 +46,27 @@ func set_enabled(category_id: StringName, enabled: bool) -> bool:
 	_categories[normalized] = entry
 	var toggle_handler: Callable = entry.get("toggle_handler", Callable())
 	if toggle_handler.is_valid():
-		toggle_handler.call(enabled)
+		toggle_handler.call(enabled and not _suspended)
 	category_changed.emit(normalized, enabled)
 	return true
+
+
+func set_suspended(suspended: bool) -> void:
+	if _suspended == suspended:
+		return
+	_suspended = suspended
+	for category_id in _category_order:
+		if not _categories.has(category_id):
+			continue
+		var entry: Dictionary = _categories[category_id]
+		var toggle_handler: Callable = entry.get("toggle_handler", Callable())
+		if toggle_handler.is_valid():
+			toggle_handler.call(bool(entry.get("enabled", false)) and not _suspended)
+	categories_changed.emit()
+
+
+func is_suspended() -> bool:
+	return _suspended
 
 
 func is_enabled(category_id: StringName) -> bool:
@@ -68,6 +87,8 @@ func list_categories() -> Array[Dictionary]:
 
 func get_enabled_snapshot() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
+	if _suspended:
+		return result
 	for category_id in _category_order:
 		if not _categories.has(category_id):
 			continue

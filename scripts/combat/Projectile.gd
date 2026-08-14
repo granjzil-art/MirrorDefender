@@ -333,11 +333,11 @@ func _find_first_target_hit(
 		)
 		if center_distance >= maximum_center_distance - 0.000001:
 			continue
-		var hit_distance := _ray_sphere_entry_distance(
+		var hit_distance := get_target_entry_distance(
 			start,
 			end,
-			candidate.get_target_position(),
-			maxf(0.0, candidate.hit_radius)
+			candidate,
+			_ballistic_mode
 		)
 		if hit_distance >= 0.0 and hit_distance < best_distance:
 			best_distance = hit_distance
@@ -351,7 +351,43 @@ func _find_first_target_hit(
 	}
 
 
-func _ray_sphere_entry_distance(
+## Directional shots travel on the combat plane. Projecting airborne targets
+## onto that plane lets an eligible target cross and directly receive the hit
+## while targeted homing shots keep their full three-dimensional collision.
+static func get_target_entry_distance(
+	start: Vector3,
+	end: Vector3,
+	target: CombatTarget,
+	project_airborne_to_combat_plane: bool = false
+) -> float:
+	if target == null or not is_instance_valid(target):
+		return -1.0
+	var center := target.get_target_position()
+	var radius := maxf(0.0, target.hit_radius)
+	if not project_airborne_to_combat_plane or not target.is_airborne_unit():
+		return _ray_sphere_entry_distance(start, end, center, radius)
+	var horizontal_segment := Vector2(end.x - start.x, end.z - start.z)
+	var horizontal_length := horizontal_segment.length()
+	if horizontal_length <= 0.000001:
+		return _ray_sphere_entry_distance(start, end, center, radius)
+	var horizontal_direction := horizontal_segment / horizontal_length
+	var horizontal_start := Vector2(start.x, start.z)
+	var to_center := Vector2(center.x, center.z) - horizontal_start
+	var projected := to_center.dot(horizontal_direction)
+	var closest_squared := to_center.length_squared() - projected * projected
+	var radius_squared := radius * radius
+	if closest_squared > radius_squared:
+		return -1.0
+	var half_chord := sqrt(maxf(0.0, radius_squared - closest_squared))
+	var horizontal_entry := projected - half_chord
+	if horizontal_entry < 0.0:
+		horizontal_entry = 0.0 if to_center.length_squared() <= radius_squared else projected + half_chord
+	if horizontal_entry < 0.0 or horizontal_entry > horizontal_length:
+		return -1.0
+	return horizontal_entry / horizontal_length * start.distance_to(end)
+
+
+static func _ray_sphere_entry_distance(
 	start: Vector3,
 	end: Vector3,
 	center: Vector3,
@@ -399,11 +435,16 @@ func _refresh_contact_targets() -> void:
 			_contact_targets.erase(instance_id)
 			continue
 		var target := target_value as CombatTarget
-		if (
-			target == null
-			or not target.is_alive()
-			or global_position.distance_to(target.get_target_position()) > target.hit_radius + CONTACT_CLEARANCE
-		):
+		if target == null or not target.is_alive():
+			_contact_targets.erase(instance_id)
+			continue
+		var target_distance := global_position.distance_to(target.get_target_position())
+		if _ballistic_mode and target.is_airborne_unit():
+			target_distance = Vector2(
+				global_position.x - target.get_target_position().x,
+				global_position.z - target.get_target_position().z
+			).length()
+		if target_distance > target.hit_radius + CONTACT_CLEARANCE:
 			_contact_targets.erase(instance_id)
 
 

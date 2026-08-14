@@ -1,6 +1,14 @@
 [gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://3ul8w5pvaeh6"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="PackedScene" path="res://assets/enemies/stone-golem/stone_golem.tscn" id="2_model"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_model_asset"]
+
+[sub_resource type="Resource" id="Resource_stone_golem_model"]
+script = ExtResource("3_model_asset")
+scene = ExtResource("2_model")
+runtime_scale = Vector3(0.6, 0.6, 0.6)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
@@ -10,15 +18,12 @@ max_hp = 140.0
 move_speed = 0.5
 base_damage = 12.0
 reward = 14.0
-hit_radius = 0.42
+hit_radius = 0.5
 reflection_pattern = 2
 attack_damage = 15.0
 attacks_per_second = 0.7
 attack_range = 0.7
+model_asset = SubResource("Resource_stone_golem_model")
 body_color = Color(0.2, 0.68, 0.7, 1)
 body_height = 0.88
 attack_color = Color(0.42, 1, 0.9, 1)
-hit_particle_color = null
-hit_particle_brightness = null
-hit_particle_size = null
-hit_particle_count = null

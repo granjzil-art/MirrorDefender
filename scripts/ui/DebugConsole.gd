@@ -1,4 +1,4 @@
-## F1 modal console. It renders registries but contains no business commands.
+## Button-opened modal console. It renders registries but contains no business commands.
 class_name DebugConsole
 extends Control
 
@@ -60,12 +60,15 @@ func _process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not feature_enabled:
 		return
-	if event.is_action_pressed("toggle_debug_console"):
-		toggle_console()
-		get_viewport().set_input_as_handled()
-	elif visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel_action")):
+	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel_action")):
 		close_console()
 		get_viewport().set_input_as_handled()
+
+
+func set_feature_enabled(enabled: bool) -> void:
+	feature_enabled = enabled
+	if not feature_enabled:
+		close_console()
 
 
 func configure(

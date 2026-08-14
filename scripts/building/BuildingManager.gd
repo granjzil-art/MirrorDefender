@@ -25,10 +25,14 @@ signal building_placed(building: Building)
 ## continue to emit building_placed but intentionally stay silent in the SFX layer.
 signal building_constructed(building: Building)
 signal building_removed(building: Building)
+## Semantic player actions used by tutorial authoring; lifecycle cleanup stays on building_removed.
+signal building_removed_by_player(building: Building)
 signal building_selected(building: Building)
 signal building_upgraded(building: Building, previous_level: int, new_level: int)
+signal building_rotated_by_player(building: Building, previous_facing: int, new_facing: int)
 signal building_destroyed(building: Building, attacker: Node)
 signal building_runtime_rebuilt(previous: Building, current: Building)
+signal building_relocated(building: Building, previous_cell: Vector3i, previous_edge_id: String)
 signal placement_failed(cell: Vector3i, reason: String)
 signal upgrade_failed(building: Building, reason: String)
 signal preview_updated(building: Building)
@@ -46,6 +50,7 @@ var _preview_definition: BuildingDefinition
 var _preview_cell: Vector3i = Vector3i.ZERO
 var _preview_edge_id: String = ""
 var _preview_facing_index: int = 0
+var _preview_relocation_source: Building
 var _placement_rules: RefCounted = BuildingPlacementRulesScript.new()
 var _building_exit_callbacks: Dictionary = {}
 var _edge_occupancy_registry: EdgeOccupancyRegistry
@@ -116,6 +121,208 @@ func place_edge_building(
 		true,
 		true
 	)
+
+
+## Updates a drag ghost for a live tile building. No resource or occupancy
+## mutation occurs until relocate_building_to_cell() is called on release.
+func update_relocation_preview(source: Building, target_cell: Vector3i) -> bool:
+	if source == null or not _is_registered_building(source) or source.is_edge_placement():
+		clear_preview()
+		return false
+	var failure := "" if target_cell == source.cell else _validate_placement(
+		target_cell,
+		source.definition,
+		false
+	)
+	if not failure.is_empty():
+		clear_preview()
+		_preview_relocation_source = source
+		return false
+	if (
+		_preview_building != null
+		and is_instance_valid(_preview_building)
+		and _preview_relocation_source == source
+		and not _preview_building.is_edge_placement()
+	):
+		_preview_cell = target_cell
+		_preview_edge_id = ""
+		_preview_building.relocate_tile_preview(target_cell)
+		_refresh_preview_connectivity()
+		preview_updated.emit(_preview_building)
+		return _preview_building.is_preview_valid()
+	clear_preview()
+	_preview_relocation_source = source
+	_preview_definition = source.definition
+	_preview_cell = target_cell
+	_preview_edge_id = ""
+	_preview_facing_index = source.facing_index
+	_preview_building = Building.new()
+	add_child(_preview_building)
+	_preview_building.configure(
+		source.definition,
+		target_cell,
+		_grid,
+		_tile_manager,
+		_combat_manager,
+		source.level,
+		true
+	)
+	_preview_building.set_facing_index(source.facing_index)
+	_refresh_preview_connectivity()
+	preview_updated.emit(_preview_building)
+	return _preview_building.is_preview_valid()
+
+
+func update_edge_relocation_preview(
+	source: Building,
+	from_cell: Vector3i,
+	placement_edge_index: int
+) -> bool:
+	if source == null or not _is_registered_building(source) or not source.is_edge_placement():
+		clear_preview()
+		return false
+	var validation := _validate_relocation_edge(source, from_cell, placement_edge_index)
+	var failure: String = validation["failure"]
+	if not failure.is_empty():
+		clear_preview()
+		_preview_relocation_source = source
+		return false
+	var canonical_id: String = validation["edge_id"]
+	if (
+		_preview_building != null
+		and is_instance_valid(_preview_building)
+		and _preview_relocation_source == source
+		and _preview_building.is_edge_placement()
+	):
+		_preview_cell = from_cell
+		_preview_edge_id = canonical_id
+		_preview_facing_index = placement_edge_index
+		_preview_building.relocate_edge_preview(
+			from_cell,
+			validation["to_cell"],
+			placement_edge_index,
+			canonical_id
+		)
+		_refresh_preview_connectivity()
+		preview_updated.emit(_preview_building)
+		return _preview_building.is_preview_valid()
+	clear_preview()
+	_preview_relocation_source = source
+	_preview_definition = source.definition
+	_preview_cell = from_cell
+	_preview_edge_id = canonical_id
+	_preview_facing_index = placement_edge_index
+	_preview_building = Building.new()
+	add_child(_preview_building)
+	_preview_building.configure_edge(
+		source.definition,
+		from_cell,
+		validation["to_cell"],
+		placement_edge_index,
+		canonical_id,
+		_grid,
+		_tile_manager,
+		_combat_manager,
+		source.level,
+		true
+	)
+	_refresh_preview_connectivity()
+	preview_updated.emit(_preview_building)
+	return _preview_building.is_preview_valid()
+
+
+## Atomically moves a live tile building while retaining the same instance and
+## therefore every upgrade, durability, investment, and combat-state field.
+func relocate_building_to_cell(source: Building, target_cell: Vector3i) -> bool:
+	if source == null or not _is_registered_building(source) or source.is_edge_placement():
+		return false
+	if target_cell == source.cell:
+		return true
+	var failure := _validate_placement(target_cell, source.definition, false)
+	if failure.is_empty():
+		failure = _validate_relocation_connectivity(source, target_cell, -1)
+	if not failure.is_empty():
+		placement_failed.emit(target_cell, failure)
+		return false
+	var previous_cell := source.cell
+	if not _tile_manager.clear_occupant(previous_cell, source):
+		return false
+	_buildings.erase(previous_cell)
+	if not source.relocate_runtime_tile(target_cell):
+		source.relocate_runtime_tile(previous_cell)
+		_restore_tile_occupancy(source, previous_cell)
+		_buildings[previous_cell] = source
+		return false
+	var occupied := (
+		_tile_manager.place_path_occupant(target_cell, source)
+		if source.is_path_blocker()
+		else _tile_manager.place_occupant(target_cell, source)
+	)
+	if not occupied:
+		source.relocate_runtime_tile(previous_cell)
+		_restore_tile_occupancy(source, previous_cell)
+		_buildings[previous_cell] = source
+		return false
+	_buildings[target_cell] = source
+	select_building(source)
+	building_relocated.emit(source, previous_cell, "")
+	return true
+
+
+func relocate_edge_building(
+	source: Building,
+	from_cell: Vector3i,
+	placement_edge_index: int
+) -> bool:
+	if source == null or not _is_registered_building(source) or not source.is_edge_placement():
+		return false
+	var validation := _validate_relocation_edge(source, from_cell, placement_edge_index)
+	var failure: String = validation["failure"]
+	if not failure.is_empty():
+		placement_failed.emit(from_cell, failure)
+		return false
+	var to_cell: Vector3i = validation["to_cell"]
+	var canonical_id: String = validation["edge_id"]
+	if source.cell == from_cell and source.edge_index == placement_edge_index:
+		return true
+	failure = _validate_relocation_connectivity(source, from_cell, placement_edge_index)
+	if not failure.is_empty():
+		placement_failed.emit(from_cell, failure)
+		return false
+	var previous_cell := source.cell
+	var previous_to_cell := source.edge_to_cell
+	var previous_edge_index := source.edge_index
+	var previous_edge_id := source.edge_id
+	_edge_buildings.erase(previous_edge_id)
+	if _edge_occupancy_registry != null:
+		_edge_occupancy_registry.unregister(previous_edge_id, source)
+	if not source.relocate_runtime_edge(
+		from_cell,
+		to_cell,
+		placement_edge_index,
+		canonical_id
+	):
+		_register_edge_relocation_rollback(
+			source,
+			previous_cell,
+			previous_to_cell,
+			previous_edge_index,
+			previous_edge_id
+		)
+		return false
+	if _edge_occupancy_registry != null and not _edge_occupancy_registry.try_register(canonical_id, source):
+		_register_edge_relocation_rollback(
+			source,
+			previous_cell,
+			previous_to_cell,
+			previous_edge_index,
+			previous_edge_id
+		)
+		return false
+	_edge_buildings[canonical_id] = source
+	select_building(source)
+	building_relocated.emit(source, previous_cell, previous_edge_id)
+	return true
 
 
 ## Captures only real Buildings. Preview nodes and mirror projections are excluded.
@@ -345,7 +552,10 @@ func remove_selected_building() -> bool:
 	var building := get_selected_building()
 	if building == null:
 		return false
-	return _release_building(building, building.get_refund_amount(), true, true)
+	var removed := _release_building(building, building.get_refund_amount(), true, true)
+	if removed:
+		building_removed_by_player.emit(building)
+	return removed
 
 func clear_buildings(update_resource_count: bool = true) -> void:
 	var buildings := get_buildings()
@@ -458,6 +668,7 @@ func clear_preview(clear_definition: bool = true) -> void:
 		_preview_building.queue_free()
 	_preview_building = null
 	_preview_edge_id = ""
+	_preview_relocation_source = null
 	if clear_definition:
 		_preview_definition = null
 	if had_visible_preview:
@@ -510,14 +721,22 @@ func select_at(cell: Vector3i, edge_id: String = "") -> Building:
 	return building
 
 func select_building(building: Building) -> void:
+	if _selected_building != null and is_instance_valid(_selected_building):
+		_selected_building.set_selected(false)
 	_selected_building = building
+	if _selected_building != null and is_instance_valid(_selected_building):
+		_selected_building.set_selected(true)
 	building_selected.emit(building)
 
 func rotate_selected(step: int = 1) -> bool:
 	var building := get_selected_building()
 	if building == null:
 		return false
-	return building.rotate_facing(step)
+	var previous_facing := building.facing_index
+	var rotated := building.rotate_facing(step)
+	if rotated and building.facing_index != previous_facing:
+		building_rotated_by_player.emit(building, previous_facing, building.facing_index)
+	return rotated
 
 func get_selected_building() -> Building:
 	return _selected_building if is_instance_valid(_selected_building) else null
@@ -747,6 +966,22 @@ func _validate_edge_placement(
 		check_economy
 	)
 
+
+func _validate_relocation_edge(
+	source: Building,
+	from_cell: Vector3i,
+	placement_edge_index: int
+) -> Dictionary:
+	if not feature_enabled:
+		return {"failure": "Building system is disabled", "to_cell": Vector3i.ZERO, "edge_id": ""}
+	return _placement_rules.validate_edge(
+		from_cell,
+		placement_edge_index,
+		source.definition,
+		Callable(self, "_get_edge_occupant_except").bind(source),
+		false
+	)
+
 func _can_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 	return feature_enabled and _placement_rules.validate_tile(cell, definition, false).is_empty()
 
@@ -765,8 +1000,80 @@ func _refresh_preview_connectivity() -> void:
 		_preview_building.set_preview_valid(true)
 		return
 	var key := "extra_edge_blocker" if _preview_building.is_edge_path_blocker() else "extra_tile_blocker"
-	var failure := _validate_path_connectivity({key: _preview_building})
+	var change := {key: _preview_building}
+	if _preview_relocation_source != null and is_instance_valid(_preview_relocation_source):
+		change["removed_blocker"] = _preview_relocation_source
+	var failure := _validate_path_connectivity(change)
 	_preview_building.set_preview_valid(failure.is_empty())
+
+
+func _validate_relocation_connectivity(
+	source: Building,
+	target_cell: Vector3i,
+	target_edge_index: int
+) -> String:
+	if not source.is_path_blocker():
+		return ""
+	var candidate := Building.new()
+	add_child(candidate)
+	var key := "extra_tile_blocker"
+	if source.is_edge_placement():
+		var to_cell := _grid.neighbor_across_edge(target_cell, target_edge_index)
+		var edge_id := _grid.canonical_edge_id(target_cell, target_edge_index)
+		candidate.configure_edge(
+			source.definition,
+			target_cell,
+			to_cell,
+			target_edge_index,
+			edge_id,
+			_grid,
+			_tile_manager,
+			_combat_manager,
+			source.level,
+			true
+		)
+		key = "extra_edge_blocker"
+	else:
+		candidate.configure(
+			source.definition,
+			target_cell,
+			_grid,
+			_tile_manager,
+			_combat_manager,
+			source.level,
+			true
+		)
+		candidate.set_facing_index(source.facing_index)
+	var failure := _validate_path_connectivity({
+		key: candidate,
+		"removed_blocker": source,
+	})
+	candidate.free()
+	return failure
+
+
+func _restore_tile_occupancy(building: Building, target_cell: Vector3i) -> bool:
+	if building.is_path_blocker():
+		return _tile_manager.place_path_occupant(target_cell, building)
+	return _tile_manager.place_occupant(target_cell, building)
+
+
+func _register_edge_relocation_rollback(
+	building: Building,
+	previous_cell: Vector3i,
+	previous_to_cell: Vector3i,
+	previous_edge_index: int,
+	previous_edge_id: String
+) -> void:
+	building.relocate_runtime_edge(
+		previous_cell,
+		previous_to_cell,
+		previous_edge_index,
+		previous_edge_id
+	)
+	if _edge_occupancy_registry != null:
+		_edge_occupancy_registry.try_register(previous_edge_id, building)
+	_edge_buildings[previous_edge_id] = building
 
 func _sync_building_income() -> void:
 	if _resource_manager == null:
@@ -873,3 +1180,8 @@ func _get_edge_occupant(edge_id: String) -> Object:
 	if _edge_occupancy_registry != null:
 		return _edge_occupancy_registry.get_occupant(edge_id)
 	return get_edge_building(edge_id)
+
+
+func _get_edge_occupant_except(edge_id: String, ignored: Building) -> Object:
+	var occupant := _get_edge_occupant(edge_id)
+	return null if occupant == ignored else occupant

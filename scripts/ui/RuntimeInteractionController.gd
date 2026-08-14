@@ -26,6 +26,7 @@ var _last_failure_reason: String = ""
 var _has_world_selection: bool = false
 var _world_selection_cell: Vector3i = Vector3i.ZERO
 var _world_selection_edge_id: String = ""
+var _mirror_placement_edge_index: int = 0
 
 
 func configure(building_manager: BuildingManager, mirror_manager: MirrorManager) -> void:
@@ -34,8 +35,10 @@ func configure(building_manager: BuildingManager, mirror_manager: MirrorManager)
 	_mirror_manager = mirror_manager
 	if _building_manager != null:
 		_building_manager.placement_failed.connect(_on_placement_failed)
+		_building_manager.building_relocated.connect(_on_building_relocated)
 	if _mirror_manager != null:
 		_mirror_manager.placement_failed.connect(_on_mirror_placement_failed)
+		_mirror_manager.mirror_relocated.connect(_on_mirror_relocated)
 	cancel_to_select(false)
 
 
@@ -57,6 +60,50 @@ func is_reflect_mirror_mode() -> bool:
 
 func is_mirror_mode() -> bool:
 	return is_copy_mirror_mode() or is_reflect_mirror_mode()
+
+
+func get_mirror_placement_edge_index() -> int:
+	return _mirror_placement_edge_index
+
+
+## Mirror placement targets a tile. R advances the attachment slot around that
+## tile instead of flipping the mirror's gameplay side.
+func rotate_mirror_placement_edge(edge_count: int, step: int = 1) -> bool:
+	if not is_mirror_mode() or edge_count <= 0:
+		return false
+	_mirror_placement_edge_index = wrapi(
+		_mirror_placement_edge_index + step,
+		0,
+		edge_count
+	)
+	return true
+
+
+func resolve_mirror_placement_edge_pick(
+	cell_pick: Dictionary,
+	grid_manager: GridManager
+) -> Dictionary:
+	if (
+		not is_mirror_mode()
+		or grid_manager == null
+		or not bool(cell_pick.get("hit", false))
+	):
+		return {"hit": false}
+	var cell: Vector3i = cell_pick.get("cell", Vector3i.ZERO)
+	if not grid_manager.is_in_bounds(cell) or grid_manager.edge_count() <= 0:
+		return {"hit": false}
+	var edge_index := wrapi(
+		_mirror_placement_edge_index,
+		0,
+		grid_manager.edge_count()
+	)
+	return {
+		"hit": true,
+		"cell": cell,
+		"edge_index": edge_index,
+		"id": grid_manager.canonical_edge_id(cell, edge_index),
+		"to_cell": grid_manager.neighbor_across_edge(cell, edge_index),
+	}
 
 
 func get_selected_definition() -> BuildingDefinition:
@@ -95,8 +142,9 @@ func select_copy_mirror_card() -> bool:
 		return false
 	_clear_world_selection()
 	_selected_definition = null
+	_mirror_placement_edge_index = 0
 	_set_mode(Mode.PLACE_COPY_MIRROR)
-	status_changed.emit("选择 %s：左键放置，R 翻面，右键取消" % _mirror_manager.copy_mirror_definition.display_name)
+	status_changed.emit("选择 %s：移动鼠标选格，R 切换贴边，左键放置，右键取消" % _mirror_manager.copy_mirror_definition.display_name)
 	return true
 
 
@@ -105,9 +153,10 @@ func select_reflect_mirror_card() -> bool:
 		return false
 	_clear_world_selection()
 	_selected_definition = null
+	_mirror_placement_edge_index = 0
 	_set_mode(Mode.PLACE_REFLECT_MIRROR)
 	status_changed.emit(
-		"选择 %s：左键放置，R 翻面，右键取消"
+		"选择 %s：移动鼠标选格，R 切换贴边，左键放置，右键取消"
 		% _mirror_manager.reflect_mirror_definition.display_name
 	)
 	return true
@@ -169,36 +218,22 @@ func handle_primary(
 				success = placed != null
 		Mode.PLACE_COPY_MIRROR:
 			if not bool(edge_pick.get("hit", false)):
-				reason = "未命中有效边"
+				reason = "未命中有效地格"
 			else:
-				var active_from_side: Variant = null
-				var preview := _mirror_manager.get_preview_info()
-				if not preview.is_empty():
-					active_from_side = (
-						preview.get("active_cell", edge_pick.get("cell", Vector3i.ZERO))
-						== edge_pick.get("cell", Vector3i.ZERO)
-					)
 				var placed := _mirror_manager.place_copy_mirror(
 					edge_pick.get("cell", Vector3i.ZERO),
 					int(edge_pick.get("edge_index", -1)),
-					active_from_side
+					true
 				)
 				success = placed != null
 		Mode.PLACE_REFLECT_MIRROR:
 			if not bool(edge_pick.get("hit", false)):
-				reason = "未命中有效边"
+				reason = "未命中有效地格"
 			else:
-				var active_from_side: Variant = null
-				var preview := _mirror_manager.get_preview_info()
-				if not preview.is_empty():
-					active_from_side = (
-						preview.get("active_cell", edge_pick.get("cell", Vector3i.ZERO))
-						== edge_pick.get("cell", Vector3i.ZERO)
-					)
 				var placed := _mirror_manager.place_reflect_mirror(
 					edge_pick.get("cell", Vector3i.ZERO),
 					int(edge_pick.get("edge_index", -1)),
-					active_from_side
+					true
 				)
 				success = placed != null
 
@@ -234,13 +269,21 @@ func _select_world(
 		return
 	var edge_id := String(edge_pick.get("id", "")) if bool(edge_pick.get("hit", false)) else ""
 	var selected_cell: Vector3i = cell_pick.get("cell", Vector3i.ZERO)
-	_set_world_selection(true, selected_cell, edge_id)
 	var mirror := _mirror_manager.select_at_edge(edge_id)
 	if mirror != null:
+		_set_world_selection(true, selected_cell, edge_id)
 		_building_manager.select_building(null)
 		return
 	_mirror_manager.select_mirror(null)
-	_building_manager.select_at(cell_pick.get("cell", Vector3i.ZERO), edge_id)
+	var building := _building_manager.select_at(selected_cell, edge_id)
+	if building == null:
+		_clear_world_selection()
+		return
+	_set_world_selection(
+		true,
+		building.cell,
+		building.edge_id if building.is_edge_placement() else ""
+	)
 
 
 func _clear_world_selection() -> void:
@@ -278,8 +321,36 @@ func _on_mirror_placement_failed(_cell: Vector3i, reason: String) -> void:
 	_last_failure_reason = reason
 
 
+func _on_building_relocated(
+	building: Building,
+	_previous_cell: Vector3i,
+	_previous_edge_id: String
+) -> void:
+	if building == null or _building_manager.get_selected_building() != building:
+		return
+	_set_world_selection(
+		true,
+		building.cell,
+		building.edge_id if building.is_edge_placement() else ""
+	)
+
+
+func _on_mirror_relocated(
+	mirror: CopyMirror,
+	_previous_cell: Vector3i,
+	_previous_edge_id: String
+) -> void:
+	if mirror == null or _mirror_manager.get_selected_mirror() != mirror:
+		return
+	_set_world_selection(true, mirror.get_active_cell(), mirror.edge_id)
+
+
 func _disconnect_managers() -> void:
 	if _building_manager != null and _building_manager.placement_failed.is_connected(_on_placement_failed):
 		_building_manager.placement_failed.disconnect(_on_placement_failed)
+	if _building_manager != null and _building_manager.building_relocated.is_connected(_on_building_relocated):
+		_building_manager.building_relocated.disconnect(_on_building_relocated)
 	if _mirror_manager != null and _mirror_manager.placement_failed.is_connected(_on_mirror_placement_failed):
 		_mirror_manager.placement_failed.disconnect(_on_mirror_placement_failed)
+	if _mirror_manager != null and _mirror_manager.mirror_relocated.is_connected(_on_mirror_relocated):
+		_mirror_manager.mirror_relocated.disconnect(_on_mirror_relocated)

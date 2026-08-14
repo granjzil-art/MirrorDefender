@@ -57,14 +57,9 @@ func _test_flyer_model_animation() -> void:
 	_expect(animation_player != null, "Flyer runtime model contains an AnimationPlayer")
 	if animation_player != null:
 		_expect(animation_player.has_animation(&"Action"), "Flyer runtime model exposes the imported Action animation")
-		var action := animation_player.get_animation(&"Action")
 		_expect(
-			action != null and action.loop_mode == Animation.LOOP_LINEAR,
-			"Flyer Action animation is configured to loop"
-		)
-		_expect(
-			animation_player.is_playing() and animation_player.current_animation == &"Action",
-			"Flyer Action animation starts automatically when the enemy model enters the scene"
+			not animation_player.is_playing(),
+			"Flyer leaves the deforming full-body Action stopped and uses its independent wing controller"
 		)
 	unit.queue_free()
 	await process_frame

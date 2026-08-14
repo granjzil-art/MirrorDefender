@@ -102,6 +102,53 @@ func _test_two_sided_body_pick_and_selection() -> void:
 	interaction.configure(building_manager, mirror_manager)
 	interaction.handle_primary({"hit": false}, {"hit": false}, back_pick)
 	_expect(mirror_manager.get_selected_mirror() == mirror, "a direct body hit selects the mirror without a ground-edge hit")
+	var copy_selection_overlay := (mirror.get_node("MirrorBody") as MeshInstance3D).material_overlay as ShaderMaterial
+	var copy_selection_color: Color = (
+		copy_selection_overlay.get_shader_parameter("highlight_color")
+		if copy_selection_overlay != null
+		else Color.BLACK
+	)
+	_expect(
+		copy_selection_overlay != null
+		and copy_selection_color.r > 0.9
+		and copy_selection_color.g < 0.1,
+		"selected copy mirror receives the conspicuous red shader overlay"
+	)
+	var copy_surface_overlay := mirror.get_reflection_surface().material_overlay as ShaderMaterial
+	var copy_surface_color: Color = (
+		copy_surface_overlay.get_shader_parameter("highlight_color")
+		if copy_surface_overlay != null
+		else Color.BLACK
+	)
+	_expect(
+		copy_surface_overlay != null
+		and copy_surface_color.r > 0.9
+		and copy_surface_color.g < 0.1,
+		"selected copy mirror highlights the observer-facing oval surface, not only its hidden body"
+	)
+	mirror.flip_side()
+	_expect(
+		mirror.get_reflection_surface().material_overlay == copy_surface_overlay,
+		"copy-mirror red surface highlight survives active-side flipping"
+	)
+	mirror.set_selected(false)
+	_expect(
+		mirror.get_reflection_surface().material_overlay == null
+		and (mirror.get_node("MirrorBody") as MeshInstance3D).material_overlay == null,
+		"clearing copy-mirror selection removes both surface and body highlights"
+	)
+	mirror.set_selected(true)
+	reflect_mirror.set_selected(true)
+	var reflect_selection_overlay := (reflect_mirror.get_node("MirrorBody") as MeshInstance3D).material_overlay as ShaderMaterial
+	_expect(
+		reflect_selection_overlay != null,
+		"selected reflect mirror receives the same red shader overlay"
+	)
+	reflect_mirror.set_selected(false)
+	_expect(
+		(reflect_mirror.get_node("MirrorBody") as MeshInstance3D).material_overlay == null,
+		"clearing reflect-mirror selection removes the red overlay"
+	)
 	_expect(
 		interaction.has_world_selection()
 		and interaction.get_world_selection_cell() == mirror.from_cell

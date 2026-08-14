@@ -17,6 +17,7 @@ var axes: Array = []
 var chain_depth: int = 0
 var damage_multiplier: float = 1.0
 var penetration_bonus: int = 0
+var projection_alpha: float = 0.38
 
 func is_source_valid() -> bool:
 	if root_source == null:
@@ -39,7 +40,8 @@ func copy_through(
 	axis_start: Vector3,
 	axis_end: Vector3,
 	mirror_damage_multiplier: float = 1.0,
-	mirror_penetration_bonus: int = 0
+	mirror_penetration_bonus: int = 0,
+	mirror_projection_alpha: float = -1.0
 ) -> MirrorCopyPayload:
 	var next := MirrorCopyPayload.new()
 	next.stable_key = "%s>%s" % [stable_key, mirror_id]
@@ -59,6 +61,11 @@ func copy_through(
 	next.chain_depth = chain_depth + 1
 	next.damage_multiplier = damage_multiplier * maxf(0.0, mirror_damage_multiplier)
 	next.penetration_bonus = penetration_bonus + maxi(0, mirror_penetration_bonus)
+	next.projection_alpha = clampf(
+		mirror_projection_alpha if mirror_projection_alpha >= 0.0 else projection_alpha,
+		0.05,
+		0.75
+	)
 	return next
 
 func transform_point(point: Vector3) -> Vector3:

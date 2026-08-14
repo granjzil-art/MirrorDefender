@@ -9,6 +9,7 @@ const EnemyHitParticlesScript := preload("res://scripts/fx/EnemyHitParticles.gd"
 const ATTACK_RANGE_EPSILON_RATIO := 0.001
 const PATH_PROGRESS_EPSILON := 0.0001
 const REFLECTION_EPSILON_RATIO := 0.002
+const FRONT_BACK_REFLECTION_OUTWARD_OFFSET_RATIO := 0.1
 const MAX_REFLECTIONS_PER_FRAME := 8
 const SIMULATION_EPSILON := 0.000001
 ## Coalesces frame-by-frame damage (such as continuous lasers) while the
@@ -64,6 +65,7 @@ var _movement_is_paused: bool = false
 var _reflection_surface_states: Dictionary = {}
 var _reflection_surfaces_root: Node3D
 var _hit_particle_cooldown: float = 0.0
+var _is_visually_moving: bool = false
 
 func _ready() -> void:
 	super._ready()
@@ -90,6 +92,8 @@ func _exit_tree() -> void:
 		_combat_manager.unregister_projectile_reflection_provider(self)
 
 func _process(delta: float) -> void:
+	_is_visually_moving = false
+	var position_before_simulation := global_position
 	var simulation_delta := maxf(0.0, delta)
 	_hit_particle_cooldown = maxf(0.0, _hit_particle_cooldown - simulation_delta)
 	var frozen_duration := minf(get_freeze_remaining(), simulation_delta)
@@ -108,6 +112,7 @@ func _process(delta: float) -> void:
 		if simulation_delta <= 0.0:
 			return
 	_simulate_unfrozen_time(simulation_delta)
+	_is_visually_moving = global_position.distance_squared_to(position_before_simulation) > 0.00000001
 
 
 func _simulate_unfrozen_time(duration: float) -> void:
@@ -304,8 +309,40 @@ func is_in_movement_pause() -> bool:
 	return _has_movement_cycle() and _movement_is_paused
 
 
+## Visual-only model controllers use the distance actually travelled during the
+## latest simulation frame, so pauses, combat and freeze effects select idle
+## animation without duplicating gameplay rules in presentation scripts.
+func is_visually_moving() -> bool:
+	return _is_visually_moving
+
+
 func get_movement_active_remaining() -> float:
 	return maxf(0.0, _movement_phase_remaining)
+
+
+## Applies the level's wave HP rule to every durability pool owned by this
+## enemy. Body HP and every independent mirror face always share one multiplier.
+func apply_wave_health_multiplier(multiplier: float) -> void:
+	var resolved_multiplier := multiplier
+	if not is_finite(resolved_multiplier) or resolved_multiplier <= 0.0:
+		resolved_multiplier = 1.0
+	max_hp = maxf(1.0, max_hp * resolved_multiplier)
+	current_hp = max_hp
+	if _enemy_health_bar != null and is_instance_valid(_enemy_health_bar):
+		(_enemy_health_bar as EnemyHealthBar3D).update_health(current_hp, max_hp)
+	for surface_key in _reflection_surface_states.keys():
+		var surface_id := StringName(surface_key)
+		var state: Dictionary = _reflection_surface_states.get(surface_id, {})
+		var maximum := maxf(
+			1.0,
+			float(state.get("maximum_durability", 1.0)) * resolved_multiplier
+		)
+		state["maximum_durability"] = maximum
+		state["current_durability"] = maximum
+		_reflection_surface_states[surface_id] = state
+		var bar_value: Variant = state.get("health_bar")
+		if is_instance_valid(bar_value):
+			(bar_value as EnemyHealthBar3D).update_health(maximum, maximum)
 
 
 func has_reflection_surfaces() -> bool:
@@ -413,7 +450,7 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 			continue
 		var normal: Vector3 = side.get("normal", Vector3.ZERO)
 		var tangent: Vector3 = side.get("tangent", Vector3.ZERO)
-		var plane_center := global_position + normal * half_side
+		var plane_center := global_position + normal * _get_reflection_surface_distance(side_id)
 		var denominator := segment.dot(normal)
 		if denominator >= -SIMULATION_EPSILON:
 			continue
@@ -488,6 +525,13 @@ func _configured_reflection_surface_ids() -> Array[StringName]:
 	return result
 
 
+func _get_reflection_surface_distance(surface_id: StringName) -> float:
+	var distance := definition.reflection_side_length * _grid_cell_size * 0.5
+	if surface_id == &"front" or surface_id == &"back":
+		distance += _grid_cell_size * FRONT_BACK_REFLECTION_OUTWARD_OFFSET_RATIO
+	return distance
+
+
 func _initialize_reflection_surface_states() -> void:
 	_reflection_surface_states.clear()
 	if definition == null:
@@ -544,7 +588,7 @@ func _add_reflection_surface(
 ) -> void:
 	var surface_root := Node3D.new()
 	surface_root.name = StringName("%sReflectionSurface" % String(surface_id).capitalize())
-	surface_root.position = local_normal * definition.reflection_side_length * _grid_cell_size * 0.5
+	surface_root.position = local_normal * _get_reflection_surface_distance(surface_id)
 	_reflection_surfaces_root.add_child(surface_root)
 	var visual: Node3D
 	if definition.reflection_model_asset != null:

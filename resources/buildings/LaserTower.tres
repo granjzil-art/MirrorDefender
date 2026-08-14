@@ -10,7 +10,11 @@
 [sub_resource type="Resource" id="Inspection_laser"]
 script = ExtResource("3_inspection")
 display_name = "激光塔"
-function_description = "持续激光从塔身逐段传播，会反射并有限穿透敌人，造成伤害与寒冷减速；高等级在当前传播终点周期爆发并冻结敌人。"
+function_description = "沿固定方向持续发射冰柱激光，减速敌人，升级解锁爆发冰冻效果
+功能性辅助，AOE"
+level_1_description = "持续发射冰柱激光，冰柱激光会被敌人阻挡"
+level_2_description = "提升伤害，射程，穿透数，一定频率造成[color=#349fed]范围爆发减速[/color]"
+level_3_description = "提升伤害，射程，穿透数，爆发范围，[color=#349fed]爆发时冻结敌人[/color]"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -30,8 +34,8 @@ cost = 150.0
 affects_airborne = false
 base_damage = 15.0
 targeting_range = 6.0
-attack_range = 6.0
-laser_dps = 8.0
+attack_range = 8.0
+laser_dps = 7.0
 projectile_penetration_count = 2
 model_asset = SubResource("Resource_ixmxi")
 tower_color = Color(0.16, 0.55, 0.88, 1)
@@ -48,12 +52,13 @@ script = ExtResource("2_stats")
 cost = 100.0
 affects_airborne = false
 targeting_range = 7.0
-attack_range = 7.0
-laser_dps = 10.0
+attack_range = 10.0
+laser_dps = 9.0
 laser_beam_width = 0.09
 laser_beam_emission_energy = 3.4
 laser_propagation_speed = 4.5
 laser_burst_interval = 3.0
+laser_burst_radius = 1.5
 projectile_speed = 8.0
 projectile_length = 0.36
 projectile_width = 0.08
@@ -74,12 +79,13 @@ cost = 100.0
 affects_airborne = false
 base_damage = 25.0
 targeting_range = 8.0
-attack_range = 8.0
-laser_dps = 12.0
+attack_range = 12.0
+laser_dps = 11.0
 laser_beam_width = 0.1
 laser_beam_emission_energy = 3.8
 laser_propagation_speed = 5.0
 laser_burst_interval = 3.0
+laser_burst_radius = 1.5
 laser_freeze_duration = 3.0
 projectile_speed = 9.0
 projectile_length = 0.42

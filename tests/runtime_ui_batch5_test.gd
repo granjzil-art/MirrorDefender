@@ -29,10 +29,38 @@ func _run() -> void:
 
 
 func _test_input_map_and_level_data() -> void:
-	for slot_number in range(1, 7):
+	for slot_number in range(1, 3):
 		_expect(
 			InputMap.has_action("camera_preset_%d" % slot_number),
-			"InputMap exposes camera preset action %d" % slot_number
+			"InputMap exposes gameplay camera preset action %d" % slot_number
+		)
+	for slot_number in range(3, 7):
+		_expect(
+			not InputMap.has_action("camera_preset_%d" % slot_number),
+			"InputMap removes numeric camera action %d" % slot_number
+		)
+	var production_levels: Array[LevelResource] = []
+	for level_number in range(1, 5):
+		var production_level := ResourceLoader.load(
+			"res://resources/levels/Level%d.tres" % level_number,
+			"",
+			ResourceLoader.CACHE_MODE_IGNORE
+		) as LevelResource
+		production_levels.append(production_level)
+		_expect(
+			production_level != null and production_level.get_camera_preset(0) != null,
+			"production level %d provides the default camera preset 1" % level_number
+		)
+	var level_1_preset_1 := production_levels[0].get_camera_preset(0)
+	var level_1_preset_2 := production_levels[0].get_camera_preset(1)
+	for target_level_index in [1, 2, 3]:
+		_expect(
+			_camera_presets_match(level_1_preset_1, production_levels[target_level_index].get_camera_preset(0)),
+			"production level %d camera preset 1 matches level 1" % (target_level_index + 1)
+		)
+		_expect(
+			_camera_presets_match(level_1_preset_2, production_levels[target_level_index].get_camera_preset(1)),
+			"production level %d camera preset 2 matches level 1" % (target_level_index + 1)
 		)
 	var old_level := LevelResource.new()
 	_expect(old_level.camera_presets.is_empty(), "old levels keep the empty-array compatibility representation")
@@ -84,6 +112,10 @@ func _test_runtime_transition() -> void:
 	preset.zoom_distance = 24.0
 	level.set_camera_preset(0, preset)
 	controller.load_level(level)
+	var entry_state := rig.get_view_state()
+	var entry_focus: Vector3 = entry_state["focus_position"]
+	_expect(entry_focus.is_equal_approx(preset.focus_position), "loading a level immediately applies camera preset 1")
+	_expect(not controller.is_transition_active() and not rig.is_preset_transition_active(), "the level-entry preset does not leave a transition active")
 	controller.transition_duration = 1.0
 	rig.apply_view_state(Vector3.ZERO, 170.0, 40.0, 8.0)
 	_expect(not controller.request_preset(1), "an unconfigured runtime slot performs no action")
@@ -238,6 +270,17 @@ func _contains_text(values: Array[String], fragment: String) -> bool:
 		if fragment in value:
 			return true
 	return false
+
+
+func _camera_presets_match(left: Resource, right: Resource) -> bool:
+	return (
+		left != null
+		and right != null
+		and left.focus_position.is_equal_approx(right.focus_position)
+		and is_equal_approx(left.yaw_degrees, right.yaw_degrees)
+		and is_equal_approx(left.pitch_degrees, right.pitch_degrees)
+		and is_equal_approx(left.zoom_distance, right.zoom_distance)
+	)
 
 
 func _expect(condition: bool, message: String) -> void:

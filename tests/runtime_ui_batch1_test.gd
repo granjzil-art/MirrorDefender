@@ -4,6 +4,7 @@ const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFacto
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
+const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
 var _failures: int = 0
@@ -162,6 +163,21 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and reflect_mirror_cost_color.is_equal_approx(building_cost_color),
 		"both mirror costs use the same yellow as procedural building costs"
 	)
+	var original_building_cap := resource_manager.building_cap
+	resource_manager.building_cap = resource_manager.get_building_count()
+	resource_manager._emit_limits_changed()
+	_expect(
+		(arrow_card.get_node("Content/Footer") as Label).text == "已达上限"
+		and arrow_card.disabled,
+		"procedural building cards show the mirror-style capacity message at the building cap"
+	)
+	resource_manager.building_cap = original_building_cap
+	resource_manager._emit_limits_changed()
+	_expect(
+		(arrow_card.get_node("Content/Footer") as Label).text
+		== "◆ %d" % ceili(building_manager.arrow_tower.get_level_stats(1).cost),
+		"building card cost returns when capacity becomes available"
+	)
 	var copy_mirror_card := configured_cards_row.get_node("MirrorCard") as Button
 	copy_mirror_card.mouse_entered.emit()
 	await process_frame
@@ -275,6 +291,14 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and live_cost.position.y < card_bar.card_size.y * 0.5,
 		"complete artwork overlays the live cost above the building"
 	)
+	resource_manager.building_cap = resource_manager.get_building_count()
+	resource_manager._emit_limits_changed()
+	_expect(
+		live_cost != null and live_cost.text == "已达上限" and full_art_card.disabled,
+		"complete-artwork building cards show the same capacity message"
+	)
+	resource_manager.building_cap = original_building_cap
+	resource_manager._emit_limits_changed()
 	var invisible_empty := configured_cards_row.get_node("EmptyCard4") as Control
 	_expect(
 		invisible_empty.get_child_count() == 0
@@ -304,6 +328,49 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		root.add_child(hud)
 		await process_frame
 		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal bottom card bar")
+		var legacy_status := hud.get_node_or_null("BuildCardBar/Layout/Status") as Label
+		_expect(legacy_status != null and not legacy_status.visible, "the fixed placement debug status stays hidden")
+		_expect(
+			RuntimeHudScript.resolve_placement_failure_message("地块已被占用") == "该格子不可放置！"
+			and RuntimeHudScript.resolve_placement_failure_message("敌人路径只能放置屏障") == "该格子不可放置！"
+			and RuntimeHudScript.resolve_placement_failure_message("Stuff 阻止建造") == "该格子不可放置！",
+			"tile, enemy-path, and Stuff failures share the approved placement message"
+		)
+		_expect(
+			RuntimeHudScript.resolve_placement_failure_message("已达到建筑上限") == "该类建筑已经达到上限！"
+			and RuntimeHudScript.resolve_placement_failure_message("该障碍会堵死出生点到据点的全部可用路径") == "不能将敌人的路堵死！",
+			"capacity and path-connectivity failures use their dedicated messages"
+		)
+		_expect(
+			RuntimeHudScript.resolve_placement_failure_message("建筑系统依赖尚未注入").is_empty(),
+			"unapproved placement failures remain silent"
+		)
+		var feedback := hud.get_node_or_null("ActionFeedback") as Label
+		if feedback != null:
+			_expect(
+				feedback.get_theme_font_size("font_size") > legacy_status.get_theme_font_size("font_size")
+				and feedback.get_theme_color("font_color").is_equal_approx(Color(1.0, 0.46, 0.38, 1.0)),
+				"floating feedback keeps the original error color and uses a larger font"
+			)
+			hud.feedback_hold_duration = 0.0
+			hud.feedback_fade_duration = 0.05
+			hud.show_upgrade_failure(Vector2(620.0, 360.0))
+			_expect(
+				feedback.visible and feedback.text == "金币不足！",
+				"upgrade failures use the approved insufficient-coins message"
+			)
+			hud.show_placement_failure("地块已被占用", Vector2(520.0, 340.0))
+			_expect(
+				feedback.visible and feedback.text == "该格子不可放置！" and feedback.modulate.a == 1.0,
+				"approved failure feedback appears immediately at full opacity"
+			)
+			_expect(
+				feedback.get_rect().grow(24.0).has_point(Vector2(520.0, 340.0)),
+				"failure feedback is positioned around the triggering click"
+			)
+			await create_timer(0.2, true, false, true).timeout
+			await process_frame
+			_expect(not feedback.visible, "failure feedback fades out and hides")
 		var style_toggle := hud.get_node_or_null("CardStyleToggle") as Button
 		_expect(style_toggle != null, "runtime HUD owns the top-left card-style toggle")
 		_expect(
@@ -484,13 +551,86 @@ func _test_one_shot_placement_and_time_priority(fixture: Dictionary) -> void:
 	_expect(_placement_results.size() == 4, "invalid tile emits exactly one placement result")
 
 	interaction.select_copy_mirror_card()
+	_expect(interaction.get_mirror_placement_edge_index() == 0, "mirror placement starts on the first edge of the hovered tile")
+	var mirror_input_main := MainController.new()
+	mirror_input_main.grid = grid
+	mirror_input_main.runtime_interaction = interaction
+	_expect(
+		mirror_input_main._handle_building_rotation_wheel(wheel_up)
+		and interaction.get_mirror_placement_edge_index() == 1,
+		"wheel up rotates a placing mirror to the next tile edge instead of zooming"
+	)
+	_expect(
+		mirror_input_main._handle_building_rotation_wheel(wheel_down)
+		and interaction.get_mirror_placement_edge_index() == 0,
+		"wheel down rotates a placing mirror to the previous tile edge instead of zooming"
+	)
+	mirror_input_main.free()
+	var mirror_target_cell := Vector3i(0, 1, 0)
+	var resolved_mirror_edge := interaction.resolve_mirror_placement_edge_pick(
+		{"hit": true, "cell": mirror_target_cell},
+		grid
+	)
+	_expect(
+		resolved_mirror_edge.hit and resolved_mirror_edge.edge_index == 0,
+		"mirror placement resolves an edge from the selected tile instead of mouse-edge proximity"
+	)
+	for expected_edge_index in range(1, grid.edge_count()):
+		interaction.rotate_mirror_placement_edge(grid.edge_count())
+		resolved_mirror_edge = interaction.resolve_mirror_placement_edge_pick(
+			{"hit": true, "cell": mirror_target_cell},
+			grid
+		)
+		_expect(
+			resolved_mirror_edge.edge_index == expected_edge_index,
+			"R advances mirror placement to tile edge %d" % expected_edge_index
+		)
+	interaction.rotate_mirror_placement_edge(grid.edge_count())
+	resolved_mirror_edge = interaction.resolve_mirror_placement_edge_pick(
+		{"hit": true, "cell": mirror_target_cell},
+		grid
+	)
+	_expect(resolved_mirror_edge.edge_index == 0, "mirror placement wraps after every tile edge")
+	_expect(
+		mirror_manager.update_preview(
+			resolved_mirror_edge.cell,
+			resolved_mirror_edge.edge_index,
+			true
+		),
+		"tile-based mirror placement creates a preview on the resolved edge"
+	)
+	_expect(
+		mirror_manager.get_preview_mirror().get_active_cell() == mirror_target_cell,
+		"mirror preview gameplay side faces the selected tile"
+	)
+	mirror_manager.clear_preview()
 	var missing_edge_result := interaction.handle_primary(
-		{"hit": true, "cell": Vector3i(0, 1, 0)},
+		{"hit": true, "cell": mirror_target_cell},
 		{"hit": false}
 	)
-	_expect(not missing_edge_result.success and missing_edge_result.reason.contains("边"), "missing edge is a concrete failed mirror attempt")
+	_expect(not missing_edge_result.success and missing_edge_result.reason.contains("地格"), "missing tile is a concrete failed mirror attempt")
 	_expect(interaction.is_select_mode(), "invalid edge consumes the selected mirror card")
 	_expect(_placement_results.size() == 5, "invalid edge emits exactly one placement result")
+
+	interaction.select_reflect_mirror_card()
+	resolved_mirror_edge = interaction.resolve_mirror_placement_edge_pick(
+		{"hit": true, "cell": mirror_target_cell},
+		grid
+	)
+	_expect(
+		mirror_manager.update_reflect_preview(
+			resolved_mirror_edge.cell,
+			resolved_mirror_edge.edge_index,
+			true
+		),
+		"reflect-mirror placement uses the same selected-tile edge slot"
+	)
+	_expect(mirror_manager.get_preview_mirror() is ReflectMirror, "selected-tile preview preserves the reflect-mirror kind")
+	_expect(
+		mirror_manager.get_preview_mirror().get_active_cell() == mirror_target_cell,
+		"reflect-mirror preview gameplay side also faces the selected tile"
+	)
+	interaction.cancel_to_select(true)
 
 	var edge_index := grid.find_edge_index(Vector3i(0, 1, 0), Vector3i(1, 1, 0))
 	interaction.select_copy_mirror_card()
@@ -504,8 +644,28 @@ func _test_one_shot_placement_and_time_priority(fixture: Dictionary) -> void:
 		}
 	)
 	_expect(mirror_result.success, "valid edge places the dedicated copy mirror")
+	var placed_mirror := mirror_manager.get_mirrors().back() as CopyMirror
+	_expect(placed_mirror.get_active_cell() == Vector3i(0, 1, 0), "placed mirror gameplay side faces its selected tile")
 	_expect(interaction.is_select_mode() and mirror_manager.get_selected_mirror() == null, "mirror placement also returns to unselected select mode")
 	_expect(_placement_results.size() == 6, "mirror success emits exactly one placement result")
+	mirror_manager.select_mirror(placed_mirror)
+	var selected_mirror_edge_before := placed_mirror.edge_index
+	var selected_mirror_active_cell := placed_mirror.get_active_cell()
+	var selected_mirror_input_main := MainController.new()
+	selected_mirror_input_main.grid = grid
+	selected_mirror_input_main.runtime_interaction = interaction
+	selected_mirror_input_main.mirror_manager = mirror_manager
+	_expect(
+		selected_mirror_input_main._handle_building_rotation_wheel(wheel_up)
+		and placed_mirror.edge_index == wrapi(selected_mirror_edge_before + 1, 0, grid.edge_count()),
+		"wheel rotates an already placed selected mirror instead of zooming"
+	)
+	_expect(
+		placed_mirror.get_active_cell() == selected_mirror_active_cell,
+		"selected-mirror wheel rotation keeps its active face toward the anchor tile"
+	)
+	selected_mirror_input_main.free()
+	mirror_manager.select_mirror(null)
 
 	interaction.handle_primary(
 		{"hit": true, "cell": Vector3i(0, 0, 0)},

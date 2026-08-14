@@ -305,6 +305,48 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 
 回退：将 `BuildingManager.reuse_placement_preview_instances` 和 `MirrorManager.reuse_placement_preview_instances` 同时设为 `false`，即可恢复每次位置变化都重建预览及镜像快照的旧路径。两个开关互相独立，也可单独关闭以定位建筑或镜子回归。
 
+### PERF-011：2K+ 世界纹理性能档统一限制为 1K
+
+日期：2026-08-12
+状态：已实施，已完成 185 张纹理重导入、缓存实测与回归测试。
+
+决策：在 PERF-008 的 4K+→2K 基线上增加独立“性能纹理档”，对所有最大边不小于 2048 的世界纹理应用 `process/size_limit=1024`。此档为微缩塔防战场和 2K 内部渲染优化，显著降低纹理驻留、首次上传和放置/切关期间的显存压力。`assets/ui` 与 `assets/png` 仍排除；所有源 PNG/JPEG 尺寸和内容不变。
+
+性能档使用独立包装脚本与回退清单，不覆盖 PERF-008 的原始基线。通用扫描脚本新增了应用前运行时缓存路径和字节数记录，重复应用时保留首次基线，不会把 1K 缓存误写为“修改前”。
+
+| 参数 / 指标 | 修改前（PERF-008 后） | 修改后（性能档） |
+|---|---:|---:|
+| 源图扫描阈值 | 4K+ | 2K+ |
+| 导入上限 | 2048 | 1024 |
+| 命中数量 | 176 | 185 |
+| 应用前 `process/size_limit=2048` | 176 | 0 |
+| 应用前 `process/size_limit=0` | 9 | 0 |
+| 应用后 `process/size_limit=1024` | 0 | 185 |
+| 185 张对应运行时缓存 | 519.2 MB | 135.9 MB |
+| 缓存减少 | — | 383.3 MB / 73.8% |
+| 缓存缺失 | 0 | 0 |
+
+分类命中：`buildings=64`、`blocks=44`、`star=21`、`stuffs=20`、`enemies=13`、`projections=8`、`sun=4`、`moon=4`、`Ramp=4`、`greattree=3`。相比 PERF-008 新增 9 张 2K 敌人纹理。重导入后 184 个缓存不超过 1.5 MB；`assets/enemies/stone-golem/textures/5_Normal_1.jpeg` 为 1024 上限的法线贴图缓存，因导入格式不同为 1.88 MB，其 sidecar 尺寸上限已确认为 1024。
+
+修改文件：
+
+- `tools/performance/apply_world_texture_limits.ps1`
+- `tools/performance/apply_world_texture_performance_tier.ps1`
+- `tools/performance/world_texture_performance_tier_manifest.json`
+- 185 个对应纹理的 `.import` sidecar（Godot 忽略文件，可由脚本重复生成）
+- `tests/performance_optimization_test.gd`
+- `Docs/PERFORMANCE_OPTIMIZATION.md`
+
+操作：
+
+- 审计：`powershell -ExecutionPolicy Bypass -File tools/performance/apply_world_texture_performance_tier.ps1 -Mode Audit`
+- 应用：`powershell -ExecutionPolicy Bypass -File tools/performance/apply_world_texture_performance_tier.ps1 -Mode Apply`
+- 回退：`powershell -ExecutionPolicy Bypass -File tools/performance/apply_world_texture_performance_tier.ps1 -Mode Rollback`
+
+验证：应用后审计为 `Candidates=185 Unlimited=0 AtOrBelowTarget=185 Target=1024`。重复应用为 `Updated=0 Unchanged=185`，且清单仍保留 176 张 `2048` 和 9 张 `0` 的精确修改前参数。`performance_optimization_test.gd` 64/64 通过，包含双层清单、sidecar、缓存存在性和实测降幅断言。
+
+回退语义：执行性能档 `-Mode Rollback` 后，恢复到 PERF-008 基线：176 张恢复 `2048`，9 张 2K 敌人纹理恢复 `0`。若还需撤销 PERF-008，必须先回退性能档，再执行 `apply_world_texture_limits.ps1 -Mode Rollback`。每次回退后都需等待 Godot 重新导入。
+
 ## 明确保留的效果
 
 - `RuntimeSettings.depth_of_field_enabled` 默认值保持 `true`。
@@ -330,6 +372,8 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 | 2026-08-12 | Godot 4.7.1 Headless，完整选关/战斗往返 | `manual_wave_and_level_flow_test.gd` | 37/37 通过；两个方向都存在 2 帧空内容释放屏障，新旧重型世界不同时驻留 |
 | 2026-08-12 | Godot 4.7.1 Headless，生产 Level1 | 塔/镜子放置预览迁移 | `performance_optimization_test.gd` 53/53；塔、镜子与反射 `SubViewport` 跨位置保持同一实例 |
 | 2026-08-12 | Godot 4.7.1 Headless | 预览合法性与复制镜回归 | `path_placement_connectivity_test.gd` 35/35；`copy_mirror_test.gd` 144/144 通过 |
+| 2026-08-12 | PowerShell + Godot 4.7.1 Headless 导入 | 185 张 2K+ 世界纹理性能档 | 185/185 上限为 1024；缓存 519.2→135.9 MB，减少 73.8% |
+| 2026-08-12 | Godot 4.7.1 Headless | `performance_optimization_test.gd` | 64/64 通过；性能档参数、独立回退基线、sidecar 和压缩缓存断言均通过 |
 | 2026-08-11 | Headless 全量回归（新增性能专项加入列表前） | 54 个测试套件 | 48 个通过；6 个因当前工作区既有战斗参数、树叶阴影素材、镜面表面偏移或模型空材质诊断失败，见下方说明 |
 | 2026-08-11 | 待执行 | 4K 全屏输出、2K 内部渲染、UI 清晰度 | 需要关闭编辑器后以单独导出版本验证 |
 | 2026-08-11 | 待执行 | 四套灯光档案截图对比 | 需要在真实渲染器中验证 SSIL 关闭后的差异 |

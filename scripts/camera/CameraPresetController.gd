@@ -1,15 +1,12 @@
-## Resolves the six per-level camera slots and performs an unscaled transition.
+## Resolves the two gameplay camera shortcuts and performs an unscaled transition.
 class_name CameraPresetController
 extends Node
 
 const PRESET_ACTIONS: Array[StringName] = [
 	&"camera_preset_1",
 	&"camera_preset_2",
-	&"camera_preset_3",
-	&"camera_preset_4",
-	&"camera_preset_5",
-	&"camera_preset_6",
 ]
+const DEFAULT_PRESET_SLOT_INDEX: int = 0
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -69,10 +66,13 @@ func configure(camera_controller: CameraController) -> void:
 func load_level(level: LevelResource) -> void:
 	cancel_transition()
 	_level = level
+	if _level != null and _level.get_camera_preset(DEFAULT_PRESET_SLOT_INDEX) != null:
+		request_preset(DEFAULT_PRESET_SLOT_INDEX, true)
 
 
 ## slot_index is zero-based; user-facing signals are one-based.
-func request_preset(slot_index: int) -> bool:
+## apply_immediately bypasses the transition for level-entry initialization.
+func request_preset(slot_index: int, apply_immediately: bool = false) -> bool:
 	if not feature_enabled or _camera_controller == null or _level == null:
 		return false
 	var preset := _level.get_camera_preset(slot_index)
@@ -87,7 +87,7 @@ func request_preset(slot_index: int) -> bool:
 	_target_state = preset.to_camera_state()
 	_elapsed = 0.0
 	_active_slot_index = slot_index
-	if transition_duration <= 0.0:
+	if apply_immediately or transition_duration <= 0.0:
 		_transition_active = false
 		_camera_controller.set_preset_transition_active(false)
 		_apply_state(_target_state)

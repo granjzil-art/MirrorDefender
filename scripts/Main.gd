@@ -49,6 +49,10 @@ const LightingControllerScript := preload("res://scripts/lighting/LightingContro
 const LightingTestPanelScript := preload("res://scripts/ui/LightingTestPanel.gd")
 const BuildingSelectionVisualizerScript := preload("res://scripts/building/BuildingSelectionVisualizer.gd")
 const HoldRepeatGateScript := preload("res://scripts/shared/HoldRepeatGate.gd")
+const TutorialDirectorScript := preload("res://scripts/tutorial/TutorialDirector.gd")
+const TutorialTargetHighlighterScript := preload("res://scripts/tutorial/TutorialTargetHighlighter.gd")
+const TutorialOverlayScript := preload("res://scripts/ui/TutorialOverlay.gd")
+const TutorialRuntimeEditorScript := preload("res://scripts/ui/TutorialRuntimeEditor.gd")
 const CopyMirrorDefinitionResource := preload("res://resources/mirrors/CopyMirror.tres")
 const ReflectMirrorDefinitionResource := preload("res://resources/mirrors/ReflectMirror.tres")
 const LevelReflectionDefinitionResource := preload("res://resources/fx/LevelReflection.tres")
@@ -75,7 +79,6 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 
 @export_group("Miniature Depth Of Field")
 @export var miniature_dof_enabled: bool = true
-@export var miniature_dof_test_shortcut_enabled: bool = true
 
 @export_group("M6 Debug Console")
 @export var debug_console_enabled: bool = true
@@ -86,7 +89,6 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 @export_group("Lighting Presentation")
 @export var lighting_enabled: bool = true
 @export var lighting_test_panel_enabled: bool = true
-@export var lighting_test_shortcuts_enabled: bool = true
 @export var foliage_shadow_enabled: bool = false
 @export var realistic_tree_shadow_enabled: bool = true
 
@@ -94,6 +96,9 @@ const MiniatureDofDefinitionResource := preload("res://resources/camera/Miniatur
 @export_range(0.0, 2.0, 0.01, "or_greater") var selected_rotation_hold_delay: float = 0.3
 @export_range(0.02, 1.0, 0.01, "or_greater") var selected_rotation_repeat_interval: float = 0.08
 @export_range(1, 12, 1, "or_greater") var selected_rotation_max_repeats_per_frame: int = 4
+
+@export_group("Building Drag Relocation")
+@export_range(1.0, 64.0, 1.0, "or_greater") var building_drag_threshold_pixels: float = 8.0
 
 signal return_to_level_select_requested
 signal startup_level_load_resolved(success: bool, reason: String)
@@ -144,6 +149,10 @@ var lighting_test_panel: LightingTestPanelScript
 var stuff_placement_validator: StuffPlacementValidatorScript
 var runtime_stuff_edit_session: RuntimeStuffEditSessionScript
 var runtime_stuff_editor: RuntimeStuffEditorControllerScript
+var tutorial_director: TutorialDirectorScript
+var tutorial_target_highlighter: TutorialTargetHighlighterScript
+var tutorial_overlay: TutorialOverlayScript
+var tutorial_runtime_editor: TutorialRuntimeEditorScript
 var _level_decoration: Node3D
 var _has_selected_cell: bool = false
 var _selected_cell: Vector3i = Vector3i.ZERO
@@ -154,6 +163,18 @@ var _debug_cell_pick: Dictionary = {}
 var _debug_edge_pick: Dictionary = {}
 var _startup_level: LevelResource
 var _selected_rotation_repeat: HoldRepeatGate = HoldRepeatGateScript.new()
+var _debug_tools_enabled: bool = true
+var _building_drag_candidate: Building
+var _building_drag_active: bool = false
+var _building_drag_press_position: Vector2 = Vector2.ZERO
+var _building_drag_target_valid: bool = false
+var _mirror_drag_candidate: CopyMirror
+var _mirror_drag_active: bool = false
+var _mirror_drag_press_position: Vector2 = Vector2.ZERO
+var _mirror_drag_edge_index: int = 0
+var _mirror_drag_target_cell: Vector3i = Vector3i.ZERO
+var _mirror_drag_has_target_cell: bool = false
+var _mirror_drag_target_valid: bool = false
 
 
 func configure_startup_level(level: LevelResource) -> bool:
@@ -175,7 +196,7 @@ func _ready() -> void:
 	hint_label.visible = false
 	m3_debug_panel.feature_enabled = false
 	m3_debug_panel.visible = false
-	runtime_hud.debug_console.feature_enabled = debug_console_enabled
+	runtime_hud.debug_console.set_feature_enabled(debug_console_enabled)
 	runtime_hud.debug_overlay_panel.feature_enabled = debug_console_enabled
 	camera_preset_controller = CameraPresetControllerScript.new()
 	add_child(camera_preset_controller)
@@ -186,7 +207,6 @@ func _ready() -> void:
 	miniature_dof_controller = MiniatureDofControllerScript.new()
 	miniature_dof_controller.name = "MiniatureDofController"
 	miniature_dof_controller.feature_enabled = miniature_dof_enabled
-	miniature_dof_controller.test_shortcut_enabled = miniature_dof_test_shortcut_enabled
 	add_child(miniature_dof_controller)
 	miniature_dof_controller.configure(_camera, cam_rig, grid, MiniatureDofDefinitionResource)
 	renderer.set_grid(grid)
@@ -211,7 +231,6 @@ func _ready() -> void:
 	lighting_controller = LightingControllerScript.new()
 	lighting_controller.name = "LightingController"
 	lighting_controller.feature_enabled = lighting_enabled
-	lighting_controller.test_shortcuts_enabled = lighting_test_shortcuts_enabled
 	lighting_controller.foliage_shadow_enabled = foliage_shadow_enabled
 	lighting_controller.realistic_tree_shadow_enabled = realistic_tree_shadow_enabled
 	add_child(lighting_controller)
@@ -361,9 +380,11 @@ func _ready() -> void:
 	_building_action_panel = BuildingActionPanelScript.new()
 	$HUD.add_child(_building_action_panel)
 	_building_action_panel.configure(building_manager, _camera)
+	_building_action_panel.upgrade_feedback_requested.connect(runtime_hud.show_upgrade_failure)
 	_mirror_action_panel = MirrorActionPanelScript.new()
 	$HUD.add_child(_mirror_action_panel)
 	_mirror_action_panel.configure(mirror_manager, _camera)
+	_mirror_action_panel.upgrade_feedback_requested.connect(runtime_hud.show_upgrade_failure)
 	path_manager = PathManagerScript.new()
 	add_child(path_manager)
 	path_manager.configure(grid, tile_manager)
@@ -400,6 +421,36 @@ func _ready() -> void:
 		Callable(tile_effect_system, "apply_stay"),
 		Callable(tile_manager, "blocks_enemy_navigation")
 	)
+	tutorial_director = TutorialDirectorScript.new()
+	tutorial_director.name = "TutorialDirector"
+	add_child(tutorial_director)
+	tutorial_director.configure(building_manager, wave_manager)
+	wave_manager.set_wave_release_guard(Callable(tutorial_director, "get_wave_block_reason"))
+	tutorial_director.wave_gate_changed.connect(wave_manager.notify_wave_release_guard_changed)
+	tutorial_target_highlighter = TutorialTargetHighlighterScript.new()
+	tutorial_target_highlighter.name = "TutorialTargetHighlighter"
+	add_child(tutorial_target_highlighter)
+	tutorial_target_highlighter.configure(tutorial_director, grid)
+	tutorial_overlay = TutorialOverlayScript.new()
+	tutorial_overlay.name = "TutorialOverlay"
+	$HUD.add_child(tutorial_overlay)
+	tutorial_overlay.configure(tutorial_director, _camera, grid)
+	tutorial_runtime_editor = TutorialRuntimeEditorScript.new()
+	tutorial_runtime_editor.name = "TutorialRuntimeEditor"
+	$HUD.add_child(tutorial_runtime_editor)
+	tutorial_runtime_editor.configure(
+		tutorial_director,
+		tutorial_overlay,
+		building_manager,
+		wave_manager,
+		Callable(self, "_get_tutorial_cell_pick")
+	)
+	runtime_hud.runtime_stuff_editor_panel.configure_tutorial_entry(
+		OS.has_feature("editor_runtime") or OS.is_debug_build()
+	)
+	runtime_hud.runtime_stuff_editor_panel.tutorial_editor_requested.connect(
+		tutorial_runtime_editor.toggle
+	)
 	if runtime_combat_data_editor_enabled and OS.has_feature("editor_runtime"):
 		runtime_test_enemy_spawner = RuntimeTestEnemySpawnerScript.new()
 		runtime_test_enemy_spawner.name = "RuntimeTestEnemySpawner"
@@ -417,6 +468,7 @@ func _ready() -> void:
 			runtime_combat_data_edit_session,
 			runtime_test_enemy_spawner
 		)
+		runtime_combat_data_editor_window.debug_tools_toggle_requested.connect(_toggle_debug_tools)
 	mirror_manager.set_cooldown_time_scale_resolver(
 		Callable(self, "_get_mirror_cooldown_time_scale")
 	)
@@ -443,6 +495,11 @@ func _ready() -> void:
 		runtime_debug_bindings.command_registry,
 		runtime_debug_bindings.category_registry
 	)
+	runtime_hud.configure_debug_tool_entries(
+		debug_console_enabled,
+		runtime_combat_data_editor_window
+	)
+	_set_debug_tools_enabled(true)
 	level_loader.configure(grid, tile_manager, terrain_manager, stuff_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	var startup_loaded := false
@@ -527,15 +584,27 @@ func _handle_building_rotation_wheel(event: InputEvent) -> bool:
 		step = -1
 	else:
 		return false
+	if runtime_interaction != null and runtime_interaction.is_mirror_mode():
+		if not runtime_interaction.rotate_mirror_placement_edge(grid.edge_count(), step):
+			return false
+		if is_inside_tree():
+			_update_pick()
+		return true
+	if mirror_manager != null and mirror_manager.get_selected_mirror() != null:
+		if _mirror_drag_candidate != null:
+			_mirror_drag_edge_index = wrapi(
+				_mirror_drag_edge_index + step,
+				0,
+				grid.edge_count()
+			)
+			if is_inside_tree():
+				_update_pick()
+			return true
+		mirror_manager.rotate_selected_mirror(step)
+		return true
 	if (
 		runtime_stuff_editor != null
 		and runtime_stuff_editor.is_active()
-	) or (
-		runtime_interaction != null
-		and runtime_interaction.is_mirror_mode()
-	) or (
-		mirror_manager != null
-		and mirror_manager.get_selected_mirror() != null
 	):
 		return false
 	var target := _get_active_building_rotation_target()
@@ -550,11 +619,32 @@ func _handle_building_rotation_wheel(event: InputEvent) -> bool:
 ## Modal cancellation remains press-based. Non-modal world cancellation is
 ## emitted by CameraController only when a right press/release stays a click.
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_debug_tools"):
+		_toggle_debug_tools()
+		get_viewport().set_input_as_handled()
+		return
 	if runtime_hud != null and runtime_hud.is_modal_open():
+		_cancel_building_drag()
 		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):
 			runtime_hud.close_top_modal()
 			get_viewport().set_input_as_handled()
 		return
+	if _building_drag_candidate != null or _mirror_drag_candidate != null:
+		var drag_mouse_button := event as InputEventMouseButton
+		if (
+			drag_mouse_button != null
+			and drag_mouse_button.button_index == MOUSE_BUTTON_LEFT
+			and not drag_mouse_button.pressed
+		):
+			_finish_building_drag(drag_mouse_button.position)
+			get_viewport().set_input_as_handled()
+			return
+		var drag_motion := event as InputEventMouseMotion
+		if drag_motion != null and (drag_motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			_update_building_drag_gesture(drag_motion.position)
+			if _building_drag_active:
+				get_viewport().set_input_as_handled()
+			return
 	if (
 		get_viewport().gui_get_hovered_control() == null
 		and _handle_building_rotation_wheel(event)
@@ -566,8 +656,12 @@ func _update_pick() -> void:
 	var vp := get_viewport()
 	var mp := vp.get_mouse_position()
 
-	var edge := grid.pick_edge(_camera, mp)
 	var cell := grid.pick_cell(_camera, mp)
+	var edge := grid.pick_edge(_camera, mp)
+	if runtime_interaction.is_mirror_mode():
+		edge = runtime_interaction.resolve_mirror_placement_edge_pick(cell, grid)
+	elif _mirror_drag_active:
+		edge = _resolve_mirror_drag_edge_pick(cell)
 	_debug_cell_pick = cell
 	_debug_edge_pick = edge
 	mirror_manager.set_inspected_cell(cell.cell if cell.hit else null)
@@ -756,24 +850,27 @@ func _update_hud(cell: Dictionary, edge: Dictionary) -> void:
 	hud_label.text = "\n".join(lines)
 
 func _update_hint() -> void:
-	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 滚轮缩放/选中建筑时旋转 | 左键选择/单次放置 | 右键取消/拖动旋转视角 | R 旋转/镜子翻面 | Delete 删除镜子 | F 清障 | F2 战斗数据"
+	hint_label.text = "WASD 平移 | QE 旋转 | X 降低/C 提高俯仰 | 1/2 镜头 | 滚轮缩放/建筑与镜子旋转 | 左键选择/按住拖动建筑与镜子/单次放置 | 右键取消/拖动旋转视角 | R 旋转/放置镜子切边/已选镜子翻面 | Delete 删除镜子 | F 清障 | F1 调试工具"
 
 func _unhandled_input(event: InputEvent) -> void:
-	if (
-		event is InputEventKey
-		and event.pressed
-		and not event.echo
-		and event.keycode == KEY_F2
-		and runtime_combat_data_editor_window != null
-	):
-		runtime_combat_data_editor_window.toggle_editor()
-		get_viewport().set_input_as_handled()
-		return
 	if event.is_action_released("rotate_facing"):
 		_selected_rotation_repeat.release()
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		return
+	if (
+		tutorial_runtime_editor != null
+		and tutorial_runtime_editor.is_active()
+		and event is InputEventKey
+		and event.pressed
+		and not event.echo
+		and event.keycode == KEY_T
+		and tutorial_runtime_editor.capture_hovered_cell()
+	):
+		get_viewport().set_input_as_handled()
+		return
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
+		if not _debug_tools_enabled:
+			return
 		if event is InputEventKey and event.pressed and not event.echo and event.ctrl_pressed:
 			if event.keycode == KEY_Z:
 				runtime_stuff_editor.undo()
@@ -792,13 +889,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			runtime_stuff_editor.remove_selected()
 		return
 	if event.is_action_pressed("place_select"):
+		if tutorial_director != null:
+			tutorial_director.handle_blank_screen_click()
+		var can_begin_building_drag := runtime_interaction.is_select_mode()
 		_handle_primary_action()
+		if can_begin_building_drag and event is InputEventMouseButton:
+			_begin_building_drag_candidate((event as InputEventMouseButton).position)
 	elif event.is_action_pressed("rotate_facing"):
 		if event is InputEventKey and (event as InputEventKey).echo:
 			return
 		_selected_rotation_repeat.release()
 		if runtime_interaction.is_mirror_mode():
-			mirror_manager.flip_preview()
+			if runtime_interaction.rotate_mirror_placement_edge(grid.edge_count()):
+				_update_pick()
 		elif mirror_manager.get_selected_mirror() != null:
 			mirror_manager.flip_selected()
 		else:
@@ -809,6 +912,22 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F:
 		_destroy_selected_obstacle()
 
+
+func _toggle_debug_tools() -> void:
+	_set_debug_tools_enabled(not _debug_tools_enabled)
+
+
+func _set_debug_tools_enabled(enabled: bool) -> void:
+	_debug_tools_enabled = enabled
+	if runtime_hud != null:
+		runtime_hud.set_debug_tools_enabled(_debug_tools_enabled)
+	if not _debug_tools_enabled and tutorial_runtime_editor != null:
+		tutorial_runtime_editor.set_active(false)
+	if lighting_test_panel != null:
+		lighting_test_panel.visible = _debug_tools_enabled and lighting_test_panel_enabled
+	if runtime_debug_bindings != null and runtime_debug_bindings.category_registry != null:
+		runtime_debug_bindings.category_registry.set_suspended(not _debug_tools_enabled)
+
 func _handle_primary_action() -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
@@ -816,10 +935,216 @@ func _handle_primary_action() -> void:
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
 		runtime_stuff_editor.handle_primary(cell_pick)
 		return
+	if runtime_interaction.is_mirror_mode():
+		edge_pick = runtime_interaction.resolve_mirror_placement_edge_pick(cell_pick, grid)
 	var mirror_pick: Dictionary = mirror_manager.pick_mirror(_camera, mouse_position)
-	runtime_interaction.handle_primary(cell_pick, edge_pick, mirror_pick)
+	var result := runtime_interaction.handle_primary(cell_pick, edge_pick, mirror_pick)
+	if bool(result.get("attempted", false)) and not bool(result.get("success", false)):
+		runtime_hud.show_placement_failure(str(result.get("reason", "")), mouse_position)
+
+
+func _begin_building_drag_candidate(mouse_position: Vector2) -> void:
+	_cancel_building_drag()
+	if (
+		runtime_interaction == null
+		or not runtime_interaction.is_select_mode()
+	):
+		return
+	var selected_mirror := mirror_manager.get_selected_mirror()
+	if selected_mirror != null:
+		var direct_pick := mirror_manager.pick_mirror(_camera, mouse_position)
+		var edge_pick := grid.pick_edge(_camera, mouse_position)
+		var matches_mirror: bool = (
+			bool(direct_pick.get("hit", false))
+			and direct_pick.get("mirror") == selected_mirror
+		) or (
+			bool(edge_pick.get("hit", false))
+			and String(edge_pick.get("id", "")) == selected_mirror.edge_id
+		)
+		if not matches_mirror:
+			return
+		var active_cell := selected_mirror.get_active_cell()
+		var passive_cell := (
+			selected_mirror.to_cell
+			if selected_mirror.active_from_side
+			else selected_mirror.from_cell
+		)
+		var active_edge_index := grid.find_edge_index(active_cell, passive_cell)
+		if active_edge_index < 0:
+			return
+		_mirror_drag_candidate = selected_mirror
+		_mirror_drag_edge_index = active_edge_index
+		_mirror_drag_press_position = mouse_position
+		_mirror_drag_has_target_cell = false
+		_mirror_drag_target_valid = false
+		return
+	var building := building_manager.get_selected_building()
+	if building == null:
+		return
+	var matches_pick := false
+	if building.is_edge_placement():
+		var edge_pick := grid.pick_edge(_camera, mouse_position)
+		matches_pick = bool(edge_pick.get("hit", false)) and String(edge_pick.get("id", "")) == building.edge_id
+	else:
+		var cell_pick := grid.pick_cell(_camera, mouse_position)
+		matches_pick = bool(cell_pick.get("hit", false)) and cell_pick.get("cell", Vector3i.ZERO) == building.cell
+	if not matches_pick:
+		return
+	_building_drag_candidate = building
+	_building_drag_press_position = mouse_position
+	_building_drag_target_valid = false
+
+
+func _update_building_drag_gesture(mouse_position: Vector2) -> void:
+	if _mirror_drag_candidate != null:
+		_update_mirror_drag_gesture(mouse_position)
+		return
+	if _building_drag_candidate == null or not is_instance_valid(_building_drag_candidate):
+		_cancel_building_drag()
+		return
+	if not _building_drag_active:
+		if mouse_position.distance_to(_building_drag_press_position) < building_drag_threshold_pixels:
+			return
+		_building_drag_active = true
+	_update_building_drag_preview(
+		grid.pick_cell(_camera, mouse_position),
+		grid.pick_edge(_camera, mouse_position)
+	)
+
+
+func _update_mirror_drag_gesture(mouse_position: Vector2) -> void:
+	if not is_instance_valid(_mirror_drag_candidate):
+		_cancel_building_drag()
+		return
+	if not _mirror_drag_active:
+		if mouse_position.distance_to(_mirror_drag_press_position) < building_drag_threshold_pixels:
+			return
+		_mirror_drag_active = true
+	_update_mirror_drag_preview(grid.pick_cell(_camera, mouse_position))
+
+
+func _resolve_mirror_drag_edge_pick(cell_pick: Dictionary) -> Dictionary:
+	if not bool(cell_pick.get("hit", false)) or grid == null or grid.edge_count() <= 0:
+		return {"hit": false}
+	var cell: Vector3i = cell_pick.get("cell", Vector3i.ZERO)
+	if not grid.is_in_bounds(cell):
+		return {"hit": false}
+	var edge_index := wrapi(_mirror_drag_edge_index, 0, grid.edge_count())
+	return {
+		"hit": true,
+		"cell": cell,
+		"edge_index": edge_index,
+		"id": grid.canonical_edge_id(cell, edge_index),
+	}
+
+
+func _update_mirror_drag_preview(cell_pick: Dictionary) -> void:
+	_mirror_drag_target_valid = false
+	_mirror_drag_has_target_cell = false
+	if _mirror_drag_candidate == null or not is_instance_valid(_mirror_drag_candidate):
+		return
+	var edge_pick := _resolve_mirror_drag_edge_pick(cell_pick)
+	if not bool(edge_pick.get("hit", false)):
+		mirror_manager.clear_preview()
+		return
+	_mirror_drag_target_cell = edge_pick.get("cell", Vector3i.ZERO)
+	_mirror_drag_has_target_cell = true
+	_mirror_drag_target_valid = mirror_manager.update_relocation_preview(
+		_mirror_drag_candidate,
+		_mirror_drag_target_cell,
+		int(edge_pick.get("edge_index", -1))
+	)
+
+
+func _update_building_drag_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
+	_building_drag_target_valid = false
+	if _building_drag_candidate == null or not is_instance_valid(_building_drag_candidate):
+		return
+	if _building_drag_candidate.is_edge_placement():
+		if not bool(edge_pick.get("hit", false)):
+			building_manager.clear_preview()
+			return
+		_building_drag_target_valid = building_manager.update_edge_relocation_preview(
+			_building_drag_candidate,
+			edge_pick.get("cell", Vector3i.ZERO),
+			int(edge_pick.get("edge_index", -1))
+		)
+		return
+	if not bool(cell_pick.get("hit", false)):
+		building_manager.clear_preview()
+		return
+	_building_drag_target_valid = building_manager.update_relocation_preview(
+		_building_drag_candidate,
+		cell_pick.get("cell", Vector3i.ZERO)
+	)
+
+
+func _finish_building_drag(mouse_position: Vector2) -> void:
+	if _mirror_drag_candidate != null:
+		_finish_mirror_drag(mouse_position)
+		return
+	var source := _building_drag_candidate
+	if _building_drag_active and source != null and is_instance_valid(source):
+		var cell_pick := grid.pick_cell(_camera, mouse_position)
+		var edge_pick := grid.pick_edge(_camera, mouse_position)
+		_update_building_drag_preview(cell_pick, edge_pick)
+		if _building_drag_target_valid:
+			if source.is_edge_placement():
+				building_manager.relocate_edge_building(
+					source,
+					edge_pick.get("cell", Vector3i.ZERO),
+					int(edge_pick.get("edge_index", -1))
+				)
+			else:
+				building_manager.relocate_building_to_cell(
+					source,
+					cell_pick.get("cell", Vector3i.ZERO)
+				)
+	building_manager.clear_preview()
+	_building_drag_candidate = null
+	_building_drag_active = false
+	_building_drag_target_valid = false
+
+
+func _finish_mirror_drag(mouse_position: Vector2) -> void:
+	var source := _mirror_drag_candidate
+	if _mirror_drag_active and source != null and is_instance_valid(source):
+		_update_mirror_drag_preview(grid.pick_cell(_camera, mouse_position))
+		if _mirror_drag_target_valid and _mirror_drag_has_target_cell:
+			mirror_manager.relocate_mirror(
+				source,
+				_mirror_drag_target_cell,
+				_mirror_drag_edge_index
+			)
+	mirror_manager.clear_preview()
+	_mirror_drag_candidate = null
+	_mirror_drag_active = false
+	_mirror_drag_has_target_cell = false
+	_mirror_drag_target_valid = false
+
+
+func _cancel_building_drag() -> void:
+	if building_manager != null:
+		building_manager.clear_preview()
+	if mirror_manager != null:
+		mirror_manager.clear_preview()
+	_building_drag_candidate = null
+	_building_drag_active = false
+	_building_drag_target_valid = false
+	_mirror_drag_candidate = null
+	_mirror_drag_active = false
+	_mirror_drag_has_target_cell = false
+	_mirror_drag_target_valid = false
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
+	if _mirror_drag_active:
+		building_manager.clear_preview()
+		_update_mirror_drag_preview(cell_pick)
+		return
+	if _building_drag_active:
+		mirror_manager.clear_preview()
+		_update_building_drag_preview(cell_pick, edge_pick)
+		return
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
 		building_manager.clear_preview()
 		mirror_manager.clear_preview()
@@ -836,9 +1161,9 @@ func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> v
 			mirror_manager.clear_preview()
 			return
 		if runtime_interaction.is_reflect_mirror_mode():
-			mirror_manager.update_reflect_preview(edge_pick.cell, edge_pick.edge_index)
+			mirror_manager.update_reflect_preview(edge_pick.cell, edge_pick.edge_index, true)
 		else:
-			mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index)
+			mirror_manager.update_preview(edge_pick.cell, edge_pick.edge_index, true)
 		return
 	mirror_manager.clear_preview()
 	var definition := runtime_interaction.get_selected_definition()
@@ -881,6 +1206,7 @@ func _get_mirror_cooldown_time_scale() -> float:
 	return 0.0
 
 func _on_level_loaded(level_resource: LevelResource, source_path: String) -> void:
+	_cancel_building_drag()
 	if runtime_stuff_editor != null:
 		runtime_stuff_editor.abort_for_level_transition()
 	if path_hover_preview != null:
@@ -906,6 +1232,8 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	if runtime_test_enemy_spawner != null:
 		runtime_test_enemy_spawner.stop()
 	wave_manager.load_level(level_resource)
+	if tutorial_director != null:
+		tutorial_director.load_level(level_resource, source_path)
 	if runtime_combat_data_edit_session != null:
 		runtime_combat_data_edit_session.refresh_level_catalog()
 	camera_preset_controller.load_level(level_resource)
@@ -929,6 +1257,10 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 			wave_manager,
 			mirror_manager
 		)
+
+
+func _get_tutorial_cell_pick() -> Dictionary:
+	return _debug_cell_pick.duplicate()
 
 
 func get_level_decoration() -> Node3D:
@@ -1024,6 +1356,7 @@ func _on_camera_cancel_requested() -> void:
 		runtime_stuff_editor.cancel_current_tool()
 		get_viewport().set_input_as_handled()
 		return
+	_cancel_building_drag()
 	runtime_interaction.cancel_to_select(true)
 	get_viewport().set_input_as_handled()
 	return

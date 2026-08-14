@@ -11,9 +11,16 @@ var _minimum_width: float = 0.10
 var _width_multiplier: float = 1.5
 var _lift: float = 0.04
 var _max_segments_per_direction: int = 32
+var _multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0)
+var _multiplier_label_height: float = 0.18
+var _multiplier_label_stack_spacing: float = 0.22
 var _reflection_resolver: Callable
 var _blocker_resolver: Callable
 var _segments: Array[Dictionary] = []
+var _multiplier_label_data: Array[Dictionary] = []
+var _multiplier_labels: Array[Label3D] = []
+var _multiplier_label_unique: Dictionary = {}
+var _multiplier_label_group_counts: Dictionary = {}
 var _mesh_instance: MeshInstance3D
 var _material: StandardMaterial3D
 
@@ -28,7 +35,10 @@ func configure_style(
 	minimum_width: float,
 	width_multiplier: float,
 	lift: float,
-	max_segments_per_direction: int
+	max_segments_per_direction: int,
+	multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0),
+	multiplier_label_height: float = 0.18,
+	multiplier_label_stack_spacing: float = 0.22
 ) -> void:
 	_feature_enabled = feature_enabled
 	_color = color
@@ -36,6 +46,9 @@ func configure_style(
 	_width_multiplier = maxf(0.0, width_multiplier)
 	_lift = maxf(0.0, lift)
 	_max_segments_per_direction = maxi(1, max_segments_per_direction)
+	_multiplier_label_color = multiplier_label_color
+	_multiplier_label_height = maxf(0.0, multiplier_label_height)
+	_multiplier_label_stack_spacing = maxf(0.0, multiplier_label_stack_spacing)
 	_ensure_visual()
 	_update_material()
 
@@ -48,7 +61,11 @@ func set_blocker_resolver(value: Callable) -> void:
 	_blocker_resolver = value
 
 
-func rebuild(building: Building, projection_payloads: Array[MirrorCopyPayload] = []) -> void:
+func rebuild(
+	building: Building,
+	projection_payloads: Array[MirrorCopyPayload] = [],
+	show_multiplier_labels: bool = true
+) -> void:
 	clear()
 	if (
 		not _feature_enabled
@@ -64,7 +81,14 @@ func rebuild(building: Building, projection_payloads: Array[MirrorCopyPayload] =
 	var actual_width := maxf(0.0, building.get_projectile_width_world())
 	var resolved_width := maxf(_minimum_width, actual_width * _width_multiplier)
 	var origin := building.get_attack_origin()
-	_append_source_trajectories(origin, directions, maximum_distance, 0, null)
+	_append_source_trajectories(
+		origin,
+		directions,
+		maximum_distance,
+		0,
+		null,
+		show_multiplier_labels
+	)
 	var source_index := 1
 	for payload in projection_payloads:
 		if payload == null or not payload.is_source_valid() or payload.root_source != building:
@@ -72,15 +96,25 @@ func rebuild(building: Building, projection_payloads: Array[MirrorCopyPayload] =
 		var projected_directions: Array[Vector3] = []
 		for direction in directions:
 			projected_directions.append(payload.transform_direction(direction).normalized())
+		if show_multiplier_labels:
+			_queue_multiplier_label(
+				&"copy",
+				"copy-cell:%s" % str(payload.projected_cell),
+				"copy:%s" % payload.stable_key,
+				payload.transform_point(building.get_action_anchor()),
+				payload.damage_multiplier
+			)
 		_append_source_trajectories(
 			payload.transform_point(origin),
 			projected_directions,
 			maximum_distance,
 			source_index,
-			payload
+			payload,
+			show_multiplier_labels
 		)
 		source_index += 1
 	_rebuild_mesh(resolved_width)
+	_rebuild_multiplier_labels()
 
 
 func _append_source_trajectories(
@@ -88,7 +122,8 @@ func _append_source_trajectories(
 	directions: Array[Vector3],
 	maximum_distance: float,
 	source_index: int,
-	payload: MirrorCopyPayload
+	payload: MirrorCopyPayload,
+	show_multiplier_labels: bool
 ) -> void:
 	for direction_index in range(directions.size()):
 		_trace_direction(
@@ -97,12 +132,20 @@ func _append_source_trajectories(
 			maximum_distance,
 			direction_index,
 			source_index,
-			payload
+			payload,
+			show_multiplier_labels
 		)
 
 
 func clear() -> void:
 	_segments.clear()
+	_multiplier_label_data.clear()
+	_multiplier_label_unique.clear()
+	_multiplier_label_group_counts.clear()
+	for label in _multiplier_labels:
+		if label != null and is_instance_valid(label):
+			label.free()
+	_multiplier_labels.clear()
 	_ensure_visual()
 	_mesh_instance.mesh = null
 	_mesh_instance.visible = false
@@ -119,13 +162,18 @@ func debug_get_segments() -> Array[Dictionary]:
 	return result
 
 
+func debug_get_multiplier_labels() -> Array[Dictionary]:
+	return _multiplier_label_data.duplicate(true)
+
+
 func _trace_direction(
 	origin: Vector3,
 	direction_value: Vector3,
 	maximum_distance: float,
 	direction_index: int,
 	source_index: int,
-	payload: MirrorCopyPayload
+	payload: MirrorCopyPayload,
+	show_multiplier_labels: bool
 ) -> void:
 	if direction_value.length_squared() <= MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH:
 		return
@@ -133,6 +181,7 @@ func _trace_direction(
 	var direction := direction_value.normalized()
 	var remaining_distance := maximum_distance
 	var reflection_index := 0
+	var cumulative_multiplier := payload.damage_multiplier if payload != null else 1.0
 	for _segment_index in range(_max_segments_per_direction):
 		if remaining_distance <= MIN_SEGMENT_LENGTH:
 			break
@@ -198,6 +247,20 @@ func _trace_direction(
 		if normal.length_squared() <= MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH:
 			break
 		normal = normal.normalized()
+		var hit_multiplier := float(hit.get("damage_multiplier", 1.0))
+		if is_finite(hit_multiplier):
+			cumulative_multiplier *= maxf(0.0, hit_multiplier)
+		if show_multiplier_labels:
+			var mirror := hit.get("mirror") as CopyMirror
+			if mirror != null and is_instance_valid(mirror) and mirror.is_projectile_reflector():
+				var formatted_multiplier := _format_multiplier(cumulative_multiplier)
+				_queue_multiplier_label(
+					&"reflection",
+					"reflect:%d" % mirror.get_instance_id(),
+					"reflect:%d:%s" % [mirror.get_instance_id(), formatted_multiplier],
+					mirror.get_action_anchor(),
+					cumulative_multiplier
+				)
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_index += 1
 		var epsilon := minf(
@@ -206,6 +269,57 @@ func _trace_direction(
 		)
 		current_start = hit_position + direction * epsilon
 		remaining_distance = maxf(0.0, remaining_distance - epsilon)
+
+
+func _queue_multiplier_label(
+	kind: StringName,
+	group_key: String,
+	unique_key: String,
+	world_position: Vector3,
+	multiplier: float
+) -> void:
+	if _multiplier_label_unique.has(unique_key) or not is_finite(multiplier):
+		return
+	_multiplier_label_unique[unique_key] = true
+	var stack_index := int(_multiplier_label_group_counts.get(group_key, 0))
+	_multiplier_label_group_counts[group_key] = stack_index + 1
+	_multiplier_label_data.append({
+		"kind": kind,
+		"text": _format_multiplier(multiplier),
+		"multiplier": multiplier,
+		"position": world_position + Vector3.UP * (
+			_multiplier_label_height + float(stack_index) * _multiplier_label_stack_spacing
+		),
+		"stack_index": stack_index,
+	})
+
+
+func _rebuild_multiplier_labels() -> void:
+	for data in _multiplier_label_data:
+		var label := Label3D.new()
+		label.name = &"TrajectoryMultiplierLabel"
+		label.text = String(data.get("text", ""))
+		label.position = to_local(data.get("position", Vector3.ZERO))
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.fixed_size = true
+		label.no_depth_test = true
+		# Match the contextual upgrade-cost number used by building and mirror UI.
+		label.font_size = 18
+		label.outline_size = 3
+		label.modulate = _multiplier_label_color
+		label.outline_modulate = Color(0.12, 0.0, 0.0, 0.95)
+		label.render_priority = 12
+		add_child(label)
+		_multiplier_labels.append(label)
+
+
+func _format_multiplier(value: float) -> String:
+	var formatted := "%.2f" % maxf(0.0, value)
+	while formatted.ends_with("0"):
+		formatted = formatted.left(formatted.length() - 1)
+	if formatted.ends_with("."):
+		formatted = formatted.left(formatted.length() - 1)
+	return formatted
 
 
 func _query_reflection(start: Vector3, end: Vector3) -> Dictionary:

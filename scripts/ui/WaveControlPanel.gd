@@ -18,6 +18,7 @@ const WaveTimelineModelScript := preload("res://scripts/ui/WaveTimelineModel.gd"
 
 signal restart_level_requested
 signal exit_level_requested
+signal next_wave_released_by_player
 signal paths_preview_requested(paths: Array)
 signal paths_preview_cleared
 
@@ -56,6 +57,7 @@ func configure(wave_manager: WaveManager) -> void:
 	_wave_manager = wave_manager
 	if _wave_manager != null:
 		_wave_manager.next_wave_changed.connect(_on_next_wave_changed)
+		_wave_manager.next_wave_availability_changed.connect(_on_next_wave_availability_changed)
 		_wave_manager.wave_released.connect(_on_wave_released)
 		_wave_manager.state_changed.connect(_on_wave_state_changed)
 	_refresh_state()
@@ -92,8 +94,8 @@ func get_previewed_wave_number() -> int:
 
 func _on_start_pressed() -> void:
 	clear_hover_preview()
-	if _wave_manager != null:
-		_wave_manager.start_next_wave()
+	if _wave_manager != null and _wave_manager.start_next_wave():
+		next_wave_released_by_player.emit()
 
 
 func _on_restart_pressed() -> void:
@@ -163,7 +165,11 @@ func _refresh_state() -> void:
 		return
 	var next_wave_number := _wave_manager.get_next_wave_number() if _wave_manager != null else 0
 	start_button.disabled = not feature_enabled or _wave_manager == null or not _wave_manager.can_start_next_wave()
-	start_button.tooltip_text = "释放第 %d 波" % next_wave_number if next_wave_number > 0 else "全部波次已释放"
+	var tutorial_reason := _wave_manager.get_next_wave_release_block_reason() if _wave_manager != null else ""
+	if not tutorial_reason.is_empty() and next_wave_number > 0:
+		start_button.tooltip_text = "完成教学目标后可释放第 %d 波：%s" % [next_wave_number, tutorial_reason]
+	else:
+		start_button.tooltip_text = "释放第 %d 波" % next_wave_number if next_wave_number > 0 else "全部波次已释放"
 
 
 func _apply_optional_art() -> void:
@@ -182,6 +188,10 @@ func _on_next_wave_changed(_wave_number: int, _wave: WaveDefinition) -> void:
 	_refresh_state()
 
 
+func _on_next_wave_availability_changed() -> void:
+	_refresh_state()
+
+
 func _on_wave_released(_wave_number: int, _wave: WaveDefinition) -> void:
 	clear_hover_preview()
 	_refresh_state()
@@ -196,6 +206,8 @@ func _disconnect_wave_manager() -> void:
 		return
 	if _wave_manager.next_wave_changed.is_connected(_on_next_wave_changed):
 		_wave_manager.next_wave_changed.disconnect(_on_next_wave_changed)
+	if _wave_manager.next_wave_availability_changed.is_connected(_on_next_wave_availability_changed):
+		_wave_manager.next_wave_availability_changed.disconnect(_on_next_wave_availability_changed)
 	if _wave_manager.wave_released.is_connected(_on_wave_released):
 		_wave_manager.wave_released.disconnect(_on_wave_released)
 	if _wave_manager.state_changed.is_connected(_on_wave_state_changed):

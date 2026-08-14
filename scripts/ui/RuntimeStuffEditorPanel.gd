@@ -7,8 +7,16 @@ const RuntimeStuffEditorControllerScript := preload("res://scripts/stuff/Runtime
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+signal debug_console_requested
+signal runtime_parameter_editor_requested
+signal tutorial_editor_requested
+
 var _controller: RuntimeStuffEditorControllerScript
+var _debug_entry_buttons: VBoxContainer
+var _debug_console_button: Button
 var _toggle_button: Button
+var _runtime_parameter_editor_button: Button
+var _tutorial_editor_button: Button
 var _workspace: PanelContainer
 var _content_scroll: ScrollContainer
 var _palette: VBoxContainer
@@ -28,6 +36,10 @@ var _ramp_base_option: OptionButton
 var _ramp_terrain_option: OptionButton
 var _rotate_button: Button
 var _discard_confirmation: ConfirmationDialog
+var _debug_tools_enabled: bool = true
+var _debug_console_available: bool = true
+var _runtime_parameter_editor_available: bool = false
+var _tutorial_editor_available: bool = false
 
 
 func _ready() -> void:
@@ -57,22 +69,83 @@ func is_workspace_visible() -> bool:
 	return _workspace != null and _workspace.visible
 
 
+func get_debug_console_button() -> Button:
+	return _debug_console_button
+
+
+func get_level_editor_button() -> Button:
+	return _toggle_button
+
+
+func get_runtime_parameter_editor_button() -> Button:
+	return _runtime_parameter_editor_button
+
+
+func configure_debug_entries(
+	debug_console_available: bool,
+	runtime_parameter_editor_available: bool
+) -> void:
+	_debug_console_available = debug_console_available
+	_runtime_parameter_editor_available = runtime_parameter_editor_available
+	_refresh_debug_tools_state()
+
+
+func configure_tutorial_entry(available: bool) -> void:
+	_tutorial_editor_available = available
+	_refresh_debug_tools_state()
+
+
+func set_debug_tools_enabled(enabled: bool) -> void:
+	_debug_tools_enabled = enabled
+	_refresh_debug_tools_state()
+
+
 func get_palette_definition_count() -> int:
 	return _definition_buttons.size()
 
 
 func _build_interface() -> void:
+	_debug_entry_buttons = VBoxContainer.new()
+	_debug_entry_buttons.name = "DebugEntryButtons"
+	_debug_entry_buttons.position = Vector2(18.0, 206.0)
+	_debug_entry_buttons.add_theme_constant_override("separation", 6)
+	add_child(_debug_entry_buttons)
+
+	_debug_console_button = Button.new()
+	_debug_console_button.name = "DebugConsoleButton"
+	_debug_console_button.text = "调试控制台"
+	_debug_console_button.custom_minimum_size = Vector2(180.0, 38.0)
+	_debug_console_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_debug_console_button.pressed.connect(debug_console_requested.emit)
+	_debug_entry_buttons.add_child(_debug_console_button)
+
 	_toggle_button = Button.new()
+	_toggle_button.name = "RuntimeLevelEditorButton"
 	_toggle_button.text = "运行时关卡编辑"
-	_toggle_button.position = Vector2(18.0, 206.0)
-	_toggle_button.size = Vector2(142.0, 38.0)
+	_toggle_button.custom_minimum_size = Vector2(180.0, 38.0)
 	_toggle_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	_toggle_button.pressed.connect(_on_toggle_pressed)
-	add_child(_toggle_button)
+	_debug_entry_buttons.add_child(_toggle_button)
+
+	_runtime_parameter_editor_button = Button.new()
+	_runtime_parameter_editor_button.name = "RuntimeParameterEditorButton"
+	_runtime_parameter_editor_button.text = "运行时参数编辑"
+	_runtime_parameter_editor_button.custom_minimum_size = Vector2(180.0, 38.0)
+	_runtime_parameter_editor_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_runtime_parameter_editor_button.pressed.connect(runtime_parameter_editor_requested.emit)
+	_debug_entry_buttons.add_child(_runtime_parameter_editor_button)
+
+	_tutorial_editor_button = Button.new()
+	_tutorial_editor_button.name = "TutorialRuntimeEditorButton"
+	_tutorial_editor_button.text = "运行时教程编辑"
+	_tutorial_editor_button.custom_minimum_size = Vector2(180.0, 38.0)
+	_tutorial_editor_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tutorial_editor_button.pressed.connect(tutorial_editor_requested.emit)
+	_debug_entry_buttons.add_child(_tutorial_editor_button)
 
 	_workspace = PanelContainer.new()
-	_workspace.position = Vector2(18.0, 252.0)
-	_workspace.size = Vector2(300.0, 610.0)
+	_workspace.position = Vector2(18.0, 390.0)
+	_workspace.size = Vector2(300.0, 560.0)
 	_workspace.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_workspace)
 	var margin := MarginContainer.new()
@@ -289,11 +362,29 @@ func _on_toggle_pressed() -> void:
 
 
 func _on_active_changed(active: bool) -> void:
-	visible = feature_enabled
-	_toggle_button.visible = feature_enabled
 	_toggle_button.text = "退出关卡编辑" if active else "运行时关卡编辑"
-	_workspace.visible = feature_enabled and active
+	_refresh_debug_tools_state()
 	_refresh_history()
+
+
+func _refresh_debug_tools_state() -> void:
+	if _debug_entry_buttons == null:
+		return
+	var enabled := feature_enabled and _debug_tools_enabled
+	visible = enabled
+	_debug_entry_buttons.visible = enabled
+	_debug_console_button.disabled = not _debug_console_available
+	_debug_console_button.tooltip_text = "" if _debug_console_available else "调试控制台未启用"
+	_toggle_button.disabled = _controller == null
+	_runtime_parameter_editor_button.disabled = not _runtime_parameter_editor_available
+	_runtime_parameter_editor_button.tooltip_text = (
+		"" if _runtime_parameter_editor_available else "仅在项目源码开发运行时可用"
+	)
+	_tutorial_editor_button.disabled = not _tutorial_editor_available
+	_tutorial_editor_button.tooltip_text = (
+		"" if _tutorial_editor_available else "教程编辑器尚未装配"
+	)
+	_workspace.visible = enabled and _controller != null and _controller.is_active()
 
 
 func _on_definition_pressed(definition: StuffDefinition) -> void:

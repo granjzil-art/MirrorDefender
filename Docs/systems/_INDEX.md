@@ -16,7 +16,7 @@
 | 波次 | [Wave_波次系统.md](Wave_波次系统.md) | 逐波手动释放 + 可重叠 + 波内归一延迟 + 胜负/Debug 边界 |
 | 索敌战斗 | [Combat_索敌与战斗.md](Combat_索敌与战斗.md) | 固定伤害×因子 |
 | 路径 | [Path_路径系统.md](Path_路径系统.md) | 手动指定路径 |
-| 相机输入 | [CameraInput_相机与输入.md](CameraInput_相机与输入.md) | WASD/QE/XC/滚轮 + 每关 1～6 镜头预设 + 深度驱动微缩景深 |
+| 相机输入 | [CameraInput_相机与输入.md](CameraInput_相机与输入.md) | WASD/QE/XC/滚轮 + 始终可用的 1/2 镜头预设 + 深度驱动微缩景深 |
 | UI/HUD | [UI_界面系统.md](UI_界面系统.md) | 持久 AppFlow 选关 + 正式 HUD + 右侧波次/重启/退出三按钮 |
 | 调试控制台 | [Debug_调试控制台.md](Debug_调试控制台.md) | F1 模态、八类开关与命令注册表 |
 | AI | [AI_敌方AI系统.md](AI_敌方AI系统.md) | 手工路径移动 + 受阻时在手工路径间换路 |

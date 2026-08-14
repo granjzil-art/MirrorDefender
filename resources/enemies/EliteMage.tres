@@ -1,6 +1,14 @@
 [gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://4e0b3ka28ktr"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
+[ext_resource type="PackedScene" uid="uid://cijs45ldnba30" path="res://assets/enemies/wizard/wizard.tscn" id="2_model"]
+[ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="3_model_asset"]
+
+[sub_resource type="Resource" id="Resource_wizard_model"]
+script = ExtResource("3_model_asset")
+scene = ExtResource("2_model")
+runtime_scale = Vector3(0.5, 0.5, 0.5)
+metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
@@ -10,7 +18,7 @@ max_hp = 300.0
 move_speed = 0.65
 base_damage = 15.0
 reward = 30.0
-hit_radius = 0.42
+hit_radius = 0.5
 is_elite = true
 movement_active_duration = 5.0
 movement_pause_duration = 2.0
@@ -19,6 +27,7 @@ armor_aura_bonus = 4.0
 attack_damage = 14.0
 attacks_per_second = 0.7
 attack_range = 0.75
+model_asset = SubResource("Resource_wizard_model")
 body_color = Color(0.58, 0.22, 0.92, 1)
 body_height = 0.95
 attack_color = Color(0.84, 0.52, 1, 1)

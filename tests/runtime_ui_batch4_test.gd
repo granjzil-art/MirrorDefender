@@ -74,6 +74,8 @@ func _test_wave_control_panel(fixture: Dictionary) -> void:
 	_preview_clear_count = 0
 	panel.paths_preview_requested.connect(_on_paths_preview_requested)
 	panel.paths_preview_cleared.connect(_on_paths_preview_cleared)
+	var player_release_events: Array[bool] = []
+	panel.next_wave_released_by_player.connect(func() -> void: player_release_events.append(true))
 	panel.preview_next_wave_for_test()
 	_expect(panel.get_previewed_wave_number() == 1, "hover previews the next unreleased wave")
 	_expect(panel.info_panel.visible and panel.info_details.text.contains("测试步兵"), "next-wave hover opens enemy details")
@@ -82,6 +84,7 @@ func _test_wave_control_panel(fixture: Dictionary) -> void:
 	await process_frame
 	var wave_manager: WaveManager = fixture["wave"]
 	_expect(wave_manager.get_current_wave_number() == 1, "one next-wave click releases exactly one wave")
+	_expect(player_release_events.size() == 1, "successful next-wave click emits one player-release event")
 	_expect(not panel.info_panel.visible and _preview_clear_count > 0, "wave release clears details and path preview")
 	panel.preview_next_wave_for_test()
 	_expect(panel.get_previewed_wave_number() == 2 and panel.info_details.text.contains("测试弓箭手"), "after release hover advances to the next wave")
@@ -92,6 +95,7 @@ func _test_wave_control_panel(fixture: Dictionary) -> void:
 	panel.start_button.pressed.emit()
 	await process_frame
 	_expect(wave_manager.get_current_wave_number() == 2 and panel.start_button.disabled, "final release disables the next-wave button")
+	_expect(player_release_events.size() == 2, "each successful player release emits exactly one event")
 	panel.queue_free()
 	await process_frame
 

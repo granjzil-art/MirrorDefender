@@ -8,6 +8,7 @@ const ContinuousLaserVisualScript := preload("res://scripts/combat/ContinuousLas
 const PulseLaserAttackStrategyScript := preload("res://scripts/combat/PulseLaserAttackStrategy.gd")
 const MaceAttackStrategyScript := preload("res://scripts/combat/MaceAttackStrategy.gd")
 const BarrierDurabilityScript := preload("res://scripts/building/BarrierDurability.gd")
+const SelectionHighlightScript := preload("res://scripts/presentation/SelectionHighlight.gd")
 const ACTION_ANCHOR_HEIGHT_RATIO := 1.15
 const FREE_FACING_SLOT_COUNT := 36
 const FREE_FACING_STEP_DEGREES := 10.0
@@ -52,6 +53,7 @@ var _attack_strategy: IAttackStrategy
 var _locked_target: CombatTarget
 var _preview_mode: bool = false
 var _preview_valid: bool = true
+var _selected: bool = false
 var _visual_root: Node3D
 var _continuous_laser_visual: Node3D
 var _durability_label: Label3D
@@ -124,6 +126,16 @@ func set_preview_valid(valid: bool) -> void:
 	_refresh_preview_materials(_visual_root)
 
 
+func set_selected(selected: bool) -> void:
+	_selected = selected
+	if _visual_root != null and is_instance_valid(_visual_root):
+		SelectionHighlightScript.apply_recursive(_visual_root, _selected and not _preview_mode)
+
+
+func is_selected() -> bool:
+	return _selected
+
+
 func is_preview_valid() -> bool:
 	return _preview_valid
 
@@ -145,6 +157,36 @@ func relocate_edge_preview(
 	placement_edge_id: String
 ) -> bool:
 	if not _preview_mode or not definition.is_edge_building():
+		return false
+	cell = from_cell
+	edge_to_cell = to_cell
+	edge_index = placement_edge_index
+	edge_id = placement_edge_id
+	refresh_world_transform()
+	set_facing_index(placement_edge_index)
+	return true
+
+
+## Relocates a live tile building without rebuilding its level/combat state.
+## Occupancy ownership is updated atomically by BuildingManager before this is
+## exposed to the rest of the runtime.
+func relocate_runtime_tile(building_cell: Vector3i) -> bool:
+	if _preview_mode or is_edge_placement():
+		return false
+	cell = building_cell
+	refresh_world_transform()
+	return true
+
+
+## Live edge counterpart of relocate_runtime_tile(). Durability, upgrades,
+## investment, and active attack strategy remain owned by this same instance.
+func relocate_runtime_edge(
+	from_cell: Vector3i,
+	to_cell: Vector3i,
+	placement_edge_index: int,
+	placement_edge_id: String
+) -> bool:
+	if _preview_mode or definition == null or not definition.is_edge_building():
 		return false
 	cell = from_cell
 	edge_to_cell = to_cell
@@ -479,6 +521,7 @@ func uses_targeting_range() -> bool:
 	return (
 		definition != null
 		and not definition.is_defensive_structure()
+		and not fires_only_along_facing()
 		and (
 			definition.aim_mode == BuildingDefinition.AimMode.TRACK_TARGET
 			or definition.kind == BuildingDefinition.Kind.MACE_TOWER
@@ -495,7 +538,17 @@ func get_attacks_per_second() -> float:
 func fires_along_facing_without_target() -> bool:
 	return (
 		_stats != null
-		and _stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING
+		and _stats.projectile_fire_mode in [
+			BuildingLevelStats.ProjectileFireMode.TARGET_OR_FACING,
+			BuildingLevelStats.ProjectileFireMode.FACING_ONLY,
+		]
+	)
+
+
+func fires_only_along_facing() -> bool:
+	return (
+		_stats != null
+		and _stats.projectile_fire_mode == BuildingLevelStats.ProjectileFireMode.FACING_ONLY
 	)
 
 
@@ -899,8 +952,8 @@ func _build_visual() -> void:
 		if is_bidirectional_edge_blocker():
 			_build_direction_marker(true)
 	elif not is_path_blocker():
-		_build_direction_marker()
 		_build_attack_line()
+	set_selected(_selected)
 
 func _build_default_body() -> void:
 	if is_path_blocker():

@@ -20,10 +20,10 @@
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放和景深开关即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
 - **关卡失败画面（2026-08-11）**：`WaveManager.defeat` 打开比暂停菜单更高的输入阻断层，并经 `GameTimeController` 锁定 0x。失败画面直接复用第二个 `PauseMenu` 实例和同一个 `RuntimeSettings` 对象，因此设置控件、配置文件与即时应用语义一致。“重新挑战”复用当前关卡深重载，“返回选关”复用 AppFlow 退关；Esc/通用关闭不会跳过失败结果。
 - **关卡胜利画面（2026-08-13）**：`WaveManager.victory` 打开同级结果模态并锁定 0x，根据共享据点剩余生命显示即时评价：`1～5` 为 `★☆☆`、`6～15` 为 `★★☆`、`>15` 为 `★★★`；生命归零仍进入失败画面。胜利画面只显示“重启关卡”和“返回标题”两个按钮，不显示设置；两者分别复用当前关卡深重载与 AppFlow 返回现役选关页，Esc/通用关闭不会跳过胜利结果。
-- **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；最后一波释放后禁用，另外两按钮仍可用。
+- **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；成功后清除当前选卡/建筑/镜子及对应战术时缓，恢复此前 1x/2x/4x 档位。最后一波释放后禁用，另外两按钮仍可用。
 - **下一波悬停预览（2026-08-03）**：悬停释放按钮时，`WaveTimelineModel` 聚合下一波敌人构成、唯一路径及地面/空中路线档案；请求经 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发并读取周期刷新的真实弯折路线。离开、点击、切关、暂停或控制台模态打开都会清除预览。
 - **旧左侧时间轴（历史兼容）**：`WaveTimelinePanel.gd/.tscn` 保留 2026-07-22 批次 4 历史实现，但 `RuntimeHud.tscn` 已不再实例化；“首波手动、后续自动”和纵向绝对时间轴不再是现役事实。
-- **F1 调试控制台（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。控制台、暂停菜单与胜利/失败画面共享 `RuntimeHud.is_modal_open()` 输入边界；控制台打开时阻断世界、相机、六机位和波次路径预览，但不自动改变游戏时间。
+- **F1 调试工具（批次 6 已实现）**：最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。F1 只控制调试工具，不关闭正式镜头键 `1/2`；控制台展开时仍按模态规则阻断世界和相机输入，但不自动改变游戏时间。
 - **左上常驻调试信息（批次 6 已实现）**：控制台勾选或 `debug set` 启用的分类会同步显示在游戏画面左上角；关闭控制台后继续按真实时间刷新，全部关闭时自动收起。旧“波次时间轴上方预留区”仅是历史布局描述，现役左侧无正式时间轴。
 - **现役布局**：程序启动/退关时由 `LevelSelectView` 在纯黑幕上仅显示 2×3 六槽缩略图和两侧翻页箭头，不显示外框、标题、页名、页码、关卡名或空槽；局内底部是镜子/建筑卡，右上是六项无框图标统计，最右侧中部是三波次按钮，右下只保留时间控制，暂停与控制台位于模态层。左侧不实例化地块详情或正式波次时间轴。
 - **全局信息**：右上显示剩余据点生命、当前/总波次、金币、建筑容量与两种镜子的独立容量；不显示关卡名、场上敌人数或“本波剩余”第二份状态。
@@ -48,7 +48,7 @@
 | 缩放适配 | expand | UI 缩放模式（适配不同分辨率） |
 | minimap_enabled | true | 小地图开关 |
 | hint_enabled | true | 操作提示开关 |
-| Main.`debug_console_enabled` | true | 正式 F1 控制台与左上常驻调试层总开关。 |
+| Main.`debug_console_enabled` | true | 是否提供按钮打开的控制台与左上调试摘要；F1 另作为全部调试工具的运行时总开关。 |
 | DebugConsole.`live_refresh_interval` / `max_history_lines` | 0.2 / 200 | 实时摘要刷新间隔和命令历史行数上限。 |
 | DebugConsole.`panel_texture` / `execute_icon` | null | 控制台镜面背景与执行按钮美术接口。 |
 | DebugOverlayPanel.`feature_enabled` / `refresh_interval` | true / 0.2 | 左上常驻调试摘要总开关和真实时间刷新间隔。 |
@@ -62,6 +62,7 @@
 | BuildCardBar.`card_separation` | 6 | 建筑卡之间的像素间距。 |
 | BuildCardBar.`mirror_slot_separation` | 14 | 独立镜子槽与建筑槽组之间的间距。 |
 | RuntimeHud.`CardStyleToggle` | 左上 `(18,68)` | 位于灯光测试栏下方，在默认程序镜面和原画卡面之间即时切换；运行时元素编辑开启时随卡槽隐藏。 |
+| RuntimeStuffEditorPanel.`DebugEntryButtons` | 左侧 `(18,206)` | 常驻调试控制台、运行时关卡编辑、运行时参数编辑三按钮；整体随 F1 调试总开关显隐。 |
 | BuildCardBar.`card_visual_mode` | `PROCEDURAL_MIRROR` | `FULL_ARTWORK` 隐藏有完整素材建筑的程序槽框/名称，空槽透明；缺素材建筑回退程序镜面。 |
 | BuildCardBar.`full_art_cost_top_ratio` / `full_art_cost_color` | 0.11 / 金色 | 原画卡面实时费用在镜面上部的纵向位置和颜色。 |
 | BuildCardBar.`full_art_alpha_trim_threshold` | 0.03 | 自动裁剪完整卡面透明留白的 Alpha 阈值。 |
@@ -191,6 +192,9 @@ ResourceManager / BaseCore / WaveManager signals
   -> BuildCardBar / EconomyPanel / GlobalInfoPanel
 
 WaveControlPanel start -> WaveManager.start_next_wave()
+  -> success: next_wave_released_by_player
+  -> RuntimeHud -> RuntimeInteractionController.cancel_to_select(true)
+  -> GameTimeController restores remembered playback scale
 WaveControlPanel hover next wave
   -> WaveTimelineModel.build(level) read-only entry at release cursor
   -> paths_preview_requested(paths)

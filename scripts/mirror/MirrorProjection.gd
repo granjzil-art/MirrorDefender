@@ -359,10 +359,9 @@ func sync_source_visual_pose() -> bool:
 func _apply_projection_materials(node: Node) -> void:
 	if node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
-		_prepare_projection_materials(mesh_instance)
-		mesh_instance.transparency = 1.0 - clampf(_definition.projection_alpha, 0.05, 1.0)
-		if preview_mode and not preview_valid:
-			mesh_instance.material_overlay = _make_invalid_preview_material()
+		if mesh_instance.mesh != null:
+			_prepare_projection_materials(mesh_instance)
+			mesh_instance.transparency = 1.0 - _get_projection_alpha()
 	for child in node.get_children():
 		_apply_projection_materials(child)
 
@@ -372,18 +371,12 @@ func _refresh_projection_instance_state(node: Node) -> void:
 		return
 	if node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
-		mesh_instance.transparency = 1.0 - clampf(_definition.projection_alpha, 0.05, 1.0)
-		if preview_valid:
-			mesh_instance.material_overlay = null
-		else:
-			var invalid_overlay := mesh_instance.material_overlay as ShaderMaterial
-			if invalid_overlay == null or invalid_overlay.shader != _shared_rim_shader:
-				invalid_overlay = _make_invalid_preview_material()
-				mesh_instance.material_overlay = invalid_overlay
-			else:
-				invalid_overlay.render_priority = _get_render_priority(true)
-				invalid_overlay.set_shader_parameter("accent", _accent_color)
-				invalid_overlay.set_shader_parameter("rim_alpha", _definition.projection_rim_alpha)
+		if mesh_instance.mesh == null:
+			for child in node.get_children():
+				_refresh_projection_instance_state(child)
+			return
+		mesh_instance.transparency = 1.0 - _get_projection_alpha()
+		_refresh_projection_overlay_materials(mesh_instance)
 		if mesh_instance.material_override != null:
 			mesh_instance.material_override.render_priority = _get_render_priority(false)
 		elif mesh_instance.mesh != null:
@@ -395,11 +388,17 @@ func _refresh_projection_instance_state(node: Node) -> void:
 		_refresh_projection_instance_state(child)
 
 ## GeometryInstance3D.transparency fades every source surface without replacing
-## its material. Per-instance duplicates are used only for deterministic render
-## order and mirrored culling, preserving every source color, texture and shader.
+## its material. A blue overlay makes the whole model unmistakably virtual while
+## per-instance source duplicates preserve textures and mirrored culling.
 func _prepare_projection_materials(mesh_instance: MeshInstance3D) -> void:
+	# A selected source snapshot may carry its red live-selection overlay. Copies
+	# always replace that state with their own blue next pass.
+	mesh_instance.material_overlay = null
 	if mesh_instance.material_override != null:
-		mesh_instance.material_override = _duplicate_source_material(mesh_instance.material_override)
+		mesh_instance.material_override = _duplicate_source_material(
+			mesh_instance.material_override,
+			_make_projection_overlay_material()
+		)
 		return
 	if mesh_instance.mesh == null:
 		return
@@ -407,16 +406,26 @@ func _prepare_projection_materials(mesh_instance: MeshInstance3D) -> void:
 		var source_material := mesh_instance.get_surface_override_material(surface_index)
 		if source_material == null:
 			source_material = mesh_instance.mesh.surface_get_material(surface_index)
-		if source_material != null:
-			mesh_instance.set_surface_override_material(
-				surface_index,
-				_duplicate_source_material(source_material)
+		if source_material == null:
+			var fallback_material := StandardMaterial3D.new()
+			fallback_material.albedo_color = Color.WHITE
+			source_material = fallback_material
+		mesh_instance.set_surface_override_material(
+			surface_index,
+			_duplicate_source_material(
+				source_material,
+				_make_projection_overlay_material()
 			)
+		)
 
 
-func _duplicate_source_material(source_material: Material) -> Material:
+func _duplicate_source_material(
+	source_material: Material,
+	projection_overlay: ShaderMaterial
+) -> Material:
 	var material := source_material.duplicate() as Material
 	material.render_priority = _get_render_priority(false)
+	material.next_pass = projection_overlay
 	if material is BaseMaterial3D:
 		var base_material := material as BaseMaterial3D
 		base_material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -424,7 +433,28 @@ func _duplicate_source_material(source_material: Material) -> Material:
 	return material
 
 
-func _make_invalid_preview_material() -> ShaderMaterial:
+func _refresh_projection_overlay_materials(mesh_instance: MeshInstance3D) -> void:
+	var materials: Array[Material] = []
+	if mesh_instance.material_override != null:
+		materials.append(mesh_instance.material_override)
+	elif mesh_instance.mesh != null:
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var material := mesh_instance.get_surface_override_material(surface_index)
+			if material != null:
+				materials.append(material)
+	for material in materials:
+		var projection_overlay := material.next_pass as ShaderMaterial
+		if projection_overlay == null or projection_overlay.shader != _shared_rim_shader:
+			projection_overlay = _make_projection_overlay_material()
+			material.next_pass = projection_overlay
+		else:
+			projection_overlay.render_priority = _get_render_priority(true)
+			projection_overlay.set_shader_parameter("accent", _accent_color)
+			projection_overlay.set_shader_parameter("rim_alpha", _definition.projection_rim_alpha)
+			projection_overlay.set_shader_parameter("body_alpha", 0.32 if not preview_valid else 0.18)
+
+
+func _make_projection_overlay_material() -> ShaderMaterial:
 	if _shared_rim_shader == null:
 		_shared_rim_shader = Shader.new()
 		_shared_rim_shader.code = """
@@ -432,11 +462,12 @@ shader_type spatial;
 render_mode unshaded, cull_disabled, blend_mix;
 uniform vec4 accent : source_color;
 uniform float rim_alpha = 0.42;
+uniform float body_alpha = 0.18;
 void fragment() {
-	float rim = pow(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 2.2);
+	float rim = pow(1.0 - abs(dot(normalize(NORMAL), normalize(VIEW))), 1.65);
 	ALBEDO = accent.rgb;
-	EMISSION = accent.rgb * (0.8 + rim * 1.8);
-	ALPHA = clamp(rim * rim_alpha, 0.0, 0.78);
+	EMISSION = accent.rgb * (0.72 + rim * 2.8);
+	ALPHA = clamp(body_alpha + rim * rim_alpha, 0.0, 0.72);
 }
 """
 	var material := ShaderMaterial.new()
@@ -444,7 +475,14 @@ void fragment() {
 	material.render_priority = _get_render_priority(true)
 	material.set_shader_parameter("accent", _accent_color)
 	material.set_shader_parameter("rim_alpha", _definition.projection_rim_alpha)
+	material.set_shader_parameter("body_alpha", 0.32 if not preview_valid else 0.18)
 	return material
+
+
+func _get_projection_alpha() -> float:
+	if payload != null:
+		return clampf(payload.projection_alpha, 0.05, 0.75)
+	return clampf(_definition.projection_alpha, 0.05, 0.75)
 
 func _build_stack_indicator() -> void:
 	var ring := MeshInstance3D.new()
@@ -510,7 +548,4 @@ func _get_render_priority(overlay_pass: bool) -> int:
 func _resolve_accent_color() -> Color:
 	if preview_mode and not preview_valid:
 		return _definition.invalid_preview_color
-	var stable_hash := absi(payload.stable_key.hash()) if payload != null else 0
-	var hue_shift := fmod(float(stable_hash % 997) / 997.0 + float(_stack_index) * 0.173, 1.0)
-	var palette_color := Color.from_hsv(hue_shift, 0.58, 1.0, 1.0)
-	return _definition.projection_tint.lerp(palette_color, 0.46)
+	return _definition.projection_tint

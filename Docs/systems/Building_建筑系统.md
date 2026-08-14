@@ -12,7 +12,7 @@
 - **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑显示名称、基础功能说明、1–3 级说明、对象可见性和字段行。四段说明同时供建筑卡悬停框与选中建筑说明页使用；正文支持 `[color=#RRGGBB]…[/color]`、`[highlight=#RRGGBB]…[/highlight]` 和 `[b]…[/b]` 白名单标记，其他 BBCode 作为普通文字。说明不参与玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
-- **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔仍可逐级选择 `TARGET_ONLY` / `TARGET_OR_FACING`，但不启用导弹开关。
+- **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔类可逐级选择 `TARGET_ONLY`、`TARGET_OR_FACING` 或 `FACING_ONLY`；最后一种完全跳过索敌，无论场上是否存在目标都只沿逻辑朝向周期直射。
 - **钉锤 / 固定多方向齐射**：`resources/buildings/MaceTower.tres` 使用独立 `MACE_TOWER` 类型。1级按当前逻辑朝向四等分齐射，2级解锁八等分齐射；1、2级只有在半径 `targeting_range` 内存在有效敌人时开火。3级保持八向，提升本级伤害、飞行距离、攻速和穿透，并解锁 `TARGET_OR_FACING`，没有敌人时也持续齐射。钉锤不选择单个目标，也不自动转向。
 - **激光塔**：不索敌，使用 `FIXED_FACING`。持续光路与其它塔共用反射镜和 Stuff 查询，所有反射段共享 `attack_range`；`projectile_penetration_count=N` 允许额外穿过 N 个敌人，下一个敌人承伤后截断光路。每次持续命中附带寒冷，目标模型表面临时切换为深蓝脉动 Shader；2 级起每隔可调时间在当前已传播光路的首个存活敌人处产生一次圆形伤害/减速爆发，无命中时不空爆，3 级再追加冻结。表现保留较粗直线主轴，并由两条左右平移、持续传播且带平滑噪声的细正弦光丝夹住；波形只作用于渲染顶点。复制塔从镜像起点独立重算同一套光路、首个命中点和效果，并复用相同光丝表现。
 - **脉冲镭射塔**：保留旧激光塔的同时新增独立 `PULSE_LASER_TOWER`。固定朝向且无论有无敌人都按 `attacks_per_second` 周期开火；发射时瞬间固化整条可反射路径，渐入、保持、渐出均为线性可调。只在进入保持阶段的一瞬间按 `base_damage × level_factor × extra_factor` 结算；各反射光段独立无限穿透敌人，因此同一敌人可被不同光段多次命中。
@@ -83,7 +83,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | Defense | `regeneration_per_second` | 脱战后的每秒耐久恢复量，0 表示不回血。 |
 | Defense | `damage_reflection_ratio` | 按实际承伤反射给攻击者的比例，范围 0~1。 |
 | Projectile | `projectile_speed` | 单发投射物速度，单位为格/秒。 |
-| Projectile | `projectile_fire_mode` | `TARGET_ONLY` 无目标停火；`TARGET_OR_FACING` 无目标时沿逻辑朝向持续直射。该字段逐等级独立配置。 |
+| Projectile | `projectile_fire_mode` | `TARGET_ONLY` 只对索敌目标开火；`TARGET_OR_FACING` 有目标追踪、无目标沿朝向直射；`FACING_ONLY` 完全不索敌，只沿逻辑朝向周期直射。该字段逐等级独立配置。 |
 | Projectile | `projectile_length` | 短直线投射物长度，运行时下限 0.1，不会缩成点。 |
 | Projectile | `projectile_width` | 投射物宽度。 |
 | Projectile | `projectile_direction_count` | 固定齐射方向数，钉锤1级为4、2/3级为8；其它建筑保持1。 |
@@ -197,6 +197,7 @@ Missile Tower (stable CROSSBOW_TOWER kind)
   -> acquire in targeting_range
 	-> aim_mode=TRACK_TARGET: rotate visual_root toward locked target
 	-> no target + TARGET_OR_FACING: spawn straight projectile along logical facing
+	-> FACING_ONLY: skip acquire_target and always spawn along logical facing
   -> Building.affects_target filters airborne targets
   -> verify attack_range
   -> CombatManager.spawn_projectile
@@ -264,6 +265,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `has_target_in_range` | `() -> bool` | 只检查有效目标是否位于当前级索敌范围，不锁定目标。 |
 | `get_projectile_direction_count` / `get_projectile_penetration_count` | `() -> int` / `() -> int` | 返回当前级齐射方向数和额外穿透预算。 |
 | `fires_along_facing_without_target` | `() -> bool` | 读取当前级 `projectile_fire_mode`，不按建筑种类硬编码。 |
+| `fires_only_along_facing` | `() -> bool` | 当且仅当本级为 `FACING_ONLY` 时返回 true，供攻击策略跳过索敌并隐藏索敌范围。 |
 | `get_occupied_cells` | `() -> Array[Vector3i]` | 返回当前建筑真实占格，供选择表现和未来多格建筑复用。 |
 | `get_projectile_model_asset` | `() -> ModelAssetDefinition` | 返回复制体投射物必须沿用的当前等级资产。 |
 | `uses_missile_projectiles` | `() -> bool` | 读取当前级 `projectile_is_missile`。 |
