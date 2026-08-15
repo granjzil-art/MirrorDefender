@@ -225,9 +225,7 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	manager.copy_mirror_definition.inspection_display = InspectionDisplayConfigScript.new()
 	manager.copy_mirror_definition.inspection_display.display_name = "测试复制镜"
 	manager.copy_mirror_definition.inspection_display.function_description = "复制镜基础说明。"
-	manager.copy_mirror_definition.inspection_display.level_1_description = "一级说明。"
-	manager.copy_mirror_definition.inspection_display.level_2_description = "二级说明。"
-	manager.copy_mirror_definition.inspection_display.level_3_description = "三级说明。"
+	manager.copy_mirror_definition.upgrade_description = "升级说明。"
 	var copy_from := Vector3i(1, 1, 0)
 	var copy_edge := grid.find_edge_index(copy_from, Vector3i(2, 1, 0))
 	var copy := manager.place_copy_mirror(copy_from, copy_edge, true)
@@ -286,6 +284,13 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and info_description.get_parsed_text()
 		== manager.copy_mirror_definition.get_formatted_inspection_description(),
 		"mirror explanation action uses the same compact rich text as card hover"
+	)
+	_expect(
+		info_description.get_parsed_text().split("\n").size() == 2
+		and info_description.get_parsed_text().contains("基础描述：")
+		and info_description.get_parsed_text().contains("升级：")
+		and not info_description.get_parsed_text().contains("1级："),
+		"two-level mirror descriptions use only the semantic base and upgrade rows"
 	)
 	_expect(
 		info_page.size.y < 300.0

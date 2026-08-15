@@ -1,5 +1,13 @@
 # 技术与玩法决策记录
 
+## 2026-08-15 · 说明改为对象语义行而非等级行
+
+**决策**：镜子只导出“基础描述：”和“升级：”两行；塔只导出“基础描述：”、“强化复制：”和“强化反射：”三行。三个行序位依次使用原绿/黄/红标题色，正文默认白色并继续支持受控标记。
+
+**作者契约**：基础正文继续由 `InspectionDisplayConfig.function_description` 持有；塔的 `BuildingDefinition.copy_enhancement_description / reflection_enhancement_description` 和镜子的 `MirrorDefinition.upgrade_description` 是新的空白编辑字段。卡片悬停和选中实体说明仍调用同一 Definition 格式化入口。
+
+**无兼容边界**：`level_1_description / level_2_description / level_3_description` 及旧格式化函数直接删除，正式 `.tres` 中的旧等级说明同步清空，不迁移到新语义字段。本决策取代 2026-08-13 和 2026-08-12 记录中关于 1–3 级说明行的契约。
+
 ## 2026-08-13 · 投射物开火模式追加纯固定朝向
 
 **决策**：`BuildingLevelStats.ProjectileFireMode` 在既有 `TARGET_ONLY=0`、`TARGET_OR_FACING=1` 之后追加 `FACING_ONLY=2`。该模式不调用 `acquire_target()`，不建立 `_locked_target`，也不暴露索敌范围；每次冷却到期直接沿建筑逻辑朝向调用方向投射物入口。普通箭和导弹分别因此成为直线弹与无标记的绕圈后直飞弹。

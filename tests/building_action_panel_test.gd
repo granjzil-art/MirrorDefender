@@ -56,9 +56,8 @@ func _run() -> void:
 	definition.display_name = "测试塔"
 	definition.inspection_display = InspectionDisplayConfigScript.new()
 	definition.inspection_display.function_description = "这段文本可在每个建筑定义中独立编辑。"
-	definition.inspection_display.level_1_description = "一级说明"
-	definition.inspection_display.level_2_description = "二级说明"
-	definition.inspection_display.level_3_description = "三级说明"
+	definition.copy_enhancement_description = "复制镜强化说明"
+	definition.reflection_enhancement_description = "反射镜强化说明"
 	var level_one := BuildingLevelStats.new()
 	level_one.cost = 80.0
 	var level_two := BuildingLevelStats.new()
@@ -105,6 +104,14 @@ func _run() -> void:
 		and description.text == definition.get_formatted_inspection_description_bbcode()
 		and description.get_parsed_text() == definition.get_formatted_inspection_description(),
 		"the information page renders the shared colored labels and white authored text"
+	)
+	_expect(
+		description.get_parsed_text().split("\n").size() == 3
+		and description.get_parsed_text().contains("基础描述：")
+		and description.get_parsed_text().contains("强化复制：")
+		and description.get_parsed_text().contains("强化反射：")
+		and not description.get_parsed_text().contains("1级："),
+		"tower explanations use exactly three semantic colored-heading rows"
 	)
 	_expect(
 		title.get_theme_font_size("font_size") == 22

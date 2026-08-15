@@ -9,7 +9,7 @@
 ## 分类 / 做法
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
-- **检视配置**：每个 `BuildingDefinition.inspection_display` 可独立编辑显示名称、基础功能说明、1–3 级说明、对象可见性和字段行。四段说明同时供建筑卡悬停框与选中建筑说明页使用；正文支持 `[color=#RRGGBB]…[/color]`、`[highlight=#RRGGBB]…[/highlight]` 和 `[b]…[/b]` 白名单标记，其他 BBCode 作为普通文字。说明不参与玩法结算，虚像沿用根源建筑配置。
+- **检视配置**：每个塔的说明固定为三个可编辑语义字段：`inspection_display.function_description` 基础描述、`copy_enhancement_description` 强化复制、`reflection_enhancement_description` 强化反射。后两个新字段默认留空，不从旧等级说明迁移。三行绿/黄/红标题与默认白色正文同时供建筑卡悬停框和选中建筑说明页使用；正文支持 `[color]`、`[highlight]`、`[b]` 白名单标记。说明不参与玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔类可逐级选择 `TARGET_ONLY`、`TARGET_OR_FACING` 或 `FACING_ONLY`；最后一种完全跳过索敌，无论场上是否存在目标都只沿逻辑朝向周期直射。
@@ -121,7 +121,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | 文件 | class_name / 基类 | 角色 |
 |---|---|---|
 | `scripts/building/BuildingLevelStats.gd` | `BuildingLevelStats` / `Resource` | 一项建筑等级的完整可编辑参数。 |
-| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名、格式化说明入口和最多三项等级数据。 |
+| `scripts/building/BuildingDefinition.gd` | `BuildingDefinition` / `Resource` | 建筑种类、显示名、基础/强化复制/强化反射三行说明入口和最多三项等级数据。 |
 | `scripts/building/BuildingPlacementData.gd` | `BuildingPlacementData` / `Resource` | 一个开局真实建筑的 Definition、格/边、逻辑朝向和等级快照。 |
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | BuildingDefinition/BuildingLevelStats 共用的有限数、范围、颜色和嵌套错误校验。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |

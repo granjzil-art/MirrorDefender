@@ -92,19 +92,14 @@ func _test_card_bar(fixture: Dictionary) -> void:
 	building_manager.arrow_tower.full_card_art = _make_test_full_card_art()
 	building_manager.arrow_tower.inspection_display = InspectionDisplayConfigScript.new()
 	building_manager.arrow_tower.inspection_display.function_description = "基础攻击建筑。"
-	building_manager.arrow_tower.inspection_display.level_1_description = "一级效果。"
-	building_manager.arrow_tower.inspection_display.level_2_description = "二级效果。"
-	building_manager.arrow_tower.inspection_display.level_3_description = "三级效果。"
+	building_manager.arrow_tower.copy_enhancement_description = "复制强化效果。"
+	building_manager.arrow_tower.reflection_enhancement_description = "反射强化效果。"
 	mirror_manager.copy_mirror_definition.inspection_display = InspectionDisplayConfigScript.new()
 	mirror_manager.copy_mirror_definition.inspection_display.function_description = "复制镜基础说明。"
-	mirror_manager.copy_mirror_definition.inspection_display.level_1_description = "复制镜一级效果。"
-	mirror_manager.copy_mirror_definition.inspection_display.level_2_description = "复制镜二级效果。"
-	mirror_manager.copy_mirror_definition.inspection_display.level_3_description = "复制镜三级效果。"
+	mirror_manager.copy_mirror_definition.upgrade_description = "复制镜升级效果。"
 	mirror_manager.reflect_mirror_definition.inspection_display = InspectionDisplayConfigScript.new()
 	mirror_manager.reflect_mirror_definition.inspection_display.function_description = "反射镜基础说明。"
-	mirror_manager.reflect_mirror_definition.inspection_display.level_1_description = "反射镜一级效果。"
-	mirror_manager.reflect_mirror_definition.inspection_display.level_2_description = "反射镜二级效果。"
-	mirror_manager.reflect_mirror_definition.inspection_display.level_3_description = "反射镜三级效果。"
+	mirror_manager.reflect_mirror_definition.upgrade_description = "反射镜升级效果。"
 	card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
@@ -190,7 +185,13 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.text == mirror_manager.copy_mirror_definition.get_formatted_inspection_description_bbcode()
 		and description_text.get_parsed_text()
 		== mirror_manager.copy_mirror_definition.get_formatted_inspection_description(),
-		"copy-mirror card hover uses the mirror definition's shared four-part description"
+		"copy-mirror card hover uses its shared two-row semantic description"
+	)
+	_expect(
+		description_text.get_parsed_text().split("\n").size() == 2
+		and description_text.get_parsed_text().contains("基础描述：")
+		and description_text.get_parsed_text().contains("升级："),
+		"mirror card descriptions contain only base and upgrade rows"
 	)
 	copy_mirror_card.mouse_exited.emit()
 	var reflect_mirror_card := configured_cards_row.get_node("ReflectMirrorCard") as Button
@@ -202,7 +203,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.text == mirror_manager.reflect_mirror_definition.get_formatted_inspection_description_bbcode()
 		and description_text.get_parsed_text()
 		== mirror_manager.reflect_mirror_definition.get_formatted_inspection_description(),
-		"reflect-mirror card hover uses its own editable four-part description"
+		"reflect-mirror card hover uses its own editable two-row description"
 	)
 	reflect_mirror_card.mouse_exited.emit()
 	arrow_card.mouse_entered.emit()
@@ -214,6 +215,13 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.get_parsed_text()
 		== building_manager.arrow_tower.get_formatted_inspection_description(),
 		"card hover and the selected-building info action share one formatted text source"
+	)
+	_expect(
+		description_text.get_parsed_text().split("\n").size() == 3
+		and description_text.get_parsed_text().contains("基础描述：")
+		and description_text.get_parsed_text().contains("强化复制：")
+		and description_text.get_parsed_text().contains("强化反射："),
+		"tower card descriptions contain the three semantic rows"
 	)
 	_expect(
 		description_title.get_theme_font_size("font_size") == 22

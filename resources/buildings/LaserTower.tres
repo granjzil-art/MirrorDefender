@@ -12,9 +12,6 @@ script = ExtResource("3_inspection")
 display_name = "激光塔"
 function_description = "沿固定方向持续发射冰柱激光，减速敌人，升级解锁爆发冰冻效果
 功能性辅助，AOE"
-level_1_description = "持续发射冰柱激光，冰柱激光会被敌人阻挡"
-level_2_description = "提升伤害，射程，穿透数，一定频率造成[color=#349fed]范围爆发减速[/color]"
-level_3_description = "提升伤害，射程，穿透数，爆发范围，[color=#349fed]爆发时冻结敌人[/color]"
 show_position = false
 show_height = false
 show_build_permissions = false

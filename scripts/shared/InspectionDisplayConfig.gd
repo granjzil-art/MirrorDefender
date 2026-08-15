@@ -3,9 +3,9 @@
 class_name InspectionDisplayConfig
 extends Resource
 
-const LEVEL_1_LABEL_BBCODE := "[color=#66d17a][b]1级：[/b][/color]"
-const LEVEL_2_LABEL_BBCODE := "[color=#ffd34e][b]2级：[/b][/color]"
-const LEVEL_3_LABEL_BBCODE := "[color=#ff6666][b]3级：[/b][/color]"
+const PRIMARY_LABEL_COLOR := "#66d17a"
+const SECONDARY_LABEL_COLOR := "#ffd34e"
+const TERTIARY_LABEL_COLOR := "#ff6666"
 const DESCRIPTION_BBCODE_COLOR := "#f0f5ff"
 const MARKUP_BOLD := "b"
 const MARKUP_COLOR := "color"
@@ -20,14 +20,6 @@ const HEX_DIGITS := "0123456789abcdefABCDEF"
 ## Empty text uses the built-in description for legacy resources. Authored text
 ## accepts [color=#RRGGBB], [highlight=#RRGGBB] and [b] paired tags.
 @export_multiline var function_description: String = ""
-
-@export_group("Level Descriptions")
-## Optional per-level copy appended after the shared base description.
-## Buildings and mirrors share these fields and the same formatted layout.
-## The same color, highlight and bold paired tags are accepted in every level.
-@export_multiline var level_1_description: String = ""
-@export_multiline var level_2_description: String = ""
-@export_multiline var level_3_description: String = ""
 
 @export_group("Header Fields")
 @export var show_icon: bool = true
@@ -65,25 +57,52 @@ func resolve_function_description(fallback: String) -> String:
 	return _format_authored_plain(_resolve_function_description_source(fallback))
 
 
-func format_level_description(fallback: String) -> String:
-	return "\n".join([
-		resolve_function_description(fallback),
-		"1级： %s" % _format_authored_plain(level_1_description.strip_edges()),
-		"2级： %s" % _format_authored_plain(level_2_description.strip_edges()),
-		"3级： %s" % _format_authored_plain(level_3_description.strip_edges()),
-	])
+func format_semantic_description(
+	fallback: String,
+	headings: PackedStringArray,
+	descriptions: PackedStringArray
+) -> String:
+	var sources := _build_semantic_sources(fallback, descriptions)
+	var lines: Array[String] = []
+	var line_count := mini(headings.size(), sources.size())
+	for index in range(line_count):
+		lines.append("%s： %s" % [headings[index], _format_authored_plain(sources[index])])
+	return "\n".join(lines)
 
 
 ## Rich-text variant used by card hover and selected-object information pages.
 ## Authored color, background highlight and bold tags may override the default
 ## white body style; every other BBCode-looking tag stays visible as text.
-func format_level_description_bbcode(fallback: String) -> String:
-	return "\n".join([
-		_as_white_bbcode(_resolve_function_description_source(fallback)),
-		"%s %s" % [LEVEL_1_LABEL_BBCODE, _as_white_bbcode(level_1_description.strip_edges())],
-		"%s %s" % [LEVEL_2_LABEL_BBCODE, _as_white_bbcode(level_2_description.strip_edges())],
-		"%s %s" % [LEVEL_3_LABEL_BBCODE, _as_white_bbcode(level_3_description.strip_edges())],
-	])
+func format_semantic_description_bbcode(
+	fallback: String,
+	headings: PackedStringArray,
+	descriptions: PackedStringArray
+) -> String:
+	var sources := _build_semantic_sources(fallback, descriptions)
+	var lines: Array[String] = []
+	var line_count := mini(headings.size(), sources.size())
+	for index in range(line_count):
+		lines.append("%s %s" % [
+			_format_semantic_heading_bbcode(headings[index], index),
+			_as_white_bbcode(sources[index]),
+		])
+	return "\n".join(lines)
+
+
+func _build_semantic_sources(fallback: String, descriptions: PackedStringArray) -> PackedStringArray:
+	var sources := PackedStringArray([_resolve_function_description_source(fallback)])
+	for description in descriptions:
+		sources.append(description.strip_edges())
+	return sources
+
+
+func _format_semantic_heading_bbcode(heading: String, index: int) -> String:
+	var color := PRIMARY_LABEL_COLOR
+	if index == 1:
+		color = SECONDARY_LABEL_COLOR
+	elif index >= 2:
+		color = TERTIARY_LABEL_COLOR
+	return "[color=%s][b]%s：[/b][/color]" % [color, _literal_markup(heading, true)]
 
 
 func _as_white_bbcode(value: String) -> String:
@@ -183,12 +202,3 @@ func _closing_bbcode(markup_name: String) -> String:
 
 func _literal_markup(value: String, rich_text: bool) -> String:
 	return value.replace("[", "[lb]") if rich_text else value
-
-
-## Compatibility entry retained for existing building callers.
-func format_building_description(fallback: String) -> String:
-	return format_level_description(fallback)
-
-
-func format_building_description_bbcode(fallback: String) -> String:
-	return format_level_description_bbcode(fallback)

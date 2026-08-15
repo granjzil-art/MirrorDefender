@@ -73,7 +73,7 @@ Stuff 统一球形对追踪弹、方向穿透弹、复制弹、敌方弹、旧�
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/stuff_runtime_test.gd
 ```
 
-M6 批次 1 的程序化镜面卡槽、透明建筑主体层、动态标题/费用与选中/不可用状态，单卡单次放置、成功/资源/上限/非法格/非法边退出语义，以及 `暂停 > 战术慢放 > 2x > 1x` 时间优先级回归测试：
+M6 批次 1 的程序化镜面卡槽、镜子两行/塔三行语义悬停说明、动态费用与容量状态，单卡单次放置/调整确认语义，以及 `暂停 > 战术慢放 > 1x/2x/4x` 时间优先级回归测试：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch1_test.gd
@@ -97,7 +97,7 @@ M6 批次 3 的全局信息信号、资源滚动/独立弹字、1x/2x/4x 倍率�
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_ui_batch3_test.gd
 ```
 
-右侧详情的对象级/字段级显示开关、默认兼容、可编辑名称和功能说明、自适应紧凑排版及全部正式定义配置回归测试：
+镜子两行/塔三行语义字段、绿/黄/红标题、旧等级字段完全删除、受控自定义颜色/高亮/粗体、纯文本输出及全部正式定义加载回归：
 
 ```powershell
 & "E:\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe" --headless --path "E:\MirrorDefender副本" --script res://tests/runtime_inspection_configuration_test.gd

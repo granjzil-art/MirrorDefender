@@ -15,10 +15,6 @@ script = ExtResource("3_inspection")
 display_name = "钉锤"
 function_description = "自动向固定四方向或八方向发射钉子
 射程短，多方向，高穿透"
-level_1_description = "四方向发射钉子"
-level_2_description = "提升伤害，射速，射程，穿透
-四方向——>八方向"
-level_3_description = "提升伤害，射速，射程，穿透"
 show_position = false
 show_height = false
 show_build_permissions = false

@@ -12,9 +12,6 @@ script = ExtResource("3_inspection")
 display_name = "镭射塔"
 function_description = "沿固定方向发射无限穿透的激光
 成本高，单发伤害低。无限穿透，强力对群"
-level_1_description = "按照一定频率发射无限穿透激光"
-level_2_description = "提升伤害，射速，射程"
-level_3_description = "提升伤害，射速，射程"
 show_position = false
 show_height = false
 show_build_permissions = false

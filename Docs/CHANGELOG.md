@@ -1,5 +1,12 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Runtime UI · 说明字段改为镜子两行与塔三行 — 2026-08-15
+**模块**：Runtime UI / Inspection / Building / Mirror / Tests / Docs。
+- 镜子说明固定为“基础描述＋升级”两行；塔说明固定为“基础描述＋强化复制＋强化反射”三行。
+- 新行标题依次保留绿/黄/红粗体色，正文继续支持颜色、背景高亮和粗体标记；卡片悬停与选中说明页保持同源。
+- 删除 `level_1/2/3_description` 字段、旧等级文本和兼容入口；新增的镜子升级、塔强化复制/反射字段均保持空白，由作者后续填写。
+**影响面**：仅调整说明字段契约和表现；不修改镜子/塔升级数值、攻击效果、卡片交互或经济。
+
 ## Combat / Building · 新增纯固定朝向开火模式 — 2026-08-13
 **模块**：Combat / Building / Runtime Editor / Inspection / Tests / Docs。
 - `ProjectileFireMode` 追加序列化值 `FACING_ONLY=2`，既有 `TARGET_ONLY=0` 与 `TARGET_OR_FACING=1` 不变。

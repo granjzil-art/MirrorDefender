@@ -72,6 +72,13 @@ enum AimMode {
 	Color(0.62, 0.12, 1.0, 1.0),
 ]
 
+@export_group("Inspection Description Lines")
+## How this tower's attacks change after passing through an upgraded copy mirror.
+## Supports the same color/highlight/bold author markup as the base description.
+@export_multiline var copy_enhancement_description: String = ""
+## How this tower's attacks change after hitting an upgraded reflect mirror.
+@export_multiline var reflection_enhancement_description: String = ""
+
 func get_level_stats(value: int) -> BuildingLevelStats:
 	if levels.is_empty():
 		return null
@@ -100,21 +107,21 @@ func get_resolved_inspection_display_name() -> String:
 
 
 func get_formatted_inspection_description() -> String:
-	if inspection_display != null:
-		return inspection_display.format_building_description(DEFAULT_FUNCTION_DESCRIPTION)
-	return "\n".join([
+	var config := inspection_display if inspection_display != null else InspectionDisplayConfigScript.new()
+	return config.format_semantic_description(
 		DEFAULT_FUNCTION_DESCRIPTION,
-		"1级： ",
-		"2级： ",
-		"3级： ",
-	])
+		PackedStringArray(["基础描述", "强化复制", "强化反射"]),
+		PackedStringArray([copy_enhancement_description, reflection_enhancement_description])
+	)
 
 
 func get_formatted_inspection_description_bbcode() -> String:
-	if inspection_display != null:
-		return inspection_display.format_building_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
-	var fallback_config := InspectionDisplayConfigScript.new()
-	return fallback_config.format_building_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
+	var config := inspection_display if inspection_display != null else InspectionDisplayConfigScript.new()
+	return config.format_semantic_description_bbcode(
+		DEFAULT_FUNCTION_DESCRIPTION,
+		PackedStringArray(["基础描述", "强化复制", "强化反射"]),
+		PackedStringArray([copy_enhancement_description, reflection_enhancement_description])
+	)
 
 func is_configured() -> bool:
 	return validate_configuration().is_empty()

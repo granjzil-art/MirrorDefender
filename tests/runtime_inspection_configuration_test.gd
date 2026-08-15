@@ -48,28 +48,39 @@ func _test_config_defaults() -> void:
 	_expect(config.resolve_display_name("原名称") == "原名称", "empty custom name preserves the current name")
 	_expect(config.resolve_function_description("原说明") == "原说明", "empty description preserves the built-in description")
 	config.function_description = "基础文本"
-	config.level_1_description = "一级文本"
-	config.level_2_description = "二级文本"
-	config.level_3_description = "三级文本"
+	var tower := BuildingDefinition.new()
+	tower.inspection_display = config
+	tower.copy_enhancement_description = "复制强化文本"
+	tower.reflection_enhancement_description = "反射强化文本"
 	_expect(
-		config.format_building_description("原说明")
-		== "基础文本\n1级： 一级文本\n2级： 二级文本\n3级： 三级文本",
-		"level descriptions use the compact authored base and same-line level format"
+		tower.get_formatted_inspection_description()
+		== "基础描述： 基础文本\n强化复制： 复制强化文本\n强化反射： 反射强化文本",
+		"tower descriptions use the three semantic author fields"
 	)
-	var rich_description := config.format_building_description_bbcode("原说明")
+	var rich_description := tower.get_formatted_inspection_description_bbcode()
 	_expect(
-		rich_description.contains("[color=#66d17a][b]1级：[/b][/color] [color=#f0f5ff]一级文本[/color]")
-		and rich_description.contains("[color=#ffd34e][b]2级：[/b][/color] [color=#f0f5ff]二级文本[/color]")
-		and rich_description.contains("[color=#ff6666][b]3级：[/b][/color] [color=#f0f5ff]三级文本[/color]")
-		and not rich_description.contains("基础描述"),
-		"rich descriptions color only the compact level labels and omit field captions"
+		rich_description.contains("[color=#66d17a][b]基础描述：[/b][/color]")
+		and rich_description.contains("[color=#ffd34e][b]强化复制：[/b][/color]")
+		and rich_description.contains("[color=#ff6666][b]强化反射：[/b][/color]")
+		and not rich_description.contains("1级："),
+		"semantic row headings retain the original green, yellow, and red colors"
 	)
 	var mirror := CopyMirrorDefinition.new()
 	mirror.inspection_display = config
+	mirror.upgrade_description = "镜子升级文本"
 	_expect(
 		mirror.get_formatted_inspection_description()
-		== config.format_level_description(MirrorDefinition.DEFAULT_FUNCTION_DESCRIPTION),
-		"mirror definitions expose the same formatted description source"
+		== "基础描述： 基础文本\n升级： 镜子升级文本",
+		"two-level mirrors expose only the base and upgrade author fields"
+	)
+	var property_names: Array[String] = []
+	for property in config.get_property_list():
+		property_names.append(String(property.name))
+	_expect(
+		not property_names.has("level_1_description")
+		and not property_names.has("level_2_description")
+		and not property_names.has("level_3_description"),
+		"retired level description fields are removed without compatibility storage"
 	)
 	for property in [
 		&"show_icon", &"show_category", &"show_entity_state", &"show_function_description",
@@ -84,14 +95,16 @@ func _test_config_defaults() -> void:
 func _test_authored_description_markup() -> void:
 	var config: InspectionDisplayConfigScript = InspectionDisplayConfigScript.new()
 	config.function_description = "造成[color=#7dd3fc]冰霜伤害[/color]。"
-	config.level_1_description = "[b]穿透1[/b]"
-	config.level_2_description = "[highlight=#704214]范围提升[/highlight]"
-	config.level_3_description = "[url=https://example.com]不允许的链接[/url]"
-	var plain_description := config.format_level_description("原说明")
-	var rich_description := config.format_level_description_bbcode("原说明")
+	var authored_lines := PackedStringArray([
+		"[b]穿透1[/b]",
+		"[highlight=#704214]范围提升[/highlight][url=https://example.com]不允许的链接[/url]",
+	])
+	var headings := PackedStringArray(["基础描述", "强化复制", "强化反射"])
+	var plain_description := config.format_semantic_description("原说明", headings, authored_lines)
+	var rich_description := config.format_semantic_description_bbcode("原说明", headings, authored_lines)
 	_expect(
 		plain_description
-		== "造成冰霜伤害。\n1级： 穿透1\n2级： 范围提升\n3级： [url=https://example.com]不允许的链接[/url]",
+		== "基础描述： 造成冰霜伤害。\n强化复制： 穿透1\n强化反射： 范围提升[url=https://example.com]不允许的链接[/url]",
 		"plain descriptions remove supported author markup and preserve unsupported tags literally"
 	)
 	_expect(
@@ -107,7 +120,9 @@ func _test_authored_description_markup() -> void:
 	)
 	config.function_description = "不完整[color=#ff0000]颜色"
 	_expect(
-		config.format_level_description_bbcode("原说明").contains("不完整[color=#ff0000]颜色[/color]"),
+		config.format_semantic_description_bbcode("原说明", headings, authored_lines).contains(
+			"不完整[color=#ff0000]颜色[/color]"
+		),
 		"unclosed supported markup is closed within its authored description field"
 	)
 

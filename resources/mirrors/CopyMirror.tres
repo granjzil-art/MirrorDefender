@@ -14,10 +14,6 @@ function_description = "复制镜面朝向最近的非空地块上的全部对�
 复制体不占据格子，同一格子上可存在多个复制体
 但一个格子上只能存在唯一实体，实体可与复制体共存
 升级后复制体可获得火力增幅的效果"
-level_1_description = "复制体保留80%伤害
-"
-level_2_description = "复制体保留100%伤害"
-level_3_description = "复制体获得110%伤害"
 
 [resource]
 script = ExtResource("1_definition")

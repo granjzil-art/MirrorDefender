@@ -16,9 +16,6 @@ script = ExtResource("3_inspection")
 display_name = "箭塔"
 function_description = "向敌人发射箭矢，无敌人时向固定方向自动发射
 成本低，射速快，对单"
-level_1_description = "按一定频率发射箭矢"
-level_2_description = "提升伤害，射速，射程，穿透"
-level_3_description = "提升伤害，射速，射程，穿透"
 show_position = false
 show_height = false
 show_build_permissions = false

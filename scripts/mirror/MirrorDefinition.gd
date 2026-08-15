@@ -51,6 +51,12 @@ const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 @export var mirror_back_face_color: Color = Color(0.24, 0.25, 0.27, 1.0)
 @export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 
+@export_group("Inspection Description Lines")
+## Describes the mirror's only authored upgrade row. Supports the same
+## color/highlight/bold author markup as the base description.
+@export_multiline var upgrade_description: String = ""
+
+
 const MAX_LEVEL: int = 3
 
 
@@ -95,21 +101,21 @@ func get_resolved_inspection_display_name() -> String:
 
 
 func get_formatted_inspection_description() -> String:
-	if inspection_display != null:
-		return inspection_display.format_level_description(DEFAULT_FUNCTION_DESCRIPTION)
-	return "\n".join([
+	var config := inspection_display if inspection_display != null else InspectionDisplayConfigScript.new()
+	return config.format_semantic_description(
 		DEFAULT_FUNCTION_DESCRIPTION,
-		"1级： ",
-		"2级： ",
-		"3级： ",
-	])
+		PackedStringArray(["基础描述", "升级"]),
+		PackedStringArray([upgrade_description])
+	)
 
 
 func get_formatted_inspection_description_bbcode() -> String:
-	if inspection_display != null:
-		return inspection_display.format_level_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
-	var fallback_config := InspectionDisplayConfigScript.new()
-	return fallback_config.format_level_description_bbcode(DEFAULT_FUNCTION_DESCRIPTION)
+	var config := inspection_display if inspection_display != null else InspectionDisplayConfigScript.new()
+	return config.format_semantic_description_bbcode(
+		DEFAULT_FUNCTION_DESCRIPTION,
+		PackedStringArray(["基础描述", "升级"]),
+		PackedStringArray([upgrade_description])
+	)
 
 
 func validate_configuration() -> Array[String]:

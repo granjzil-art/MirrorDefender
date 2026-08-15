@@ -12,9 +12,6 @@ function_description = "反射与镜面接触的任意飞弹和激光
 可多次反射
 升级后会提升飞弹/激光的伤害与穿透
 地图的边缘也是镜面哦"
-level_1_description = "反射飞弹与激光，提升伤害与覆盖范围"
-level_2_description = "提升反射对象的伤害，穿透"
-level_3_description = "进一步提升反射对象的伤害，穿透"
 
 [resource]
 script = ExtResource("1_definition")

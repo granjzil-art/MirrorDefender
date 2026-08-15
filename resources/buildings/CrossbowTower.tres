@@ -13,9 +13,6 @@ script = ExtResource("3_inspection")
 display_name = "导弹塔"
 function_description = "向敌人发射导弹，无敌人时向固定方向自动发射
 导弹可以被反射，飞行距离长，AOE"
-level_1_description = "发射导弹，导弹碰到敌人会立刻爆炸，造成范围伤害"
-level_2_description = "提升伤害，射速，射程，爆炸范围"
-level_3_description = "提升伤害，射速，射程，爆炸范围"
 show_position = false
 show_height = false
 show_build_permissions = false
