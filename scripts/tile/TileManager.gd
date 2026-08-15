@@ -27,6 +27,7 @@ signal occupant_changed(cell: Vector3i, occupant: Node)
 var _grid: GridManager
 var _tiles: Dictionary = {}
 var _runtime_obstacles: Dictionary = {}
+var _path_cells: Dictionary = {}
 var _navigation_overlay_resolver: Callable
 var _navigation_overlay_blocker_resolver: Callable
 var _surface_height_resolver: Callable
@@ -86,6 +87,12 @@ func load_level(level_resource: LevelResource) -> bool:
 	):
 		return false
 	var next_tiles: Dictionary = {}
+	var next_path_cells: Dictionary = {}
+	for path in level_resource.paths:
+		if path == null:
+			continue
+		for path_cell in path.cells:
+			next_path_cells[path_cell] = true
 	for serialized_resource in level_resource.tiles:
 		if not serialized_resource is TileCellData:
 			return false
@@ -100,6 +107,7 @@ func load_level(level_resource: LevelResource) -> bool:
 	level = level_resource
 	_clear_runtime_obstacles()
 	_tiles = next_tiles
+	_path_cells = next_path_cells
 	if legacy_content_runtime_enabled:
 		_rebuild_runtime_obstacles()
 	level_loaded.emit(level_resource)
@@ -128,6 +136,7 @@ func get_level_resource() -> LevelResource:
 func clear_level() -> void:
 	_clear_runtime_obstacles()
 	_tiles.clear()
+	_path_cells.clear()
 	level = null
 
 func get_world_height(cell: Vector3i) -> float:
@@ -183,6 +192,10 @@ func allows_edge_building(cell: Vector3i, edge_index: int = -1) -> bool:
 		return false
 	var to_cell := _grid.neighbor_across_edge(cell, edge_index)
 	if not _grid.is_in_bounds(to_cell):
+		return false
+	# Enemy paths reserve their internal shared edges. Boundaries with only one
+	# path cell remain available and continue through the normal permission stack.
+	if _path_cells.has(cell) and _path_cells.has(to_cell):
 		return false
 	var opposite_edge := _grid.find_edge_index(to_cell, cell)
 	if opposite_edge < 0:

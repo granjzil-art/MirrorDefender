@@ -14,6 +14,8 @@ var _discard_button: Button
 var _building_select: OptionButton
 var _level_select: OptionButton
 var _building_form: VBoxContainer
+var _mirror_select: OptionButton
+var _mirror_form: VBoxContainer
 var _enemy_select: OptionButton
 var _enemy_form: VBoxContainer
 var _test_enemy_select: OptionButton
@@ -145,6 +147,7 @@ func _build_interface() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(tabs)
 	tabs.add_child(_build_building_page())
+	tabs.add_child(_build_mirror_page())
 	tabs.add_child(_build_enemy_page())
 	tabs.add_child(_build_test_page())
 
@@ -225,6 +228,34 @@ func _build_enemy_page() -> Control:
 	return page
 
 
+func _build_mirror_page() -> Control:
+	var page := VBoxContainer.new()
+	page.name = "镜子强化"
+	page.add_theme_constant_override("separation", 8)
+	var selectors := HBoxContainer.new()
+	page.add_child(selectors)
+	var label := Label.new()
+	label.text = "镜子"
+	selectors.add_child(label)
+	_mirror_select = OptionButton.new()
+	_mirror_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mirror_select.item_selected.connect(_on_mirror_selected)
+	selectors.add_child(_mirror_select)
+	var hint := Label.new()
+	hint.text = "修改会立即重建镜子虚像；永久保存会写回 CopyMirror.tres / ReflectMirror.tres。"
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.modulate = Color(0.72, 0.82, 0.9)
+	page.add_child(hint)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(scroll)
+	_mirror_form = VBoxContainer.new()
+	_mirror_form.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mirror_form.add_theme_constant_override("separation", 5)
+	scroll.add_child(_mirror_form)
+	return page
+
+
 func _build_test_page() -> Control:
 	var page := VBoxContainer.new()
 	page.name = "测试敌人"
@@ -299,6 +330,7 @@ func _refresh_catalogs() -> void:
 		return
 	_refreshing = true
 	var selected_kind := _selected_metadata_int(_building_select, -1)
+	var selected_mirror_kind := _selected_metadata_int(_mirror_select, MirrorPlacementData.MirrorKind.COPY)
 	var selected_enemy_path := _selected_metadata_string(_enemy_select)
 	var selected_test_enemy_path := _selected_metadata_string(_test_enemy_select)
 	var selected_path_name := _selected_metadata_path_name(_test_path_select)
@@ -308,6 +340,15 @@ func _refresh_catalogs() -> void:
 		_building_select.set_item_metadata(_building_select.item_count - 1, definition.kind)
 	_select_metadata(_building_select, selected_kind)
 	_refresh_level_selector()
+	_mirror_select.clear()
+	for raw_kind in _session.get_mirror_definitions().keys():
+		var mirror_kind := int(raw_kind)
+		var mirror_definition := _session.get_mirror_definitions().get(raw_kind) as MirrorDefinition
+		if mirror_definition == null:
+			continue
+		_mirror_select.add_item(mirror_definition.display_name)
+		_mirror_select.set_item_metadata(_mirror_select.item_count - 1, mirror_kind)
+	_select_metadata(_mirror_select, selected_mirror_kind)
 	_enemy_select.clear()
 	_test_enemy_select.clear()
 	for enemy in _session.get_enemy_definitions():
@@ -325,6 +366,7 @@ func _refresh_catalogs() -> void:
 	_select_path_name(_test_path_select, selected_path_name)
 	_refreshing = false
 	_rebuild_building_form()
+	_rebuild_mirror_form()
 	_rebuild_enemy_form()
 
 
@@ -360,6 +402,31 @@ func _rebuild_enemy_form() -> void:
 		return
 	for field in _enemy_fields():
 		_add_property_row(_enemy_form, definition, field, false)
+
+
+func _rebuild_mirror_form() -> void:
+	_clear_children(_mirror_form)
+	var mirror_kind := _selected_metadata_int(
+		_mirror_select,
+		MirrorPlacementData.MirrorKind.COPY
+	)
+	var definition := _session.get_mirror_definitions().get(mirror_kind) as MirrorDefinition
+	if definition == null:
+		return
+	for section in _mirror_sections(mirror_kind, definition):
+		_add_section_label(_mirror_form, String(section.get("label", "参数")))
+		var target_id := StringName(section.get("target_id", &"root"))
+		var target := section.get("resource") as Resource
+		if target == null:
+			continue
+		for field in section.get("fields", []):
+			_add_mirror_property_row(
+				_mirror_form,
+				target,
+				field,
+				mirror_kind,
+				target_id
+			)
 
 
 func _add_property_row(
@@ -423,6 +490,77 @@ func _add_property_row(
 		row.add_child(spin)
 
 
+func _add_section_label(parent: VBoxContainer, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 17)
+	label.modulate = Color(0.45, 0.82, 1.0)
+	label.custom_minimum_size.y = 30.0
+	parent.add_child(label)
+
+
+func _add_mirror_property_row(
+	parent: VBoxContainer,
+	resource: Resource,
+	field: Dictionary,
+	mirror_kind: int,
+	target_id: StringName
+) -> void:
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var label := Label.new()
+	label.text = String(field.get("label", field.get("property", "")))
+	label.custom_minimum_size.x = 240
+	label.tooltip_text = String(field.get("tooltip", ""))
+	row.add_child(label)
+	var property := StringName(field.get("property", ""))
+	var array_index := int(field.get("index", -1))
+	var current: Variant = resource.get(property)
+	if array_index >= 0:
+		if current is Array and array_index < (current as Array).size():
+			current = (current as Array)[array_index]
+		elif current is PackedFloat32Array and array_index < (current as PackedFloat32Array).size():
+			current = (current as PackedFloat32Array)[array_index]
+		else:
+			return
+	var type := String(field.get("type", "float"))
+	if type == "bool":
+		var check := CheckBox.new()
+		check.button_pressed = bool(current)
+		check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		check.toggled.connect(
+			_on_mirror_bool_changed.bind(mirror_kind, target_id, property, array_index)
+		)
+		row.add_child(check)
+	elif type == "color":
+		var picker := ColorPickerButton.new()
+		picker.color = Color(current)
+		picker.edit_alpha = true
+		picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		picker.color_changed.connect(
+			_on_mirror_color_changed.bind(mirror_kind, target_id, property, array_index)
+		)
+		row.add_child(picker)
+	else:
+		var spin := SpinBox.new()
+		spin.min_value = float(field.get("min", 0.0))
+		spin.max_value = float(field.get("max", 100000.0))
+		spin.step = float(field.get("step", 0.1))
+		spin.allow_greater = bool(field.get("allow_greater", false))
+		spin.value = float(current)
+		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spin.value_changed.connect(
+			_on_mirror_number_changed.bind(
+				mirror_kind,
+				target_id,
+				property,
+				array_index,
+				type == "int"
+			)
+		)
+		row.add_child(spin)
+
+
 func _building_fields(kind: int) -> Array[Dictionary]:
 	var airborne := _bool_field("affects_airborne", "可攻击空中敌人")
 	if kind in [BuildingDefinition.Kind.BARRIER, BuildingDefinition.Kind.EDGE_BARRIER]:
@@ -437,15 +575,12 @@ func _building_fields(kind: int) -> Array[Dictionary]:
 		return [
 			airborne,
 			_float_field("laser_dps", "持续伤害/秒", 0.0, 100000.0, 0.1),
-			_float_field("base_damage", "端点爆发伤害", 0.0, 100000.0, 0.1),
+			_float_field("base_damage", "复制爆发基础伤害", 0.0, 100000.0, 0.1),
 			_float_field("attack_range", "光束距离（格）", 0.1, 100.0, 0.1),
 			_int_field("projectile_penetration_count", "穿透敌人数", 0, 32),
 			_float_field("laser_propagation_speed", "光束传播速度（格/秒）", 0.01, 100.0, 0.1),
 			_float_field("laser_slow_multiplier", "寒冷移速倍率", 0.0, 1.0, 0.05),
 			_float_field("laser_slow_duration", "寒冷持续时间（秒）", 0.0, 60.0, 0.1),
-			_float_field("laser_burst_interval", "端点爆发间隔（秒）", 0.0, 60.0, 0.1),
-			_float_field("laser_burst_radius", "端点爆发半径（格）", 0.0, 20.0, 0.1),
-			_float_field("laser_freeze_duration", "冻结时间（秒）", 0.0, 60.0, 0.1),
 			_float_field("laser_beam_width", "光束宽度", 0.01, 2.0, 0.01),
 		]
 	if kind == BuildingDefinition.Kind.PULSE_LASER_TOWER:
@@ -454,7 +589,7 @@ func _building_fields(kind: int) -> Array[Dictionary]:
 			_float_field("base_damage", "单次伤害", 0.0, 100000.0, 0.1),
 			_float_field("attack_range", "脉冲距离（格）", 0.1, 100.0, 0.1),
 			_float_field("attacks_per_second", "每秒攻击次数", 0.01, 100.0, 0.01),
-			_int_field("pulse_laser_reflect_max", "最大反射次数", 0, 64),
+			_int_field("pulse_laser_reflect_max", "光路追踪上限（受镜子总上限约束）", 0, 64),
 			_float_field("pulse_laser_width", "脉冲宽度", 0.01, 2.0, 0.01),
 			_float_field("pulse_laser_emission_energy", "发光强度", 0.0, 32.0, 0.1),
 			_float_field("pulse_laser_fade_in_time", "淡入时间（秒）", 0.0, 10.0, 0.01),
@@ -487,6 +622,215 @@ func _building_fields(kind: int) -> Array[Dictionary]:
 		fields.append(_float_field("missile_speed_variation_ratio", "速度波动比例", 0.0, 0.95, 0.01))
 		fields.append(_float_field("missile_speed_variation_frequency", "速度波动频率", 0.01, 30.0, 0.01))
 	return fields
+
+
+func _mirror_sections(mirror_kind: int, definition: MirrorDefinition) -> Array[Dictionary]:
+	var sections: Array[Dictionary] = []
+	if mirror_kind == MirrorPlacementData.MirrorKind.COPY:
+		var copy := definition as CopyMirrorDefinition
+		if copy == null:
+			return sections
+		sections.append({
+			"label": "复制镜公共参数",
+			"target_id": &"root",
+			"resource": copy,
+			"fields": [
+				_float_field("placement_cooldown_seconds", "建造冷却（秒）", 0.0, 300.0, 0.1),
+				_float_field("placement_cost", "建造费用", 0.0, 100000.0, 1.0),
+				_indexed_field(_float_field("upgrade_costs", "二级升级费用", 0.0, 100000.0, 1.0), 0),
+				_indexed_field(_float_field("level_damage_multipliers", "一级伤害倍率", 0.0, 10.0, 0.01), 0),
+				_indexed_field(_float_field("level_damage_multipliers", "二级伤害倍率", 0.0, 10.0, 0.01), 1),
+				_indexed_field(_int_field("level_penetration_bonuses", "一级穿透加成", 0, 32), 0),
+				_indexed_field(_int_field("level_penetration_bonuses", "二级穿透加成", 0, 32), 1),
+				_int_field("copy_chain_max", "复制链深度上限", 1, 3),
+				_int_field("impact_spawn_budget", "单次攻击命中子弹预算", 1, 4096),
+				_indexed_field(_float_field("level_projection_alphas", "一级虚像透明度", 0.05, 0.75, 0.01), 0),
+				_indexed_field(_float_field("level_projection_alphas", "二级虚像透明度", 0.05, 0.75, 0.01), 1),
+				_float_field("recursive_projection_alpha_multiplier", "递归透明度倍率", 0.05, 0.99, 0.01),
+				_float_field("recursive_projection_min_alpha", "递归最低透明度", 0.01, 0.5, 0.01),
+				_float_field("projection_emission_energy", "虚像发光强度", 0.0, 8.0, 0.1),
+				_float_field("projection_rim_alpha", "虚像轮廓透明度", 0.0, 1.0, 0.01),
+			],
+		})
+		_append_copy_effect_sections(sections, copy)
+	else:
+		var reflect := definition as ReflectMirrorDefinition
+		if reflect == null:
+			return sections
+		sections.append({
+			"label": "反射镜公共参数",
+			"target_id": &"root",
+			"resource": reflect,
+			"fields": [
+				_float_field("placement_cooldown_seconds", "建造冷却（秒）", 0.0, 300.0, 0.1),
+				_float_field("placement_cost", "建造费用", 0.0, 100000.0, 1.0),
+				_indexed_field(_float_field("upgrade_costs", "二级升级费用", 0.0, 100000.0, 1.0), 0),
+				_indexed_field(_float_field("level_damage_multipliers", "一级反射伤害倍率", 0.0, 10.0, 0.01), 0),
+				_indexed_field(_float_field("level_damage_multipliers", "二级反射伤害倍率", 0.0, 10.0, 0.01), 1),
+				_indexed_field(_int_field("level_penetration_bonuses", "一级通用穿透", 0, 32), 0),
+				_indexed_field(_int_field("level_penetration_bonuses", "二级通用穿透", 0, 32), 1),
+				_float_field("collision_epsilon_ratio", "反射碰撞偏移比例", 0.0001, 0.05, 0.0001),
+				_int_field("max_reflections_per_frame", "高速投射物单帧反射上限", 1, 32),
+				_int_field("maximum_total_reflections", "单条攻击成功反射上限", 1, 64),
+				_int_field("reflection_branch_budget", "单次攻击反射分支预算", 0, 256),
+			],
+		})
+		_append_reflect_effect_sections(sections, reflect)
+	return sections
+
+
+func _append_copy_effect_sections(
+	sections: Array[Dictionary],
+	definition: CopyMirrorDefinition
+) -> void:
+	var burst := _find_mirror_effect(definition, &"burst_arrow")
+	if burst != null:
+		var fields: Array[Dictionary] = []
+		for index in range((burst.get("direction_counts") as Array).size()):
+			fields.append(_indexed_field(
+				_int_field("direction_counts", "复制强化%d：爆裂方向数" % (index + 1), 1, 64),
+				index
+			))
+		fields.append(_float_field("child_damage_multiplier", "子箭伤害倍率", 0.0, 2.0, 0.05))
+		fields.append(_float_field("child_distance_multiplier", "子箭射程倍率", 0.05, 1.0, 0.05))
+		fields.append(_int_field("child_penetration_count", "子箭穿透数", 0, 16))
+		sections.append(_effect_section("箭塔：爆裂箭", burst, fields))
+	var burning := _find_mirror_effect(definition, &"burning_missile")
+	if burning != null:
+		var fields: Array[Dictionary] = [
+			_float_field("base_radius_cells", "燃烧基础半径（格）", 0.0, 20.0, 0.05),
+			_float_field("burn_duration", "燃烧持续时间（秒）", 0.0, 60.0, 0.1),
+			_float_field("damage_per_second_ratio", "每秒伤害/爆炸伤害", 0.0, 10.0, 0.005),
+		]
+		for index in range((burning.get("radius_multipliers") as PackedFloat32Array).size()):
+			fields.append(_indexed_field(
+				_float_field("radius_multipliers", "复制强化%d：燃烧半径倍率" % (index + 1), 0.0, 10.0, 0.05),
+				index
+			))
+		sections.append(_effect_section("导弹：范围燃烧", burning, fields))
+	var pulse := _find_mirror_effect(definition, &"pulse_laser_overdrive")
+	if pulse != null:
+		var fields: Array[Dictionary] = [
+			_int_field("charge_shots", "充能所需发射次数", 1, 64),
+			_float_field("overdrive_duration", "爆发持续时间（秒）", 0.0, 120.0, 0.1),
+			_color_field("charge_orb_color", "充能球颜色"),
+			_float_field("charge_orb_min_scale", "充能球最小缩放", 0.01, 10.0, 0.01),
+			_float_field("charge_orb_max_scale", "充能球最大缩放", 0.01, 10.0, 0.01),
+			_float_field("charge_orb_pulse_speed", "充能球脉动速度", 0.01, 100.0, 0.1),
+			_float_field("charge_orb_radius_multiplier", "充能球半径/脉冲宽度", 0.01, 20.0, 0.01),
+			_float_field("propagation_speed_cells_per_second", "爆发传播速度（格/秒）", 0.01, 100.0, 0.1),
+			_float_field("sine_thickness_multiplier", "正弦线粗细倍率", 0.01, 4.0, 0.01),
+			_float_field("sine_amplitude_ratio", "正弦振幅/光束宽度", 0.0, 4.0, 0.01),
+			_float_field("sine_wavelength_ratio", "正弦波长/光束宽度", 0.1, 100.0, 0.1),
+			_float_field("sine_flow_cycles_per_second", "正弦流动周期/秒", 0.0, 20.0, 0.05),
+			_float_field("sine_samples_per_cycle", "正弦每周期采样数", 1.0, 64.0, 1.0),
+			_int_field("sine_min_subdivisions", "正弦最小细分", 1, 256),
+			_int_field("sine_max_subdivisions", "正弦最大细分", 1, 512),
+		]
+		for index in range((pulse.get("dps_multipliers") as PackedFloat32Array).size()):
+			fields.append(_indexed_field(
+				_float_field("dps_multipliers", "复制强化%d：DPS倍率" % (index + 1), 0.0, 10.0, 0.01),
+				index
+			))
+		for index in range((pulse.get("beam_width_multipliers") as PackedFloat32Array).size()):
+			fields.append(_indexed_field(
+				_float_field("beam_width_multipliers", "复制强化%d：宽度倍率" % (index + 1), 0.0, 10.0, 0.01),
+				index
+			))
+		sections.append(_effect_section("镭射：充能持续爆发", pulse, fields))
+	var ice := _find_mirror_effect(definition, &"ice_copy_burst")
+	if ice != null:
+		var fields: Array[Dictionary] = [
+			_float_field("burst_interval", "爆发间隔（秒）", 0.01, 60.0, 0.1),
+			_float_field("burst_radius_cells", "爆发半径（格）", 0.0, 20.0, 0.05),
+		]
+		for index in range((ice.get("freeze_durations") as PackedFloat32Array).size()):
+			fields.append(_indexed_field(
+				_float_field("freeze_durations", "复制强化%d：冻结时间（秒）" % (index + 1), 0.0, 60.0, 0.05),
+				index
+			))
+		sections.append(_effect_section("冰冻塔：周期爆发与冻结", ice, fields))
+
+
+func _append_reflect_effect_sections(
+	sections: Array[Dictionary],
+	definition: ReflectMirrorDefinition
+) -> void:
+	var fork := _find_mirror_effect(definition, &"reflection_fork")
+	if fork != null:
+		sections.append(_effect_section("二级反射：左右分支", fork, [
+			_float_field("branch_angle_degrees", "左右分支角度", 0.1, 89.0, 0.1),
+		]))
+	var arrow := _find_mirror_effect(definition, &"arrow_reflection")
+	if arrow != null:
+		sections.append(_effect_section("箭塔：反射穿透", arrow, [
+			_int_field("penetration_bonus", "每次二级反射穿透加成", 0, 16),
+		]))
+	var missile := _find_mirror_effect(definition, &"missile_reflection_growth")
+	if missile != null:
+		sections.append(_effect_section("导弹：反射成长", missile, [
+			_float_field("visual_scale_per_upgrade", "每层导弹尺寸增量", 0.0, 2.0, 0.01),
+			_float_field("explosion_radius_per_upgrade", "每层爆炸半径增量", 0.0, 2.0, 0.01),
+		]))
+	var pulse := _find_mirror_effect(definition, &"pulse_laser_reflection")
+	if pulse != null:
+		var fields: Array[Dictionary] = [
+			_float_field("width_per_upgrade", "每次二级反射宽度增量", 0.0, 2.0, 0.01),
+		]
+		var colors := pulse.get("reflection_colors") as Array
+		for index in range(colors.size()):
+			fields.append(_indexed_field(
+				_color_field("reflection_colors", "二级反射色盘 %d" % (index + 1)),
+				index
+			))
+		sections.append(_effect_section("镭射：二级反射变色与变粗", pulse, fields))
+	var pulse_tower := _get_working_building_definition(BuildingDefinition.Kind.PULSE_LASER_TOWER)
+	if pulse_tower != null:
+		var fields: Array[Dictionary] = []
+		for index in range(pulse_tower.pulse_laser_reflection_colors.size()):
+			fields.append(_indexed_field(
+				_color_field("pulse_laser_reflection_colors", "初始/一级反射色盘 %d" % (index + 1)),
+				index
+			))
+		sections.append({
+			"label": "镭射塔：初始与一级反射色盘",
+			"target_id": &"pulse_tower_palette",
+			"resource": pulse_tower,
+			"fields": fields,
+		})
+
+
+func _effect_section(label: String, effect: Resource, fields: Array[Dictionary]) -> Dictionary:
+	return {
+		"label": label,
+		"target_id": effect.call("get_effect_id") if effect != null else &"",
+		"resource": effect,
+		"fields": fields,
+	}
+
+
+func _find_mirror_effect(definition: MirrorDefinition, effect_id: StringName) -> Resource:
+	if definition == null:
+		return null
+	for effect in definition.attack_effects:
+		if effect != null and effect.get_effect_id() == effect_id:
+			return effect
+	return null
+
+
+func _get_working_building_definition(kind: int) -> BuildingDefinition:
+	if _session == null:
+		return null
+	for definition in _session.get_building_definitions():
+		if definition.kind == kind:
+			return definition
+	return null
+
+
+func _indexed_field(field: Dictionary, index: int) -> Dictionary:
+	var result := field.duplicate()
+	result["index"] = index
+	return result
 
 
 func _enemy_fields() -> Array[Dictionary]:
@@ -555,6 +899,78 @@ func _on_building_level_selected(_index: int) -> void:
 func _on_enemy_selected(_index: int) -> void:
 	if not _refreshing:
 		_rebuild_enemy_form()
+
+
+func _on_mirror_selected(_index: int) -> void:
+	if not _refreshing:
+		_rebuild_mirror_form()
+
+
+func _on_mirror_number_changed(
+	value: float,
+	mirror_kind: int,
+	target_id: StringName,
+	property: StringName,
+	array_index: int,
+	integer: bool
+) -> void:
+	_apply_mirror_value(
+		mirror_kind,
+		target_id,
+		property,
+		int(round(value)) if integer else value,
+		array_index
+	)
+
+
+func _on_mirror_bool_changed(
+	value: bool,
+	mirror_kind: int,
+	target_id: StringName,
+	property: StringName,
+	array_index: int
+) -> void:
+	_apply_mirror_value(mirror_kind, target_id, property, value, array_index)
+
+
+func _on_mirror_color_changed(
+	value: Color,
+	mirror_kind: int,
+	target_id: StringName,
+	property: StringName,
+	array_index: int
+) -> void:
+	_apply_mirror_value(mirror_kind, target_id, property, value, array_index)
+
+
+func _apply_mirror_value(
+	mirror_kind: int,
+	target_id: StringName,
+	property: StringName,
+	value: Variant,
+	array_index: int
+) -> void:
+	if _refreshing or _session == null:
+		return
+	var result: Dictionary
+	if target_id == &"pulse_tower_palette":
+		result = _session.set_building_definition_array_value(
+			BuildingDefinition.Kind.PULSE_LASER_TOWER,
+			property,
+			array_index,
+			value
+		)
+	else:
+		result = _session.set_mirror_value(
+			mirror_kind,
+			target_id,
+			property,
+			value,
+			array_index
+		)
+	_show_result(result)
+	if not bool(result.get("success", false)):
+		_rebuild_mirror_form()
 
 
 func _on_building_number_changed(value: float, property: StringName, integer: bool) -> void:

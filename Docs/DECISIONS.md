@@ -8,6 +8,12 @@
 
 **无兼容边界**：`level_1_description / level_2_description / level_3_description` 及旧格式化函数直接删除，正式 `.tres` 中的旧等级说明同步清空，不迁移到新语义字段。本决策取代 2026-08-13 和 2026-08-12 记录中关于 1–3 级说明行的契约。
 
+## 2026-08-14 · 弹道预览统一为固定线宽
+
+**决策**：建筑选中与放置虚影的弹道预览统一使用 `BuildingSelectionVisualizer.projectile_preview_width`，默认为 `0.10` 世界单位。预览网格不再读取当前级 `projectile_width`、激光束宽或脉冲宽度，因此同一建筑升级和不同建筑之间的预览粗细保持一致。
+
+**边界**：方向数、射程、反射路径仍读取运行时事实源；此决策只改变预览表现，不改变实体投射物的模型缩放、碰撞宽度、激光伤害宽度或命中规则。
+
 ## 2026-08-13 · 投射物开火模式追加纯固定朝向
 
 **决策**：`BuildingLevelStats.ProjectileFireMode` 在既有 `TARGET_ONLY=0`、`TARGET_OR_FACING=1` 之后追加 `FACING_ONLY=2`。该模式不调用 `acquire_target()`，不建立 `_locked_target`，也不暴露索敌范围；每次冷却到期直接沿建筑逻辑朝向调用方向投射物入口。普通箭和导弹分别因此成为直线弹与无标记的绕圈后直飞弹。

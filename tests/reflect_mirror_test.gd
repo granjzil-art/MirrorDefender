@@ -6,6 +6,8 @@ var _failures: int = 0
 var _checks: int = 0
 var _reflection_count: int = 0
 var _external_reflection_fraction: float = 0.25
+var _spawned_projectiles: Array[Node] = []
+var _spawned_pulse_lasers: Array[PulseLaserBeam] = []
 
 
 func _initialize() -> void:
@@ -19,6 +21,7 @@ func _run() -> void:
 	_test_placement_with_adjacent_enemies(fixture)
 	_test_reflection_geometry(fixture)
 	_test_pulse_laser_reflection(fixture)
+	_test_level_two_reflection_forks(fixture)
 	_test_external_reflector_composition(fixture)
 	_test_projectile_distance_and_multiple_reflections(fixture)
 	_test_projection_projectile_reflection(fixture)
@@ -45,6 +48,13 @@ func _test_definition_and_preview(fixture: Dictionary) -> void:
 	var preview := mirror_manager.get_preview_mirror()
 	_expect(preview is ReflectMirror, "reflect placement preview uses the reflector entity")
 	_expect(preview != null and preview.preview_mode, "reflect placement keeps normal mirror preview presentation")
+	var preview_color := preview.get_preview_display_color()
+	_expect(preview_color.g > 0.8 and preview_color.r < 0.3, "valid reflect-mirror body preview is green")
+	var preview_surface_overlay := preview.get_reflection_surface().material_overlay as StandardMaterial3D
+	_expect(
+		preview_surface_overlay != null and preview_surface_overlay.albedo_color.g > 0.8,
+		"green placement tint also covers the reflect-mirror face"
+	)
 	var info := mirror_manager.get_preview_info()
 	_expect(int(info.get("mirror_kind", -1)) == MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT, "preview identifies the reflector kind")
 	mirror_manager.clear_preview()
@@ -135,13 +145,138 @@ func _test_pulse_laser_reflection(fixture: Dictionary) -> void:
 	if segments.size() == 2:
 		_expect(
 			(segments[0].get("color") as Color).is_equal_approx(Color.RED)
-			and (segments[1].get("color") as Color).is_equal_approx(Color.ORANGE),
-			"physical mirror reflection advances the pulse segment color"
+			and (segments[1].get("color") as Color).is_equal_approx(Color.RED),
+			"level-one physical mirror reflection preserves pulse color"
 		)
 		_expect(
 			float(segments[0].get("length", 0.0)) + float(segments[1].get("length", 0.0)) <= 2.0001,
 			"physical-mirror pulse segments share one total range budget"
 		)
+
+
+func _test_level_two_reflection_forks(fixture: Dictionary) -> void:
+	var combat: CombatManager = fixture.combat
+	var right: ReflectMirror = fixture.right_mirror
+	var definition := right.definition as ReflectMirrorDefinition
+	definition.level_damage_multipliers = [1.1, 1.1]
+	definition.level_penetration_bonuses = [0, 0]
+	_expect(right.set_level(2), "reflect mirror upgrades to level two for fork coverage")
+	var source_building := (fixture.building as BuildingManager).place_building(
+		Vector3i(0, 4, 0),
+		(fixture.building as BuildingManager).arrow_tower
+	)
+	_expect(source_building != null, "fork coverage creates an arrow source for tower-specific penetration")
+	if source_building != null:
+		source_building.set_process(false)
+	var normal := right.get_active_normal()
+	var start := right.global_position + Vector3.UP + normal
+	var incoming_direction := -normal
+	var payload := AttackEffectPayload.new()
+	var burst_effect := BurstArrowMirrorEffect.new()
+	burst_effect.apply_on_copy(payload, {"copy_kind": &"arrow_tower"})
+	_spawned_projectiles.clear()
+	if not combat.projectile_spawned.is_connected(_on_fork_projectile_spawned):
+		combat.projectile_spawned.connect(_on_fork_projectile_spawned)
+	var projectile := combat.spawn_directional_projectile(
+		start,
+		incoming_direction,
+		100.0,
+		10.0,
+		4.0,
+		0.2,
+		0.05,
+		Color.WHITE,
+		null,
+		source_building,
+		3,
+		payload
+	)
+	projectile.set_process(false)
+	projectile._process(0.02)
+	_expect(_spawned_projectiles.size() == 3, "one level-two reflection keeps the original projectile and creates two branches")
+	var branch_projectiles: Array[Projectile] = []
+	for spawned in _spawned_projectiles:
+		if spawned != projectile and spawned is Projectile:
+			branch_projectiles.append(spawned as Projectile)
+	var reflected_direction := (
+		incoming_direction - 2.0 * incoming_direction.dot(normal) * normal
+	).normalized()
+	var branch_angles: Array[float] = []
+	for branch in branch_projectiles:
+		branch_angles.append(rad_to_deg(reflected_direction.angle_to(branch.get_travel_direction())))
+	_expect(
+		branch_projectiles.size() == 2
+		and branch_angles.all(func(value: float) -> bool: return is_equal_approx(value, 15.0)),
+		"projectile branches leave the reflected direction at exact left/right fifteen-degree angles"
+	)
+	var branches_preserve_snapshot := branch_projectiles.size() == 2
+	for branch in branch_projectiles:
+		branches_preserve_snapshot = branches_preserve_snapshot and (
+			is_equal_approx(branch.debug_get_damage(), 11.0)
+			and branch.debug_get_remaining_penetration() == 5
+			and branch.debug_get_maximum_distance() < 4.0
+			and branch.debug_get_attack_effect_ids().has(&"burst_arrow")
+		)
+	_expect(
+		branches_preserve_snapshot,
+		"projectile branches preserve reflected damage, remaining penetration/range, and special effects"
+	)
+	combat.clear_projectiles()
+	_spawned_projectiles.clear()
+	_spawned_pulse_lasers.clear()
+	if not combat.pulse_laser_spawned.is_connected(_on_fork_pulse_spawned):
+		combat.pulse_laser_spawned.connect(_on_fork_pulse_spawned)
+	var pulse := combat.spawn_pulse_laser(
+		start,
+		incoming_direction,
+		10.0,
+		4.0,
+		0.1,
+		2.0,
+		0.01,
+		0.01,
+		0.01,
+		[Color.RED, Color.ORANGE],
+		2
+	)
+	_expect(pulse != null and _spawned_pulse_lasers.size() == 3, "pulse laser reflection creates two complete beam branches")
+	var continuous_path := ContinuousLaserPath.trace(
+		combat,
+		null,
+		start,
+		incoming_direction,
+		4.0,
+		3,
+		Callable(fixture.mirror, "trace_projectile_reflection")
+	)
+	var continuous_branch_segments: Array = continuous_path.get("segments", []).filter(
+		func(segment: Dictionary) -> bool: return bool(segment.get("branch", false))
+	)
+	var continuous_angles_valid := continuous_branch_segments.size() == 2
+	for segment in continuous_branch_segments:
+		var branch_direction: Vector3 = (
+			segment.get("end", Vector3.ZERO) - segment.get("start", Vector3.ZERO)
+		).normalized()
+		continuous_angles_valid = continuous_angles_valid and is_equal_approx(
+			rad_to_deg(reflected_direction.angle_to(branch_direction)),
+			15.0
+		)
+	_expect(
+		continuous_angles_valid,
+		"continuous laser reflection creates two fifteen-degree branches with the remaining range"
+	)
+	combat.clear_projectiles()
+	right.set_level(1)
+	definition.level_damage_multipliers = [1.1, 1.1]
+	definition.level_penetration_bonuses = [0, 0]
+
+
+func _on_fork_projectile_spawned(projectile: Node) -> void:
+	_spawned_projectiles.append(projectile)
+
+
+func _on_fork_pulse_spawned(beam: PulseLaserBeam) -> void:
+	_spawned_pulse_lasers.append(beam)
 
 
 func _test_external_reflector_composition(fixture: Dictionary) -> void:

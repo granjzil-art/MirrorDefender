@@ -52,7 +52,7 @@ func validate_configuration(total_waves: int, known_event_ids: Dictionary) -> Ar
 		if bubble == null:
 			errors.append("教学事件 %s 的第 %d 个气泡为空" % [event_id, bubble_index + 1])
 		else:
-			for message in bubble.validate_configuration(goals.size()):
+			for message in bubble.validate_configuration(goals):
 				errors.append("教学事件 %s / 气泡 %d：%s" % [event_id, bubble_index + 1, message])
 	for goal_index in range(goals.size()):
 		var goal := goals[goal_index]

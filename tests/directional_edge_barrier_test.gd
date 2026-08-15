@@ -44,21 +44,10 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 	var to_cell := path.cells[2]
 	var edge_index := grid.find_edge_index(from_cell, to_cell)
 	_expect(edge_index >= 0, "%s path segment maps to a grid edge" % grid.get_geometry_tag())
-	var barrier := building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier)
-	_expect(barrier != null, "%s edge barrier can be placed on a forward path edge" % grid.get_geometry_tag())
-	if barrier != null:
-		_expect(barrier.edge_to_cell == to_cell, "edge placement retains its directed destination")
-		_expect(barrier.get_facing_slot_count() == grid.get_edge_building_facing_count(), "edge barrier facing count follows level geometry")
-		var facing_before := barrier.facing_index
-		_expect(not building_manager.rotate_selected(), "placed edge barrier rejects free rotation")
-		_expect(barrier.facing_index == facing_before, "rejected rotation preserves edge alignment")
-		_expect(building_manager.get_edge_building(barrier.edge_id) == barrier, "physical edge occupancy is queryable by canonical id")
-		_expect(building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier) == null, "one physical edge rejects a second building")
-		var canonical_id := barrier.edge_id
-		barrier.queue_free()
-		await process_frame
-		_expect(building_manager.get_edge_building(canonical_id) == null, "external edge-building deletion clears edge occupancy")
-		_expect(resource_manager.get_building_count() == 0, "external edge-building deletion releases building cap usage")
+	_expect(
+		building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier) == null,
+		"%s edge barrier is rejected on an edge shared by two path tiles" % grid.get_geometry_tag()
+	)
 	var arbitrary_from := Vector3i(0, 1, -1) if shape == GridManager.Shape.HEX else Vector3i(0, 0, 0)
 	var arbitrary_to := Vector3i(1, 0, -1) if shape == GridManager.Shape.HEX else Vector3i(1, 0, 0)
 	var arbitrary_edge_index := grid.find_edge_index(arbitrary_from, arbitrary_to)
@@ -66,6 +55,40 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 	var arbitrary_barrier := building_manager.place_edge_building(arbitrary_from, arbitrary_edge_index, building_manager.edge_barrier)
 	_expect(arbitrary_barrier != null, "%s edge barrier can be placed on a non-path shared edge" % grid.get_geometry_tag())
 	if arbitrary_barrier != null:
+		_expect(arbitrary_barrier.edge_to_cell == arbitrary_to, "edge placement retains its directed destination")
+		_expect(arbitrary_barrier.get_facing_slot_count() == grid.get_edge_building_facing_count(), "edge barrier facing count follows level geometry")
+		var facing_before := arbitrary_barrier.facing_index
+		_expect(not building_manager.rotate_selected(), "placed edge barrier rejects free rotation")
+		_expect(arbitrary_barrier.facing_index == facing_before, "rejected rotation preserves edge alignment")
+		_expect(building_manager.get_edge_building(arbitrary_barrier.edge_id) == arbitrary_barrier, "physical edge occupancy is queryable by canonical id")
+		_expect(building_manager.place_edge_building(arbitrary_from, arbitrary_edge_index, building_manager.edge_barrier) == null, "one physical edge rejects a second building")
+		var original_arbitrary_edge_id := arbitrary_barrier.edge_id
+		_expect(
+			not building_manager.update_edge_relocation_preview(
+				arbitrary_barrier,
+				from_cell,
+				edge_index
+			),
+			"edge building may be adjusted onto an invalid path-common edge"
+		)
+		var invalid_edge_preview := building_manager.get_preview_building()
+		var invalid_edge_color := (
+			invalid_edge_preview.get_preview_display_color()
+			if invalid_edge_preview != null
+			else Color.WHITE
+		)
+		_expect(
+			invalid_edge_preview != null
+			and invalid_edge_preview.visible
+			and not invalid_edge_preview.is_preview_valid()
+			and invalid_edge_color.r > invalid_edge_color.g,
+			"invalid live edge-building adjustment retains a red body ghost"
+		)
+		_expect(
+			building_manager.get_edge_building(original_arbitrary_edge_id) == arbitrary_barrier
+			and not building_manager.commit_relocation_preview(arbitrary_barrier),
+			"red edge-building adjustment leaves original occupancy unchanged and cannot commit"
+		)
 		var relocation_from := arbitrary_to
 		var relocation_edge_index := -1
 		for neighbor in grid.get_neighbors(relocation_from):
@@ -92,12 +115,8 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 				"edge building exposes a legal drag-relocation preview"
 			)
 			_expect(
-				building_manager.relocate_edge_building(
-					arbitrary_barrier,
-					relocation_from,
-					relocation_edge_index
-				),
-				"edge building relocates without reconstruction"
+				building_manager.commit_relocation_preview(arbitrary_barrier),
+				"confirming a green edge-building adjustment relocates without reconstruction"
 			)
 			_expect(
 				building_manager.get_edge_building(previous_edge_id) == null
@@ -110,6 +129,11 @@ func _test_edge_placement_for_shape(shape: GridManager.Shape) -> void:
 				"edge relocation does not spend resources or change cap usage"
 			)
 		building_manager.clear_preview()
+		var canonical_id := arbitrary_barrier.edge_id
+		arbitrary_barrier.queue_free()
+		await process_frame
+		_expect(building_manager.get_edge_building(canonical_id) == null, "external edge-building deletion clears edge occupancy")
+		_expect(resource_manager.get_building_count() == 0, "external edge-building deletion releases building cap usage")
 	var boundary_cell := Vector3i(-5, 0, 5) if shape == GridManager.Shape.HEX else Vector3i(0, 0, 0)
 	var outside_neighbor := Vector3i(-6, 0, 6) if shape == GridManager.Shape.HEX else Vector3i(-1, 0, 0)
 	var boundary_edge_index := grid.find_edge_index(boundary_cell, outside_neighbor)
@@ -124,9 +148,8 @@ func _test_directional_blocking_and_lifecycle() -> void:
 	var grid: GridManager = fixture["grid"]
 	var resource_manager: ResourceManager = fixture["resource"]
 	var building_manager: BuildingManager = fixture["building"]
-	var path: PathDefinition = level.paths[0]
-	var from_cell := path.cells[1]
-	var to_cell := path.cells[2]
+	var from_cell := Vector3i(0, 1, -1)
+	var to_cell := Vector3i(1, 0, -1)
 	var edge_index := grid.find_edge_index(from_cell, to_cell)
 	var initial_resource := resource_manager.main_resource
 	var barrier := building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier)
@@ -138,8 +161,8 @@ func _test_directional_blocking_and_lifecycle() -> void:
 		barrier.definition.blocks_both_directions = false
 		_expect(building_manager.resolve_path_blocker(to_cell, from_cell) == null, "optional one-way configuration preserves directed blocking")
 		barrier.definition.blocks_both_directions = true
-		var unrelated_from := path.cells[2]
-		var unrelated_to := path.cells[3]
+		var unrelated_from := to_cell
+		var unrelated_to := Vector3i(2, -1, -1)
 		_expect(building_manager.resolve_path_blocker(unrelated_from, unrelated_to) == null, "another path direction ignores the edge barrier")
 		var level_two_stats := barrier.definition.get_level_stats(2)
 		_expect(building_manager.upgrade_selected(), "edge barrier uses the shared upgrade transaction")
@@ -178,7 +201,7 @@ func _test_melee_and_ranged_enemy_integration() -> void:
 	var building_manager: BuildingManager = fixture["building"]
 	var path: PathDefinition = level.paths[0]
 	var from_cell := path.cells[6]
-	var to_cell := path.cells[7]
+	var to_cell := Vector3i(3, -2, -1)
 	var edge_index := grid.find_edge_index(from_cell, to_cell)
 	var barrier := building_manager.place_edge_building(from_cell, edge_index, building_manager.edge_barrier)
 	_expect(barrier != null, "combat fixture edge barrier is placed")
@@ -186,8 +209,12 @@ func _test_melee_and_ranged_enemy_integration() -> void:
 		host.queue_free()
 		await process_frame
 		return
+	var combat_cells: Array[Vector3i] = []
+	for index in range(7):
+		combat_cells.append(path.cells[index])
+	combat_cells.append(to_cell)
 	var path_points := PackedVector3Array()
-	for cell in path.cells:
+	for cell in combat_cells:
 		path_points.append(grid.cell_to_world(cell) + Vector3(0.0, tile_manager.get_world_height(cell), 0.0))
 	var melee_definition := EnemyDefinition.new()
 	melee_definition.display_name = "测试近战"
@@ -201,7 +228,7 @@ func _test_melee_and_ranged_enemy_integration() -> void:
 	melee.configure_unit(
 		melee_definition,
 		path_points,
-		path.cells,
+		combat_cells,
 		grid.cell_size,
 		Callable(building_manager, "resolve_path_blocker")
 	)
@@ -229,7 +256,7 @@ func _test_melee_and_ranged_enemy_integration() -> void:
 	archer.configure_unit(
 		archer_definition,
 		path_points,
-		path.cells,
+		combat_cells,
 		grid.cell_size,
 		Callable(building_manager, "resolve_path_blocker")
 	)

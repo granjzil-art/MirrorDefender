@@ -28,6 +28,7 @@ var _source_camera: Camera3D
 var _body: MeshInstance3D
 var _frame_material: StandardMaterial3D
 var _reflection_view: Node3D
+var _preview_surface_overlay: StandardMaterial3D
 var _selected: bool = false
 var _preview_valid: bool = true
 
@@ -68,6 +69,14 @@ func refresh_visual() -> void:
 	_build_visual()
 
 
+## Swaps runtime tuning without resetting placement state. The manager performs
+## the visual/projection rebuild after every live definition transaction.
+func rebind_definition(mirror_definition: MirrorDefinition) -> void:
+	definition = mirror_definition
+	if definition != null:
+		level = clampi(level, 1, definition.get_max_level())
+
+
 func set_preview_valid(valid: bool) -> void:
 	if not preview_mode or _preview_valid == valid:
 		return
@@ -77,6 +86,12 @@ func set_preview_valid(valid: bool) -> void:
 
 func is_preview_valid() -> bool:
 	return _preview_valid
+
+
+func get_preview_display_color() -> Color:
+	if definition == null:
+		return Color.WHITE
+	return definition.invalid_preview_color if not _preview_valid else definition.valid_preview_color
 
 
 ## Moves a placement ghost while retaining its mesh, material and reflection
@@ -328,7 +343,7 @@ func set_selected(selected: bool) -> void:
 	if _body != null and is_instance_valid(_body):
 		SelectionHighlightScript.apply_recursive(_body, _selected and not preview_mode)
 	# The copy mirror's large oval reflection surface visually covers almost the
-	# entire body from its active side. Highlight it as well, otherwise the red
+	# entire body from its active side. Highlight it as well, otherwise the green
 	# body overlay remains hidden behind a bright reflection.
 	var reflection_surface := get_reflection_surface()
 	if reflection_surface != null and is_instance_valid(reflection_surface):
@@ -388,6 +403,7 @@ func _build_visual() -> void:
 	_reflection_view = MirrorReflectionViewScript.new()
 	add_child(_reflection_view)
 	_reflection_view.configure(self, definition, _source_camera, preview_mode)
+	_update_frame_material()
 	_update_active_side_visual()
 	set_selected(_selected)
 
@@ -395,16 +411,40 @@ func _build_visual() -> void:
 func _update_frame_material() -> void:
 	if _frame_material == null or definition == null:
 		return
-	var invalid_color := definition.invalid_preview_color
-	_frame_material.albedo_color = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color
-	_frame_material.emission = invalid_color if preview_mode and not _preview_valid else definition.mirror_back_face_color.darkened(0.38)
-	_frame_material.emission_energy_multiplier = 3.2 if preview_mode and not _preview_valid else 1.5
+	var placement_color := get_preview_display_color()
+	_frame_material.albedo_color = placement_color if preview_mode else definition.mirror_back_face_color
+	_frame_material.emission = placement_color if preview_mode else definition.mirror_back_face_color.darkened(0.38)
+	_frame_material.emission_energy_multiplier = 3.2 if preview_mode else 1.5
 	if preview_mode:
 		var preview_color := _frame_material.albedo_color
 		preview_color.a = 0.72
 		_frame_material.albedo_color = preview_color
 		_frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_refresh_preview_surface_overlay(placement_color)
 	set_selected(_selected)
+
+
+func _refresh_preview_surface_overlay(color: Color) -> void:
+	var reflection_surface := get_reflection_surface()
+	if reflection_surface == null or not is_instance_valid(reflection_surface):
+		return
+	if not preview_mode:
+		reflection_surface.material_overlay = null
+		return
+	if _preview_surface_overlay == null:
+		_preview_surface_overlay = StandardMaterial3D.new()
+		_preview_surface_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_preview_surface_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_preview_surface_overlay.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_preview_surface_overlay.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		_preview_surface_overlay.emission_enabled = true
+		_preview_surface_overlay.emission_energy_multiplier = 2.4
+		_preview_surface_overlay.render_priority = Material.RENDER_PRIORITY_MAX - 2
+	var overlay_color := color
+	overlay_color.a = 0.68
+	_preview_surface_overlay.albedo_color = overlay_color
+	_preview_surface_overlay.emission = color
+	reflection_surface.material_overlay = _preview_surface_overlay
 
 func _update_active_side_visual() -> void:
 	if _reflection_view != null:

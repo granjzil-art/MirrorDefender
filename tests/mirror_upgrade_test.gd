@@ -13,6 +13,35 @@ class LaserSource:
 		return 0.0
 
 
+class TowerKindSource:
+	extends RefCounted
+
+	var copy_kind: StringName = &""
+
+	func _init(value: StringName) -> void:
+		copy_kind = value
+
+	func get_copy_kind() -> StringName:
+		return copy_kind
+
+
+class BurstCapture:
+	extends RefCounted
+
+	var captured_count: int = 0
+
+	func spawn_radial_attack_copies(
+		projectile_count: int,
+		_damage_multiplier: float,
+		_distance_multiplier: float,
+		_penetration_count: int,
+		_attack_effects: AttackEffectPayload,
+		_state_overrides: Dictionary
+	) -> Array[Node]:
+		captured_count = projectile_count
+		return []
+
+
 var _failures: int = 0
 var _checks: int = 0
 var _pulse_reflection_calls: int = 0
@@ -27,6 +56,8 @@ func _run() -> void:
 	_test_legacy_initial_level_migration()
 	_test_configured_level_rules()
 	_test_copy_chain_accumulation()
+	_test_arrow_mirror_effects()
+	_test_reflection_path_state()
 	_test_actual_projectile_reflection_state()
 	_test_uniform_laser_damage()
 	var fixture := await _make_fixture()
@@ -47,43 +78,75 @@ func _test_legacy_initial_level_migration() -> void:
 	_expect(legacy.validate_configuration().is_empty(), "legacy mirror without a serialized level validates as level one")
 	_expect(legacy.level == 1, "legacy mirror level is migrated before saving or loading")
 	legacy.level = 4
-	_expect(not legacy.validate_configuration().is_empty(), "non-legacy mirror levels above the cap remain invalid")
+	_expect(legacy.validate_configuration().is_empty() and legacy.level == 2, "legacy mirror levels above the new cap migrate to level two")
 
 
 func _test_configured_level_rules() -> void:
 	var copy := TestDefinitionFactory.make_copy_mirror_definition()
 	var reflect := TestDefinitionFactory.make_reflect_mirror_definition()
-	_expect(copy.upgrade_costs == [50.0, 50.0], "copy mirror level-two and level-three upgrades both cost 50")
-	_expect(reflect.upgrade_costs == [50.0, 50.0], "reflect mirror level-two and level-three upgrades both cost 50")
+	_expect(copy.get_max_level() == 2 and copy.upgrade_costs == [50.0], "copy mirror has one level-two upgrade")
+	_expect(reflect.get_max_level() == 2 and reflect.upgrade_costs == [50.0], "reflect mirror has one level-two upgrade")
 	_expect(
 		is_equal_approx(copy.get_damage_multiplier(1), 1.0)
-		and is_equal_approx(copy.get_damage_multiplier(2), 1.1)
-		and is_equal_approx(copy.get_damage_multiplier(3), 1.2),
-		"copy mirror exposes the configured 1.0/1.1/1.2 damage levels"
+		and is_equal_approx(copy.get_damage_multiplier(2), 1.1),
+		"copy mirror exposes exactly two configured damage levels"
 	)
 	_expect(
 		copy.get_penetration_bonus(1) == 0
-		and copy.get_penetration_bonus(2) == 1
-		and copy.get_penetration_bonus(3) == 2,
-		"copy mirror exposes the configured 0/1/2 penetration levels"
+		and copy.get_penetration_bonus(2) == 1,
+		"copy mirror exposes exactly two configured penetration levels"
+	)
+	var copy_effect_ids: Array[StringName] = []
+	for copy_effect in copy.get_attack_effects(2):
+		copy_effect_ids.append(copy_effect.get_effect_id())
+	_expect(
+		copy.get_attack_effects(1).is_empty()
+		and copy_effect_ids.size() == 4
+		and copy_effect_ids.has(&"burst_arrow")
+		and copy_effect_ids.has(&"burning_missile")
+		and copy_effect_ids.has(&"pulse_laser_overdrive")
+		and copy_effect_ids.has(&"ice_copy_burst"),
+		"copy mirror exposes all four tower-specific effects only at level two"
 	)
 	_expect(
 		copy.get_projection_alpha(1) < copy.get_projection_alpha(2)
-		and copy.get_projection_alpha(2) < copy.get_projection_alpha(3)
-		and copy.get_projection_alpha(3) <= 0.75,
-		"copy upgrades reduce transparency while level three remains visibly virtual"
+		and copy.get_projection_alpha(2) <= 0.75,
+		"copy level two reduces transparency while remaining visibly virtual"
+	)
+	var depth_one_alpha := copy.get_projection_alpha_for_depth(1, 1)
+	var depth_two_alpha := copy.get_projection_alpha_for_depth(1, 2, depth_one_alpha)
+	var depth_three_alpha := copy.get_projection_alpha_for_depth(1, 3, depth_two_alpha)
+	_expect(
+		depth_one_alpha > depth_two_alpha
+		and depth_two_alpha > depth_three_alpha
+		and depth_three_alpha >= copy.recursive_projection_min_alpha,
+		"recursive copy opacity decreases monotonically with chain depth"
+	)
+	_expect(
+		copy.get_projection_alpha_for_depth(2, 2, depth_one_alpha) < depth_one_alpha,
+		"a deeper copy stays more transparent even when produced by a higher-level mirror"
 	)
 	_expect(
 		is_equal_approx(reflect.get_damage_multiplier(1), 1.1)
-		and is_equal_approx(reflect.get_damage_multiplier(2), 1.2)
-		and is_equal_approx(reflect.get_damage_multiplier(3), 1.2),
-		"reflect mirror exposes the configured 1.1/1.2/1.2 damage levels"
+		and is_equal_approx(reflect.get_damage_multiplier(2), 1.1),
+		"both reflect mirror levels use a 1.1 damage multiplier"
 	)
 	_expect(
-		reflect.get_penetration_bonus(1) == 1
-		and reflect.get_penetration_bonus(2) == 2
-		and reflect.get_penetration_bonus(3) == 4,
-		"reflect mirror exposes the configured 1/2/4 penetration levels"
+		reflect.get_penetration_bonus(1) == 0
+		and reflect.get_penetration_bonus(2) == 0,
+		"reflect mirror generic penetration is zero at both levels"
+	)
+	var reflect_payload := AttackEffectPayload.new()
+	var reflect_angles := reflect_payload.get_reflection_branch_angles(
+		{"attack_effects": reflect.get_attack_effects(2)},
+		{"attack_kind": &"projectile"}
+	)
+	_expect(
+		reflect.get_attack_effects(1).is_empty()
+		and reflect_angles.size() == 2
+		and is_equal_approx(reflect_angles[0], -15.0)
+		and is_equal_approx(reflect_angles[1], 15.0),
+		"reflect mirror exposes the level-two left/right fifteen-degree fork"
 	)
 
 
@@ -91,13 +154,21 @@ func _test_copy_chain_accumulation() -> void:
 	var definition := TestDefinitionFactory.make_copy_mirror_definition()
 	var root_payload := MirrorCopyPayload.new()
 	root_payload.stable_key = "source"
+	root_payload.copy_kind = &"arrow_tower"
 	var first := root_payload.copy_through(
 		"copy-a",
 		Vector3i(1, 0, 0),
 		Vector3.ZERO,
 		Vector3.FORWARD,
 		definition.get_damage_multiplier(2),
-		definition.get_penetration_bonus(2)
+		definition.get_penetration_bonus(2),
+		-1.0,
+		2
+	)
+	definition.apply_copy_attack_effects(
+		first.attack_effects,
+		2,
+		{"copy_kind": first.copy_kind, "chain_depth": first.chain_depth}
 	)
 	var second := first.copy_through(
 		"copy-b",
@@ -105,7 +176,9 @@ func _test_copy_chain_accumulation() -> void:
 		Vector3.ZERO,
 		Vector3.FORWARD,
 		definition.get_damage_multiplier(2),
-		definition.get_penetration_bonus(2)
+		definition.get_penetration_bonus(2),
+		-1.0,
+		2
 	)
 	_expect(is_equal_approx(first.damage_multiplier, 1.1), "one level-two copy has 1.1 damage")
 	_expect(
@@ -113,17 +186,88 @@ func _test_copy_chain_accumulation() -> void:
 		"two level-two copies multiply into 1.21 damage"
 	)
 	_expect(second.penetration_bonus == 2, "two level-two copies add into +2 penetration")
+	_expect(
+		first.attack_effects.has_effect(&"burst_arrow")
+		and second.attack_effects.has_effect(&"burst_arrow"),
+		"recursive copies retain attack effects granted by an earlier mirror"
+	)
+	var burst_child_effects := first.attack_effects.duplicate_for_impact_child(
+		{&"burst_arrow": {"is_burst_child": true}}
+	)
+	_expect(
+		not bool(first.attack_effects.get_effect_state(&"burst_arrow").get("is_burst_child", true))
+		and bool(
+			burst_child_effects.get_effect_state(&"burst_arrow").get("is_burst_child", false)
+		),
+		"burst children receive a child-only non-recursive state without consuming the piercing parent"
+	)
 	var mixed := first.copy_through(
 		"copy-c",
 		Vector3i(3, 0, 0),
 		Vector3.ZERO,
 		Vector3.FORWARD,
-		definition.get_damage_multiplier(3),
-		definition.get_penetration_bonus(3)
+		definition.get_damage_multiplier(2),
+		definition.get_penetration_bonus(2),
+		-1.0,
+		2
 	)
 	_expect(
-		is_equal_approx(mixed.damage_multiplier, 1.32) and mixed.penetration_bonus == 3,
-		"level-two then level-three copy accumulates 1.32 damage and +3 penetration"
+		is_equal_approx(mixed.damage_multiplier, 1.21)
+		and mixed.penetration_bonus == 2
+		and mixed.copy_upgrade_count == 2,
+		"a second level-two copy keeps accumulating independently of mirror max level"
+	)
+
+
+func _test_arrow_mirror_effects() -> void:
+	var copy := TestDefinitionFactory.make_copy_mirror_definition()
+	var burst_effect := copy.get_attack_effects(2)[0]
+	for copy_count in range(1, 4):
+		var payload := AttackEffectPayload.new()
+		payload.set_copy_upgrade_count(copy_count)
+		burst_effect.apply_on_copy(payload, {"copy_kind": &"arrow_tower"})
+		var capture := BurstCapture.new()
+		payload.notify_projectile_impact(capture, null)
+		_expect(
+			capture.captured_count == [4, 6, 8][copy_count - 1],
+			"arrow burst direction count follows copy reinforcement %d" % copy_count
+		)
+	var reflect := TestDefinitionFactory.make_reflect_mirror_definition()
+	var reflection_hit := {"attack_effects": reflect.get_attack_effects(2)}
+	var arrow_payload := AttackEffectPayload.new()
+	_expect(
+		arrow_payload.get_reflection_penetration_bonus(
+			reflection_hit,
+			{"source_building": TowerKindSource.new(&"arrow_tower")}
+		) == 2,
+		"level-two reflection grants arrow projectiles two penetration"
+	)
+	_expect(
+		arrow_payload.get_reflection_penetration_bonus(
+			reflection_hit,
+			{"source_building": TowerKindSource.new(&"crossbow_tower")}
+		) == 0,
+		"level-two reflection grants non-arrow projectiles no penetration"
+	)
+
+
+func _test_reflection_path_state() -> void:
+	var payload := AttackEffectPayload.new()
+	var upgraded_hit := {"is_upgraded_reflect_mirror": true}
+	for index in range(AttackEffectPayload.MAX_TOTAL_REFLECTIONS):
+		_expect(payload.record_successful_reflection(upgraded_hit), "reflection %d succeeds before the cap" % (index + 1))
+	_expect(
+		not payload.record_successful_reflection(upgraded_hit)
+		and payload.get_total_reflection_count() == 7
+		and payload.get_reflection_upgrade_count() == 7,
+		"the eighth reflector absorbs without increasing either reflection count"
+	)
+	var branch := payload.duplicate_for_reflection_branch()
+	_expect(
+		branch.get_total_reflection_count() == 7
+		and branch.get_reflection_upgrade_count() == 7
+		and not branch.can_spawn_reflection_branches(),
+		"reflection branches inherit synchronized counts and cannot fork again"
 	)
 
 
@@ -327,38 +471,21 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		),
 		"level-two mirror writes its configured opacity into the generated virtual image"
 	)
-	_expect(manager.upgrade_mirror(copy), "copy mirror upgrades from level two to level three")
-	_expect(
-		copy.level == 3
-		and is_equal_approx(resource.main_resource, 160.0)
-		and is_equal_approx(copy.get_refund_amount(), 140.0),
-		"second copy upgrade also spends 50 and joins the demolition refund"
-	)
-	var level_three_group: Array[MirrorCopyPayload] = manager._build_projection_group(
-		copy,
-		{pair.source_cell: [source_payload]}
-	)
-	_expect(
-		level_three_group.size() == 1
-		and level_three_group[0].projection_alpha > runtime_group[0].projection_alpha
-		and level_three_group[0].projection_alpha <= 0.75,
-		"level-three virtual image is less transparent than level two but remains translucent"
-	)
 	_expect(
 		not manager.upgrade_mirror(copy)
 		and not upgrade_button.visible
 		and not upgrade_cost_label.visible
-		and sell_refund_label.text == "+140",
-		"maximum-level mirror hides upgrade UI and keeps its full sell refund visible"
+		and sell_refund_label.text == "+90",
+		"level-two maximum mirror hides upgrade UI and keeps its full sell refund visible"
 	)
-	_expect(manager.remove_mirror(copy) and is_equal_approx(resource.main_resource, 300.0), "level-three copy demolition refunds construction plus both upgrades")
+	_expect(manager.remove_mirror(copy) and is_equal_approx(resource.main_resource, 300.0), "level-two copy demolition refunds construction plus its upgrade")
 	var reflect_from := Vector3i(2, 2, 0)
 	var reflect_edge := grid.find_edge_index(reflect_from, Vector3i(3, 2, 0))
 	var reflect := manager.place_reflect_mirror(reflect_from, reflect_edge, true)
 	_expect(
 		reflect != null
 		and is_equal_approx(reflect.get_damage_multiplier(), 1.1)
-		and reflect.get_penetration_bonus() == 1,
+		and reflect.get_penetration_bonus() == 0,
 		"new reflect mirror immediately uses its level-one reflection modifiers"
 	)
 	var reflect_plane := reflect.global_position + Vector3.UP
@@ -370,42 +497,43 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	_expect(
 		bool(level_one_hit.get("hit", false))
 		and is_equal_approx(float(level_one_hit.get("damage_multiplier", 0.0)), 1.1)
-		and int(level_one_hit.get("penetration_bonus", 0)) == 1,
-		"actual level-one reflection hit carries 1.1 damage and +1 penetration"
+		and int(level_one_hit.get("penetration_bonus", -1)) == 0,
+		"actual level-one reflection hit carries 1.1 damage and no generic penetration"
 	)
-	_expect(manager.upgrade_mirror(reflect) and manager.upgrade_mirror(reflect), "reflect mirror reaches level three through two paid upgrades")
+	_expect(manager.upgrade_mirror(reflect), "reflect mirror reaches its level-two maximum through one paid upgrade")
 	_expect(
-		reflect.level == 3
-		and is_equal_approx(reflect.get_damage_multiplier(), 1.2)
-		and reflect.get_penetration_bonus() == 4,
-		"level-three reflect mirror exposes 1.2 damage and +4 penetration"
+		reflect.level == 2
+		and is_equal_approx(reflect.get_damage_multiplier(), 1.1)
+		and reflect.get_penetration_bonus() == 0,
+		"level-two reflect mirror keeps 1.1 damage and zero generic penetration"
 	)
-	var level_three_hit := manager.trace_projectile_reflection(
+	var level_two_hit := manager.trace_projectile_reflection(
 		reflect_plane + reflect_normal,
 		reflect_plane - reflect_normal
 	)
 	_expect(
-		bool(level_three_hit.get("hit", false))
-		and is_equal_approx(float(level_three_hit.get("damage_multiplier", 0.0)), 1.2)
-		and int(level_three_hit.get("penetration_bonus", 0)) == 4,
-		"actual level-three reflection hit carries 1.2 damage and +4 penetration"
+		bool(level_two_hit.get("hit", false))
+		and is_equal_approx(float(level_two_hit.get("damage_multiplier", 0.0)), 1.1)
+		and int(level_two_hit.get("penetration_bonus", -1)) == 0
+		and bool(level_two_hit.get("is_upgraded_reflect_mirror", false)),
+		"actual level-two reflection hit exposes its upgraded marker and common modifiers"
 	)
 	var placements := manager.export_initial_placements()
-	_expect(placements.size() == 1 and placements[0].level == 3, "initial-layout export persists mirror level")
-	_expect(manager.remove_mirror(reflect) and is_equal_approx(resource.main_resource, 300.0), "reflect demolition refunds construction plus both upgrades")
-	_expect(manager.load_initial_placements(placements).is_empty(), "authored level-three mirror reloads without spending resources")
+	_expect(placements.size() == 1 and placements[0].level == 2, "initial-layout export persists level two")
+	_expect(manager.remove_mirror(reflect) and is_equal_approx(resource.main_resource, 300.0), "reflect demolition refunds construction plus its upgrade")
+	_expect(manager.load_initial_placements(placements).is_empty(), "authored level-two mirror reloads without spending resources")
 	var loaded := manager.get_mirrors()[0] if not manager.get_mirrors().is_empty() else null
-	var authored_refund := manager.reflect_mirror_definition.get_cumulative_cost(3)
+	var authored_refund := manager.reflect_mirror_definition.get_cumulative_cost(2)
 	_expect(
 		loaded != null
-		and loaded.level == 3
+		and loaded.level == 2
 		and is_equal_approx(loaded.get_refund_amount(), authored_refund),
-		"reloaded authored mirror keeps level three and its full configured refund"
+		"reloaded authored mirror keeps level two and its full configured refund"
 	)
 	_expect(
 		manager.remove_mirror(loaded)
 		and is_equal_approx(resource.main_resource, 300.0 + authored_refund),
-		"demolishing the reloaded authored mirror grants construction plus both upgrade costs"
+		"demolishing the reloaded authored mirror grants construction plus its upgrade cost"
 	)
 	panel.queue_free()
 

@@ -63,6 +63,7 @@ $Tests = @(
 	"pulse_laser_tower_test.gd",
 	"reflect_mirror_test.gd",
 	"robustness_baseline_test.gd",
+	"runtime_combat_data_editor_test.gd",
 	"runtime_inspection_configuration_test.gd",
 	"runtime_stuff_edit_session_test.gd",
 	"runtime_stuff_editor_test.gd",

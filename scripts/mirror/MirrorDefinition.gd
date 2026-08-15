@@ -24,12 +24,15 @@ const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 @export_range(0.0, 100000.0, 1.0, "or_greater") var placement_cost: float = 100.0
 
 @export_group("Upgrade")
-## Costs paid when advancing 1 -> 2 and 2 -> 3.
-@export var upgrade_costs: Array[float] = [50.0, 50.0]
+## Cost paid when advancing 1 -> 2.
+@export var upgrade_costs: Array[float] = [50.0]
 ## Level-indexed combat modifiers. Concrete mirror definitions provide their
 ## own defaults while keeping every value editable in the resource inspector.
-@export var level_damage_multipliers: Array[float] = [1.0, 1.0, 1.0]
-@export var level_penetration_bonuses: Array[int] = [0, 0, 0]
+@export var level_damage_multipliers: Array[float] = [1.0, 1.0]
+@export var level_penetration_bonuses: Array[int] = [0, 0]
+## Optional modular attack effects. Concrete resources decide whether they act
+## during tile copying, projectile/beam reflection, impact, or a combination.
+@export var attack_effects: Array[MirrorAttackEffect] = []
 
 @export_group("Placement")
 @export var active_from_side_by_default: bool = true
@@ -49,15 +52,15 @@ const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 @export_range(0.0, 1.0, 0.01) var mirror_reflectivity: float = 0.92
 @export var mirror_surface_tint: Color = Color(0.80, 0.94, 1.0, 1.0)
 @export var mirror_back_face_color: Color = Color(0.24, 0.25, 0.27, 1.0)
+@export var valid_preview_color: Color = Color(0.12, 1.0, 0.24, 0.92)
 @export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 
 @export_group("Inspection Description Lines")
-## Describes the mirror's only authored upgrade row. Supports the same
+## Describes the single level-one to level-two upgrade. Supports the same
 ## color/highlight/bold author markup as the base description.
 @export_multiline var upgrade_description: String = ""
 
-
-const MAX_LEVEL: int = 3
+const MAX_LEVEL: int = 2
 
 
 func get_max_level() -> int:
@@ -94,6 +97,25 @@ func get_penetration_bonus(level: int) -> int:
 	return maxi(0, level_penetration_bonuses[index]) if index < level_penetration_bonuses.size() else 0
 
 
+func get_attack_effects(level: int) -> Array[MirrorAttackEffect]:
+	var result: Array[MirrorAttackEffect] = []
+	for effect in attack_effects:
+		if effect != null and effect.is_active_for_level(clampi(level, 1, MAX_LEVEL)):
+			result.append(effect)
+	return result
+
+
+func apply_copy_attack_effects(
+	payload: AttackEffectPayload,
+	level: int,
+	context: Dictionary
+) -> void:
+	if payload == null:
+		return
+	for effect in get_attack_effects(level):
+		effect.apply_on_copy(payload, context)
+
+
 func get_resolved_inspection_display_name() -> String:
 	if inspection_display != null:
 		return inspection_display.resolve_display_name(display_name)
@@ -121,21 +143,34 @@ func get_formatted_inspection_description_bbcode() -> String:
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = []
 	if upgrade_costs.size() != MAX_LEVEL - 1:
-		errors.append("镜子升级费用必须配置二级和三级两项")
+		errors.append("镜子升级费用必须只配置二级一项")
 	else:
 		for index in range(upgrade_costs.size()):
 			ConfigValidator.require_number(errors, "镜子升级费用%d" % (index + 2), upgrade_costs[index], 0.0)
 	if level_damage_multipliers.size() != MAX_LEVEL:
-		errors.append("镜子伤害倍率必须配置三级")
+		errors.append("镜子伤害倍率必须配置两级")
 	else:
 		for index in range(level_damage_multipliers.size()):
 			ConfigValidator.require_number(errors, "镜子%d级伤害倍率" % (index + 1), level_damage_multipliers[index], 0.0)
 	if level_penetration_bonuses.size() != MAX_LEVEL:
-		errors.append("镜子穿透加成必须配置三级")
+		errors.append("镜子穿透加成必须配置两级")
 	else:
 		for index in range(level_penetration_bonuses.size()):
 			if level_penetration_bonuses[index] < 0:
 				errors.append("镜子%d级穿透加成不能小于零" % (index + 1))
+	var seen_effect_ids: Dictionary = {}
+	for effect_index in range(attack_effects.size()):
+		var effect := attack_effects[effect_index]
+		if effect == null:
+			errors.append("镜子攻击效果%d不能为空" % (effect_index + 1))
+			continue
+		var effect_id := effect.get_effect_id()
+		if seen_effect_ids.has(effect_id):
+			errors.append("镜子攻击效果 ID 重复：%s" % String(effect_id))
+		else:
+			seen_effect_ids[effect_id] = true
+		for effect_error in effect.validate_configuration():
+			errors.append("镜子攻击效果%d：%s" % [effect_index + 1, effect_error])
 	ConfigValidator.require_text(errors, "镜子显示名", display_name)
 	ConfigValidator.require_number(errors, "镜子放置冷却", placement_cooldown_seconds, 0.0)
 	ConfigValidator.require_number(errors, "镜子放置费用", placement_cost, 0.0)
@@ -150,5 +185,6 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "镜面反射率", mirror_reflectivity, 0.0, 1.0)
 	ConfigValidator.require_color(errors, "镜面染色", mirror_surface_tint)
 	ConfigValidator.require_color(errors, "镜面背面颜色", mirror_back_face_color)
+	ConfigValidator.require_color(errors, "有效放置预览颜色", valid_preview_color)
 	ConfigValidator.require_color(errors, "无效放置预览颜色", invalid_preview_color)
 	return errors

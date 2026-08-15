@@ -52,7 +52,7 @@ var _base_core: BaseCore
 var _defeat_active: bool = false
 var _victory_active: bool = false
 var _victory_star_count: int = 0
-var _debug_tools_enabled: bool = true
+var _debug_tools_enabled: bool = false
 var _debug_console_available: bool = true
 var _runtime_parameter_editor: Node
 var _debug_category_registry: DebugCategoryRegistryScript
@@ -79,6 +79,7 @@ func _ready() -> void:
 	runtime_stuff_editor_panel.runtime_parameter_editor_requested.connect(_on_runtime_parameter_editor_requested)
 	card_style_toggle.pressed.connect(_on_card_style_toggle_pressed)
 	_refresh_card_style_toggle()
+	set_debug_tools_enabled(_debug_tools_enabled)
 
 
 func configure(
@@ -318,6 +319,13 @@ func show_placement_failure(reason: String, screen_position: Vector2) -> void:
 
 func show_upgrade_failure(screen_position: Vector2) -> void:
 	_show_action_feedback("金币不足！", screen_position)
+
+
+func show_adjustment_failure(is_edge_target: bool, screen_position: Vector2) -> void:
+	_show_action_feedback(
+		"该边不可放置" if is_edge_target else "该块不可放置",
+		screen_position
+	)
 
 
 static func resolve_placement_failure_message(reason: String) -> String:

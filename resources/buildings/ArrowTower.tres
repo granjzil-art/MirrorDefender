@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://e0ovvd6rbil6"]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://icylp6i1v6f2"]
 
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
 [ext_resource type="Texture2D" uid="uid://c0sqll7rtl8ml" path="res://assets/png/arrowtower_o.png" id="1_q1p0p"]
@@ -7,9 +7,9 @@
 [ext_resource type="PackedScene" uid="uid://b5g1nycy1wp17" path="res://assets/buildings/ArrowTower/tscn/arrowtower_1_2.tscn" id="3_483c5"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_model_asset"]
-[ext_resource type="PackedScene" uid="uid://lf1jh11pajhy" path="res://assets/projections/Arrow/arrow.tscn" id="5_sdnyh"]
 [ext_resource type="PackedScene" uid="uid://np6n5xmegbwx" path="res://assets/buildings/ArrowTower/tscn/arrowtower_2_1.tscn" id="6_y1u0u"]
 [ext_resource type="PackedScene" uid="uid://bura62s1xpja6" path="res://assets/buildings/ArrowTower/tscn/arrowtower_3_1.tscn" id="7_q1p0p"]
+[ext_resource type="PackedScene" uid="uid://bwp8e4afvoiq5" path="res://assets/projections/low_poly_arrow/arrow.tscn" id="7_sm2iy"]
 
 [sub_resource type="Resource" id="Inspection_arrow"]
 script = ExtResource("3_inspection")
@@ -32,7 +32,7 @@ scene = ExtResource("3_483c5")
 
 [sub_resource type="Resource" id="Resource_bobeh"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("5_sdnyh")
+scene = ExtResource("7_sm2iy")
 runtime_scale = Vector3(1.1, 1.1, 1.1)
 metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
@@ -42,8 +42,9 @@ cost = 80.0
 prioritizes_airborne = true
 targeting_range = 2.3000000000000003
 attack_range = 6.0
-attacks_per_second = 1.3
-projectile_fire_mode = 1
+attacks_per_second = 2.1999999999999997
+projectile_fire_mode = 2
+projectile_width = 0.15
 projectile_model_asset = SubResource("Resource_bobeh")
 model_asset = SubResource("ModelAsset_arrow_level_1")
 metadata/_custom_type_script = "uid://b05t732bvub0h"
@@ -55,7 +56,7 @@ runtime_scale = Vector3(1.1, 1.1, 1.1)
 
 [sub_resource type="Resource" id="Resource_qmrpm"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("5_sdnyh")
+scene = ExtResource("7_sm2iy")
 runtime_scale = Vector3(1.1, 1.1, 1.1)
 metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
@@ -66,10 +67,10 @@ prioritizes_airborne = true
 base_damage = 25.0
 targeting_range = 2.8000000000000003
 attack_range = 8.0
-attacks_per_second = 1.5
+attacks_per_second = 2.8
 projectile_fire_mode = 1
-projectile_length = 1.0
-projectile_width = 0.1
+projectile_length = 0.35
+projectile_width = 0.18
 projectile_penetration_count = 2
 projectile_model_asset = SubResource("Resource_qmrpm")
 model_asset = SubResource("ModelAsset_arrow_level_2")
@@ -82,7 +83,7 @@ runtime_scale = Vector3(1.2, 1.2, 1.2)
 
 [sub_resource type="Resource" id="Resource_483c5"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("5_sdnyh")
+scene = ExtResource("7_sm2iy")
 runtime_scale = Vector3(1.2, 1.2, 1.2)
 metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
@@ -93,10 +94,10 @@ prioritizes_airborne = true
 base_damage = 30.0
 targeting_range = 3.4
 attack_range = 10.0
-attacks_per_second = 1.7
+attacks_per_second = 3.5
 projectile_fire_mode = 1
 projectile_length = 0.4
-projectile_width = 0.1
+projectile_width = 0.2
 projectile_penetration_count = 3
 projectile_model_asset = SubResource("Resource_483c5")
 model_asset = SubResource("ModelAsset_arrow_level_3")

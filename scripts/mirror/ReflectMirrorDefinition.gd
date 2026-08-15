@@ -9,17 +9,21 @@ extends MirrorDefinition
 ## Safety budget for very high-speed projectiles crossing many mirrors in one frame.
 ## This is not a lifetime cap; unfinished travel continues next frame.
 @export_range(1, 32, 1) var max_reflections_per_frame: int = 8
+@export_range(1, 64, 1) var maximum_total_reflections: int = 7
+@export_range(0, 256, 1) var reflection_branch_budget: int = 14
 
 
 func _init() -> void:
 	display_name = "反射镜"
-	upgrade_costs = [50.0, 50.0]
-	level_damage_multipliers = [1.1, 1.2, 1.2]
-	level_penetration_bonuses = [1, 2, 4]
+	upgrade_costs = [50.0]
+	level_damage_multipliers = [1.1, 1.1]
+	level_penetration_bonuses = [0, 0]
 
 
 func validate_configuration() -> Array[String]:
 	var errors: Array[String] = super.validate_configuration()
 	ConfigValidator.require_number(errors, "反射碰撞偏移比例", collision_epsilon_ratio, 0.0001, 0.05)
 	ConfigValidator.require_integer_range(errors, "单帧反射上限", max_reflections_per_frame, 1, 32)
+	ConfigValidator.require_integer_range(errors, "单条攻击反射上限", maximum_total_reflections, 1, 64)
+	ConfigValidator.require_integer_range(errors, "反射分支预算", reflection_branch_budget, 0, 256)
 	return errors

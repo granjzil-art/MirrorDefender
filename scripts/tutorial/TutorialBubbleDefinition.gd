@@ -41,8 +41,9 @@ enum FlowStrength {
 @export var flow_strength: FlowStrength = FlowStrength.LIGHT
 
 
-func validate_configuration(goal_count: int) -> Array[String]:
+func validate_configuration(goals: Array) -> Array[String]:
 	var errors: Array[String] = []
+	var goal_count := goals.size()
 	if text.strip_edges().is_empty():
 		errors.append("气泡文本不能为空")
 	if not is_finite(maximum_width) or maximum_width < 180.0:
@@ -51,4 +52,8 @@ func validate_configuration(goal_count: int) -> Array[String]:
 		associated_goal_index < 0 or associated_goal_index >= goal_count
 	):
 		errors.append("按目标消失的气泡必须绑定有效目标")
+	elif dismiss_condition == DismissCondition.GOAL_COMPLETED:
+		var associated_goal: Resource = goals[associated_goal_index]
+		if associated_goal == null or int(associated_goal.get("goal_type")) == 0:
+			errors.append("按目标消失的气泡不能关联“查看全部教学气泡”目标")
 	return errors

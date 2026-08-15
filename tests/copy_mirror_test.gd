@@ -54,7 +54,9 @@ func _test_grid_geometry(shape: GridManager.Shape) -> void:
 
 
 func _test_building_preview_and_copy_trajectory() -> void:
-	var fixture := _make_fixture(_make_level(false))
+	var level := _make_level(false)
+	level.store_tile(_make_effect_tile(Vector3i(1, 2, 0), RockTileEffect.new(), false))
+	var fixture := _make_fixture(level)
 	var host: Node3D = fixture.host
 	var grid: GridManager = fixture.grid
 	var building_manager: BuildingManager = fixture.building
@@ -84,6 +86,10 @@ func _test_building_preview_and_copy_trajectory() -> void:
 		and preview_projections[0].get_visual_snapshot() != null,
 		"building copy preview is a behaviorless translucent virtual image"
 	)
+	_expect(
+		_is_green(preview_building.get_preview_display_color()),
+		"valid building placement renders the physical building preview in green"
+	)
 	var visualizer := BuildingSelectionVisualizer.new()
 	host.add_child(visualizer)
 	visualizer.configure(grid, building_manager)
@@ -109,8 +115,43 @@ func _test_building_preview_and_copy_trajectory() -> void:
 		mirror_manager.get_building_preview_projections().is_empty(),
 		"clearing building placement also clears its copy virtual images"
 	)
+	_expect(
+		not building_manager.update_preview(Vector3i(1, 2, 0), building_manager.arrow_tower),
+		"obstacle tile remains rejected"
+	)
+	var invalid_building_preview := building_manager.get_preview_building()
+	var invalid_building_color := invalid_building_preview.get_preview_display_color()
+	_expect(
+		invalid_building_preview.visible
+		and invalid_building_color.r > 0.8
+		and invalid_building_color.g < 0.3,
+		"invalid physical building preview stays visible in red"
+	)
+	_expect(
+		mirror_manager.get_building_preview_projections().is_empty(),
+		"invalid building placement keeps the original copied-preview behavior"
+	)
+	building_manager.clear_preview()
 	var building := building_manager.place_building(source_cell, building_manager.arrow_tower)
 	_expect(building != null, "copy-trajectory fixture places the previewed building")
+	building_manager.select_building(building)
+	var selected_building_mesh := _find_first_mesh_instance(building)
+	var selected_building_overlay := (
+		selected_building_mesh.material_overlay as ShaderMaterial
+		if selected_building_mesh != null
+		else null
+	)
+	var selected_building_color: Color = (
+		selected_building_overlay.get_shader_parameter("highlight_color")
+		if selected_building_overlay != null
+		else Color.BLACK
+	)
+	_expect(
+		selected_building_overlay != null
+		and selected_building_color.g > 0.9
+		and selected_building_color.r < 0.3,
+		"selected live building uses the shared green body highlight"
+	)
 	var live_payloads := mirror_manager.get_projectile_trajectory_copy_payloads(building)
 	_expect(
 		live_payloads.size() == 1 and live_payloads[0].projected_cell == target_cell,
@@ -120,6 +161,19 @@ func _test_building_preview_and_copy_trajectory() -> void:
 	_assert_original_and_copy_trajectories(
 		visualizer.debug_get_projectile_trajectory_segments(),
 		"selected building"
+	)
+	_expect(not mirror_manager.update_preview(from_cell, edge_index), "occupied mirror edge remains rejected")
+	var invalid_mirror_preview := mirror_manager.get_preview_mirror()
+	var invalid_mirror_color := invalid_mirror_preview.get_preview_display_color()
+	_expect(
+		invalid_mirror_preview.visible
+		and invalid_mirror_color.r > 0.8
+		and invalid_mirror_color.g < 0.3,
+		"invalid physical mirror preview stays visible in red"
+	)
+	_expect(
+		mirror_manager.get_preview_projections().is_empty(),
+		"invalid mirror placement does not create copied-object previews"
 	)
 	host.queue_free()
 	await process_frame
@@ -139,6 +193,13 @@ func _test_mirror_placement_preview_trajectory() -> void:
 	building_manager.select_building(null)
 	_expect(source != null, "mirror-trajectory fixture places a real source tower")
 	_expect(mirror_manager.update_preview(from_cell, edge_index), "copy-mirror placement creates its virtual-image preview")
+	var mirror_virtual_images := mirror_manager.get_preview_projections()
+	_expect(
+		mirror_virtual_images.size() == 1
+		and mirror_manager.get_preview_mirror() != null
+		and _is_green(mirror_manager.get_preview_mirror().get_preview_display_color()),
+		"valid mirror edge renders the physical mirror preview in green"
+	)
 	var trajectory_data := mirror_manager.get_preview_projectile_trajectory()
 	var trajectory_payloads: Array = trajectory_data.get("payloads", [])
 	_expect(
@@ -429,6 +490,11 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var mirrored_target_cell := Vector3i(6, 2, 0)
 	var mirrored_target := _make_target(host, grid.cell_to_world(mirrored_target_cell))
 	combat_manager.register_target(mirrored_target)
+	var second_mirrored_target := _make_target(
+		host,
+		grid.cell_to_world(mirrored_target_cell) + Vector3(grid.cell_size * 0.75, 0.0, 0.0)
+	)
+	combat_manager.register_target(second_mirrored_target)
 	var stuff_manager := StuffManager.new()
 	host.add_child(stuff_manager)
 	stuff_manager.configure(grid, null)
@@ -438,13 +504,51 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var projected_start := tower_projection.payload.transform_point(arrow.get_attack_origin())
 	var projected_end := tower_projection.payload.transform_point(original_endpoint)
 	var old_endpoint_distance := projected_start.distance_to(projected_end)
+	_expect(mirror.set_level(2), "copy mirror upgrades to level two for attack-effect coverage")
+	mirror_manager.rebuild_now()
+	tower_projection = _find_projection_kind(
+		mirror_manager.get_projections(target_cell),
+		&"arrow_tower"
+	)
+	_expect(
+		tower_projection != null
+		and tower_projection.payload.attack_effects.has_effect(&"burst_arrow"),
+		"level-two copied arrow projection carries the burst-arrow effect"
+	)
 	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
 	var projection_projectile := _find_projection_projectile(combat_manager)
-	_expect(projection_projectile != null, "original arrow attack spawns a from-start ballistic projection projectile")
+	_expect(
+		projection_projectile != null
+		and projection_projectile.debug_get_attack_effect_ids().has(&"burst_arrow"),
+		"original arrow attack spawns a burst-enabled from-start projection projectile"
+	)
 	if projection_projectile != null:
 		projection_projectile._process(10.0)
-	_expect(is_equal_approx(mirrored_target.current_hp, mirrored_target.max_hp - 17.0), "projection projectile damages the first eligible target along its mirrored ray")
+	_expect(
+		is_equal_approx(
+			mirrored_target.current_hp,
+			mirrored_target.max_hp - 17.0 * mirror.get_damage_multiplier()
+		)
+		and is_equal_approx(
+			second_mirrored_target.current_hp,
+			second_mirrored_target.max_hp - 17.0 * mirror.get_damage_multiplier()
+		),
+		"piercing projection projectile damages both eligible targets along its mirrored ray"
+	)
+	_expect(
+		_count_active_projection_projectiles(combat_manager) == 8,
+		"each of two piercing impacts emits four non-recursive projection arrows at copy reinforcement one"
+	)
+	combat_manager.clear_projectiles()
+	combat_manager.unregister_target(second_mirrored_target)
+	second_mirrored_target.queue_free()
 	await process_frame
+	_expect(mirror.set_level(1), "copy mirror returns to level one after attack-effect coverage")
+	mirror_manager.rebuild_now()
+	tower_projection = _find_projection_kind(
+		mirror_manager.get_projections(target_cell),
+		&"arrow_tower"
+	)
 	mirrored_target.global_position = grid.cell_to_world(Vector3i(6, 0, 0))
 	arrow.notify_copy_attack(&"projectile", arrow.get_attack_origin(), original_endpoint, 17.0)
 	var continuing_projection_projectile := _find_projection_projectile(combat_manager)
@@ -531,11 +635,8 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var copied_burst_before := mirrored_target.current_hp
 	laser.notify_copy_attack(&"laser_burst", laser.get_attack_origin(), original_endpoint, laser.get_laser_burst_damage())
 	_expect(
-		is_equal_approx(
-			mirrored_target.current_hp,
-			copied_burst_before - laser.get_laser_burst_damage()
-		),
-		"copied laser bursts at the first enemy of its independently traced path"
+		is_equal_approx(mirrored_target.current_hp, copied_burst_before),
+		"retired body-upgrade laser-burst events no longer affect copies"
 	)
 	blocker_runtime = stuff_manager.add_stuff(
 		mirrored_target_cell,
@@ -586,6 +687,63 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		> blocked_laser_endpoint.distance_to(projected_laser_start),
 		"copied continuous laser resumes growth after its local Stuff blocker disappears"
 	)
+	_expect(mirror.set_level(2), "copy mirror upgrades to level two for ice-burst coverage")
+	mirror_manager.rebuild_now()
+	laser_projection = _find_projection_kind(mirror_manager.get_projections(target_cell), &"laser_tower")
+	_expect(
+		laser_projection != null
+		and laser_projection.payload.attack_effects.has_effect(&"ice_copy_burst"),
+		"level-two copied ice tower receives burst and freeze together"
+	)
+	var ice_path_start := laser_projection.payload.transform_point(laser.get_attack_origin())
+	var ice_path_end := laser_projection.payload.transform_point(original_endpoint)
+	var ice_direction := (ice_path_end - ice_path_start).normalized()
+	var ice_side := Vector3(-ice_direction.z, 0.0, ice_direction.x)
+	var ice_burst_target := laser_projection.get_laser_burst_target()
+	var ice_burst_center: Vector3 = ice_burst_target.get(
+		"position",
+		mirrored_target.get_target_position()
+	)
+	var ice_splash_target := CombatTarget.new()
+	ice_splash_target.debug_visual_enabled = false
+	ice_splash_target.max_hp = 1000.0
+	ice_splash_target.position = ice_burst_center + ice_side * grid.cell_size
+	host.add_child(ice_splash_target)
+	combat_manager.register_target(ice_splash_target)
+	mirrored_target.current_hp = mirrored_target.max_hp
+	var ice_splash_hp_before := ice_splash_target.current_hp
+	laser.notify_copy_attack(
+		&"laser",
+		laser.get_attack_origin(),
+		original_endpoint,
+		laser.get_laser_damage_per_second() * 3.0
+	)
+	_expect(
+		is_equal_approx(
+			ice_splash_target.current_hp,
+			ice_splash_hp_before - laser.get_laser_burst_damage() * mirror.get_damage_multiplier()
+		)
+		and ice_splash_target.is_frozen()
+		and is_equal_approx(ice_splash_target.get_freeze_remaining(), 1.5),
+		"shared three-second source event makes the L2 copy burst at its own first hit and freeze for tier one duration"
+	)
+	var ice_clock_before_upgrade := laser.get_ice_copy_mirror_state()
+	laser.set_facing_index(laser.facing_index + 1)
+	laser.apply_level(2)
+	var ice_clock_after_upgrade := laser.get_ice_copy_mirror_state()
+	_expect(
+		int(ice_clock_after_upgrade.get("event_sequence", -1))
+			== int(ice_clock_before_upgrade.get("event_sequence", -2))
+		and is_equal_approx(
+			float(ice_clock_after_upgrade.get("elapsed", -1.0)),
+			float(ice_clock_before_upgrade.get("elapsed", -2.0))
+		),
+		"ice source rotation and tower upgrade preserve the mirror event clock"
+	)
+	combat_manager.unregister_target(ice_splash_target)
+	ice_splash_target.queue_free()
+	_expect(mirror.set_level(1), "copy mirror returns to level one before base pulse-copy coverage")
+	mirror_manager.rebuild_now()
 
 	building_manager.remove_building(source_cell, 0.0)
 	var pulse := building_manager.place_building(source_cell, building_manager.pulse_laser_tower)
@@ -618,6 +776,146 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	)
 	_expect(stuff_manager.remove_stuff(&"copy_attack_blocker_3"), "copy attack fixture removes the pulse-laser blocker")
 	await process_frame
+	combat_manager.clear_projectiles()
+	_expect(mirror.set_level(2), "copy mirror upgrades to level two for pulse-overdrive coverage")
+	mirror_manager.rebuild_now()
+	var pulse_projection := _find_projection_kind(
+		mirror_manager.get_projections(target_cell),
+		&"pulse_laser_tower"
+	)
+	_expect(
+		pulse_projection != null
+		and pulse_projection.payload.attack_effects.has_effect(&"pulse_laser_overdrive"),
+		"level-two pulse-laser copy receives the shared overdrive effect"
+	)
+	for _charge_index in range(5):
+		pulse.notify_copy_attack(&"pulse_laser", pulse.get_attack_origin(), original_endpoint, 11.0)
+	_expect(
+		_count_active_pulse_lasers(combat_manager) == 0
+		and int(pulse.get_pulse_copy_mirror_state().get("charge_count", 0)) == 5
+		and StringName(pulse.get_pulse_copy_mirror_state().get("phase", &"")) == &"pending",
+		"five source flashes charge once per shot while the eligible copy stays completely silent"
+	)
+	mirror_manager._process(0.01)
+	_expect(
+		pulse_projection.debug_is_pulse_charge_orb_visible(),
+		"charging pulse-laser copy shows the programmatic red pulsing muzzle orb"
+	)
+	var pulse_visual_duration := (
+		pulse.get_pulse_laser_fade_in_time()
+		+ pulse.get_pulse_laser_hold_time()
+		+ pulse.get_pulse_laser_fade_out_time()
+	)
+	pulse._process(pulse_visual_duration + 0.001)
+	var overdrive_state := pulse.get_pulse_copy_mirror_state()
+	_expect(
+		StringName(overdrive_state.get("phase", &"")) == &"overdrive"
+		and float(overdrive_state.get("overdrive_remaining", 0.0)) > 9.99,
+		"the shared source clock starts the ten-second overdrive after the fifth flash completes"
+	)
+	combat_manager.clear_projectiles()
+	var overdrive_target := CombatTarget.new()
+	overdrive_target.debug_visual_enabled = false
+	overdrive_target.max_hp = 1000.0
+	var overdrive_path_start := pulse_projection.payload.transform_point(pulse.get_attack_origin())
+	var overdrive_path_end := pulse_projection.payload.transform_point(
+		pulse.get_attack_origin() + pulse.get_facing_direction() * pulse.get_attack_range_world()
+	)
+	var overdrive_target_position := overdrive_path_start + (
+		overdrive_path_end - overdrive_path_start
+	).normalized() * grid.cell_size
+	overdrive_target.position = Vector3(
+		overdrive_target_position.x,
+		grid.cell_to_world(target_cell).y,
+		overdrive_target_position.z
+	)
+	host.add_child(overdrive_target)
+	combat_manager.register_target(overdrive_target)
+	var overdrive_hp_before := overdrive_target.current_hp
+	mirror_manager._process(0.50)
+	var expected_overdrive_damage := (
+		pulse.get_instant_damage()
+		* pulse.get_attacks_per_second()
+		* mirror.get_damage_multiplier()
+		* 0.50
+	)
+	_expect(
+		not pulse_projection.debug_is_pulse_charge_orb_visible()
+		and pulse_projection.debug_get_pulse_overdrive_single_sine_count() > 0
+		and pulse_projection.debug_get_pulse_overdrive_axis_segment_count() == 0
+		and pulse_projection.debug_get_pulse_overdrive_wave_pair_count() == 0,
+		"overdrive renders exactly one thick sine with no axis or second filament"
+	)
+	var pulse_reflection_colors := pulse.get_pulse_laser_reflection_colors()
+	_expect(
+		not pulse_reflection_colors.is_empty()
+		and pulse_projection.debug_get_pulse_overdrive_visual_color().is_equal_approx(
+			pulse_reflection_colors[0]
+		)
+		and pulse_projection.debug_get_pulse_overdrive_rendered_color().is_equal_approx(
+			pulse_reflection_colors[0]
+		),
+		"unreflected overdrive cache and live material both start at the fixed red color"
+	)
+	_expect(
+		is_equal_approx(
+			overdrive_target.current_hp,
+			overdrive_hp_before - expected_overdrive_damage
+		),
+		"overdrive applies configured DPS (expected %.3f HP, got %.3f)" % [
+			overdrive_hp_before - expected_overdrive_damage,
+			overdrive_target.current_hp,
+		]
+	)
+	pulse.apply_level(2)
+	mirror_manager.rebuild_now()
+	pulse_projection = _find_projection_kind(
+		mirror_manager.get_projections(target_cell),
+		&"pulse_laser_tower"
+	)
+	mirror_manager._process(0.01)
+	_expect(
+		pulse_projection != null
+		and pulse_projection.debug_get_pulse_overdrive_visual_color().is_equal_approx(
+			pulse_reflection_colors[0]
+		),
+		"source tower level never offsets an unreflected copied-overdrive color"
+	)
+	var old_pulse_phase := pulse_projection.debug_get_pulse_charge_orb_phase()
+	var old_pulse_distance := pulse_projection.debug_get_pulse_overdrive_propagation_distance()
+	var old_source_state := pulse.get_pulse_copy_mirror_state()
+	mirror_manager.rebuild_now()
+	pulse_projection = _find_projection_kind(
+		mirror_manager.get_projections(target_cell),
+		&"pulse_laser_tower"
+	)
+	mirror_manager._process(0.01)
+	_expect(
+		pulse_projection != null
+		and is_equal_approx(pulse_projection.debug_get_pulse_charge_orb_phase(), old_pulse_phase)
+		and is_equal_approx(
+			pulse_projection.debug_get_pulse_overdrive_propagation_distance(),
+			old_pulse_distance
+		)
+		and pulse_projection.debug_get_pulse_overdrive_rendered_color().is_equal_approx(
+			pulse_reflection_colors[0]
+		),
+		"mirror rebuild restores pulse state and reconfigures the new renderer to red"
+	)
+	pulse.set_facing_index(pulse.facing_index + 1)
+	pulse.apply_level(2)
+	var preserved_source_state := pulse.get_pulse_copy_mirror_state()
+	_expect(
+		StringName(preserved_source_state.get("phase", &"")) == &"overdrive"
+		and int(preserved_source_state.get("generation", -1)) == int(old_source_state.get("generation", -2))
+		and is_equal_approx(
+			float(preserved_source_state.get("overdrive_remaining", 0.0)),
+			float(old_source_state.get("overdrive_remaining", -1.0))
+		),
+		"source rotation and tower upgrade preserve shared pulse charge/overdrive state"
+	)
+	combat_manager.unregister_target(overdrive_target)
+	overdrive_target.queue_free()
 
 	var overlapping := building_manager.place_building(target_cell, building_manager.arrow_tower)
 	_expect(overlapping != null, "a real building can occupy a tile already containing non-occupying projections")
@@ -704,6 +1002,19 @@ func _test_unlimited_projection_overlap_with_single_real_entity() -> void:
 
 func _test_projected_barrier_and_shared_edge_occupancy() -> void:
 	var level := _make_level(true)
+	var path: PathDefinition = level.paths[0]
+	path.cells.assign([
+		Vector3i(1, 2, 0),
+		Vector3i(2, 2, 0),
+		Vector3i(2, 3, 0),
+		Vector3i(3, 3, 0),
+		Vector3i(4, 3, 0),
+		Vector3i(4, 2, 0),
+		Vector3i(5, 2, 0),
+		Vector3i(6, 2, 0),
+	])
+	level.spawn_points[0].cell = path.get_start_cell()
+	level.base_cell = path.get_end_cell()
 	var fixture := _make_fixture(level)
 	var host: Node3D = fixture.host
 	var grid: GridManager = fixture.grid
@@ -751,6 +1062,7 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	var source_rock := rock_tile.get_runtime_obstacle(Vector3i(2, 2, 0))
 	var projected_rock := rock_mirrors.resolve_projected_navigation_blocker(Vector3i(5, 2, 0))
 	_expect(source_rock != null and projected_rock is MirrorProjection, "projected rock exposes the mirrored attack target")
+	var direct_projection_alpha: float = (projected_rock as MirrorProjection).payload.projection_alpha
 	var source_durability_before := float(source_rock.get("current_durability"))
 	projected_rock.call("take_structure_damage", 11.0, null)
 	_expect(
@@ -762,6 +1074,27 @@ func _test_projected_rock_void_and_recursive_copy() -> void:
 	rock_mirrors.rebuild_now()
 	var recursive := rock_mirrors.get_projections(Vector3i(6, 2, 0))
 	_expect(not recursive.is_empty() and recursive[0].payload.chain_depth == 2, "an existing projection can be copied through a second mirror")
+	_expect(
+		not recursive.is_empty()
+		and recursive[0].payload.projection_alpha < direct_projection_alpha,
+		"recursive projection becomes more transparent than its parent projection"
+	)
+	var direct_projection_mesh := _find_first_mesh_instance(
+		(projected_rock as MirrorProjection).get_visual_snapshot()
+	)
+	var recursive_projection_mesh := _find_first_mesh_instance(
+		recursive[0].get_visual_snapshot()
+	)
+	_expect(
+		direct_projection_mesh != null
+		and recursive_projection_mesh != null
+		and recursive_projection_mesh.transparency > direct_projection_mesh.transparency
+		and is_equal_approx(
+			recursive_projection_mesh.transparency,
+			1.0 - recursive[0].payload.projection_alpha
+		),
+		"recursive depth opacity reaches the rendered blue projection mesh"
+	)
 	_expect(recursive[0].payload.lineage.size() == 2, "recursive payload records a finite two-mirror lineage")
 	_expect(recursive[0].get_visual_snapshot() != null and _snapshot_uses_immediate_mesh(recursive[0].get_visual_snapshot()), "recursive tile projection keeps the original tile-content snapshot")
 	_expect(not _snapshot_has_named_mesh(recursive[0].get_visual_snapshot(), "Terrain"), "recursive tile projection never introduces terrain base geometry")
@@ -825,7 +1158,7 @@ func _test_projected_rock_after_overlapping_barrier_breaks() -> void:
 	var level := _make_level(true)
 	var path: PathDefinition = level.paths[0]
 	path.cells.clear()
-	for x in range(3, 7):
+	for x in range(4, 7):
 		path.cells.append(Vector3i(x, 2, 0))
 	level.spawn_points[0].cell = path.get_start_cell()
 	level.base_cell = path.get_end_cell()
@@ -1008,6 +1341,10 @@ func _has_projection_kind(projections: Array[MirrorProjection], kind: StringName
 			return true
 	return false
 
+
+func _is_green(color: Color) -> bool:
+	return color.g > 0.8 and color.r < 0.3 and color.b < 0.4
+
 func _find_projection_kind(projections: Array[MirrorProjection], kind: StringName) -> MirrorProjection:
 	for projection in projections:
 		if projection.payload.copy_kind == kind:
@@ -1106,9 +1443,17 @@ func _find_first_mesh_instance(node: Node) -> MeshInstance3D:
 
 func _find_projection_projectile(combat_manager: CombatManager) -> MirrorProjectionProjectile:
 	for child in combat_manager.get_children():
-		if child is MirrorProjectionProjectile:
+		if child is MirrorProjectionProjectile and not child.is_queued_for_deletion():
 			return child
 	return null
+
+
+func _count_active_projection_projectiles(combat_manager: CombatManager) -> int:
+	var count := 0
+	for child in combat_manager.get_children():
+		if child is MirrorProjectionProjectile and not child.is_queued_for_deletion():
+			count += 1
+	return count
 
 
 func _find_pulse_laser(combat_manager: CombatManager) -> PulseLaserBeam:
@@ -1116,6 +1461,14 @@ func _find_pulse_laser(combat_manager: CombatManager) -> PulseLaserBeam:
 		if child is PulseLaserBeam:
 			return child
 	return null
+
+
+func _count_active_pulse_lasers(combat_manager: CombatManager) -> int:
+	var count := 0
+	for child in combat_manager.get_children():
+		if child is PulseLaserBeam and not child.is_queued_for_deletion():
+			count += 1
+	return count
 
 func _expect(condition: bool, message: String) -> void:
 	_checks += 1

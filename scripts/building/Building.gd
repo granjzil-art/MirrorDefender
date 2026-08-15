@@ -21,6 +21,7 @@ const FREE_FACING_STEP_DEGREES := 10.0
 @export_range(0.05, 1.0, 0.05, "or_greater") var base_radius_ratio: float = 0.24
 @export_range(0.01, 1.0, 0.01, "or_greater") var direction_marker_ratio: float = 0.32
 @export_range(0.05, 1.0, 0.05) var preview_alpha: float = 0.38
+@export var valid_preview_color: Color = Color(0.12, 1.0, 0.24, 0.82)
 @export var invalid_preview_color: Color = Color(1.0, 0.08, 0.08, 0.82)
 
 signal facing_changed(building: Building, facing_index: int, facing_slots: int)
@@ -58,10 +59,22 @@ var _visual_root: Node3D
 var _continuous_laser_visual: Node3D
 var _durability_label: Label3D
 var _durability: BarrierDurability
+var _pulse_copy_mirror_state: Dictionary = {
+	"phase": &"charging",
+	"charge_count": 0,
+	"charge_shots": 5,
+	"pending_remaining": 0.0,
+	"overdrive_remaining": 0.0,
+	"overdrive_duration": 10.0,
+	"generation": 0,
+}
+var _ice_copy_mirror_elapsed: float = 0.0
+var _ice_copy_mirror_event_sequence: int = 0
 
 func _process(delta: float) -> void:
 	if not feature_enabled or _preview_mode or _stats == null:
 		return
+	_tick_pulse_copy_mirror_state(delta)
 	if is_path_blocker():
 		_durability.tick(delta)
 	elif _attack_strategy != null:
@@ -138,6 +151,10 @@ func is_selected() -> bool:
 
 func is_preview_valid() -> bool:
 	return _preview_valid
+
+
+func get_preview_display_color() -> Color:
+	return invalid_preview_color if not _preview_valid else valid_preview_color
 
 
 ## Moves an existing tile-placement ghost without rebuilding its model tree.
@@ -631,6 +648,30 @@ func get_laser_freeze_duration() -> float:
 func get_combat_manager() -> CombatManager:
 	return _combat_manager
 
+
+func get_grid_cell_size() -> float:
+	return _grid.cell_size if _grid != null else 1.0
+
+
+func advance_ice_copy_mirror_clock(delta: float, interval: float) -> int:
+	var resolved_interval := maxf(0.0, interval)
+	if resolved_interval <= 0.0:
+		return 0
+	_ice_copy_mirror_elapsed += maxf(0.0, delta)
+	var event_count := 0
+	while _ice_copy_mirror_elapsed >= resolved_interval:
+		_ice_copy_mirror_elapsed -= resolved_interval
+		_ice_copy_mirror_event_sequence += 1
+		event_count += 1
+	return event_count
+
+
+func get_ice_copy_mirror_state() -> Dictionary:
+	return {
+		"elapsed": _ice_copy_mirror_elapsed,
+		"event_sequence": _ice_copy_mirror_event_sequence,
+	}
+
 func get_copy_kind() -> StringName:
 	if definition == null or is_edge_placement():
 		return &""
@@ -684,6 +725,7 @@ func get_missile_configuration() -> Dictionary:
 		return {}
 	var cell_size := _grid.cell_size if _grid != null else 1.0
 	return {
+		"cell_size": cell_size,
 		"explosion_radius": _stats.missile_explosion_radius * cell_size,
 		"orbit_duration": _stats.missile_orbit_duration,
 		"orbit_radius_x": _stats.missile_orbit_radius_x * cell_size,
@@ -731,6 +773,64 @@ func get_pulse_laser_reflection_colors() -> Array[Color]:
 
 func get_pulse_laser_reflect_max() -> int:
 	return _stats.pulse_laser_reflect_max if _stats != null else 0
+
+
+## Registers one successful source pulse for all L2-copy projections sharing
+## this entity. Pending/overdrive pulses never charge the next cycle.
+func register_pulse_copy_mirror_charge(
+	charge_shots: int,
+	pulse_visual_duration: float,
+	overdrive_duration: float
+) -> Dictionary:
+	if definition == null or definition.kind != BuildingDefinition.Kind.PULSE_LASER_TOWER:
+		return get_pulse_copy_mirror_state()
+	if StringName(_pulse_copy_mirror_state.get("phase", &"charging")) != &"charging":
+		return get_pulse_copy_mirror_state()
+	var required := maxi(1, charge_shots)
+	_pulse_copy_mirror_state["charge_shots"] = required
+	_pulse_copy_mirror_state["overdrive_duration"] = maxf(0.0, overdrive_duration)
+	var count := mini(required, int(_pulse_copy_mirror_state.get("charge_count", 0)) + 1)
+	_pulse_copy_mirror_state["charge_count"] = count
+	if count >= required:
+		_pulse_copy_mirror_state["phase"] = &"pending"
+		_pulse_copy_mirror_state["pending_remaining"] = maxf(
+			0.000001,
+			pulse_visual_duration
+		)
+	return get_pulse_copy_mirror_state()
+
+
+func get_pulse_copy_mirror_state() -> Dictionary:
+	return _pulse_copy_mirror_state.duplicate(true)
+
+
+func _tick_pulse_copy_mirror_state(delta: float) -> void:
+	var remaining_delta := maxf(0.0, delta)
+	var phase := StringName(_pulse_copy_mirror_state.get("phase", &"charging"))
+	if phase == &"pending":
+		var pending := maxf(0.0, float(_pulse_copy_mirror_state.get("pending_remaining", 0.0)))
+		var pending_step := minf(pending, remaining_delta)
+		pending -= pending_step
+		remaining_delta -= pending_step
+		_pulse_copy_mirror_state["pending_remaining"] = pending
+		if pending <= 0.000001:
+			phase = &"overdrive"
+			_pulse_copy_mirror_state["phase"] = phase
+			_pulse_copy_mirror_state["charge_count"] = 0
+			_pulse_copy_mirror_state["overdrive_remaining"] = maxf(
+				0.0,
+				float(_pulse_copy_mirror_state.get("overdrive_duration", 10.0))
+			)
+			_pulse_copy_mirror_state["generation"] = (
+				int(_pulse_copy_mirror_state.get("generation", 0)) + 1
+			)
+	if phase == &"overdrive" and remaining_delta > 0.0:
+		var overdrive := maxf(0.0, float(_pulse_copy_mirror_state.get("overdrive_remaining", 0.0)))
+		overdrive = maxf(0.0, overdrive - remaining_delta)
+		_pulse_copy_mirror_state["overdrive_remaining"] = overdrive
+		if overdrive <= 0.000001:
+			_pulse_copy_mirror_state["phase"] = &"charging"
+			_pulse_copy_mirror_state["charge_count"] = 0
 
 
 func launch_pulse_laser() -> PulseLaserBeam:
@@ -914,6 +1014,12 @@ func notify_attack(target: CombatTarget, damage: float, continuous: bool) -> voi
 func shutdown() -> void:
 	feature_enabled = false
 	_locked_target = null
+	_pulse_copy_mirror_state["phase"] = &"charging"
+	_pulse_copy_mirror_state["charge_count"] = 0
+	_pulse_copy_mirror_state["pending_remaining"] = 0.0
+	_pulse_copy_mirror_state["overdrive_remaining"] = 0.0
+	_ice_copy_mirror_elapsed = 0.0
+	_ice_copy_mirror_event_sequence = 0
 	if _attack_strategy != null:
 		_attack_strategy.reset(self)
 
@@ -1035,7 +1141,6 @@ func _refresh_preview_materials(node: Node) -> void:
 			)
 	for child in node.get_children():
 		_refresh_preview_materials(child)
-
 func _sanitize_copy_visual_snapshot(node: Node) -> void:
 	for child in node.get_children():
 		if (
@@ -1110,18 +1215,18 @@ func _apply_preview_material_state(
 	color: Color,
 	emissive: bool
 ) -> void:
-	var base_color := invalid_preview_color if _preview_mode and not _preview_valid else color
+	var base_color := get_preview_display_color() if _preview_mode else color
 	var resolved_color := base_color
 	if _preview_mode:
-		resolved_color.a = maxf(preview_alpha, invalid_preview_color.a) if not _preview_valid else preview_alpha
+		resolved_color.a = maxf(preview_alpha, base_color.a)
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = resolved_color
 	material.roughness = 0.65
 	material.emission_enabled = false
-	if emissive or (_preview_mode and not _preview_valid):
+	if emissive or _preview_mode:
 		material.emission_enabled = true
 		material.emission = base_color
-		material.emission_energy_multiplier = 2.8 if _preview_mode and not _preview_valid else 2.0
+		material.emission_energy_multiplier = 2.8 if _preview_mode else 2.0
 
 func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> void:
 	notify_attack(target, applied_damage, false)

@@ -19,9 +19,6 @@ const BUILDING_PROPERTIES := [
 	"laser_propagation_speed",
 	"laser_slow_multiplier",
 	"laser_slow_duration",
-	"laser_burst_interval",
-	"laser_burst_radius",
-	"laser_freeze_duration",
 	"max_durability",
 	"regeneration_delay",
 	"regeneration_per_second",
@@ -76,15 +73,19 @@ const ENEMY_PROPERTIES := [
 signal dirty_changed(dirty: bool)
 signal catalogs_changed
 signal building_value_changed(kind: int, level: int, property: StringName, value: Variant)
+signal building_definition_value_changed(kind: int, property: StringName, value: Variant)
 signal enemy_value_changed(path: String, property: StringName, value: Variant)
+signal mirror_value_changed(mirror_kind: int, target_id: StringName, property: StringName, value: Variant)
 signal session_saved(paths: PackedStringArray)
 signal session_discarded
 
 var _building_manager: BuildingManager
 var _wave_manager: WaveManager
 var _level_loader: LevelLoader
+var _mirror_manager: MirrorManager
 var _building_working: Dictionary = {}
 var _enemy_working: Dictionary = {}
+var _mirror_working: Dictionary = {}
 var _baselines: Dictionary = {}
 var _building_path_by_kind: Dictionary = {}
 var _enemy_path_by_id: Dictionary = {}
@@ -96,11 +97,13 @@ var _active: bool = false
 func configure(
 	building_manager: BuildingManager,
 	wave_manager: WaveManager,
-	level_loader: LevelLoader
+	level_loader: LevelLoader,
+	mirror_manager: MirrorManager = null
 ) -> bool:
 	_building_manager = building_manager
 	_wave_manager = wave_manager
 	_level_loader = level_loader
+	_mirror_manager = mirror_manager
 	return begin()
 
 
@@ -111,11 +114,21 @@ func begin() -> bool:
 		return false
 	_building_working.clear()
 	_enemy_working.clear()
+	_mirror_working.clear()
 	_baselines.clear()
 	_building_path_by_kind.clear()
 	_enemy_path_by_id.clear()
 	for source in _building_manager.get_all_definitions(false):
 		_register_building_source(source)
+	if _mirror_manager != null:
+		_register_mirror_source(
+			MirrorPlacementData.MirrorKind.COPY,
+			_mirror_manager.copy_mirror_definition
+		)
+		_register_mirror_source(
+			MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT,
+			_mirror_manager.reflect_mirror_definition
+		)
 	_discover_enemy_directory()
 	_discover_level_enemies()
 	_active = not _building_working.is_empty()
@@ -162,6 +175,10 @@ func get_enemy_definitions() -> Array[EnemyDefinition]:
 		return a.display_name.naturalnocasecmp_to(b.display_name) < 0
 	)
 	return result
+
+
+func get_mirror_definitions() -> Dictionary:
+	return _mirror_working.duplicate()
 
 
 func get_current_paths() -> Array[PathDefinition]:
@@ -231,6 +248,67 @@ func set_enemy_value(path: String, property: StringName, value: Variant) -> Dict
 	_mark_dirty(path, "enemy")
 	enemy_value_changed.emit(path, property, value)
 	return _result(true, "参数已应用；已生成敌人保持原值")
+
+
+func set_building_definition_array_value(
+	kind: int,
+	property: StringName,
+	array_index: int,
+	value: Variant
+) -> Dictionary:
+	if not _active or property != &"pulse_laser_reflection_colors":
+		return _result(false, "该建筑全局参数不允许在运行时编辑")
+	var path: String = _building_path_by_kind.get(kind, "")
+	var definition := _building_working.get(path) as BuildingDefinition
+	if definition == null:
+		return _result(false, "找不到建筑工作副本")
+	var previous: Variant = _duplicate_variant(definition.get(property))
+	if not _set_indexed_property(definition, property, array_index, value):
+		return _result(false, "建筑数组参数索引无效")
+	var errors := definition.validate_configuration()
+	if not errors.is_empty():
+		definition.set(property, previous)
+		return _result(false, "参数校验失败：%s" % "；".join(errors))
+	definition.emit_changed()
+	_mark_dirty(path, "building")
+	building_definition_value_changed.emit(kind, property, definition.get(property))
+	return _result(true, "建筑全局参数已应用")
+
+
+func set_mirror_value(
+	mirror_kind: int,
+	target_id: StringName,
+	property: StringName,
+	value: Variant,
+	array_index: int = -1
+) -> Dictionary:
+	if not _active:
+		return _result(false, "镜子参数编辑会话未启用")
+	var definition := _mirror_working.get(mirror_kind) as MirrorDefinition
+	if definition == null:
+		return _result(false, "找不到镜子工作副本")
+	var target: Resource = definition
+	if target_id != &"root":
+		target = _get_mirror_effect(definition, target_id)
+	if target == null:
+		return _result(false, "找不到镜子效果参数组")
+	var previous: Variant = _duplicate_variant(target.get(property))
+	if array_index >= 0:
+		if not _set_indexed_property(target, property, array_index, value):
+			return _result(false, "镜子数组参数索引无效")
+	else:
+		target.set(property, value)
+	var errors := definition.validate_configuration()
+	if not errors.is_empty():
+		target.set(property, previous)
+		return _result(false, "参数校验失败：%s" % "；".join(errors))
+	if target != definition:
+		target.emit_changed()
+	definition.emit_changed()
+	var path := definition.resource_path
+	_mark_dirty(path, "mirror")
+	mirror_value_changed.emit(mirror_kind, target_id, property, target.get(property))
+	return _result(true, "镜子参数已应用并重建虚像")
 
 
 func save() -> Dictionary:
@@ -317,6 +395,19 @@ func _register_enemy_source(source: EnemyDefinition) -> void:
 	_enemy_path_by_id[working.enemy_id] = path
 
 
+func _register_mirror_source(mirror_kind: int, source: MirrorDefinition) -> void:
+	if source == null or source.resource_path.is_empty():
+		return
+	var path := source.resource_path
+	var working := _load_fresh(path) as MirrorDefinition
+	if working == null:
+		working = source.duplicate(true) as MirrorDefinition
+	if working == null:
+		return
+	_mirror_working[mirror_kind] = working
+	_baselines[path] = working.duplicate(true)
+
+
 func _discover_enemy_directory() -> void:
 	var directory := DirAccess.open(ENEMY_DIRECTORY)
 	if directory == null:
@@ -357,6 +448,13 @@ func _bind_working_data() -> void:
 		_building_manager.set_runtime_definition_overrides(overrides)
 	if _wave_manager != null:
 		_wave_manager.set_enemy_definition_resolver(Callable(self, "resolve_enemy_definition"))
+	if _mirror_manager != null:
+		_mirror_manager.set_runtime_definitions(
+			_mirror_working.get(MirrorPlacementData.MirrorKind.COPY) as CopyMirrorDefinition,
+			_mirror_working.get(
+				MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT
+			) as ReflectMirrorDefinition
+		)
 
 
 func _mark_dirty(path: String, type: String, building_level: int = -1) -> void:
@@ -377,13 +475,23 @@ func _validate_working_resource(path: String) -> Array[String]:
 	var enemy := _enemy_working.get(path) as EnemyDefinition
 	if enemy != null:
 		return enemy.validate_configuration()
+	for raw_definition in _mirror_working.values():
+		var mirror := raw_definition as MirrorDefinition
+		if mirror != null and mirror.resource_path == path:
+			return mirror.validate_configuration()
 	return ["工作副本不存在"]
 
 
 func _get_working_resource(path: String) -> Resource:
 	if _building_working.has(path):
 		return _building_working[path] as Resource
-	return _enemy_working.get(path) as Resource
+	if _enemy_working.has(path):
+		return _enemy_working[path] as Resource
+	for raw_definition in _mirror_working.values():
+		var mirror := raw_definition as MirrorDefinition
+		if mirror != null and mirror.resource_path == path:
+			return mirror
+	return null
 
 
 func _reload_paths_from_disk(paths: PackedStringArray) -> bool:
@@ -401,6 +509,10 @@ func _reload_paths_from_disk(paths: PackedStringArray) -> bool:
 		elif resource is EnemyDefinition:
 			_enemy_working[path] = resource
 			_enemy_path_by_id[(resource as EnemyDefinition).enemy_id] = path
+		elif resource is CopyMirrorDefinition:
+			_mirror_working[MirrorPlacementData.MirrorKind.COPY] = resource
+		elif resource is ReflectMirrorDefinition:
+			_mirror_working[MirrorPlacementData.MirrorKind.PROJECTILE_REFLECT] = resource
 		else:
 			return false
 		_baselines[path] = resource.duplicate(true)
@@ -430,6 +542,49 @@ func _load_fresh(path: String) -> Resource:
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return null
 	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+
+
+func _get_mirror_effect(definition: MirrorDefinition, effect_id: StringName) -> Resource:
+	if definition == null:
+		return null
+	for effect in definition.attack_effects:
+		if effect != null and effect.get_effect_id() == effect_id:
+			return effect
+	return null
+
+
+func _set_indexed_property(
+	target: Resource,
+	property: StringName,
+	array_index: int,
+	value: Variant
+) -> bool:
+	if target == null or array_index < 0:
+		return false
+	var current: Variant = target.get(property)
+	if current is Array:
+		var next := (current as Array).duplicate()
+		if array_index >= next.size():
+			return false
+		next[array_index] = value
+		target.set(property, next)
+		return true
+	if current is PackedFloat32Array:
+		var next := PackedFloat32Array(current)
+		if array_index >= next.size():
+			return false
+		next[array_index] = float(value)
+		target.set(property, next)
+		return true
+	return false
+
+
+func _duplicate_variant(value: Variant) -> Variant:
+	if value is Array:
+		return (value as Array).duplicate(true)
+	if value is PackedFloat32Array:
+		return PackedFloat32Array(value)
+	return value
 
 
 func _result(success: bool, message: String, extra: Dictionary = {}) -> Dictionary:

@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 SoundEffects="*res://scripts/audio/SoundEffectSystem.gd"
+MCPRuntimeProbe="*res://addons/godot_mcp/runtime/mcp_runtime_probe.gd"
 
 [display]
 

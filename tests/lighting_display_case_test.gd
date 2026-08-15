@@ -277,8 +277,8 @@ func _test_projectile_reflection(main: MainController, display_case: AcrylicDisp
 	var pulse_segments := pulse.debug_get_segments() if pulse != null else []
 	_expect(
 		pulse_segments.size() == 2
-		and (pulse_segments[1].get("color") as Color).is_equal_approx(Color.ORANGE),
-		"pulse laser creates an independent orange segment after reflecting from an acrylic side panel"
+		and (pulse_segments[1].get("color") as Color).is_equal_approx(Color.RED),
+		"external acrylic reflection changes pulse direction without changing its color"
 	)
 
 	var target := CombatTarget.new()

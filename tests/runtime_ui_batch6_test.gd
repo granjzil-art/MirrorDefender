@@ -144,6 +144,15 @@ func _test_runtime_hud_modal(bindings: RuntimeDebugBindingsScript) -> void:
 	_expect(hud.debug_overlay_panel != null, "runtime HUD owns the persistent debug overlay")
 	var debug_entries := hud.runtime_stuff_editor_panel
 	_expect(
+		not hud.are_debug_tools_enabled()
+		and not debug_entries.visible
+		and not hud.card_style_toggle.visible
+		and not hud.debug_overlay_panel.visible
+		and bindings.category_registry.is_suspended(),
+		"runtime HUD keeps every debug entry suspended and hidden by default"
+	)
+	hud.set_debug_tools_enabled(true)
+	_expect(
 		debug_entries.get_debug_console_button() != null
 		and debug_entries.get_level_editor_button() != null
 		and debug_entries.get_runtime_parameter_editor_button() != null,
@@ -221,16 +230,32 @@ func _test_main_scene_migration() -> void:
 	)
 	var marker_labels: Array[String] = main.path_manager.get_spawn_marker_labels()
 	_expect(not main.path_manager.show_paths and not marker_labels.is_empty(), "path debug lines default off while numbered endpoints remain")
-	var path_on: Dictionary = main.runtime_debug_bindings.command_registry.execute("debug set path on")
-	_expect(bool(path_on.get("success", false)) and main.path_manager.show_paths, "path category enables only the debug route lines")
 	var debug_toggle := InputEventAction.new()
 	debug_toggle.action = &"toggle_debug_tools"
 	debug_toggle.pressed = true
+	_expect(
+		not main.runtime_hud.are_debug_tools_enabled()
+		and not debug_entries.visible
+		and main.lighting_test_panel != null
+		and not main.lighting_test_panel.visible
+		and main.runtime_debug_bindings.category_registry.is_suspended()
+		and main.camera_preset_controller.feature_enabled,
+		"entering a level keeps the unified debug tools off without disabling camera presets"
+	)
+	main._input(debug_toggle)
+	await process_frame
+	_expect(
+		debug_entries.visible
+		and main.lighting_test_panel.visible
+		and not main.runtime_debug_bindings.category_registry.is_suspended(),
+		"the first F1 press calls up the unified debug tools"
+	)
+	var path_on: Dictionary = main.runtime_debug_bindings.command_registry.execute("debug set path on")
+	_expect(bool(path_on.get("success", false)) and main.path_manager.show_paths, "path category enables only the debug route lines")
 	main._input(debug_toggle)
 	await process_frame
 	_expect(
 		not debug_entries.visible
-		and main.lighting_test_panel != null
 		and not main.lighting_test_panel.visible
 		and not main.path_manager.show_paths
 		and main.camera_preset_controller.feature_enabled,

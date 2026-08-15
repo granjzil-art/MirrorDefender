@@ -22,6 +22,7 @@ func _run() -> void:
 	await _test_directional_airborne_direct_hit(fixture)
 	await _test_range_explosion(fixture)
 	await _test_reflection_and_stuff(fixture)
+	await _test_mirror_special_effects(fixture)
 	await _test_source_removal(fixture)
 	var host := fixture.get("host") as Node
 	if host != null and is_instance_valid(host):
@@ -40,11 +41,18 @@ func _test_production_configuration() -> void:
 	var arrow_tower := load("res://resources/buildings/ArrowTower.tres") as BuildingDefinition
 	_expect(missile_tower != null and missile_tower.display_name == "导弹塔", "the former crossbow slot is presented as the missile tower")
 	if missile_tower != null:
+		var expected_explosion_radii := [1.3, 1.7, 2.0]
 		for level_index in range(1, missile_tower.get_max_level() + 1):
 			var stats := missile_tower.get_level_stats(level_index)
 			_expect(stats.projectile_is_missile, "missile level %d uses explosive missile projectiles" % level_index)
 			_expect(stats.prioritizes_airborne, "missile level %d prioritizes airborne targets" % level_index)
-			_expect(is_equal_approx(stats.missile_explosion_radius, 1.0), "missile level %d keeps the one-cell explosion default" % level_index)
+			_expect(
+				is_equal_approx(
+					stats.missile_explosion_radius,
+					expected_explosion_radii[level_index - 1]
+				),
+				"missile level %d keeps its configured numeric explosion-radius upgrade" % level_index
+			)
 	_expect(arrow_tower != null, "arrow tower production definition loads")
 	if arrow_tower != null:
 		for level_index in range(1, arrow_tower.get_max_level() + 1):
@@ -97,10 +105,25 @@ func _test_targeted_missile(fixture: Dictionary) -> void:
 	_expect(is_equal_approx(airborne_splash.current_hp, 80.0), "the same horizontal explosion damages an airborne enemy despite its height")
 	var has_explosion_visual := false
 	var has_trail := false
+	var explosion_visual: MissileExplosionEffect
 	for child in combat.get_children():
 		has_explosion_visual = has_explosion_visual or child is MissileExplosionEffect
+		if child is MissileExplosionEffect:
+			explosion_visual = child as MissileExplosionEffect
 		has_trail = has_trail or child is MissileTrail
 	_expect(has_explosion_visual, "impact spawns the programmatic explosion presentation")
+	_expect(
+		explosion_visual != null
+		and explosion_visual.get_node_or_null("MissileExplosionOuterRed") != null
+		and explosion_visual.get_node_or_null("MissileExplosionMiddleOrange") != null
+		and explosion_visual.get_node_or_null("MissileExplosionInnerYellow") != null
+		and explosion_visual.debug_get_fire_wave_colors() == [
+			MissileExplosionEffect.FIRE_RED,
+			MissileExplosionEffect.FIRE_ORANGE,
+			MissileExplosionEffect.FIRE_YELLOW,
+		],
+		"explosion pressure wave uses concentric red, orange, and yellow fire layers"
+	)
 	_expect(has_trail, "missile movement owns a fading programmatic trail")
 	_remove_target(combat, target)
 	_remove_target(combat, airborne_splash)
@@ -158,6 +181,194 @@ func _test_reflection_and_stuff(fixture: Dictionary) -> void:
 		reflected.queue_free()
 	await process_frame
 
+
+func _test_mirror_special_effects(fixture: Dictionary) -> void:
+	var combat := fixture.get("combat") as CombatManager
+	var building := fixture.get("building") as Building
+	var copy_definition := load("res://resources/mirrors/CopyMirror.tres") as CopyMirrorDefinition
+	var reflect_definition := load("res://resources/mirrors/ReflectMirror.tres") as ReflectMirrorDefinition
+	_expect(copy_definition != null and reflect_definition != null, "missile mirror-effect resources load")
+	if copy_definition == null or reflect_definition == null:
+		return
+
+	var origin := Vector3(10.0, 1.0, 10.0)
+	var burning_target := _make_target(combat, origin + Vector3(1.4, -1.0, 0.0), false)
+	_expect(
+		burning_target.debug_get_burn_particles() == null,
+		"non-burning enemies do not allocate a GPU particle system"
+	)
+	var burn_payload := AttackEffectPayload.new()
+	burn_payload.set_copy_upgrade_count(1)
+	copy_definition.apply_copy_attack_effects(
+		burn_payload,
+		2,
+		{"copy_kind": &"crossbow_tower", "copy_upgrade_count": 1}
+	)
+	var burning_missile := combat.spawn_directional_missile(
+		origin,
+		Vector3.RIGHT,
+		10.0,
+		20.0,
+		4.0,
+		0.2,
+		0.05,
+		Color.ORANGE_RED,
+		null,
+		building,
+		building.get_missile_configuration(),
+		burn_payload
+	)
+	if burning_missile != null:
+		burning_missile._explode()
+	var burn_particles := burning_target.debug_get_burn_particles()
+	_expect(
+		is_equal_approx(burning_target.current_hp, 100.0)
+		and burning_target.is_burning()
+		and is_equal_approx(burning_target.get_burn_damage_per_second(), 2.5)
+		and burn_particles != null
+		and burn_particles.visible
+		and burn_particles.emitting
+		and burn_particles.amount == CombatTarget.BURN_PARTICLE_COUNT
+		and burn_particles.draw_pass_1 is QuadMesh
+		and burning_target.debug_get_burn_flame_texture() != null,
+		"one L2 copy ignites the independent 1.5-cell area at 12.5% explosion damage per second"
+	)
+	burning_target._process(1.0)
+	_expect(
+		is_equal_approx(burning_target.current_hp, 97.5)
+		and is_equal_approx(burning_target.get_burn_remaining(), 3.0),
+		"burning deals continuous damage and consumes its four-second duration"
+	)
+	var stronger_missile := combat.spawn_directional_missile(
+		origin,
+		Vector3.RIGHT,
+		10.0,
+		40.0,
+		4.0,
+		0.2,
+		0.05,
+		Color.ORANGE_RED,
+		null,
+		building,
+		building.get_missile_configuration(),
+		burn_payload.instantiate_attack()
+	)
+	if stronger_missile != null:
+		stronger_missile._explode()
+	_expect(
+		is_equal_approx(burning_target.get_burn_damage_per_second(), 5.0)
+		and is_equal_approx(burning_target.get_burn_remaining(), 4.0),
+		"repeat ignition refreshes duration and keeps the stronger damage rate"
+	)
+
+	var expanded_target := _make_target(combat, origin + Vector3(2.1, -1.0, 0.0), false)
+	var expanded_payload := burn_payload.instantiate_attack()
+	expanded_payload.set_copy_upgrade_count(3)
+	var expanded_missile := combat.spawn_directional_missile(
+		origin,
+		Vector3.RIGHT,
+		10.0,
+		20.0,
+		4.0,
+		0.2,
+		0.05,
+		Color.ORANGE_RED,
+		null,
+		building,
+		building.get_missile_configuration(),
+		expanded_payload
+	)
+	if expanded_missile != null:
+		expanded_missile._explode()
+	_expect(
+		expanded_target.is_burning()
+		and is_equal_approx(expanded_target.current_hp, 100.0)
+		and expanded_target.debug_get_burn_flame_texture()
+			== burning_target.debug_get_burn_flame_texture(),
+		"three L2 copies expand only the burn radius to 2.25 cells, independent of explosion radius"
+	)
+	var short_burn_target := _make_target(combat, origin + Vector3(0.0, -1.0, 3.0), false)
+	short_burn_target.apply_burning(1.0, 0.05)
+	short_burn_target._process(0.06)
+	var expired_particles := short_burn_target.debug_get_burn_particles()
+	_expect(
+		not short_burn_target.is_burning()
+		and expired_particles != null
+		and not expired_particles.visible
+		and not expired_particles.emitting,
+		"fire particles stop immediately when the burn duration ends"
+	)
+
+	var growth_payload := AttackEffectPayload.new()
+	var upgraded_hit := {
+		"is_upgraded_reflect_mirror": true,
+		"attack_effects": reflect_definition.get_attack_effects(2),
+	}
+	var growth_missile := combat.spawn_directional_missile(
+		origin,
+		Vector3.RIGHT,
+		10.0,
+		20.0,
+		4.0,
+		0.2,
+		0.05,
+		Color.ORANGE_RED,
+		null,
+		building,
+		building.get_missile_configuration(),
+		growth_payload
+	)
+	if growth_missile != null:
+		growth_payload.record_successful_reflection(upgraded_hit)
+		growth_payload.apply_reflection_effects(
+			upgraded_hit,
+			{"attack_kind": &"missile", "projectile": growth_missile}
+		)
+	_expect(
+		growth_missile != null
+		and is_equal_approx(growth_missile.get_mirror_visual_scale(), 1.15)
+		and is_equal_approx(growth_missile.get_explosion_radius(), 1.1),
+		"one L2 reflection enlarges missile visuals by 15% and explosion radius by 10%"
+	)
+	if growth_missile != null:
+		growth_payload.record_successful_reflection(upgraded_hit)
+		growth_payload.apply_reflection_effects(
+			upgraded_hit,
+			{"attack_kind": &"missile", "projectile": growth_missile}
+		)
+	_expect(
+		growth_missile != null
+		and is_equal_approx(growth_missile.get_mirror_visual_scale(), 1.30)
+		and is_equal_approx(growth_missile.get_explosion_radius(), 1.20),
+		"multiple L2 reflections recalculate missile growth linearly from its original values"
+	)
+	var growth_branch := (
+		growth_missile._spawn_directional_attack_copy(
+			growth_missile.global_position,
+			Vector3.BACK,
+			20.0,
+			1.0,
+			0,
+			growth_payload.duplicate_for_reflection_branch()
+		) as MissileProjectile
+		if growth_missile != null
+		else null
+	)
+	_expect(
+		growth_branch != null
+		and is_equal_approx(growth_branch.get_mirror_visual_scale(), 1.30)
+		and is_equal_approx(growth_branch.get_explosion_radius(), 1.20),
+		"reflected missile branches inherit the complete current size and explosion snapshot"
+	)
+	if growth_missile != null:
+		growth_missile.queue_free()
+	if growth_branch != null:
+		growth_branch.queue_free()
+	_remove_target(combat, burning_target)
+	_remove_target(combat, expanded_target)
+	_remove_target(combat, short_burn_target)
+	await process_frame
+
 	_reflection_enabled = false
 	_blocker_enabled = true
 	var splash_target := _make_target(combat, Vector3(0.7, 4.0, 1.0), true)
@@ -181,6 +392,18 @@ func _test_source_removal(fixture: Dictionary) -> void:
 	if missile != null:
 		missile._process(0.25)
 	_expect(missile != null and is_instance_valid(missile), "a launched missile survives removal of its source building")
+	var branch := missile._spawn_directional_attack_copy(
+		missile.global_position,
+		Vector3.RIGHT,
+		20.0,
+		1.0,
+		0,
+		AttackEffectPayload.new()
+	) as MissileProjectile if missile != null else null
+	_expect(
+		branch != null and branch.get_source_building() == null,
+		"a missile can create a reflected branch after its source building is freed"
+	)
 
 
 func _make_fixture() -> Dictionary:

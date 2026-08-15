@@ -30,6 +30,7 @@ var _event_states: Dictionary = {}
 var _goal_states: Dictionary = {}
 var _bubble_revealed_counts: Dictionary = {}
 var _bubble_acknowledged: Dictionary = {}
+var _event_action_baselines: Dictionary = {}
 var _wave_completion_times: Dictionary = {}
 var _event_completion_times: Dictionary = {}
 var _released_waves: Dictionary = {}
@@ -209,10 +210,12 @@ func handle_blank_screen_click() -> void:
 func get_wave_block_reason(wave_number: int) -> String:
 	if _definition == null or not _definition.enabled or wave_number <= 0:
 		return ""
-	for event in _definition.events:
+	for event_value: Variant in _definition.events:
+		if not event_value is TutorialEventDefinitionScript:
+			continue
+		var event := event_value as TutorialEventDefinition
 		if (
-			event != null
-			and event.gated_wave_number == wave_number
+			event.gated_wave_number == wave_number
 			and get_event_state(event) != EventState.COMPLETED
 		):
 			var state := get_goal_states(event)
@@ -285,6 +288,89 @@ func add_goal(event: TutorialEventDefinition, goal_type: int) -> TutorialGoalDef
 	return goal
 
 
+func remove_last_event() -> Dictionary:
+	if _definition == null or _definition.events.is_empty():
+		return {"success": false, "message": "没有可删除的教学事件"}
+	var removed := _definition.events.pop_back() as TutorialEventDefinition
+	if removed == null:
+		return {"success": false, "message": "队尾教学事件无效，无法删除"}
+	var repaired_references := 0
+	for event_value: Variant in _definition.events:
+		if not event_value is TutorialEventDefinitionScript:
+			continue
+		var event := event_value as TutorialEventDefinition
+		if (
+			event.trigger_kind == TutorialEventDefinitionScript.TriggerKind.EVENT_COMPLETED
+			and event.trigger_event_id == removed.event_id
+		):
+			event.trigger_kind = TutorialEventDefinitionScript.TriggerKind.START
+			event.trigger_event_id = &""
+			event.trigger_delay_seconds = 0.0
+			repaired_references += 1
+	_event_states.erase(removed.event_id)
+	_goal_states.erase(removed.event_id)
+	_bubble_revealed_counts.erase(removed.event_id)
+	_bubble_acknowledged.erase(removed.event_id)
+	_event_action_baselines.erase(removed.event_id)
+	_event_completion_times.erase(removed.event_id)
+	if _level != null:
+		_level.emit_changed()
+	authoring_changed.emit()
+	presentation_changed.emit()
+	wave_gate_changed.emit()
+	var message := "已删除队尾事件：%s" % removed.display_name
+	if repaired_references > 0:
+		message += "；%d 个引用已改为开始触发" % repaired_references
+	return {"success": true, "message": message, "removed": removed}
+
+
+func remove_last_bubble(event: TutorialEventDefinition) -> Dictionary:
+	if event == null or event.bubbles.is_empty():
+		return {"success": false, "message": "当前事件没有可删除的气泡"}
+	var removed_index := event.bubbles.size() - 1
+	var removed := event.bubbles.pop_back() as TutorialBubbleDefinition
+	var acknowledged: Dictionary = _bubble_acknowledged.get(event.event_id, {})
+	acknowledged.erase(removed_index)
+	_bubble_acknowledged[event.event_id] = acknowledged
+	_bubble_revealed_counts[event.event_id] = mini(
+		int(_bubble_revealed_counts.get(event.event_id, 0)),
+		event.bubbles.size()
+	)
+	reset_event_progress_for_authoring(event)
+	if _level != null:
+		_level.emit_changed()
+	authoring_changed.emit()
+	presentation_changed.emit()
+	return {
+		"success": true,
+		"message": "已删除队尾气泡 %d" % (removed_index + 1),
+		"removed": removed,
+	}
+
+
+func remove_last_goal(event: TutorialEventDefinition) -> Dictionary:
+	if event == null or event.goals.is_empty():
+		return {"success": false, "message": "当前事件没有可删除的待办目标"}
+	var removed_index := event.goals.size() - 1
+	var removed := event.goals.pop_back() as TutorialGoalDefinition
+	for bubble in event.bubbles:
+		if bubble != null and bubble.associated_goal_index == removed_index:
+			bubble.associated_goal_index = -1
+			if bubble.dismiss_condition == TutorialBubbleDefinitionScript.DismissCondition.GOAL_COMPLETED:
+				bubble.dismiss_condition = TutorialBubbleDefinitionScript.DismissCondition.EVENT_COMPLETED
+	reset_event_progress_for_authoring(event)
+	if _level != null:
+		_level.emit_changed()
+	authoring_changed.emit()
+	presentation_changed.emit()
+	wave_gate_changed.emit()
+	return {
+		"success": true,
+		"message": "已删除队尾待办：%s" % removed.get_display_description(),
+		"removed": removed,
+	}
+
+
 func notify_authoring_changed() -> void:
 	if _level != null:
 		_level.emit_changed()
@@ -292,6 +378,32 @@ func notify_authoring_changed() -> void:
 	authoring_changed.emit()
 	presentation_changed.emit()
 	wave_gate_changed.emit()
+
+
+func reset_event_progress_for_authoring(event: TutorialEventDefinition) -> void:
+	if event == null or get_event_state(event) == EventState.LOCKED:
+		return
+	_event_states[event.event_id] = EventState.ACTIVE
+	var states: Array[bool] = []
+	states.resize(event.goals.size())
+	states.fill(false)
+	_goal_states[event.event_id] = states
+	_bubble_revealed_counts[event.event_id] = 1 if not event.bubbles.is_empty() else 0
+	_bubble_acknowledged[event.event_id] = {}
+	_event_action_baselines[event.event_id] = _make_action_baseline()
+	_event_completion_times.erase(event.event_id)
+	presentation_changed.emit()
+	wave_gate_changed.emit()
+
+
+func _make_action_baseline() -> Dictionary:
+	return {
+		"building_action_count": _building_state_ledger.size(),
+		"deleted_action_count": _deleted_building_ledger.size(),
+		"blank_click_count": _blank_click_count,
+		"released_waves": _released_waves.duplicate(),
+		"completed_waves": _completed_waves.duplicate(),
+	}
 
 
 func save_tutorial() -> Dictionary:
@@ -333,6 +445,7 @@ func _reset_runtime_state() -> void:
 	_goal_states.clear()
 	_bubble_revealed_counts.clear()
 	_bubble_acknowledged.clear()
+	_event_action_baselines.clear()
 	_wave_completion_times.clear()
 	_event_completion_times.clear()
 	_released_waves.clear()
@@ -355,6 +468,7 @@ func _initialize_event(event: TutorialEventDefinition, active: bool) -> void:
 	_bubble_revealed_counts[event.event_id] = 1 if not event.bubbles.is_empty() and active else 0
 	_bubble_acknowledged[event.event_id] = {}
 	if active:
+		_event_action_baselines[event.event_id] = _make_action_baseline()
 		event_activated.emit(event)
 		_evaluate_goals_for_event(event)
 
@@ -369,6 +483,7 @@ func _evaluate_timeline() -> void:
 		if _is_trigger_satisfied(event):
 			_event_states[event.event_id] = EventState.ACTIVE
 			_bubble_revealed_counts[event.event_id] = 1 if not event.bubbles.is_empty() else 0
+			_event_action_baselines[event.event_id] = _make_action_baseline()
 			event_activated.emit(event)
 			_evaluate_goals_for_event(event)
 			changed = true
@@ -428,47 +543,80 @@ func _evaluate_goals_for_event(event: TutorialEventDefinition) -> void:
 
 
 func _is_goal_satisfied(event: TutorialEventDefinition, goal: TutorialGoalDefinition) -> bool:
+	var baseline: Dictionary = _event_action_baselines.get(event.event_id, {})
 	match goal.goal_type:
 		TutorialGoalDefinitionScript.GoalType.ACKNOWLEDGE_ALL_BUBBLES:
 			var acknowledged: Dictionary = _bubble_acknowledged.get(event.event_id, {})
 			return event.bubbles.is_empty() or acknowledged.size() >= event.bubbles.size()
 		TutorialGoalDefinitionScript.GoalType.BLANK_SCREEN_CLICKS:
-			return _blank_click_count >= goal.required_count
+			return _blank_click_count - int(baseline.get("blank_click_count", 0)) >= goal.required_count
 		TutorialGoalDefinitionScript.GoalType.PLACE_BUILDING:
-			return _has_matching_building_state(goal, false)
+			return _has_matching_building_state(goal, false, int(baseline.get("building_action_count", 0)))
 		TutorialGoalDefinitionScript.GoalType.UPGRADE_BUILDING:
-			return _has_matching_building_state(goal, true)
+			return _has_matching_building_state(goal, true, int(baseline.get("building_action_count", 0)))
 		TutorialGoalDefinitionScript.GoalType.DELETE_BUILDING:
-			return _count_matching_deleted_buildings(goal) >= goal.required_count
+			return _count_matching_deleted_buildings(
+				goal,
+				int(baseline.get("deleted_action_count", 0))
+			) >= goal.required_count
 		TutorialGoalDefinitionScript.GoalType.RELEASE_WAVE:
-			return _released_waves.has(goal.target_wave_number)
+			var released_before: Dictionary = baseline.get("released_waves", {})
+			return _released_waves.has(goal.target_wave_number) and not released_before.has(goal.target_wave_number)
 		TutorialGoalDefinitionScript.GoalType.COMPLETE_WAVE:
-			return _completed_waves.has(goal.target_wave_number)
+			var completed_before: Dictionary = baseline.get("completed_waves", {})
+			return _completed_waves.has(goal.target_wave_number) and not completed_before.has(goal.target_wave_number)
 	return false
 
 
-func _has_matching_building_state(goal: TutorialGoalDefinition, require_level: bool) -> bool:
-	if _building_manager != null:
-		for building in _building_manager.get_buildings():
-			if goal.matches_building(building, require_level):
+func _has_matching_building_state(
+	goal: TutorialGoalDefinition,
+	require_level: bool,
+	start_index: int
+) -> bool:
+	var first_index := clampi(start_index, 0, _building_state_ledger.size())
+	if require_level:
+		for index in range(first_index, _building_state_ledger.size()):
+			var upgrade_snapshot: Dictionary = _building_state_ledger[index]
+			if upgrade_snapshot.get("action") == &"upgraded" and _snapshot_matches_goal(upgrade_snapshot, goal, true):
 				return true
-	for snapshot in _building_state_ledger:
-		if goal.building_definition != null and snapshot.get("definition") != goal.building_definition:
-			continue
-		if goal.require_cell and snapshot.get("cell", Vector3i.ZERO) != goal.target_cell:
-			continue
-		if goal.require_facing and int(snapshot.get("facing", -1)) != goal.target_facing_index:
-			continue
-		if require_level and int(snapshot.get("level", 0)) < goal.target_level:
-			continue
-		return true
+		return false
+	var placed_building_ids: Dictionary = {}
+	for index in range(first_index, _building_state_ledger.size()):
+		var snapshot: Dictionary = _building_state_ledger[index]
+		var action: StringName = snapshot.get("action", &"")
+		var building_id := int(snapshot.get("building_id", 0))
+		if action == &"constructed" or action == &"relocated":
+			placed_building_ids[building_id] = true
+		if placed_building_ids.has(building_id) and _snapshot_matches_goal(snapshot, goal, false):
+			return true
 	return false
 
 
-func _count_matching_deleted_buildings(goal: TutorialGoalDefinition) -> int:
+func _snapshot_matches_goal(snapshot: Dictionary, goal: TutorialGoalDefinition, require_level: bool) -> bool:
+	var candidate_definition := snapshot.get("definition") as BuildingDefinition
+	if goal.building_definition != null and (
+		candidate_definition == null
+		or candidate_definition.kind != goal.building_definition.kind
+	):
+		return false
+	if goal.require_cell and snapshot.get("cell", Vector3i.ZERO) != goal.target_cell:
+		return false
+	if goal.require_facing and int(snapshot.get("facing", -1)) != goal.target_facing_index:
+		return false
+	if require_level and int(snapshot.get("level", 0)) < goal.target_level:
+		return false
+	return true
+
+
+func _count_matching_deleted_buildings(goal: TutorialGoalDefinition, start_index: int) -> int:
 	var count := 0
-	for snapshot in _deleted_building_ledger:
-		if goal.building_definition != null and snapshot.get("definition") != goal.building_definition:
+	for index in range(clampi(start_index, 0, _deleted_building_ledger.size()), _deleted_building_ledger.size()):
+		var snapshot: Dictionary = _deleted_building_ledger[index]
+		var candidate_definition := snapshot.get("definition") as BuildingDefinition
+		if goal.building_definition != null and (
+			candidate_definition == null
+			or candidate_definition.kind != goal.building_definition.kind
+		):
 			continue
 		if goal.require_cell and snapshot.get("cell", Vector3i.ZERO) != goal.target_cell:
 			continue
@@ -476,10 +624,12 @@ func _count_matching_deleted_buildings(goal: TutorialGoalDefinition) -> int:
 	return count
 
 
-func _record_building_state(building: Building) -> void:
+func _record_building_state(building: Building, action: StringName) -> void:
 	if building == null or not is_instance_valid(building):
 		return
 	_building_state_ledger.append({
+		"action": action,
+		"building_id": building.get_instance_id(),
 		"definition": building.definition,
 		"cell": building.cell,
 		"facing": building.facing_index,
@@ -489,19 +639,19 @@ func _record_building_state(building: Building) -> void:
 
 
 func _on_building_state_changed(building: Building) -> void:
-	_record_building_state(building)
+	_record_building_state(building, &"constructed")
 
 
 func _on_building_relocated(building: Building, _previous_cell: Vector3i, _previous_edge_id: String) -> void:
-	_record_building_state(building)
+	_record_building_state(building, &"relocated")
 
 
 func _on_building_upgraded(building: Building, _previous_level: int, _new_level: int) -> void:
-	_record_building_state(building)
+	_record_building_state(building, &"upgraded")
 
 
 func _on_building_rotated(building: Building, _previous_facing: int, _new_facing: int) -> void:
-	_record_building_state(building)
+	_record_building_state(building, &"rotated")
 
 
 func _on_building_removed_by_player(building: Building) -> void:

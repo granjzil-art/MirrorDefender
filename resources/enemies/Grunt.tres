@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://qkjjtgfwg8kv"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://bdpi8iivjb0t2"]
 
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="1_eggtx"]
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
@@ -11,6 +11,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [resource]
 script = ExtResource("1_enemy")
+max_hp = 200.0
 move_speed = 0.7999999999999999
 base_damage = 8.0
 hit_radius = 0.5

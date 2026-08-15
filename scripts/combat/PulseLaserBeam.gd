@@ -25,6 +25,9 @@ var _visual_factor: float = 0.0
 var _reflection_resolver: Callable
 var _blocker_resolver: Callable
 var _segments: Array[Dictionary] = []
+var _attack_effects: AttackEffectPayload = AttackEffectPayload.new()
+var _colors: Array[Color] = []
+var _initial_color_offset: int = 0
 
 
 func configure(
@@ -42,7 +45,9 @@ func configure(
 	colors: Array[Color],
 	maximum_reflections: int,
 	reflection_resolver: Callable = Callable(),
-	blocker_resolver: Callable = Callable()
+	blocker_resolver: Callable = Callable(),
+	attack_effects: AttackEffectPayload = null,
+	initial_color_offset: int = 0
 ) -> bool:
 	if direction.length_squared() <= MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH:
 		return false
@@ -58,6 +63,9 @@ func configure(
 	_fade_out_time = maxf(0.0, fade_out_time)
 	_reflection_resolver = reflection_resolver
 	_blocker_resolver = blocker_resolver
+	_attack_effects = attack_effects if attack_effects != null else AttackEffectPayload.new()
+	_colors = colors.duplicate()
+	_initial_color_offset = maxi(0, initial_color_offset)
 	global_transform = Transform3D.IDENTITY
 	_trace_path(start, direction.normalized(), maximum_distance, colors, maxi(0, maximum_reflections))
 	if _segments.is_empty():
@@ -154,7 +162,8 @@ func _trace_path(
 		_append_segment(
 			current_start,
 			segment_end,
-			colors[reflection_count % colors.size()],
+			_resolve_segment_color(colors),
+			_resolve_segment_width_multiplier(),
 			reflection_count,
 			blocker_is_first and is_finite(blocker_distance),
 			excluded_targets
@@ -162,7 +171,7 @@ func _trace_path(
 		remaining_distance = maxf(0.0, remaining_distance - segment_distance)
 		if blocker_is_first and is_finite(blocker_distance):
 			break
-		if not is_finite(reflection_distance) or reflection_count >= maximum_reflections:
+		if not is_finite(reflection_distance):
 			break
 		var raw_normal: Variant = reflection_hit.get("normal", Vector3.ZERO)
 		if not raw_normal is Vector3:
@@ -171,6 +180,8 @@ func _trace_path(
 		if normal.length_squared() <= MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH:
 			break
 		normal = normal.normalized()
+		if not _attack_effects.record_successful_reflection(reflection_hit):
+			break
 		if not _segments.is_empty():
 			var reflected_segment: Dictionary = _segments[_segments.size() - 1]
 			reflected_segment["reflection_hit"] = reflection_hit.duplicate()
@@ -178,6 +189,14 @@ func _trace_path(
 		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
 		if is_finite(reflection_damage_multiplier):
 			_damage *= maxf(0.0, reflection_damage_multiplier)
+		_attack_effects.apply_reflection_effects(
+			reflection_hit,
+			{
+				"attack_kind": &"pulse_laser",
+				"beam": self,
+				"source_building": get_source_building(),
+			}
+		)
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
 		previous_reflector = terminal_reflector
@@ -187,12 +206,60 @@ func _trace_path(
 		)
 		current_start = segment_end + direction * epsilon
 		remaining_distance = maxf(0.0, remaining_distance - epsilon)
+		_spawn_reflection_branches(
+			reflection_hit,
+			current_start,
+			direction,
+			remaining_distance,
+			maxi(0, maximum_reflections - reflection_count),
+			reflection_count
+		)
+
+
+func _spawn_reflection_branches(
+	reflection_hit: Dictionary,
+	start: Vector3,
+	direction: Vector3,
+	remaining_distance: float,
+	remaining_reflections: int,
+	reflection_count: int
+) -> void:
+	if _combat_manager == null or remaining_distance <= MIN_SEGMENT_LENGTH:
+		return
+	var angles := _attack_effects.get_reflection_branch_angles(
+		reflection_hit,
+		{
+			"attack_kind": &"pulse_laser",
+			"beam": self,
+			"direction": direction,
+			"remaining_distance": remaining_distance,
+		}
+	)
+	var granted := _attack_effects.request_reflection_branch_slots(angles.size())
+	for index in range(granted):
+		_combat_manager.spawn_pulse_laser(
+			start,
+			direction.rotated(Vector3.UP, deg_to_rad(angles[index])).normalized(),
+			_damage,
+			remaining_distance,
+			_maximum_width,
+			_emission_energy,
+			_fade_in_time,
+			_hold_time,
+			_fade_out_time,
+			_colors,
+			remaining_reflections,
+			get_source_building(),
+			_attack_effects.duplicate_for_reflection_branch(),
+			_initial_color_offset + reflection_count
+		)
 
 
 func _append_segment(
 	start: Vector3,
 	end: Vector3,
 	color: Color,
+	width_multiplier: float,
 	reflection_index: int,
 	blocked: bool,
 	excluded_targets: Array[CombatTarget] = []
@@ -205,6 +272,7 @@ func _append_segment(
 		"end": end,
 		"length": length,
 		"color": color,
+		"width_multiplier": maxf(0.0, width_multiplier),
 		"reflection_index": reflection_index,
 		"blocked": blocked,
 		"excluded_targets": excluded_targets,
@@ -220,7 +288,11 @@ func _build_visuals() -> void:
 		var visual := MeshInstance3D.new()
 		visual.name = "PulseLaserSegment%d" % index
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(_maximum_width, _maximum_width, start.distance_to(end))
+		var segment_width := _maximum_width * maxf(
+			MIN_VISUAL_FACTOR,
+			float(segment.get("width_multiplier", 1.0))
+		)
+		mesh.size = Vector3(segment_width, segment_width, start.distance_to(end))
 		visual.mesh = mesh
 		add_child(visual)
 		visual.position = (start + end) * 0.5
@@ -237,6 +309,17 @@ func _build_visuals() -> void:
 		segment["visual"] = visual
 		segment["material"] = material
 		_segments[index] = segment
+
+
+func _resolve_segment_color(colors: Array[Color]) -> Color:
+	var fallback := colors[0] if not colors.is_empty() else Color.WHITE
+	var modifiers := _attack_effects.get_laser_visual_modifiers({"attack_kind": &"pulse_laser"})
+	return modifiers.get("color", fallback) as Color
+
+
+func _resolve_segment_width_multiplier() -> float:
+	var modifiers := _attack_effects.get_laser_visual_modifiers({"attack_kind": &"pulse_laser"})
+	return maxf(0.0, float(modifiers.get("width_multiplier", 1.0)))
 
 
 func _apply_visual_factor(factor: float) -> void:

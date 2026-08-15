@@ -7,8 +7,7 @@ const MIN_SEGMENT_LENGTH := 0.0001
 
 var _feature_enabled: bool = true
 var _color: Color = Color(1.0, 0.05, 0.05, 0.52)
-var _minimum_width: float = 0.10
-var _width_multiplier: float = 1.5
+var _width: float = 0.10
 var _lift: float = 0.04
 var _max_segments_per_direction: int = 32
 var _multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0)
@@ -32,8 +31,7 @@ func _ready() -> void:
 func configure_style(
 	feature_enabled: bool,
 	color: Color,
-	minimum_width: float,
-	width_multiplier: float,
+	width: float,
 	lift: float,
 	max_segments_per_direction: int,
 	multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0),
@@ -42,8 +40,7 @@ func configure_style(
 ) -> void:
 	_feature_enabled = feature_enabled
 	_color = color
-	_minimum_width = maxf(0.001, minimum_width)
-	_width_multiplier = maxf(0.0, width_multiplier)
+	_width = maxf(0.001, width)
 	_lift = maxf(0.0, lift)
 	_max_segments_per_direction = maxi(1, max_segments_per_direction)
 	_multiplier_label_color = multiplier_label_color
@@ -78,8 +75,6 @@ func rebuild(
 	var maximum_distance := building.get_attack_range_world()
 	if directions.is_empty() or maximum_distance <= MIN_SEGMENT_LENGTH:
 		return
-	var actual_width := maxf(0.0, building.get_projectile_width_world())
-	var resolved_width := maxf(_minimum_width, actual_width * _width_multiplier)
 	var origin := building.get_attack_origin()
 	_append_source_trajectories(
 		origin,
@@ -113,7 +108,7 @@ func rebuild(
 			show_multiplier_labels
 		)
 		source_index += 1
-	_rebuild_mesh(resolved_width)
+	_rebuild_mesh(_width)
 	_rebuild_multiplier_labels()
 
 
@@ -160,6 +155,10 @@ func debug_get_segments() -> Array[Dictionary]:
 	for segment in _segments:
 		result.append(segment.duplicate(true))
 	return result
+
+
+func debug_get_visual_width() -> float:
+	return _width
 
 
 func debug_get_multiplier_labels() -> Array[Dictionary]:

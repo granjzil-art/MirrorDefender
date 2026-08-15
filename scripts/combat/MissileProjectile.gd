@@ -30,6 +30,8 @@ var _visual_roll_radians: float = deg_to_rad(12.0)
 var _wobble_phase: float = 0.0
 var _flight_elapsed: float = 0.0
 var _explosion_radius: float = 1.0
+var _base_explosion_radius: float = 1.0
+var _grid_cell_size: float = 1.0
 var _explosion_duration: float = 0.48
 var _trail_lifetime: float = 0.42
 var _trail_width: float = 0.055
@@ -37,6 +39,7 @@ var _target_marker_size: float = 0.72
 var _color: Color = Color(1.0, 0.45, 0.08, 1.0)
 var _visual_wobble_root: Node3D
 var _target_marker: MissileTargetMarker
+var _configuration_snapshot: Dictionary = {}
 
 
 func configure_targeted_missile(
@@ -53,7 +56,8 @@ func configure_targeted_missile(
 	target_query: Callable,
 	reflection_resolver: Callable,
 	blocker_resolver: Callable,
-	configuration: Dictionary
+	configuration: Dictionary,
+	attack_effects: AttackEffectPayload = null
 ) -> void:
 	var initial_direction := target.get_target_position() - start
 	_configure_missile(
@@ -71,7 +75,8 @@ func configure_targeted_missile(
 		target_query,
 		reflection_resolver,
 		blocker_resolver,
-		configuration
+		configuration,
+		attack_effects
 	)
 
 
@@ -89,7 +94,8 @@ func configure_directional_missile(
 	target_query: Callable,
 	reflection_resolver: Callable,
 	blocker_resolver: Callable,
-	configuration: Dictionary
+	configuration: Dictionary,
+	attack_effects: AttackEffectPayload = null
 ) -> void:
 	_configure_missile(
 		start,
@@ -106,7 +112,8 @@ func configure_directional_missile(
 		target_query,
 		reflection_resolver,
 		blocker_resolver,
-		configuration
+		configuration,
+		attack_effects
 	)
 
 
@@ -125,7 +132,8 @@ func _configure_missile(
 	target_query: Callable,
 	reflection_resolver: Callable,
 	blocker_resolver: Callable,
-	configuration: Dictionary
+	configuration: Dictionary,
+	attack_effects: AttackEffectPayload
 ) -> void:
 	global_position = start
 	_target = target
@@ -148,10 +156,13 @@ func _configure_missile(
 	_target_query = target_query
 	_reflection_resolver = reflection_resolver
 	_blocker_resolver = blocker_resolver
+	_attack_effects = attack_effects if attack_effects != null else AttackEffectPayload.new()
 	_has_reflected = false
 	_ballistic_mode = target == null
 	_active = false
 	_color = color
+	_configuration_snapshot = configuration.duplicate(true)
+	_store_visual_configuration(visual_length, visual_width, color, model_asset)
 	_apply_configuration(configuration)
 	_prepare_orbit_basis(start, _direction)
 	_randomize_motion()
@@ -196,6 +207,61 @@ func get_explosion_radius() -> float:
 	return _explosion_radius
 
 
+func get_grid_cell_size() -> float:
+	return _grid_cell_size
+
+
+func apply_mirror_reflection_growth(
+	upgrade_count: int,
+	visual_scale_per_upgrade: float,
+	explosion_radius_per_upgrade: float
+) -> void:
+	var count := maxi(0, upgrade_count)
+	_explosion_radius = _base_explosion_radius * (
+		1.0 + count * maxf(0.0, explosion_radius_per_upgrade)
+	)
+	if _visual_wobble_root != null and is_instance_valid(_visual_wobble_root):
+		_visual_wobble_root.scale = Vector3.ONE * (
+			1.0 + count * maxf(0.0, visual_scale_per_upgrade)
+		)
+
+
+func get_mirror_visual_scale() -> float:
+	return _visual_wobble_root.scale.x if _visual_wobble_root != null else 1.0
+
+
+func apply_burning_area(
+	world_position: Vector3,
+	radius: float,
+	damage_per_second: float,
+	duration: float
+) -> int:
+	if not _target_query.is_valid() or radius <= 0.0 or damage_per_second <= 0.0 or duration <= 0.0:
+		return 0
+	var queried: Variant = _target_query.call()
+	if not queried is Array:
+		return 0
+	var applied_count := 0
+	for raw_target in queried:
+		if not raw_target is CombatTarget:
+			continue
+		var candidate := raw_target as CombatTarget
+		if candidate == null or not is_instance_valid(candidate) or not candidate.is_alive():
+			continue
+		if _source_building != null and is_instance_valid(_source_building):
+			if not _source_building.affects_target(candidate):
+				continue
+		var offset := Vector2(
+			candidate.global_position.x - world_position.x,
+			candidate.global_position.z - world_position.z
+		)
+		if offset.length_squared() > radius * radius + 0.000001:
+			continue
+		if candidate.apply_burning(damage_per_second, duration):
+			applied_count += 1
+	return applied_count
+
+
 func get_target_marker() -> MissileTargetMarker:
 	return _target_marker if _target_marker != null and is_instance_valid(_target_marker) else null
 
@@ -209,7 +275,9 @@ func get_trail_position() -> Vector3:
 
 
 func _apply_configuration(configuration: Dictionary) -> void:
+	_grid_cell_size = maxf(0.001, float(configuration.get("cell_size", 1.0)))
 	_explosion_radius = maxf(0.0, float(configuration.get("explosion_radius", 1.0)))
+	_base_explosion_radius = _explosion_radius
 	_orbit_duration = maxf(0.01, float(configuration.get("orbit_duration", 0.72)))
 	_orbit_radius_x = maxf(0.0, float(configuration.get("orbit_radius_x", 0.95)))
 	_orbit_radius_z = maxf(0.0, float(configuration.get("orbit_radius_z", 0.62)))
@@ -364,10 +432,21 @@ func _advance_flight(travel_budget: float) -> void:
 		if normal.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
 			remaining = 0.0
 			break
+		if not _attack_effects.record_successful_reflection(reflection_hit):
+			_absorb_at_reflector()
+			return
 		MissileReflectionDamageScript.apply(reflection_hit, _damage)
 		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
 		if is_finite(reflection_damage_multiplier):
 			_damage *= maxf(0.0, reflection_damage_multiplier)
+		_attack_effects.apply_reflection_effects(
+			reflection_hit,
+			{
+				"attack_kind": &"missile",
+				"projectile": self,
+				"source_building": get_source_building(),
+			}
+		)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
 		_has_reflected = true
 		reflections_this_frame += 1
@@ -380,10 +459,64 @@ func _advance_flight(travel_budget: float) -> void:
 			global_position += _direction * epsilon
 			_distance_traveled += epsilon
 			remaining -= epsilon
+		_spawn_reflection_attack_copies(reflection_hit)
 		var frame_cap := maxi(1, int(reflection_hit.get("max_reflections_per_frame", 1)))
 		if reflections_this_frame >= frame_cap:
 			break
 	_update_orientation(_direction)
+
+
+func _spawn_directional_attack_copy(
+	start: Vector3,
+	direction: Vector3,
+	damage: float,
+	maximum_distance: float,
+	_penetration_count: int,
+	attack_effects: AttackEffectPayload
+) -> Node:
+	var parent := get_parent()
+	if parent == null or direction.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
+		return null
+	var child := MissileProjectile.new()
+	parent.add_child(child)
+	child.configure_directional_missile(
+		start,
+		direction,
+		_speed,
+		damage,
+		maximum_distance,
+		_visual_length,
+		_visual_width,
+		_visual_color,
+		_model_asset,
+		get_source_building(),
+		_target_query,
+		_reflection_resolver,
+		_blocker_resolver,
+		_configuration_snapshot,
+		attack_effects
+	)
+	child._orbit_complete = true
+	child._orbit_elapsed = child._orbit_duration
+	child.global_position = start
+	child._direction = direction.normalized()
+	child._has_reflected = true
+	child._ballistic_mode = _ballistic_mode
+	child._target = _target if _target != null and is_instance_valid(_target) else null
+	child._last_target_position = _last_target_position
+	child._speed_phase = _speed_phase
+	child._wobble_phase = _wobble_phase
+	child._flight_elapsed = _flight_elapsed
+	child._contact_targets = _contact_targets.duplicate()
+	child._explosion_radius = _explosion_radius
+	if child._visual_wobble_root != null and _visual_wobble_root != null:
+		child._visual_wobble_root.scale = _visual_wobble_root.scale
+	child._update_orientation(child._direction)
+	if child._target != null:
+		child._spawn_target_marker(child._target)
+	if parent.has_method("adopt_projectile"):
+		parent.call("adopt_projectile", child)
+	return child
 
 
 func _find_first_missile_target_hit(
@@ -452,6 +585,7 @@ func _explode(contact_target: CombatTarget = null) -> void:
 					_damage_explosion_target(candidate, damaged_ids)
 	if contact_target != null and is_instance_valid(contact_target) and contact_target.is_alive():
 		_damage_explosion_target(contact_target, damaged_ids)
+	_attack_effects.notify_missile_explosion(self, explosion_position, _damage)
 	exploded.emit(explosion_position, _explosion_radius)
 	queue_free()
 

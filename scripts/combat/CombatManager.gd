@@ -27,6 +27,7 @@ signal pulse_laser_hit(target: CombatTarget, applied_damage: float, segment_inde
 
 var _targets: Array[CombatTarget] = []
 var _projectiles: Array[Projectile] = []
+var _auxiliary_projectiles: Array[Node] = []
 var _pulse_lasers: Array[PulseLaserBeam] = []
 var _next_entry_order: int = 0
 var _target_exit_callbacks: Dictionary = {}
@@ -256,7 +257,8 @@ func spawn_projectile(
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
 	source_building: Building = null,
-	penetration_count: int = 0
+	penetration_count: int = 0,
+	attack_effects: AttackEffectPayload = null
 ) -> Projectile:
 	if not feature_enabled or target == null or not target.is_alive():
 		return null
@@ -276,7 +278,8 @@ func spawn_projectile(
 		Callable(self, "get_targets"),
 		get_projectile_reflection_resolver(),
 		penetration_count,
-		_projectile_blocker_resolver
+		_projectile_blocker_resolver,
+		attack_effects
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
@@ -297,7 +300,8 @@ func spawn_directional_projectile(
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
 	source_building: Building = null,
-	penetration_count: int = 0
+	penetration_count: int = 0,
+	attack_effects: AttackEffectPayload = null
 ) -> Projectile:
 	if not feature_enabled or direction.length_squared() <= 0.000001:
 		return null
@@ -317,13 +321,44 @@ func spawn_directional_projectile(
 		Callable(self, "get_targets"),
 		get_projectile_reflection_resolver(),
 		penetration_count,
-		_projectile_blocker_resolver
+		_projectile_blocker_resolver,
+		attack_effects
 	)
 	projectile.impacted.connect(_on_projectile_impacted)
 	projectile.tree_exited.connect(_on_projectile_tree_exited.bind(projectile))
 	_projectiles.append(projectile)
 	projectile_spawned.emit(projectile)
 	return projectile
+
+
+## Registers a projectile created from an in-flight reflection/impact snapshot.
+## Branch implementations own construction because subclasses must preserve
+## their private visual and motion state, while CombatManager keeps lifecycle and
+## public combat signals centralized.
+func adopt_projectile(projectile: Node) -> bool:
+	if not projectile is Projectile:
+		return false
+	var typed_projectile := projectile as Projectile
+	if not is_instance_valid(typed_projectile) or _projectiles.has(typed_projectile):
+		return false
+	typed_projectile.impacted.connect(_on_projectile_impacted)
+	typed_projectile.tree_exited.connect(_on_projectile_tree_exited.bind(typed_projectile))
+	_projectiles.append(typed_projectile)
+	projectile_spawned.emit(typed_projectile)
+	return true
+
+
+## MirrorProjectionProjectile intentionally remains a separate lightweight type.
+## Track its generated branches for cleanup without weakening the public typed
+## projectile signal/array contract.
+func adopt_auxiliary_projectile(projectile: Node) -> bool:
+	if projectile == null or not is_instance_valid(projectile) or _auxiliary_projectiles.has(projectile):
+		return false
+	if projectile.has_signal("impacted"):
+		projectile.connect("impacted", _on_projectile_impacted)
+	projectile.tree_exited.connect(_on_auxiliary_projectile_tree_exited.bind(projectile))
+	_auxiliary_projectiles.append(projectile)
+	return true
 
 
 func spawn_targeted_missile(
@@ -337,7 +372,8 @@ func spawn_targeted_missile(
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
 	source_building: Building = null,
-	configuration: Dictionary = {}
+	configuration: Dictionary = {},
+	attack_effects: AttackEffectPayload = null
 ) -> MissileProjectile:
 	if not feature_enabled or target == null or not target.is_alive():
 		return null
@@ -357,7 +393,8 @@ func spawn_targeted_missile(
 		Callable(self, "get_targets"),
 		get_projectile_reflection_resolver(),
 		_projectile_blocker_resolver,
-		configuration
+		configuration,
+		attack_effects
 	)
 	missile.impacted.connect(_on_projectile_impacted)
 	missile.tree_exited.connect(_on_projectile_tree_exited.bind(missile))
@@ -377,7 +414,8 @@ func spawn_directional_missile(
 	color: Color,
 	model_asset: ModelAssetDefinition = null,
 	source_building: Building = null,
-	configuration: Dictionary = {}
+	configuration: Dictionary = {},
+	attack_effects: AttackEffectPayload = null
 ) -> MissileProjectile:
 	if not feature_enabled or direction.length_squared() <= 0.000001:
 		return null
@@ -397,7 +435,8 @@ func spawn_directional_missile(
 		Callable(self, "get_targets"),
 		get_projectile_reflection_resolver(),
 		_projectile_blocker_resolver,
-		configuration
+		configuration,
+		attack_effects
 	)
 	missile.impacted.connect(_on_projectile_impacted)
 	missile.tree_exited.connect(_on_projectile_tree_exited.bind(missile))
@@ -418,7 +457,9 @@ func spawn_pulse_laser(
 	fade_out_time: float,
 	colors: Array[Color],
 	maximum_reflections: int,
-	source_building: Building = null
+	source_building: Building = null,
+	attack_effects: AttackEffectPayload = null,
+	initial_color_offset: int = 0
 ) -> PulseLaserBeam:
 	if not feature_enabled:
 		return null
@@ -439,7 +480,9 @@ func spawn_pulse_laser(
 		colors,
 		maximum_reflections,
 		get_projectile_reflection_resolver(),
-		_projectile_blocker_resolver
+		_projectile_blocker_resolver,
+		attack_effects,
+		initial_color_offset
 	):
 		beam.free()
 		return null
@@ -479,6 +522,11 @@ func clear_projectiles() -> void:
 	for projectile in projectiles:
 		if is_instance_valid(projectile):
 			projectile.queue_free()
+	var auxiliary_projectiles := _auxiliary_projectiles.duplicate()
+	_auxiliary_projectiles.clear()
+	for projectile in auxiliary_projectiles:
+		if is_instance_valid(projectile):
+			projectile.queue_free()
 	var pulse_lasers := _pulse_lasers.duplicate()
 	_pulse_lasers.clear()
 	for beam in pulse_lasers:
@@ -497,6 +545,14 @@ func clear_attacks_from_building(source_building: Building) -> void:
 			and projectile.get_source_building() == source_building
 		):
 			_projectiles.erase(projectile)
+			projectile.queue_free()
+	for projectile in _auxiliary_projectiles.duplicate():
+		if (
+			is_instance_valid(projectile)
+			and projectile.has_method("get_source_building")
+			and projectile.call("get_source_building") == source_building
+		):
+			_auxiliary_projectiles.erase(projectile)
 			projectile.queue_free()
 	for beam in _pulse_lasers.duplicate():
 		if is_instance_valid(beam) and beam.get_source_building() == source_building:
@@ -530,6 +586,10 @@ func _on_projectile_impacted(target: CombatTarget, applied_damage: float) -> voi
 
 func _on_projectile_tree_exited(projectile: Projectile) -> void:
 	_projectiles.erase(projectile)
+
+
+func _on_auxiliary_projectile_tree_exited(projectile: Node) -> void:
+	_auxiliary_projectiles.erase(projectile)
 
 
 func _on_pulse_laser_impacted(

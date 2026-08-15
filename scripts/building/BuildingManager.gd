@@ -51,6 +51,7 @@ var _preview_cell: Vector3i = Vector3i.ZERO
 var _preview_edge_id: String = ""
 var _preview_facing_index: int = 0
 var _preview_relocation_source: Building
+var _preview_placement_valid: bool = true
 var _placement_rules: RefCounted = BuildingPlacementRulesScript.new()
 var _building_exit_callbacks: Dictionary = {}
 var _edge_occupancy_registry: EdgeOccupancyRegistry
@@ -123,10 +124,13 @@ func place_edge_building(
 	)
 
 
-## Updates a drag ghost for a live tile building. No resource or occupancy
-## mutation occurs until relocate_building_to_cell() is called on release.
+## Updates an adjustment ghost for a live tile building. Invalid but renderable
+## cells retain a red body preview; no live occupancy is changed until confirm.
 func update_relocation_preview(source: Building, target_cell: Vector3i) -> bool:
 	if source == null or not _is_registered_building(source) or source.is_edge_placement():
+		clear_preview()
+		return false
+	if not _can_render_tile_preview(target_cell, source.definition):
 		clear_preview()
 		return false
 	var failure := "" if target_cell == source.cell else _validate_placement(
@@ -134,10 +138,8 @@ func update_relocation_preview(source: Building, target_cell: Vector3i) -> bool:
 		source.definition,
 		false
 	)
-	if not failure.is_empty():
-		clear_preview()
-		_preview_relocation_source = source
-		return false
+	var placement_valid := failure.is_empty()
+	_preview_placement_valid = placement_valid
 	if (
 		_preview_building != null
 		and is_instance_valid(_preview_building)
@@ -147,11 +149,13 @@ func update_relocation_preview(source: Building, target_cell: Vector3i) -> bool:
 		_preview_cell = target_cell
 		_preview_edge_id = ""
 		_preview_building.relocate_tile_preview(target_cell)
-		_refresh_preview_connectivity()
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
 		preview_updated.emit(_preview_building)
-		return _preview_building.is_preview_valid()
+		return placement_valid and _preview_building.is_preview_valid()
 	clear_preview()
 	_preview_relocation_source = source
+	_preview_placement_valid = placement_valid
 	_preview_definition = source.definition
 	_preview_cell = target_cell
 	_preview_edge_id = ""
@@ -168,9 +172,10 @@ func update_relocation_preview(source: Building, target_cell: Vector3i) -> bool:
 		true
 	)
 	_preview_building.set_facing_index(source.facing_index)
-	_refresh_preview_connectivity()
+	_refresh_preview_connectivity(placement_valid)
+	_preview_building.visible = true
 	preview_updated.emit(_preview_building)
-	return _preview_building.is_preview_valid()
+	return placement_valid and _preview_building.is_preview_valid()
 
 
 func update_edge_relocation_preview(
@@ -181,13 +186,19 @@ func update_edge_relocation_preview(
 	if source == null or not _is_registered_building(source) or not source.is_edge_placement():
 		clear_preview()
 		return false
+	if not _can_render_edge_preview(from_cell, placement_edge_index, source.definition):
+		clear_preview()
+		return false
 	var validation := _validate_relocation_edge(source, from_cell, placement_edge_index)
 	var failure: String = validation["failure"]
-	if not failure.is_empty():
-		clear_preview()
-		_preview_relocation_source = source
-		return false
+	var placement_valid := failure.is_empty()
+	_preview_placement_valid = placement_valid
 	var canonical_id: String = validation["edge_id"]
+	if canonical_id.is_empty():
+		canonical_id = _grid.canonical_edge_id(from_cell, placement_edge_index)
+	var to_cell: Vector3i = validation["to_cell"]
+	if not _grid.is_in_bounds(to_cell):
+		to_cell = _grid.neighbor_across_edge(from_cell, placement_edge_index)
 	if (
 		_preview_building != null
 		and is_instance_valid(_preview_building)
@@ -199,15 +210,17 @@ func update_edge_relocation_preview(
 		_preview_facing_index = placement_edge_index
 		_preview_building.relocate_edge_preview(
 			from_cell,
-			validation["to_cell"],
+			to_cell,
 			placement_edge_index,
 			canonical_id
 		)
-		_refresh_preview_connectivity()
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
 		preview_updated.emit(_preview_building)
-		return _preview_building.is_preview_valid()
+		return placement_valid and _preview_building.is_preview_valid()
 	clear_preview()
 	_preview_relocation_source = source
+	_preview_placement_valid = placement_valid
 	_preview_definition = source.definition
 	_preview_cell = from_cell
 	_preview_edge_id = canonical_id
@@ -217,7 +230,7 @@ func update_edge_relocation_preview(
 	_preview_building.configure_edge(
 		source.definition,
 		from_cell,
-		validation["to_cell"],
+		to_cell,
 		placement_edge_index,
 		canonical_id,
 		_grid,
@@ -226,9 +239,42 @@ func update_edge_relocation_preview(
 		source.level,
 		true
 	)
-	_refresh_preview_connectivity()
+	_refresh_preview_connectivity(placement_valid)
+	_preview_building.visible = true
 	preview_updated.emit(_preview_building)
-	return _preview_building.is_preview_valid()
+	return placement_valid and _preview_building.is_preview_valid()
+
+
+func is_relocation_preview_valid(source: Building) -> bool:
+	return (
+		source != null
+		and is_instance_valid(source)
+		and _preview_relocation_source == source
+		and _preview_building != null
+		and is_instance_valid(_preview_building)
+		and _preview_placement_valid
+		and _preview_building.is_preview_valid()
+	)
+
+
+## Applies the exact currently displayed adjustment ghost. Moving and rotating
+## retain the live instance and do not spend/refund resources or touch caps.
+func commit_relocation_preview(source: Building) -> bool:
+	if not is_relocation_preview_valid(source):
+		return false
+	var target_facing := _preview_building.facing_index
+	var committed := false
+	if source.is_edge_placement():
+		committed = relocate_edge_building(source, _preview_cell, _preview_facing_index)
+	else:
+		committed = relocate_building_to_cell(source, _preview_cell)
+	if not committed:
+		return false
+	if not source.is_edge_placement() and source.facing_index != target_facing:
+		var previous_facing := source.facing_index
+		source.set_facing_index(target_facing)
+		building_rotated_by_player.emit(source, previous_facing, source.facing_index)
+	return true
 
 
 ## Atomically moves a live tile building while retaining the same instance and
@@ -570,12 +616,18 @@ func clear_buildings(update_resource_count: bool = true) -> void:
 
 func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 	definition = _resolve_runtime_definition(definition)
-	if not _can_preview(cell, definition):
+	if not _can_render_tile_preview(cell, definition):
 		clear_preview(false)
 		return false
+	var placement_valid: bool = _placement_rules.validate_tile(cell, definition, false).is_empty()
+	var placement_valid_changed := _preview_placement_valid != placement_valid
+	_preview_placement_valid = placement_valid
 	if _preview_building != null and _preview_definition == definition and _preview_cell == cell:
-		_refresh_preview_connectivity()
-		return true
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
+		if placement_valid_changed:
+			preview_updated.emit(_preview_building)
+		return placement_valid
 	if (
 		reuse_placement_preview_instances
 		and
@@ -587,21 +639,24 @@ func update_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
 		_preview_cell = cell
 		_preview_edge_id = ""
 		_preview_building.relocate_tile_preview(cell)
-		_refresh_preview_connectivity()
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
 		preview_updated.emit(_preview_building)
-		return true
+		return placement_valid
 	if _preview_definition != definition:
 		_preview_facing_index = 0
 	clear_preview(false)
+	_preview_placement_valid = placement_valid
 	_preview_definition = definition
 	_preview_cell = cell
 	_preview_building = Building.new()
 	add_child(_preview_building)
 	_preview_building.configure(definition, cell, _grid, _tile_manager, _combat_manager, 1, true)
 	_preview_building.set_facing_index(_preview_facing_index)
-	_refresh_preview_connectivity()
+	_refresh_preview_connectivity(placement_valid)
+	_preview_building.visible = true
 	preview_updated.emit(_preview_building)
-	return true
+	return placement_valid
 
 func update_edge_preview(
 	from_cell: Vector3i,
@@ -611,13 +666,22 @@ func update_edge_preview(
 	definition = _resolve_runtime_definition(definition)
 	var validation := _validate_edge_placement(from_cell, placement_edge_index, definition, false)
 	var failure: String = validation["failure"]
-	if not failure.is_empty():
+	if not _can_render_edge_preview(from_cell, placement_edge_index, definition):
 		clear_preview(false)
 		return false
+	var placement_valid := failure.is_empty()
+	var placement_valid_changed := _preview_placement_valid != placement_valid
+	_preview_placement_valid = placement_valid
 	var canonical_id: String = validation["edge_id"]
+	if canonical_id.is_empty():
+		canonical_id = _grid.canonical_edge_id(from_cell, placement_edge_index)
+	var to_cell := _grid.neighbor_across_edge(from_cell, placement_edge_index)
 	if _preview_building != null and _preview_definition == definition and _preview_edge_id == canonical_id and _preview_cell == from_cell:
-		_refresh_preview_connectivity()
-		return true
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
+		if placement_valid_changed:
+			preview_updated.emit(_preview_building)
+		return placement_valid
 	if (
 		reuse_placement_preview_instances
 		and
@@ -631,19 +695,20 @@ func update_edge_preview(
 		_preview_facing_index = placement_edge_index
 		_preview_building.relocate_edge_preview(
 			from_cell,
-			validation["to_cell"],
+			to_cell,
 			placement_edge_index,
 			canonical_id
 		)
-		_refresh_preview_connectivity()
+		_refresh_preview_connectivity(placement_valid)
+		_preview_building.visible = true
 		preview_updated.emit(_preview_building)
-		return true
+		return placement_valid
 	clear_preview(false)
+	_preview_placement_valid = placement_valid
 	_preview_definition = definition
 	_preview_cell = from_cell
 	_preview_edge_id = canonical_id
 	_preview_facing_index = placement_edge_index
-	var to_cell: Vector3i = validation["to_cell"]
 	_preview_building = Building.new()
 	add_child(_preview_building)
 	_preview_building.configure_edge(
@@ -658,9 +723,10 @@ func update_edge_preview(
 		1,
 		true
 	)
-	_refresh_preview_connectivity()
+	_refresh_preview_connectivity(placement_valid)
+	_preview_building.visible = true
 	preview_updated.emit(_preview_building)
-	return true
+	return placement_valid
 
 func clear_preview(clear_definition: bool = true) -> void:
 	var had_visible_preview := _preview_building != null and is_instance_valid(_preview_building)
@@ -669,6 +735,7 @@ func clear_preview(clear_definition: bool = true) -> void:
 	_preview_building = null
 	_preview_edge_id = ""
 	_preview_relocation_source = null
+	_preview_placement_valid = true
 	if clear_definition:
 		_preview_definition = null
 	if had_visible_preview:
@@ -685,6 +752,10 @@ func rotate_preview(step: int = 1) -> bool:
 
 func get_preview_building() -> Building:
 	return _preview_building if is_instance_valid(_preview_building) else null
+
+
+func is_preview_placement_valid() -> bool:
+	return get_preview_building() != null and _preview_placement_valid
 
 func get_preview_facing_index() -> int:
 	return _preview_facing_index
@@ -982,8 +1053,38 @@ func _validate_relocation_edge(
 		false
 	)
 
-func _can_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
-	return feature_enabled and _placement_rules.validate_tile(cell, definition, false).is_empty()
+func _can_render_tile_preview(cell: Vector3i, definition: BuildingDefinition) -> bool:
+	return (
+		feature_enabled
+		and definition != null
+		and definition.is_configured()
+		and not definition.is_edge_building()
+		and _grid != null
+		and _tile_manager != null
+		and _resource_manager != null
+		and _combat_manager != null
+		and _grid.is_in_bounds(cell)
+	)
+
+
+func _can_render_edge_preview(
+	from_cell: Vector3i,
+	placement_edge_index: int,
+	definition: BuildingDefinition
+) -> bool:
+	return (
+		feature_enabled
+		and definition != null
+		and definition.is_configured()
+		and definition.is_edge_building()
+		and _grid != null
+		and _tile_manager != null
+		and _resource_manager != null
+		and _combat_manager != null
+		and _grid.is_in_bounds(from_cell)
+		and placement_edge_index >= 0
+		and placement_edge_index < _grid.edge_count()
+	)
 
 
 func _validate_path_connectivity(change: Dictionary) -> String:
@@ -993,8 +1094,11 @@ func _validate_path_connectivity(change: Dictionary) -> String:
 	return String(result)
 
 
-func _refresh_preview_connectivity() -> void:
+func _refresh_preview_connectivity(placement_valid: bool = true) -> void:
 	if _preview_building == null or not is_instance_valid(_preview_building):
+		return
+	if not placement_valid:
+		_preview_building.set_preview_valid(false)
 		return
 	if not _preview_building.is_path_blocker():
 		_preview_building.set_preview_valid(true)

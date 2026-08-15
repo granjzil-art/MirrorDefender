@@ -21,8 +21,7 @@ const ProjectileTrajectoryPreviewScript := preload("res://scripts/building/Proje
 @export_group("Projectile Trajectory Preview")
 @export var projectile_preview_enabled: bool = true
 @export var projectile_preview_color: Color = Color(1.0, 0.05, 0.05, 0.52)
-@export_range(0.01, 0.5, 0.01, "or_greater") var projectile_preview_minimum_width: float = 0.10
-@export_range(0.0, 10.0, 0.05, "or_greater") var projectile_preview_width_multiplier: float = 1.5
+@export_range(0.01, 0.5, 0.01, "or_greater") var projectile_preview_width: float = 0.10
 @export_range(0.0, 0.5, 0.001, "or_greater") var projectile_preview_lift: float = 0.04
 @export_range(1, 64, 1) var projectile_preview_max_segments_per_direction: int = 32
 @export var projectile_multiplier_label_color: Color = Color(1.0, 0.05, 0.05, 1.0)
@@ -115,6 +114,10 @@ func debug_get_projectile_trajectory_segments() -> Array[Dictionary]:
 	return _trajectory_preview.debug_get_segments()
 
 
+func debug_get_projectile_trajectory_width() -> float:
+	return _trajectory_preview.debug_get_visual_width() if _trajectory_preview != null else 0.0
+
+
 func debug_get_projectile_multiplier_labels() -> Array[Dictionary]:
 	if _trajectory_preview == null:
 		return []
@@ -191,8 +194,7 @@ func _rebuild_visuals() -> void:
 		_trajectory_preview.configure_style(
 			projectile_preview_enabled,
 			projectile_preview_color,
-			projectile_preview_minimum_width,
-			projectile_preview_width_multiplier,
+			projectile_preview_width,
 			projectile_preview_lift,
 			projectile_preview_max_segments_per_direction,
 			projectile_multiplier_label_color,

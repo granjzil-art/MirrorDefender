@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://bpl35awmyucnk"]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://dtbiovrm6is11"]
 
 [ext_resource type="Texture2D" uid="uid://bhfmnn75f16wb" path="res://assets/png/LaserTower_o.png" id="1_6brfg"]
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
@@ -9,9 +9,9 @@
 
 [sub_resource type="Resource" id="Inspection_laser"]
 script = ExtResource("3_inspection")
-display_name = "激光塔"
-function_description = "沿固定方向持续发射冰柱激光，减速敌人，升级解锁爆发冰冻效果
-功能性辅助，AOE"
+display_name = "冰冻塔"
+function_description = "沿固定方向持续发射冰冻光束，造成持续伤害并减速敌人。
+塔本体升级只提升数值；范围爆发与冻结由二级复制镜赋予复制体。"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -32,8 +32,8 @@ affects_airborne = false
 base_damage = 15.0
 targeting_range = 6.0
 attack_range = 8.0
-laser_dps = 7.0
-projectile_penetration_count = 2
+laser_dps = 8.0
+projectile_penetration_count = 3
 model_asset = SubResource("Resource_ixmxi")
 tower_color = Color(0.16, 0.55, 0.88, 1)
 attack_color = Color(0.2, 0.95, 1, 1)
@@ -50,16 +50,14 @@ cost = 100.0
 affects_airborne = false
 targeting_range = 7.0
 attack_range = 10.0
-laser_dps = 9.0
+laser_dps = 10.0
 laser_beam_width = 0.09
 laser_beam_emission_energy = 3.4
 laser_propagation_speed = 4.5
-laser_burst_interval = 3.0
-laser_burst_radius = 1.5
 projectile_speed = 8.0
 projectile_length = 0.36
 projectile_width = 0.08
-projectile_penetration_count = 3
+projectile_penetration_count = 4
 model_asset = SubResource("Resource_pgv46")
 tower_color = Color(0.12, 0.72, 0.92, 1)
 attack_color = Color(0.28, 1, 0.88, 1)
@@ -77,17 +75,14 @@ affects_airborne = false
 base_damage = 25.0
 targeting_range = 8.0
 attack_range = 12.0
-laser_dps = 11.0
+laser_dps = 12.0
 laser_beam_width = 0.1
 laser_beam_emission_energy = 3.8
 laser_propagation_speed = 5.0
-laser_burst_interval = 3.0
-laser_burst_radius = 1.5
-laser_freeze_duration = 3.0
 projectile_speed = 9.0
 projectile_length = 0.42
 projectile_width = 0.09
-projectile_penetration_count = 4
+projectile_penetration_count = 5
 model_asset = SubResource("Resource_150dq")
 tower_color = Color(0.38, 0.32, 0.94, 1)
 attack_color = Color(0.64, 0.48, 1, 1)

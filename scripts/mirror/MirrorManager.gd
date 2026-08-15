@@ -7,6 +7,8 @@ const MirrorProjectionProjectileScript := preload("res://scripts/mirror/MirrorPr
 const MirrorPlacementDataScript := preload("res://scripts/mirror/MirrorPlacementData.gd")
 const BallisticGeometryScript := preload("res://scripts/combat/BallisticGeometry.gd")
 const LaserAttackStrategyScript := preload("res://scripts/combat/LaserAttackStrategy.gd")
+const ContinuousLaserPathScript := preload("res://scripts/combat/ContinuousLaserPath.gd")
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -71,6 +73,7 @@ var _rebuild_queued: bool = false
 var _mirror_exit_callbacks: Dictionary = {}
 var _attack_sources: Dictionary = {}
 var _laser_projection_states: Dictionary = {}
+var _pulse_projection_states: Dictionary = {}
 
 var _preview_mirror: CopyMirror
 var _preview_projections: Array[MirrorProjection] = []
@@ -79,9 +82,11 @@ var _preview_info: Dictionary = {}
 var _preview_active_from_side: bool = true
 var _preview_kind: MirrorPlacementData.MirrorKind = MirrorPlacementData.MirrorKind.COPY
 var _preview_relocation_source: CopyMirror
+var _preview_placement_failure: String = ""
 
 func _process(delta: float) -> void:
 	advance_placement_cooldowns(delta)
+	_update_pulse_copy_specials(delta)
 	_update_reflection_views()
 
 func _exit_tree() -> void:
@@ -102,10 +107,8 @@ func configure(
 	_combat_manager = combat_manager
 	_building_manager = building_manager
 	_edge_occupancy_registry = edge_occupancy_registry
-	if copy_mirror_definition != null and not copy_mirror_definition.changed.is_connected(_on_definition_changed):
-		copy_mirror_definition.changed.connect(_on_definition_changed)
-	if reflect_mirror_definition != null and not reflect_mirror_definition.changed.is_connected(_on_definition_changed):
-		reflect_mirror_definition.changed.connect(_on_definition_changed)
+	_connect_definition_signals()
+	_sync_attack_effect_runtime_limits()
 	if _combat_manager != null:
 		_combat_manager.set_projectile_reflection_resolver(Callable(self, "trace_projectile_reflection"))
 		_combat_manager.set_projectile_blocker_resolver(Callable(self, "trace_ballistic_blocker"))
@@ -123,6 +126,50 @@ func configure(
 		_tile_manager.tile_changed.connect(_on_tile_changed)
 		_tile_manager.obstacle_destroyed.connect(_on_obstacle_destroyed)
 	queue_rebuild()
+
+
+func set_runtime_definitions(
+	copy_definition: CopyMirrorDefinition,
+	reflect_definition: ReflectMirrorDefinition
+) -> void:
+	_disconnect_definition_signals()
+	copy_mirror_definition = copy_definition
+	reflect_mirror_definition = reflect_definition
+	_connect_definition_signals()
+	_sync_attack_effect_runtime_limits()
+	for mirror in get_mirrors():
+		mirror.rebind_definition(_get_definition(_get_mirror_kind(mirror)))
+	if _preview_mirror != null and is_instance_valid(_preview_mirror):
+		_preview_mirror.rebind_definition(_get_definition(_preview_kind))
+	_on_definition_changed()
+
+
+func _connect_definition_signals() -> void:
+	if copy_mirror_definition != null and not copy_mirror_definition.changed.is_connected(_on_definition_changed):
+		copy_mirror_definition.changed.connect(_on_definition_changed)
+	if reflect_mirror_definition != null and not reflect_mirror_definition.changed.is_connected(_on_definition_changed):
+		reflect_mirror_definition.changed.connect(_on_definition_changed)
+
+
+func _disconnect_definition_signals() -> void:
+	if copy_mirror_definition != null and copy_mirror_definition.changed.is_connected(_on_definition_changed):
+		copy_mirror_definition.changed.disconnect(_on_definition_changed)
+	if reflect_mirror_definition != null and reflect_mirror_definition.changed.is_connected(_on_definition_changed):
+		reflect_mirror_definition.changed.disconnect(_on_definition_changed)
+
+
+func _sync_attack_effect_runtime_limits() -> void:
+	AttackEffectPayload.configure_runtime_limits(
+		reflect_mirror_definition.maximum_total_reflections
+			if reflect_mirror_definition != null
+			else AttackEffectPayload.MAX_TOTAL_REFLECTIONS,
+		reflect_mirror_definition.reflection_branch_budget
+			if reflect_mirror_definition != null
+			else AttackEffectPayload.DEFAULT_REFLECTION_BRANCH_BUDGET,
+		copy_mirror_definition.impact_spawn_budget
+			if copy_mirror_definition != null
+			else AttackEffectPayload.DEFAULT_IMPACT_SPAWN_BUDGET
+	)
 
 func set_tile_visual_snapshot_resolver(resolver: Callable) -> void:
 	_tile_visual_snapshot_resolver = resolver
@@ -616,6 +663,25 @@ func update_relocation_preview(
 	)
 
 
+func is_relocation_preview_valid(source: CopyMirror) -> bool:
+	return (
+		source != null
+		and is_instance_valid(source)
+		and _preview_relocation_source == source
+		and _preview_mirror != null
+		and is_instance_valid(_preview_mirror)
+		and bool(_preview_info.get("valid", false))
+	)
+
+
+## Applies the exact currently displayed adjustment ghost without changing
+## mirror costs, caps, cooldown stock, upgrades, or instance identity.
+func commit_relocation_preview(source: CopyMirror) -> bool:
+	if not is_relocation_preview_valid(source):
+		return false
+	return relocate_mirror(source, _preview_mirror.from_cell, _preview_mirror.edge_index)
+
+
 ## Moves one live mirror without spending/refunding resources or changing the
 ## cooldown stock. The same object retains upgrades and its investment ledger.
 func relocate_mirror(
@@ -963,6 +1029,10 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		"max_reflections_per_frame": 1,
 		"damage_multiplier": 1.0,
 		"penetration_bonus": 0,
+		"attack_effects": [],
+		"is_reflect_mirror": false,
+		"mirror_level": 0,
+		"is_upgraded_reflect_mirror": false,
 	}
 	var segment := end - start
 	var segment_length := segment.length()
@@ -1010,6 +1080,10 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 		result.max_reflections_per_frame = definition.max_reflections_per_frame
 		result.damage_multiplier = mirror.get_damage_multiplier()
 		result.penetration_bonus = mirror.get_penetration_bonus()
+		result.attack_effects = definition.get_attack_effects(mirror.level)
+		result.is_reflect_mirror = true
+		result.mirror_level = mirror.level
+		result.is_upgraded_reflect_mirror = mirror.level >= 2
 	var stale_provider_ids: Array[int] = []
 	for raw_provider_id in _projectile_reflection_providers.keys():
 		var provider_id := int(raw_provider_id)
@@ -1050,6 +1124,14 @@ func trace_projectile_reflection(start: Vector3, end: Vector3) -> Dictionary:
 			result["damage_multiplier"] = 1.0
 		if not result.has("penetration_bonus"):
 			result["penetration_bonus"] = 0
+		if not result.has("attack_effects"):
+			result["attack_effects"] = []
+		if not result.has("is_reflect_mirror"):
+			result["is_reflect_mirror"] = false
+		if not result.has("mirror_level"):
+			result["mirror_level"] = 0
+		if not result.has("is_upgraded_reflect_mirror"):
+			result["is_upgraded_reflect_mirror"] = false
 	for provider_id in stale_provider_ids:
 		_projectile_reflection_providers.erase(provider_id)
 	return result
@@ -1269,12 +1351,20 @@ func _update_mirror_preview(
 		mirror_kind,
 		relocation_source
 	)
-	if not validation.failure.is_empty():
+	var placement_failure: String = validation.failure
+	if not placement_failure.is_empty() and not _can_render_mirror_preview(
+		from_cell,
+		edge_index,
+		mirror_kind
+	):
 		clear_preview()
 		return false
 	if active_from_side != null:
 		_preview_active_from_side = bool(active_from_side)
 	var edge_id: String = validation.edge_id
+	if edge_id.is_empty():
+		edge_id = _grid.canonical_edge_id(from_cell, edge_index)
+	var to_cell := _grid.neighbor_across_edge(from_cell, edge_index)
 	if (
 		not reuse_placement_preview_instances
 		or _preview_mirror == null
@@ -1294,7 +1384,7 @@ func _update_mirror_preview(
 		_preview_mirror.configure(
 			_get_definition(mirror_kind),
 			from_cell,
-			validation.to_cell,
+			to_cell,
 			edge_index,
 			edge_id,
 			_grid,
@@ -1309,14 +1399,36 @@ func _update_mirror_preview(
 	else:
 		_preview_mirror.relocate_preview(
 			from_cell,
-			validation.to_cell,
+			to_cell,
 			edge_index,
 			edge_id
 		)
 		if _preview_mirror.active_from_side != _preview_active_from_side:
 			_preview_mirror.flip_side()
+	_preview_placement_failure = placement_failure
+	_preview_mirror.visible = true
 	_refresh_preview_projection()
-	return true
+	return placement_failure.is_empty()
+
+
+func _can_render_mirror_preview(
+	from_cell: Vector3i,
+	edge_index: int,
+	mirror_kind: MirrorPlacementData.MirrorKind
+) -> bool:
+	var definition := _get_definition(mirror_kind)
+	return (
+		feature_enabled
+		and definition != null
+		and definition.validate_configuration().is_empty()
+		and _grid != null
+		and _tile_manager != null
+		and _resource_manager != null
+		and _combat_manager != null
+		and _grid.is_in_bounds(from_cell)
+		and edge_index >= 0
+		and edge_index < _grid.edge_count()
+	)
 
 func flip_preview() -> bool:
 	if _preview_mirror == null or not is_instance_valid(_preview_mirror):
@@ -1332,6 +1444,7 @@ func clear_preview() -> void:
 		_preview_mirror.queue_free()
 	_preview_mirror = null
 	_preview_relocation_source = null
+	_preview_placement_failure = ""
 	_clear_preview_projections()
 	_preview_info = {}
 	if had_preview:
@@ -1425,6 +1538,7 @@ func rebuild_now() -> void:
 	_clear_projection_nodes()
 	if not feature_enabled or copy_mirror_definition == null or _grid == null or _tile_manager == null:
 		_laser_projection_states.clear()
+		_pulse_projection_states.clear()
 		projections_rebuilt.emit(0)
 		_clear_building_preview_projections()
 		building_preview_projections_rebuilt.emit(0)
@@ -1432,6 +1546,7 @@ func rebuild_now() -> void:
 	var payloads := _calculate_projection_payloads(get_copy_mirrors())
 	var stack_counts: Dictionary = {}
 	var active_laser_state_keys: Dictionary = {}
+	var active_pulse_state_keys: Dictionary = {}
 	for payload in payloads:
 		if not payload.is_source_valid():
 			continue
@@ -1454,6 +1569,12 @@ func rebuild_now() -> void:
 				projection.restore_laser_propagation_state(
 					_laser_projection_states[payload.stable_key]
 				)
+		elif payload.copy_kind == &"pulse_laser_tower":
+			active_pulse_state_keys[payload.stable_key] = true
+			if _pulse_projection_states.has(payload.stable_key):
+				projection.restore_pulse_special_state(
+					_pulse_projection_states[payload.stable_key]
+				)
 		_projections.append(projection)
 		if not _projections_by_cell.has(payload.projected_cell):
 			_projections_by_cell[payload.projected_cell] = []
@@ -1461,6 +1582,9 @@ func rebuild_now() -> void:
 	for state_key in _laser_projection_states.keys():
 		if not active_laser_state_keys.has(state_key):
 			_laser_projection_states.erase(state_key)
+	for state_key in _pulse_projection_states.keys():
+		if not active_pulse_state_keys.has(state_key):
+			_pulse_projection_states.erase(state_key)
 	projections_rebuilt.emit(_projections.size())
 	if _preview_mirror != null:
 		_refresh_preview_projection()
@@ -1523,15 +1647,33 @@ func _build_projection_group(
 		# projection_ignores_occupancy remains serialized only for old resources;
 		# the runtime invariant is now unconditional.
 		for source_payload in eligible:
-			result.append(source_payload.copy_through(
+			var next_chain_depth := source_payload.chain_depth + 1
+			var next_payload := source_payload.copy_through(
 				mirror.edge_id,
 				pair.target_cell,
 				endpoints[0],
 				endpoints[1],
 				mirror.get_damage_multiplier(),
 				mirror.get_penetration_bonus(),
-				copy_mirror_definition.get_projection_alpha(mirror.level)
-			))
+				copy_mirror_definition.get_projection_alpha_for_depth(
+					mirror.level,
+					next_chain_depth,
+					source_payload.projection_alpha if source_payload.chain_depth > 0 else -1.0
+				),
+				mirror.level
+			)
+			if mirror.definition != null:
+				mirror.definition.apply_copy_attack_effects(
+					next_payload.attack_effects,
+					mirror.level,
+					{
+						"mirror": mirror,
+						"copy_kind": next_payload.copy_kind,
+						"chain_depth": next_payload.chain_depth,
+						"copy_upgrade_count": next_payload.copy_upgrade_count,
+					}
+				)
+			result.append(next_payload)
 		return result
 	return result
 
@@ -1621,6 +1763,23 @@ func _append_building_content(content: Dictionary, building: Building, key_prefi
 func _refresh_preview_projection() -> void:
 	if _preview_mirror == null or not is_instance_valid(_preview_mirror):
 		_clear_preview_projections()
+		return
+	if not _preview_placement_failure.is_empty():
+		_clear_preview_projections()
+		_preview_mirror.set_preview_valid(false)
+		_preview_info = {
+			"edge_id": _preview_mirror.edge_id,
+			"active_cell": _preview_mirror.get_active_cell(),
+			"has_source": false,
+			"source_cell": Vector3i.ZERO,
+			"target_cell": Vector3i.ZERO,
+			"types": [],
+			"valid": false,
+			"failure": _preview_placement_failure,
+			"warning": _preview_placement_failure,
+			"mirror_kind": _preview_kind,
+		}
+		preview_updated.emit(_preview_info)
 		return
 	if not _preview_mirror.is_copy_mirror():
 		_clear_preview_projections()
@@ -1712,6 +1871,10 @@ func _refresh_building_preview_projections(building: Building) -> void:
 	if (
 		building == null
 		or not is_instance_valid(building)
+		or (
+			_building_manager != null
+			and not _building_manager.is_preview_placement_valid()
+		)
 		or not feature_enabled
 		or copy_mirror_definition == null
 		or _grid == null
@@ -1819,6 +1982,14 @@ func _clear_projection_nodes() -> void:
 				_laser_projection_states[projection.payload.stable_key] = (
 					projection.get_laser_propagation_state()
 				)
+			elif (
+				projection.payload != null
+				and projection.payload.copy_kind == &"pulse_laser_tower"
+				and not projection.payload.stable_key.is_empty()
+			):
+				_pulse_projection_states[projection.payload.stable_key] = (
+					projection.get_pulse_special_state()
+				)
 			projection.visible = false
 			projection.queue_free()
 	_projections.clear()
@@ -1913,6 +2084,163 @@ func _disconnect_attack_sources() -> void:
 			_disconnect_attack_source(source)
 	_attack_sources.clear()
 
+
+func _get_pulse_overdrive_effect(payload: MirrorCopyPayload) -> Resource:
+	if payload == null or payload.attack_effects == null:
+		return null
+	return payload.attack_effects.get_effect_resource(&"pulse_laser_overdrive")
+
+
+func _get_copy_definition_effect(effect_id: StringName) -> Resource:
+	if copy_mirror_definition == null:
+		return null
+	for effect in copy_mirror_definition.get_attack_effects(2):
+		if effect != null and effect.get_effect_id() == effect_id:
+			return effect
+	return null
+
+
+func _update_pulse_copy_specials(delta: float) -> void:
+	if _combat_manager == null or _grid == null:
+		return
+	for projection in _projections:
+		if (
+			projection == null
+			or not is_instance_valid(projection)
+			or projection.payload == null
+			or projection.payload.copy_kind != &"pulse_laser_tower"
+		):
+			continue
+		var effect := _get_pulse_overdrive_effect(projection.payload)
+		var source := projection.payload.root_source as Building
+		if effect == null or source == null or not is_instance_valid(source):
+			continue
+		var source_state := source.get_pulse_copy_mirror_state()
+		var source_start := source.get_attack_origin()
+		var source_end := source_start + source.get_facing_direction() * source.get_attack_range_world()
+		var world_start := projection.payload.transform_point(source_start)
+		var world_end := projection.payload.transform_point(source_end)
+		var direction := world_end - world_start
+		if direction.length_squared() <= 0.000001:
+			continue
+		var phase := StringName(source_state.get("phase", &"charging"))
+		if phase != &"overdrive":
+			projection.clear_pulse_overdrive_path()
+			projection.update_pulse_charge_orb(
+				world_start,
+				effect.get("charge_orb_color") as Color,
+				source.get_pulse_laser_width_world()
+					* float(effect.get("charge_orb_radius_multiplier")),
+				float(effect.get("charge_orb_min_scale")),
+				float(effect.get("charge_orb_max_scale")),
+				float(effect.get("charge_orb_pulse_speed")),
+				delta
+			)
+			projection.set_pulse_special_inspection_status(
+				"充能 %d/%d" % [
+					int(source_state.get("charge_count", 0)),
+					int(source_state.get("charge_shots", 5)),
+				]
+			)
+			continue
+		projection.hide_pulse_charge_orb()
+		var overdrive_duration := maxf(
+			0.0,
+			float(source_state.get("overdrive_duration", 10.0))
+		)
+		var overdrive_remaining := maxf(
+			0.0,
+			float(source_state.get("overdrive_remaining", 0.0))
+		)
+		var elapsed := maxf(0.0, overdrive_duration - overdrive_remaining)
+		var visible_distance := projection.advance_pulse_overdrive_propagation(
+			int(source_state.get("generation", 0)),
+			delta,
+			source.get_attack_range_world(),
+			float(effect.get("propagation_speed_cells_per_second")) * _grid.cell_size,
+			elapsed
+		)
+		var runtime_effects := projection.payload.attack_effects.instantiate_attack()
+		var path: Dictionary = ContinuousLaserPathScript.trace(
+			_combat_manager,
+			source,
+			world_start,
+			direction.normalized(),
+			visible_distance,
+			1_000_000,
+			_combat_manager.get_projectile_reflection_resolver(),
+			Callable(self, "trace_ballistic_blocker"),
+			runtime_effects,
+			1.0,
+			0,
+			&"pulse_overdrive"
+		)
+		var copy_count := clampi(projection.payload.copy_upgrade_count, 1, 3)
+		var dps := (
+			source.get_instant_damage()
+			* source.get_attacks_per_second()
+			* maxf(0.0, projection.payload.damage_multiplier)
+			* maxf(0.0, float(effect.call("get_dps_multiplier", copy_count)))
+		)
+		_apply_pulse_overdrive_damage(path, dps, delta)
+		var base_width := (
+			source.get_pulse_laser_width_world()
+			* maxf(0.0, float(effect.call("get_beam_width_multiplier", copy_count)))
+		)
+		var overdrive_colors := source.get_pulse_laser_reflection_colors()
+		var overdrive_base_color := (
+			overdrive_colors[0]
+			if not overdrive_colors.is_empty()
+			else source.get_attack_color()
+		)
+		projection.show_pulse_overdrive_path(
+			path.get("segments", []),
+			path.get("endpoint", world_start),
+			overdrive_base_color,
+			base_width,
+			source.get_pulse_laser_emission_energy(),
+			{
+				"thickness_multiplier": effect.get("sine_thickness_multiplier"),
+				"amplitude_ratio": effect.get("sine_amplitude_ratio"),
+				"wavelength_ratio": effect.get("sine_wavelength_ratio"),
+				"flow_cycles_per_second": effect.get("sine_flow_cycles_per_second"),
+				"samples_per_cycle": effect.get("sine_samples_per_cycle"),
+				"min_subdivisions": effect.get("sine_min_subdivisions"),
+				"max_subdivisions": effect.get("sine_max_subdivisions"),
+			}
+		)
+		projection.set_pulse_special_inspection_status(
+			"爆发 %.1fs" % overdrive_remaining
+		)
+
+
+func _apply_pulse_overdrive_damage(path: Dictionary, damage_per_second: float, delta: float) -> void:
+	var duration := maxf(0.0, delta)
+	if damage_per_second <= 0.0 or duration <= 0.0:
+		return
+	for raw_reflection in path.get("reflections", []):
+		if not raw_reflection is Dictionary:
+			continue
+		var reflection := raw_reflection as Dictionary
+		ReflectionDamageScript.apply(
+			reflection,
+			damage_per_second
+				* maxf(0.0, float(reflection.get("path_damage_multiplier", 1.0)))
+				* duration
+		)
+	for raw_hit in path.get("hits", []):
+		if not raw_hit is Dictionary:
+			continue
+		var hit := raw_hit as Dictionary
+		var target := hit.get("target") as CombatTarget
+		if target == null or not is_instance_valid(target) or not target.is_alive():
+			continue
+		var hit_dps := damage_per_second * maxf(
+			0.0,
+			float(hit.get("damage_multiplier", path.get("damage_multiplier", 1.0)))
+		)
+		target.take_damage_over_time(hit_dps, duration)
+
 func _on_copy_attack_triggered(
 	building: Building,
 	attack_kind: StringName,
@@ -1922,6 +2250,37 @@ func _on_copy_attack_triggered(
 ) -> void:
 	if _combat_manager == null or not is_instance_valid(building):
 		return
+	var ice_event_count := 0
+	if attack_kind == &"laser" and building.get_copy_kind() == &"laser_tower":
+		var ice_clock_effect := _get_copy_definition_effect(&"ice_copy_burst")
+		if ice_clock_effect != null:
+			var source_dps := building.get_laser_damage_per_second()
+			var source_delta := maxf(0.0, damage) / source_dps if source_dps > 0.0 else 0.0
+			ice_event_count = building.advance_ice_copy_mirror_clock(
+				source_delta,
+				float(ice_clock_effect.get("burst_interval"))
+			)
+	if attack_kind == &"pulse_laser":
+		for projection in _projections:
+			if (
+				projection == null
+				or not is_instance_valid(projection)
+				or projection.payload == null
+				or projection.payload.root_source != building
+				or projection.payload.copy_kind != &"pulse_laser_tower"
+			):
+				continue
+			var pulse_effect := _get_pulse_overdrive_effect(projection.payload)
+			if pulse_effect == null:
+				continue
+			building.register_pulse_copy_mirror_charge(
+				int(pulse_effect.get("charge_shots")),
+				building.get_pulse_laser_fade_in_time()
+					+ building.get_pulse_laser_hold_time()
+					+ building.get_pulse_laser_fade_out_time(),
+				float(pulse_effect.get("overdrive_duration"))
+			)
+			break
 	for projection in _projections:
 		if not is_instance_valid(projection) or projection.payload.root_source != building:
 			continue
@@ -1933,6 +2292,11 @@ func _on_copy_attack_triggered(
 		)
 		var start := projection.payload.transform_point(world_start)
 		var end := projection.payload.transform_point(world_end)
+		var attack_effects := (
+			projection.payload.attack_effects.instantiate_attack()
+			if projection.payload.attack_effects != null
+			else AttackEffectPayload.new()
+		)
 		if (
 			attack_kind in [&"missile", &"directional_missile"]
 			and projection.payload.copy_kind == &"crossbow_tower"
@@ -1951,7 +2315,8 @@ func _on_copy_attack_triggered(
 				building.get_attack_color().lerp(copy_mirror_definition.projection_tint, 0.55),
 				building.get_projectile_model_asset(),
 				building,
-				building.get_missile_configuration()
+				building.get_missile_configuration(),
+				attack_effects
 			)
 			if copied_missile != null:
 				attack_mirrored.emit(projection, attack_kind)
@@ -1976,7 +2341,8 @@ func _on_copy_attack_triggered(
 				_combat_manager.get_projectile_reflection_resolver(),
 				true,
 				copied_penetration,
-				Callable(self, "trace_ballistic_blocker")
+				Callable(self, "trace_ballistic_blocker"),
+				attack_effects
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif (
@@ -2000,10 +2366,13 @@ func _on_copy_attack_triggered(
 				_combat_manager.get_projectile_reflection_resolver(),
 				true,
 				copied_penetration,
-				Callable(self, "trace_ballistic_blocker")
+				Callable(self, "trace_ballistic_blocker"),
+				attack_effects
 			)
 			attack_mirrored.emit(projection, attack_kind)
 		elif attack_kind == &"pulse_laser" and projection.payload.copy_kind == &"pulse_laser_tower":
+			if _get_pulse_overdrive_effect(projection.payload) != null:
+				continue
 			var direction := end - start
 			if direction.length_squared() <= 0.000001:
 				continue
@@ -2019,7 +2388,8 @@ func _on_copy_attack_triggered(
 				building.get_pulse_laser_fade_out_time(),
 				building.get_pulse_laser_reflection_colors(),
 				building.get_pulse_laser_reflect_max(),
-				building
+				building,
+				attack_effects
 			)
 			if pulse_beam != null:
 				attack_mirrored.emit(projection, attack_kind)
@@ -2043,7 +2413,8 @@ func _on_copy_attack_triggered(
 				start,
 				projected_laser_direction,
 				propagation_distance,
-				projection.payload.penetration_bonus
+				projection.payload.penetration_bonus,
+				attack_effects
 			)
 			if path.get("termination", &"none") in [&"enemy", &"stuff"]:
 				projection.clamp_laser_propagation(
@@ -2066,18 +2437,20 @@ func _on_copy_attack_triggered(
 				duration,
 				false
 			)
-			attack_mirrored.emit(projection, attack_kind)
-		elif attack_kind == &"laser_burst" and projection.payload.copy_kind == &"laser_tower":
-			var burst_target := projection.get_laser_burst_target()
-			if not bool(burst_target.get("hit", false)):
-				continue
-			LaserAttackStrategyScript.apply_endpoint_burst(
-				building,
-				_combat_manager,
-				burst_target.get("position", start),
-				false,
-				copy_damage_multiplier * projection.get_laser_reflection_damage_multiplier()
-			)
+			if ice_event_count > 0:
+				var ice_effect := attack_effects.get_effect_resource(&"ice_copy_burst")
+				var burst_target := projection.get_laser_burst_target()
+				if ice_effect != null and bool(burst_target.get("hit", false)):
+					for _event_index in range(ice_event_count):
+						ice_effect.call(
+							"apply_copy_burst",
+							building,
+							_combat_manager,
+							burst_target.get("position", start),
+							projection.payload.copy_upgrade_count,
+							copy_damage_multiplier
+								* projection.get_laser_reflection_damage_multiplier()
+						)
 			attack_mirrored.emit(projection, attack_kind)
 
 func _on_building_placed(building: Building) -> void:
@@ -2115,6 +2488,7 @@ func _on_obstacle_destroyed(_cell: Vector3i) -> void:
 	queue_rebuild()
 
 func _on_definition_changed() -> void:
+	_sync_attack_effect_runtime_limits()
 	var copy_duration := get_placement_cooldown_duration(MirrorPlacementData.MirrorKind.COPY)
 	_set_placement_cooldown_remaining(
 		MirrorPlacementData.MirrorKind.COPY,
@@ -2184,10 +2558,7 @@ func _on_stuff_changed(_cell: Vector3i) -> void:
 func _disconnect_dependencies() -> void:
 	_disconnect_attack_sources()
 	_disconnect_stuff_manager()
-	if copy_mirror_definition != null and copy_mirror_definition.changed.is_connected(_on_definition_changed):
-		copy_mirror_definition.changed.disconnect(_on_definition_changed)
-	if reflect_mirror_definition != null and reflect_mirror_definition.changed.is_connected(_on_definition_changed):
-		reflect_mirror_definition.changed.disconnect(_on_definition_changed)
+	_disconnect_definition_signals()
 	if _combat_manager != null:
 		_combat_manager.clear_projectile_reflection_resolver(self)
 		_combat_manager.clear_projectile_blocker_resolver(self)

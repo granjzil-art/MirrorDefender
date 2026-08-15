@@ -11,7 +11,7 @@ static func make_copy_mirror_definition() -> CopyMirrorDefinition:
 	definition.placement_cooldown_seconds = 0.0
 	definition.placement_cost = 0.0
 	definition.projection_ignores_occupancy = true
-	definition.copy_chain_max = 4
+	definition.copy_chain_max = 3
 	definition.active_from_side_by_default = true
 	definition.mirror_thickness_ratio = 0.08
 	definition.mirror_height_ratio = 1.20
@@ -22,6 +22,12 @@ static func make_copy_mirror_definition() -> CopyMirrorDefinition:
 	definition.reflection_preview_resolution = 64
 	definition.reflection_update_interval_frames = 1
 	definition.reflection_max_updates_per_frame = 6
+	definition.attack_effects = [
+		BurstArrowMirrorEffect.new(),
+		BurningMissileMirrorEffect.new(),
+		PulseLaserOverdriveCopyEffect.new(),
+		IceBurstCopyMirrorEffect.new(),
+	]
 	return definition
 
 
@@ -41,6 +47,12 @@ static func make_reflect_mirror_definition() -> ReflectMirrorDefinition:
 	definition.reflection_max_updates_per_frame = 6
 	definition.collision_epsilon_ratio = 0.002
 	definition.max_reflections_per_frame = 8
+	definition.attack_effects = [
+		ReflectionForkMirrorEffect.new(),
+		ArrowReflectionMirrorEffect.new(),
+		MissileReflectionGrowthEffect.new(),
+		PulseLaserReflectionEffect.new(),
+	]
 	return definition
 
 

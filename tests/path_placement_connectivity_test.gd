@@ -100,15 +100,99 @@ func _test_hex_and_airborne_profiles() -> void:
 
 func _test_edge_barrier_is_rejected() -> void:
 	var level := _make_single_route_level(GridManager.Shape.SQUARE)
+	var obstacle_cell := Vector3i(1, 1, 0)
+	level.store_tile(_make_effect_tile(obstacle_cell, RockTileEffect.new()))
 	var fixture := _make_fixture(level)
 	var grid: GridManager = fixture.grid
 	var building: BuildingManager = fixture.building
+	var mirror: MirrorManager = fixture.mirror
 	var from_cell: Vector3i = level.paths[0].cells[1]
 	var to_cell: Vector3i = level.paths[0].cells[2]
 	var edge_index := grid.find_edge_index(from_cell, to_cell)
-	_expect(building.update_edge_preview(from_cell, edge_index, building.edge_barrier), "last-route edge barrier renders a preview")
-	_expect(not building.get_preview_building().is_preview_valid(), "bidirectional edge preview becomes invalid red")
-	_expect(building.place_edge_building(from_cell, edge_index, building.edge_barrier) == null, "edge barrier cannot close the final route segment")
+	_expect(not building.update_preview(from_cell, building.arrow_tower), "ordinary building placement rejects an enemy-path tile")
+	_expect(building.get_preview_building() != null and building.get_preview_building().visible, "rejected enemy-path tile keeps the physical building preview visible")
+	_expect(_is_red(building.get_preview_building().get_preview_display_color()), "enemy-path building preview is red")
+	_expect(not building.update_preview(obstacle_cell, building.arrow_tower), "ordinary building placement rejects an obstacle tile")
+	_expect(building.get_preview_building() != null and building.get_preview_building().visible, "rejected obstacle tile keeps the physical building preview visible")
+	_expect(_is_red(building.get_preview_building().get_preview_display_color()), "obstacle-tile building preview is red")
+	var movable_building_cell := Vector3i(0, 0, 0)
+	var movable_building := building.place_building(movable_building_cell, building.arrow_tower)
+	_expect(movable_building != null, "relocation fixture places a live tile building")
+	_expect(
+		not building.update_relocation_preview(movable_building, obstacle_cell),
+		"live tile building may be adjusted onto an invalid obstacle cell"
+	)
+	_expect(
+		building.get_preview_building() != null
+		and building.get_preview_building().visible
+		and _is_red(building.get_preview_building().get_preview_display_color()),
+		"invalid live-building adjustment retains a red body ghost"
+	)
+	_expect(
+		building.get_building(movable_building_cell) == movable_building
+		and building.get_building(obstacle_cell) == null
+		and not building.commit_relocation_preview(movable_building),
+		"red tile adjustment leaves the original live occupancy unchanged and cannot commit"
+	)
+	var valid_building_target := Vector3i(1, 0, 0)
+	_expect(
+		building.update_relocation_preview(movable_building, valid_building_target)
+		and building.is_relocation_preview_valid(movable_building),
+		"the same adjustment ghost turns valid on an allowed tile"
+	)
+	_expect(
+		building.get_building(movable_building_cell) == movable_building
+		and building.get_building(valid_building_target) == null,
+		"green tile adjustment still leaves the original live building active before confirm"
+	)
+	_expect(
+		building.commit_relocation_preview(movable_building)
+		and building.get_building(valid_building_target) == movable_building
+		and building.get_building(movable_building_cell) == null,
+		"confirming the green tile adjustment atomically applies it"
+	)
+	_expect(not building.update_edge_preview(from_cell, edge_index, building.edge_barrier), "path-to-path edge permission rejects the edge-barrier preview")
+	_expect(building.get_preview_building() != null and building.get_preview_building().visible, "rejected path edge keeps the physical edge-building preview visible")
+	_expect(_is_red(building.get_preview_building().get_preview_display_color()), "path-edge building preview is red")
+	_expect(building.place_edge_building(from_cell, edge_index, building.edge_barrier) == null, "edge barrier cannot be placed between two path tiles")
+	_expect(not mirror.update_preview(from_cell, edge_index), "path-to-path edge permission also rejects the mirror preview")
+	_expect(mirror.get_preview_mirror() != null and mirror.get_preview_mirror().visible, "rejected mirror edge keeps the physical mirror preview visible")
+	_expect(_is_red(mirror.get_preview_mirror().get_preview_display_color()), "invalid-edge mirror preview is red")
+	var invalid_surface_overlay := mirror.get_preview_mirror().get_reflection_surface().material_overlay as StandardMaterial3D
+	_expect(invalid_surface_overlay != null and _is_red(invalid_surface_overlay.albedo_color), "red placement tint also covers the mirror face")
+	_expect(mirror.get_preview_projections().is_empty(), "invalid mirror edge keeps the original copied-preview behavior")
+	_expect(mirror.place_copy_mirror(from_cell, edge_index, true) == null, "a mirror cannot be placed between two path tiles")
+	var movable_mirror_cell := Vector3i(5, 0, 0)
+	var movable_mirror_edge := grid.find_edge_index(movable_mirror_cell, Vector3i(6, 0, 0))
+	var movable_mirror := mirror.place_copy_mirror(movable_mirror_cell, movable_mirror_edge, true)
+	_expect(movable_mirror != null, "relocation fixture places a live mirror on an allowed edge")
+	var original_mirror_edge_id := movable_mirror.edge_id
+	_expect(
+		not mirror.update_relocation_preview(movable_mirror, from_cell, edge_index),
+		"live mirror may be adjusted onto an invalid path-common edge"
+	)
+	_expect(
+		mirror.get_preview_mirror() != null
+		and mirror.get_preview_mirror().visible
+		and _is_red(mirror.get_preview_mirror().get_preview_display_color()),
+		"invalid live-mirror adjustment retains a red body ghost"
+	)
+	_expect(
+		mirror.get_mirror(original_mirror_edge_id) == movable_mirror
+		and not mirror.commit_relocation_preview(movable_mirror),
+		"red mirror adjustment keeps the original live edge and cannot commit"
+	)
+	var boundary_cell := Vector3i.ZERO
+	var boundary_edge := -1
+	for candidate_edge in range(grid.edge_count()):
+		if not grid.is_in_bounds(grid.neighbor_across_edge(boundary_cell, candidate_edge)):
+			boundary_edge = candidate_edge
+			break
+	_expect(boundary_edge >= 0, "fixture exposes an outward-facing boundary edge")
+	_expect(not mirror.update_preview(boundary_cell, boundary_edge), "rotating a mirror toward the map boundary remains invalid")
+	_expect(mirror.get_preview_mirror() != null and mirror.get_preview_mirror().visible, "invalid boundary keeps the physical mirror preview visible")
+	_expect(_is_red(mirror.get_preview_mirror().get_preview_display_color()), "invalid-boundary mirror preview is red")
+	_expect(mirror.get_preview_projections().is_empty(), "invalid boundary does not create copied-object previews")
 	await _dispose_fixture(fixture)
 
 
@@ -351,3 +435,7 @@ func _expect(condition: bool, message: String) -> void:
 		return
 	_failures += 1
 	push_error("  FAIL: %s" % message)
+
+
+func _is_red(color: Color) -> bool:
+	return color.r > 0.8 and color.g < 0.3 and color.b < 0.3

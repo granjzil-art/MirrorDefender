@@ -18,6 +18,7 @@ func _run() -> void:
 	await _test_terrain_model_instancing()
 	await _test_flat_terrain_batching()
 	await _test_water_default_building_permissions()
+	await _test_path_edge_building_permissions()
 	await _test_hex_ramp_sampling()
 	await _test_legacy_snapshot_runtime()
 	await _test_loader_rolls_back_terrain()
@@ -183,6 +184,26 @@ func _test_water_default_building_permissions() -> void:
 	_expect(reverse_water_edge >= 0 and not tile.allows_edge_building(second, reverse_water_edge), "the Water-to-Water edge restriction is symmetric")
 	var shore_edge := grid.find_edge_index(first, shore)
 	_expect(shore_edge >= 0 and tile.allows_edge_building(first, shore_edge), "a Water-to-land edge keeps its authored edge-building permission")
+	fixture["host"].queue_free()
+	await process_frame
+
+
+func _test_path_edge_building_permissions() -> void:
+	var fixture := _make_fixture(false)
+	var level := _make_square_ramp_level()
+	var loader: LevelLoader = fixture["loader"]
+	var grid: GridManager = fixture["grid"]
+	var tile: TileManager = fixture["tile"]
+	_expect(loader.load_level(level, "memory://terrain-path-edge-permissions"), "path edge permission fixture loads")
+	var first: Vector3i = level.paths[0].cells[0]
+	var second: Vector3i = level.paths[0].cells[1]
+	var path_edge := grid.find_edge_index(first, second)
+	_expect(path_edge >= 0 and not tile.allows_edge_building(first, path_edge), "an edge shared by two path tiles rejects edge buildings")
+	var reverse_path_edge := grid.find_edge_index(second, first)
+	_expect(reverse_path_edge >= 0 and not tile.allows_edge_building(second, reverse_path_edge), "the path-to-path edge restriction is symmetric")
+	var non_path_neighbor := Vector3i(first.x, first.y + 1, first.z)
+	var boundary_edge := grid.find_edge_index(first, non_path_neighbor)
+	_expect(boundary_edge >= 0 and tile.allows_edge_building(first, boundary_edge), "a path-to-non-path edge keeps its authored edge-building permission")
 	fixture["host"].queue_free()
 	await process_frame
 

@@ -112,7 +112,15 @@ func load_level_path(path: String) -> bool:
 	if not normalized_path.ends_with(".tres"):
 		_report_failure(normalized_path, "关卡文件必须为 .tres")
 		return false
-	var resource: Resource = ResourceLoader.load(normalized_path, "", ResourceLoader.CACHE_MODE_REPLACE_DEEP)
+	# A restart can occur while runtime systems still hold the current level's
+	# nested resources. Replacing the cached graph in place briefly exposes a
+	# partially remapped tutorial timeline to wave-state listeners. Load a fully
+	# isolated graph and swap it in only after validation succeeds.
+	var resource: Resource = ResourceLoader.load(
+		normalized_path,
+		"",
+		ResourceLoader.CACHE_MODE_IGNORE_DEEP
+	)
 	if not resource is LevelResource:
 		_report_failure(normalized_path, "所选资源不是 LevelResource")
 		return false

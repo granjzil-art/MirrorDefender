@@ -38,14 +38,14 @@ func _run() -> void:
 	)
 	_expect(
 		building_selection_overlay != null
-		and building_selection_color.r > 0.9
-		and building_selection_color.g < 0.1,
-		"selected live building receives the conspicuous red shader overlay"
+		and building_selection_color.g > 0.9
+		and building_selection_color.r < 0.3,
+		"selected live building receives the conspicuous green shader overlay"
 	)
 	building_manager.select_building(null)
 	_expect(
 		selected_building_mesh.material_overlay == null,
-		"clearing building selection removes the red shader overlay"
+		"clearing building selection removes the green shader overlay"
 	)
 	building_manager.select_building(arrow)
 	var resource_before_relocation: float = fixture.resource.main_resource
@@ -202,22 +202,87 @@ func _run() -> void:
 	main._update_building_drag_gesture(drag_end_screen)
 	main._finish_building_drag(drag_end_screen)
 	_expect(
-		main.building_manager.get_building(Vector3i(1, 2, 0)) == live_building
-		and main.building_manager.get_building(Vector3i(1, 1, 0)) == null,
-		"Main hold-and-drag gesture relocates the selected live building"
+		main.building_manager.get_building(Vector3i(1, 1, 0)) == live_building
+		and main.building_manager.get_building(Vector3i(1, 2, 0)) == null
+		and main._building_adjustment_pending,
+		"releasing a building drag retains the original building and waits for confirmation"
 	)
 	_expect(
-		main.runtime_interaction.get_world_selection_cell() == Vector3i(1, 2, 0),
-		"drag relocation keeps world selection attached to the moved building"
+		main.building_manager.get_preview_building() != null
+		and main.building_manager.get_preview_building().cell == Vector3i(1, 2, 0),
+		"released building drag keeps the candidate body preview at the target"
+	)
+	main._confirm_pending_adjustment(drag_end_screen)
+	_expect(
+		main.building_manager.get_building(Vector3i(1, 2, 0)) == live_building
+		and main.building_manager.get_building(Vector3i(1, 1, 0)) == null,
+		"a separate left-click confirmation applies the selected live-building adjustment"
+	)
+	_expect(
+		not main.runtime_interaction.has_world_selection()
+		and main.building_manager.get_selected_building() == null,
+		"successful building-adjustment confirmation exits selection"
+	)
+	var occupied_adjustment_cell := Vector3i(0, 0, 0)
+	var occupied_building := main.building_manager.place_building(
+		occupied_adjustment_cell,
+		main.building_manager.arrow_tower
+	)
+	main.building_manager.select_building(live_building)
+	_expect(
+		occupied_building != null
+		and not main.building_manager.update_relocation_preview(
+			live_building,
+			occupied_adjustment_cell
+		),
+		"Main fixture exposes a red occupied-tile adjustment candidate"
+	)
+	main._building_drag_candidate = live_building
+	main._building_drag_has_target = true
+	main._building_drag_target_cell = occupied_adjustment_cell
+	main._building_drag_target_valid = false
+	main._building_adjustment_pending = true
+	main._confirm_pending_adjustment(Vector2(520.0, 340.0))
+	var adjustment_feedback := main.runtime_hud.get_node_or_null("ActionFeedback") as Label
+	_expect(
+		main.building_manager.get_building(Vector3i(1, 2, 0)) == live_building
+		and main.building_manager.get_selected_building() == live_building
+		and main._building_adjustment_pending,
+		"left-clicking a red tile candidate neither commits nor exits selection"
+	)
+	_expect(
+		adjustment_feedback != null
+		and adjustment_feedback.visible
+		and adjustment_feedback.text == "该块不可放置",
+		"red tile confirmation shows the exact click-position failure message"
+	)
+	main._on_camera_cancel_requested()
+	_expect(
+		main.building_manager.get_building(Vector3i(1, 2, 0)) == live_building
+		and main.building_manager.get_selected_building() == null
+		and not main._building_adjustment_pending,
+		"right-click cancellation exits adjustment while preserving the original live state"
+	)
+	main.building_manager.select_building(live_building)
+	var facing_before_adjustment := live_building.facing_index
+	_expect(main._rotate_active_building_target(1), "selected live-building rotation creates an adjustment candidate")
+	_expect(
+		live_building.facing_index == facing_before_adjustment
+		and main.building_manager.get_preview_building() != null
+		and main.building_manager.get_preview_building().facing_index != facing_before_adjustment,
+		"building rotation changes only the green candidate before confirmation"
+	)
+	main._confirm_pending_adjustment(Vector2(520.0, 340.0))
+	_expect(
+		live_building.facing_index != facing_before_adjustment
+		and main.building_manager.get_selected_building() == null,
+		"confirming the rotation candidate applies it and exits selection"
 	)
 	var live_mirror := main.mirror_manager.get_mirrors()[0] as CopyMirror
 	var live_mirror_instance_id := live_mirror.get_instance_id()
 	var live_mirror_level := live_mirror.level
 	var live_mirror_refund := live_mirror.get_refund_amount()
-	var mirror_body := live_mirror.get_node("MirrorBody") as MeshInstance3D
-	var mirror_start_screen := live_camera.unproject_position(
-		mirror_body.global_position
-	)
+	var mirror_start_screen := live_camera.unproject_position(live_mirror.global_position)
 	var mirror_target_cell := Vector3i(2, 1, 0)
 	var mirror_end_world := main.grid.cell_to_world(mirror_target_cell) + Vector3(
 		0.0,
@@ -232,19 +297,75 @@ func _run() -> void:
 	main._finish_building_drag(mirror_end_screen)
 	_expect(
 		live_mirror.get_instance_id() == live_mirror_instance_id
-		and live_mirror.get_active_cell() == mirror_target_cell,
-		"Main hold-and-drag gesture relocates the same selected live mirror"
+		and live_mirror.get_active_cell() != mirror_target_cell
+		and main._mirror_adjustment_pending,
+		"releasing a mirror drag keeps the same live mirror on its original edge"
 	)
+	main._confirm_pending_adjustment(mirror_end_screen)
 	_expect(
-		live_mirror.level == live_mirror_level
+		live_mirror.get_instance_id() == live_mirror_instance_id
+		and live_mirror.get_active_cell() == mirror_target_cell
+		and live_mirror.level == live_mirror_level
 		and is_equal_approx(live_mirror.get_refund_amount(), live_mirror_refund),
-		"mirror drag preserves its level and cumulative refund"
+		"separate mirror confirmation applies the adjustment while preserving state"
 	)
 	_expect(
-		main.runtime_interaction.get_world_selection_cell() == mirror_target_cell
-		and main.runtime_interaction.get_world_selection_edge_id() == live_mirror.edge_id,
-		"mirror drag keeps world selection attached to its new edge"
+		not main.runtime_interaction.has_world_selection()
+		and main.mirror_manager.get_selected_mirror() == null,
+		"successful mirror-adjustment confirmation exits selection"
 	)
+	main.mirror_manager.select_mirror(live_mirror)
+	var mirror_edge_before_rotation := live_mirror.edge_id
+	_expect(
+		main._rotate_selected_mirror_adjustment(live_mirror, 1),
+		"selected live-mirror wheel rotation creates an edge adjustment candidate"
+	)
+	_expect(
+		live_mirror.edge_id == mirror_edge_before_rotation
+		and main.mirror_manager.get_preview_mirror() != null,
+		"mirror wheel rotation leaves the original live edge active before confirmation"
+	)
+	main._confirm_pending_adjustment(mirror_end_screen)
+	_expect(
+		live_mirror.edge_id != mirror_edge_before_rotation
+		and main.mirror_manager.get_selected_mirror() == null,
+		"confirming a green mirror-rotation candidate applies it and exits selection"
+	)
+	main.mirror_manager.select_mirror(live_mirror)
+	var live_edge_before_invalid_adjustment := live_mirror.edge_id
+	var invalid_mirror_cell := Vector3i.ZERO
+	var invalid_mirror_edge := -1
+	for edge_index in range(main.grid.edge_count()):
+		if not main.grid.is_in_bounds(main.grid.neighbor_across_edge(invalid_mirror_cell, edge_index)):
+			invalid_mirror_edge = edge_index
+			break
+	_expect(
+		invalid_mirror_edge >= 0
+		and not main.mirror_manager.update_relocation_preview(
+			live_mirror,
+			invalid_mirror_cell,
+			invalid_mirror_edge
+		),
+		"Main fixture exposes a red boundary-edge mirror candidate"
+	)
+	main._mirror_drag_candidate = live_mirror
+	main._mirror_drag_target_cell = invalid_mirror_cell
+	main._mirror_drag_edge_index = invalid_mirror_edge
+	main._mirror_drag_has_target_cell = true
+	main._mirror_drag_target_valid = false
+	main._mirror_adjustment_pending = true
+	main._confirm_pending_adjustment(Vector2(560.0, 340.0))
+	_expect(
+		live_mirror.edge_id == live_edge_before_invalid_adjustment
+		and main.mirror_manager.get_selected_mirror() == live_mirror
+		and main._mirror_adjustment_pending,
+		"left-clicking a red mirror edge neither commits nor exits selection"
+	)
+	_expect(
+		adjustment_feedback.visible and adjustment_feedback.text == "该边不可放置",
+		"red mirror confirmation shows the exact edge failure message"
+	)
+	main._on_camera_cancel_requested()
 	main.queue_free()
 	await process_frame
 	await process_frame

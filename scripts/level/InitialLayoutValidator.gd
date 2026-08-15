@@ -242,6 +242,9 @@ static func _base_allows_edge(
 	edge_index: int
 ) -> bool:
 	var to_cell := shape.neighbor_across_edge(from_cell, edge_index)
+	var path_cells: Dictionary = context["path_cells"]
+	if path_cells.has(from_cell) and path_cells.has(to_cell):
+		return false
 	var opposite_edge := _find_edge_index(shape, to_cell, from_cell)
 	if opposite_edge < 0:
 		return false

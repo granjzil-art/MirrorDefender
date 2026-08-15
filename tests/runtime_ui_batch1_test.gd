@@ -41,10 +41,10 @@ func _test_level_and_asset_interfaces() -> void:
 	var level2 := load("res://resources/levels/Level2.tres") as LevelResource
 	var level3 := load("res://resources/levels/Level3.tres") as LevelResource
 	var level4 := load("res://resources/levels/Level4.tres") as LevelResource
-	_expect(level1 != null and level1.building_card_slot_count == 5, "Level1 exposes five building card slots")
-	_expect(level2 != null and level2.building_card_slot_count == 5, "Level2 exposes five building card slots")
-	_expect(level3 != null and level3.building_card_slot_count == 5, "Level3 exposes five building card slots")
-	_expect(level4 != null and level4.building_card_slot_count == 5, "Level4 exposes five building card slots")
+	_expect(level1 != null and level1.building_card_slot_count == 4, "Level1 exposes four building card slots")
+	_expect(level2 != null and level2.building_card_slot_count == 4, "Level2 exposes four building card slots")
+	_expect(level3 != null and level3.building_card_slot_count == 4, "Level3 exposes four building card slots")
+	_expect(level4 != null and level4.building_card_slot_count == 4, "Level4 exposes four building card slots")
 	level.building_card_slot_count = 13
 	_expect(
 		level.validate_runtime().any(func(message: String) -> bool: return message.contains("卡槽")),
@@ -376,6 +376,20 @@ func _test_card_bar(fixture: Dictionary) -> void:
 				feedback.get_rect().grow(24.0).has_point(Vector2(520.0, 340.0)),
 				"failure feedback is positioned around the triggering click"
 			)
+			hud.show_adjustment_failure(false, Vector2(480.0, 320.0))
+			_expect(
+				feedback.visible and feedback.text == "该块不可放置" and feedback.modulate.a == 1.0,
+				"invalid tile adjustment uses the requested click-position message"
+			)
+			hud.show_adjustment_failure(true, Vector2(560.0, 320.0))
+			_expect(
+				feedback.visible and feedback.text == "该边不可放置" and feedback.modulate.a == 1.0,
+				"invalid edge adjustment uses the requested click-position message"
+			)
+			_expect(
+				feedback.get_rect().grow(24.0).has_point(Vector2(560.0, 320.0)),
+				"adjustment failure feedback follows the confirming click"
+			)
 			await create_timer(0.2, true, false, true).timeout
 			await process_frame
 			_expect(not feedback.visible, "failure feedback fades out and hides")
@@ -511,10 +525,23 @@ func _test_one_shot_placement_and_time_priority(fixture: Dictionary) -> void:
 	wheel_down.pressed = true
 	_expect(
 		main._handle_building_rotation_wheel(wheel_down)
-		and first_building.facing_index == posmod(placed_facing_before - 1, first_building.get_facing_slot_count()),
-		"wheel down rotates an already placed selected building in the opposite direction"
+		and first_building.facing_index == placed_facing_before
+		and building_manager.get_preview_building() != null
+		and building_manager.get_preview_building().facing_index == posmod(
+			placed_facing_before - 1,
+			first_building.get_facing_slot_count()
+		),
+		"selected-building wheel rotation changes only its adjustment candidate"
 	)
-	building_manager.select_building(null)
+	main._confirm_pending_adjustment(Vector2.ZERO)
+	_expect(
+		first_building.facing_index == posmod(
+			placed_facing_before - 1,
+			first_building.get_facing_slot_count()
+		)
+		and building_manager.get_selected_building() == null,
+		"a separate confirmation applies selected-building rotation and exits selection"
+	)
 	_expect(
 		not main._handle_building_rotation_wheel(wheel_down),
 		"wheel input falls back to camera zoom after building selection is cleared"
@@ -665,15 +692,27 @@ func _test_one_shot_placement_and_time_priority(fixture: Dictionary) -> void:
 	selected_mirror_input_main.mirror_manager = mirror_manager
 	_expect(
 		selected_mirror_input_main._handle_building_rotation_wheel(wheel_up)
-		and placed_mirror.edge_index == wrapi(selected_mirror_edge_before + 1, 0, grid.edge_count()),
-		"wheel rotates an already placed selected mirror instead of zooming"
+		and placed_mirror.edge_index == selected_mirror_edge_before
+		and mirror_manager.get_preview_mirror() != null
+		and mirror_manager.get_preview_mirror().edge_index == wrapi(
+			selected_mirror_edge_before + 1,
+			0,
+			grid.edge_count()
+		),
+		"selected-mirror wheel rotation changes only its edge adjustment candidate"
 	)
 	_expect(
 		placed_mirror.get_active_cell() == selected_mirror_active_cell,
-		"selected-mirror wheel rotation keeps its active face toward the anchor tile"
+		"unconfirmed selected-mirror rotation keeps the original active face and edge"
+	)
+	selected_mirror_input_main._confirm_pending_adjustment(Vector2.ZERO)
+	_expect(
+		placed_mirror.edge_index == wrapi(selected_mirror_edge_before + 1, 0, grid.edge_count())
+		and placed_mirror.get_active_cell() == selected_mirror_active_cell
+		and mirror_manager.get_selected_mirror() == null,
+		"separate mirror confirmation applies rotation, preserves its anchor, and exits selection"
 	)
 	selected_mirror_input_main.free()
-	mirror_manager.select_mirror(null)
 
 	interaction.handle_primary(
 		{"hit": true, "cell": Vector3i(0, 0, 0)},

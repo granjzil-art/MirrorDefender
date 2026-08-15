@@ -1,6 +1,7 @@
 extends SceneTree
 
 const RejectingTileManager := preload("res://tests/fixtures/RejectingTileManager.gd")
+const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
 var _failures: int = 0
 var _checks: int = 0
@@ -15,6 +16,7 @@ func _run() -> void:
 	_test_editable_configuration_validation()
 	_test_production_definition_smoke()
 	_test_resource_manager_rejects_non_finite_transactions()
+	_test_freed_reflector_damage_is_safe()
 	await _test_atomic_loading_and_runtime_tile_isolation()
 	await _test_height_aware_grid_picking()
 	await _test_empty_geometry_is_safe()
@@ -77,6 +79,20 @@ func _test_resource_manager_rejects_non_finite_transactions() -> void:
 	manager.set_building_resource_per_second(NAN)
 	_expect(is_zero_approx(manager.get_building_resource_per_second()), "passive income rejects NaN")
 	manager.free()
+
+
+func _test_freed_reflector_damage_is_safe() -> void:
+	var reflector := Node.new()
+	var reflection_hit := {
+		"hit": true,
+		"reflector": reflector,
+		"surface_id": &"released_reflector",
+	}
+	reflector.free()
+	_expect(
+		is_zero_approx(ReflectionDamageScript.apply(reflection_hit, 10.0)),
+		"delayed reflection damage ignores a reflector freed before damage resolution"
+	)
 
 func _test_production_definition_smoke() -> void:
 	var building_paths: Array[String] = [

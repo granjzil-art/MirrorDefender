@@ -9,7 +9,7 @@
 ##   右键：回到选择模式
 ##   滚轮/R 旋转建筑预览/已选建筑朝向（R 可按住连续旋转）
 ##   F    清除锁定的可破坏障碍
-##   F1   打开/关闭调试控制台
+##   F1   呼出/收起全部调试工具（进入关卡时默认收起）
 class_name MainController
 extends Node3D
 
@@ -163,11 +163,15 @@ var _debug_cell_pick: Dictionary = {}
 var _debug_edge_pick: Dictionary = {}
 var _startup_level: LevelResource
 var _selected_rotation_repeat: HoldRepeatGate = HoldRepeatGateScript.new()
-var _debug_tools_enabled: bool = true
+var _debug_tools_enabled: bool = false
 var _building_drag_candidate: Building
 var _building_drag_active: bool = false
 var _building_drag_press_position: Vector2 = Vector2.ZERO
+var _building_drag_has_target: bool = false
+var _building_drag_target_cell: Vector3i = Vector3i.ZERO
+var _building_drag_target_edge_index: int = -1
 var _building_drag_target_valid: bool = false
+var _building_adjustment_pending: bool = false
 var _mirror_drag_candidate: CopyMirror
 var _mirror_drag_active: bool = false
 var _mirror_drag_press_position: Vector2 = Vector2.ZERO
@@ -175,6 +179,8 @@ var _mirror_drag_edge_index: int = 0
 var _mirror_drag_target_cell: Vector3i = Vector3i.ZERO
 var _mirror_drag_has_target_cell: bool = false
 var _mirror_drag_target_valid: bool = false
+var _mirror_adjustment_pending: bool = false
+var _adjustment_drag_pointer_active: bool = false
 
 
 func configure_startup_level(level: LevelResource) -> bool:
@@ -459,7 +465,12 @@ func _ready() -> void:
 		runtime_combat_data_edit_session = RuntimeCombatDataEditSessionScript.new()
 		runtime_combat_data_edit_session.name = "RuntimeCombatDataEditSession"
 		add_child(runtime_combat_data_edit_session)
-		runtime_combat_data_edit_session.configure(building_manager, wave_manager, level_loader)
+		runtime_combat_data_edit_session.configure(
+			building_manager,
+			wave_manager,
+			level_loader,
+			mirror_manager
+		)
 		runtime_combat_data_editor_window = RuntimeCombatDataEditorWindowScript.new()
 		runtime_combat_data_editor_window.name = "RuntimeCombatDataEditorWindow"
 		runtime_combat_data_editor_window.visible = false
@@ -499,7 +510,7 @@ func _ready() -> void:
 		debug_console_enabled,
 		runtime_combat_data_editor_window
 	)
-	_set_debug_tools_enabled(true)
+	_set_debug_tools_enabled(false)
 	level_loader.configure(grid, tile_manager, terrain_manager, stuff_manager)
 	level_loader.level_loaded.connect(_on_level_loaded)
 	var startup_loaded := false
@@ -570,7 +581,65 @@ func _rotate_active_building_target(step: int = 1) -> bool:
 		return false
 	if runtime_interaction != null and runtime_interaction.get_selected_definition() != null:
 		return building_manager.rotate_preview(step)
-	return building_manager.rotate_selected(step)
+	if not _ensure_building_adjustment_preview(target):
+		return false
+	var rotated := building_manager.rotate_preview(step)
+	if rotated:
+		_building_adjustment_pending = true
+		_building_drag_target_valid = building_manager.is_relocation_preview_valid(target)
+	return rotated
+
+
+func _ensure_building_adjustment_preview(source: Building) -> bool:
+	if source == null or not is_instance_valid(source) or source.is_edge_placement():
+		return false
+	if (
+		_building_drag_candidate == source
+		and building_manager.get_preview_building() != null
+	):
+		return true
+	_cancel_building_drag()
+	_building_drag_candidate = source
+	_building_drag_has_target = true
+	_building_drag_target_cell = source.cell
+	_building_drag_target_edge_index = -1
+	_building_drag_target_valid = building_manager.update_relocation_preview(source, source.cell)
+	_building_adjustment_pending = building_manager.get_preview_building() != null
+	return _building_adjustment_pending
+
+
+func _rotate_selected_mirror_adjustment(source: CopyMirror, step: int) -> bool:
+	if source == null or not is_instance_valid(source) or grid == null or grid.edge_count() <= 0:
+		return false
+	if _mirror_drag_candidate != source or mirror_manager.get_preview_mirror() == null:
+		_cancel_building_drag()
+		var active_cell := source.get_active_cell()
+		var passive_cell := source.to_cell if source.active_from_side else source.from_cell
+		var active_edge_index := grid.find_edge_index(active_cell, passive_cell)
+		if active_edge_index < 0:
+			return false
+		_mirror_drag_candidate = source
+		_mirror_drag_edge_index = active_edge_index
+		_mirror_drag_target_cell = active_cell
+		_mirror_drag_has_target_cell = true
+		_mirror_drag_target_valid = mirror_manager.update_relocation_preview(
+			source,
+			active_cell,
+			active_edge_index
+		)
+	_mirror_drag_edge_index = wrapi(
+		_mirror_drag_edge_index + step,
+		0,
+		grid.edge_count()
+	)
+	_mirror_drag_target_valid = mirror_manager.update_relocation_preview(
+		source,
+		_mirror_drag_target_cell,
+		_mirror_drag_edge_index
+	)
+	_mirror_adjustment_pending = mirror_manager.get_preview_mirror() != null
+	_mirror_drag_target_valid = mirror_manager.is_relocation_preview_valid(source)
+	return _mirror_adjustment_pending
 
 
 func _handle_building_rotation_wheel(event: InputEvent) -> bool:
@@ -591,17 +660,10 @@ func _handle_building_rotation_wheel(event: InputEvent) -> bool:
 			_update_pick()
 		return true
 	if mirror_manager != null and mirror_manager.get_selected_mirror() != null:
-		if _mirror_drag_candidate != null:
-			_mirror_drag_edge_index = wrapi(
-				_mirror_drag_edge_index + step,
-				0,
-				grid.edge_count()
-			)
-			if is_inside_tree():
-				_update_pick()
-			return true
-		mirror_manager.rotate_selected_mirror(step)
-		return true
+		return _rotate_selected_mirror_adjustment(
+			mirror_manager.get_selected_mirror(),
+			step
+		)
 	if (
 		runtime_stuff_editor != null
 		and runtime_stuff_editor.is_active()
@@ -629,7 +691,7 @@ func _input(event: InputEvent) -> void:
 			runtime_hud.close_top_modal()
 			get_viewport().set_input_as_handled()
 		return
-	if _building_drag_candidate != null or _mirror_drag_candidate != null:
+	if _adjustment_drag_pointer_active:
 		var drag_mouse_button := event as InputEventMouseButton
 		if (
 			drag_mouse_button != null
@@ -892,8 +954,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if tutorial_director != null:
 			tutorial_director.handle_blank_screen_click()
 		var can_begin_building_drag := runtime_interaction.is_select_mode()
-		_handle_primary_action()
-		if can_begin_building_drag and event is InputEventMouseButton:
+		var adjustment_handled := _handle_primary_action()
+		if not adjustment_handled and can_begin_building_drag and event is InputEventMouseButton:
 			_begin_building_drag_candidate((event as InputEventMouseButton).position)
 	elif event.is_action_pressed("rotate_facing"):
 		if event is InputEventKey and (event as InputEventKey).echo:
@@ -928,19 +990,75 @@ func _set_debug_tools_enabled(enabled: bool) -> void:
 	if runtime_debug_bindings != null and runtime_debug_bindings.category_registry != null:
 		runtime_debug_bindings.category_registry.set_suspended(not _debug_tools_enabled)
 
-func _handle_primary_action() -> void:
+func _handle_primary_action() -> bool:
 	var mouse_position := get_viewport().get_mouse_position()
+	if _building_adjustment_pending or _mirror_adjustment_pending:
+		_confirm_pending_adjustment(mouse_position)
+		return true
 	var cell_pick: Dictionary = grid.pick_cell(_camera, mouse_position)
 	var edge_pick: Dictionary = grid.pick_edge(_camera, mouse_position)
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
 		runtime_stuff_editor.handle_primary(cell_pick)
-		return
+		return false
 	if runtime_interaction.is_mirror_mode():
 		edge_pick = runtime_interaction.resolve_mirror_placement_edge_pick(cell_pick, grid)
 	var mirror_pick: Dictionary = mirror_manager.pick_mirror(_camera, mouse_position)
 	var result := runtime_interaction.handle_primary(cell_pick, edge_pick, mirror_pick)
 	if bool(result.get("attempted", false)) and not bool(result.get("success", false)):
 		runtime_hud.show_placement_failure(str(result.get("reason", "")), mouse_position)
+	return false
+
+
+func _confirm_pending_adjustment(mouse_position: Vector2) -> void:
+	if _mirror_adjustment_pending:
+		var mirror_source := _mirror_drag_candidate
+		var mirror_valid := (
+			mirror_source != null
+			and is_instance_valid(mirror_source)
+			and _mirror_drag_target_valid
+			and mirror_manager.is_relocation_preview_valid(mirror_source)
+		)
+		if mirror_valid and mirror_manager.commit_relocation_preview(mirror_source):
+			_finish_confirmed_adjustment()
+			return
+		runtime_hud.show_adjustment_failure(true, mouse_position)
+		_arm_pending_adjustment_redrag(mouse_position)
+		return
+	if not _building_adjustment_pending:
+		return
+	var building_source := _building_drag_candidate
+	var building_valid := (
+		building_source != null
+		and is_instance_valid(building_source)
+		and _building_drag_target_valid
+		and building_manager.is_relocation_preview_valid(building_source)
+	)
+	if building_valid and building_manager.commit_relocation_preview(building_source):
+		_finish_confirmed_adjustment()
+		return
+	var is_edge_target := (
+		building_source != null
+		and is_instance_valid(building_source)
+		and building_source.is_edge_placement()
+	)
+	runtime_hud.show_adjustment_failure(is_edge_target, mouse_position)
+	_arm_pending_adjustment_redrag(mouse_position)
+
+
+func _finish_confirmed_adjustment() -> void:
+	_cancel_building_drag()
+	if runtime_interaction != null:
+		runtime_interaction.cancel_to_select(true)
+
+
+func _arm_pending_adjustment_redrag(mouse_position: Vector2) -> void:
+	_adjustment_drag_pointer_active = true
+	if _mirror_adjustment_pending:
+		_mirror_drag_press_position = mouse_position
+		_mirror_drag_active = false
+		return
+	_building_drag_press_position = mouse_position
+	_building_drag_active = false
 
 
 func _begin_building_drag_candidate(mouse_position: Vector2) -> void:
@@ -977,6 +1095,8 @@ func _begin_building_drag_candidate(mouse_position: Vector2) -> void:
 		_mirror_drag_press_position = mouse_position
 		_mirror_drag_has_target_cell = false
 		_mirror_drag_target_valid = false
+		_mirror_adjustment_pending = false
+		_adjustment_drag_pointer_active = true
 		return
 	var building := building_manager.get_selected_building()
 	if building == null:
@@ -992,7 +1112,10 @@ func _begin_building_drag_candidate(mouse_position: Vector2) -> void:
 		return
 	_building_drag_candidate = building
 	_building_drag_press_position = mouse_position
+	_building_drag_has_target = false
 	_building_drag_target_valid = false
+	_building_adjustment_pending = false
+	_adjustment_drag_pointer_active = true
 
 
 func _update_building_drag_gesture(mouse_position: Vector2) -> void:
@@ -1054,28 +1177,38 @@ func _update_mirror_drag_preview(cell_pick: Dictionary) -> void:
 		_mirror_drag_target_cell,
 		int(edge_pick.get("edge_index", -1))
 	)
+	_mirror_drag_target_valid = mirror_manager.is_relocation_preview_valid(
+		_mirror_drag_candidate
+	)
 
 
 func _update_building_drag_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
 	_building_drag_target_valid = false
+	_building_drag_has_target = false
 	if _building_drag_candidate == null or not is_instance_valid(_building_drag_candidate):
 		return
 	if _building_drag_candidate.is_edge_placement():
 		if not bool(edge_pick.get("hit", false)):
 			building_manager.clear_preview()
 			return
+		_building_drag_has_target = true
+		_building_drag_target_cell = edge_pick.get("cell", Vector3i.ZERO)
+		_building_drag_target_edge_index = int(edge_pick.get("edge_index", -1))
 		_building_drag_target_valid = building_manager.update_edge_relocation_preview(
 			_building_drag_candidate,
-			edge_pick.get("cell", Vector3i.ZERO),
-			int(edge_pick.get("edge_index", -1))
+			_building_drag_target_cell,
+			_building_drag_target_edge_index
 		)
 		return
 	if not bool(cell_pick.get("hit", false)):
 		building_manager.clear_preview()
 		return
+	_building_drag_has_target = true
+	_building_drag_target_cell = cell_pick.get("cell", Vector3i.ZERO)
+	_building_drag_target_edge_index = -1
 	_building_drag_target_valid = building_manager.update_relocation_preview(
 		_building_drag_candidate,
-		cell_pick.get("cell", Vector3i.ZERO)
+		_building_drag_target_cell
 	)
 
 
@@ -1088,39 +1221,28 @@ func _finish_building_drag(mouse_position: Vector2) -> void:
 		var cell_pick := grid.pick_cell(_camera, mouse_position)
 		var edge_pick := grid.pick_edge(_camera, mouse_position)
 		_update_building_drag_preview(cell_pick, edge_pick)
-		if _building_drag_target_valid:
-			if source.is_edge_placement():
-				building_manager.relocate_edge_building(
-					source,
-					edge_pick.get("cell", Vector3i.ZERO),
-					int(edge_pick.get("edge_index", -1))
-				)
-			else:
-				building_manager.relocate_building_to_cell(
-					source,
-					cell_pick.get("cell", Vector3i.ZERO)
-				)
-	building_manager.clear_preview()
-	_building_drag_candidate = null
+		_building_adjustment_pending = _building_drag_has_target and building_manager.get_preview_building() != null
+	_adjustment_drag_pointer_active = false
 	_building_drag_active = false
-	_building_drag_target_valid = false
+	if not _building_adjustment_pending:
+		building_manager.clear_preview()
+		_building_drag_candidate = null
+		_building_drag_has_target = false
+		_building_drag_target_valid = false
 
 
 func _finish_mirror_drag(mouse_position: Vector2) -> void:
 	var source := _mirror_drag_candidate
 	if _mirror_drag_active and source != null and is_instance_valid(source):
 		_update_mirror_drag_preview(grid.pick_cell(_camera, mouse_position))
-		if _mirror_drag_target_valid and _mirror_drag_has_target_cell:
-			mirror_manager.relocate_mirror(
-				source,
-				_mirror_drag_target_cell,
-				_mirror_drag_edge_index
-			)
-	mirror_manager.clear_preview()
-	_mirror_drag_candidate = null
+		_mirror_adjustment_pending = _mirror_drag_has_target_cell and mirror_manager.get_preview_mirror() != null
+	_adjustment_drag_pointer_active = false
 	_mirror_drag_active = false
-	_mirror_drag_has_target_cell = false
-	_mirror_drag_target_valid = false
+	if not _mirror_adjustment_pending:
+		mirror_manager.clear_preview()
+		_mirror_drag_candidate = null
+		_mirror_drag_has_target_cell = false
+		_mirror_drag_target_valid = false
 
 
 func _cancel_building_drag() -> void:
@@ -1130,11 +1252,18 @@ func _cancel_building_drag() -> void:
 		mirror_manager.clear_preview()
 	_building_drag_candidate = null
 	_building_drag_active = false
+	_building_drag_has_target = false
+	_building_drag_target_cell = Vector3i.ZERO
+	_building_drag_target_edge_index = -1
 	_building_drag_target_valid = false
+	_building_adjustment_pending = false
 	_mirror_drag_candidate = null
 	_mirror_drag_active = false
+	_mirror_drag_target_cell = Vector3i.ZERO
 	_mirror_drag_has_target_cell = false
 	_mirror_drag_target_valid = false
+	_mirror_adjustment_pending = false
+	_adjustment_drag_pointer_active = false
 
 func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> void:
 	if _mirror_drag_active:
@@ -1145,6 +1274,22 @@ func _update_building_preview(cell_pick: Dictionary, edge_pick: Dictionary) -> v
 		mirror_manager.clear_preview()
 		_update_building_drag_preview(cell_pick, edge_pick)
 		return
+	if _building_adjustment_pending:
+		if (
+			runtime_interaction.is_select_mode()
+			and building_manager.get_selected_building() == _building_drag_candidate
+			and building_manager.get_preview_building() != null
+		):
+			return
+		_cancel_building_drag()
+	elif _mirror_adjustment_pending:
+		if (
+			runtime_interaction.is_select_mode()
+			and mirror_manager.get_selected_mirror() == _mirror_drag_candidate
+			and mirror_manager.get_preview_mirror() != null
+		):
+			return
+		_cancel_building_drag()
 	if runtime_stuff_editor != null and runtime_stuff_editor.is_active():
 		building_manager.clear_preview()
 		mirror_manager.clear_preview()
@@ -1231,9 +1376,9 @@ func _on_level_loaded(level_resource: LevelResource, source_path: String) -> voi
 	base_core.load_level(level_resource)
 	if runtime_test_enemy_spawner != null:
 		runtime_test_enemy_spawner.stop()
-	wave_manager.load_level(level_resource)
 	if tutorial_director != null:
 		tutorial_director.load_level(level_resource, source_path)
+	wave_manager.load_level(level_resource)
 	if runtime_combat_data_edit_session != null:
 		runtime_combat_data_edit_session.refresh_level_catalog()
 	camera_preset_controller.load_level(level_resource)

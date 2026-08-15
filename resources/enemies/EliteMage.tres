@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://4e0b3ka28ktr"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://csplxwrcmf5yg"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 [ext_resource type="PackedScene" uid="uid://cijs45ldnba30" path="res://assets/enemies/wizard/wizard.tscn" id="2_model"]
@@ -14,7 +14,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 script = ExtResource("1_enemy")
 enemy_id = &"elite_mage"
 display_name = "精英法师"
-max_hp = 300.0
+max_hp = 800.0
 move_speed = 0.65
 base_damage = 15.0
 reward = 30.0

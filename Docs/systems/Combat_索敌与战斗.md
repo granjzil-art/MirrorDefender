@@ -1,6 +1,6 @@
 # 索敌与战斗 · Combat
 
-> 实现状态：已完成我方索敌/攻击策略、标准投射物、绕塔后追踪/直飞的范围导弹、可反射且有限穿透的寒冷持续激光、可反射脉冲镭射、我方投射物多镜反射、钉锤固定多方向齐射，以及对全部弹道类型统一生效的 Stuff 球形阻挡。
+> 实现状态：已完成我方索敌/攻击策略、标准投射物、绕塔后追踪/直飞的范围导弹、可反射且有限穿透的寒冷持续激光、可反射脉冲镭射、我方投射物多镜反射、钉锤固定多方向齐射，以及对全部弹道类型统一生效的 Stuff 球形阻挡。镜子攻击效果已通过 `AttackEffectPayload` 进入标准/复制投射物、导弹、持续激光和脉冲镭射。
 
 ## 职责
 
@@ -18,6 +18,7 @@
 - **攻击范围**：所选目标必须在独立的 `attack_range` 内才会发射；投射物最大飞行距离也使用该范围。激光用它作为线段长度。
 - **投射物表现**：建筑、敌人与复制体投射物均可读取 `ModelAssetDefinition`；模型可视包围盒会精确拟合到 `visual_length/visual_width`，不再依赖资产根 Transform 或旧 Scale 校尺寸。为空或非法时使用同尺寸 BoxMesh 短直线回退；复制体沿用源建筑当前等级投射物资产并叠加虚像发光层。
 - **投射物跟踪与反射**：首次命中反射面之前保持原追踪行为；命中反射镜生效面或亚克力柜内侧面后用 `r = d - 2(d·n)n` 转为直线弹道，可连续反射并命中后续线段上的首个有效敌人。实体反射镜同时按自身等级把伤害倍率乘入当前伤害、把穿透加成加入剩余预算；多次反射逐次累计。亚克力柜默认返回 `×1/+0`。背面不反射。每段移动（含防重入偏移）都累计到同一个 `attack_range` 世界距离预算，达到上限立即销毁。
+- **二级反射分支**：命中二级反射镜时，标准投射物、导弹、复制投射物、持续激光和脉冲镭射在正常反射方向左右各生成 15° 分支，中央原路径保留。分支从反射点后的防重入位置开始，复制已经反射镜修正的当前伤害、剩余总路程/穿透/反射数、攻击效果状态和对应视觉快照。
 - **三种投射物开火模式**：`TARGET_ONLY` 只在索敌成功且目标处于攻击范围时发射追踪弹；`TARGET_OR_FACING` 有目标时保持追踪，索敌候选为空时沿逻辑朝向直射；`FACING_ONLY` 完全不调用索敌，无论场上是否存在目标都按冷却沿逻辑朝向直射。两种方向弹都从生成起逐段查询弹道上的有效敌人；适用的空中敌人按战斗平面投影参与接触检测。三种模式共用伤害、速度、对空过滤、累计射程、Stuff、穿透与反射规则。
 - **导弹弹道**：`projectile_is_missile` 启用后，发射时快照塔的世界起点和初始方向，随机顺/逆时针走完一次可调偏心环线并轻微起伏。绕圈阶段只是表现，不查询敌人、Stuff 或镜面，也不消耗射程。索敌导弹同时创建 `aim.png` 地面标记，出圈后按可调转向速度持续追踪同一目标；无目标导弹则沿发射时的朝向直飞。
 - **导弹引爆与反射**：实体飞行阶段碰到任意敌人、弹道阻挡 Stuff 或达到共享总路程时立即引爆；爆炸用 XZ 圆形范围结算一次全额伤害，忽略高度差，因此命中空中单位。反射镜有效面和亚克力柜内侧只改变导弹真实方向、不引爆；复制镜未注册到两条查询链，因此直接穿过。速度正弦波动作用于真实路程，小幅侧移/滚转只作用于模型子根，不污染追踪和碰撞。
@@ -32,12 +33,14 @@
 - **目标生命周期**：CombatManager 对每个目标只保留一份死亡/离树回调；显式注销会先解除回调，因此同一对象可安全重新注册。外部 `queue_free()`、死亡和切关清理都汇入幂等注销；失效目标清理遍历稳定快照，允许 `target_removed` 监听者同步再次查询目标而不破坏迭代。
 - **复制塔攻击事件**：Building 在真实投射物、持续激光 tick/首敌爆发或脉冲镭射发射时发出 `copy_attack_triggered`。MirrorManager 变换起点/方向后，先累计复制镜链各等级的伤害倍率/穿透加成，再为虚像独立重算反射、Stuff 和穿透截止；持续伤害、寒冷、首敌爆发与冻结都使用源建筑当前等级参数，虚像保存自己的首个命中点但不自持计时器。
 - **复制塔投射物反射**：箭塔复制弹从生成起就是直线弹道，使用开火瞬间镜像后的方向而不追踪或保留固定终点；沿途命中、Stuff 截断和反射后命中都使用源建筑 `affects_target` 过滤，并独立消耗源建筑当前级 `attack_range` 总路程预算。
+- **复制箭塔爆裂箭**：二级复制镜生成的箭塔攻击携带 `burst_arrow`；递归虚像继承该效果。母箭每次穿透命中都向水平八方生成 8 枚直线子箭；只有子箭获得不再爆裂的分支状态，不影响母箭的后续命中。
 
 ## 关键参数
 
 | 归属 | 参数 | 说明 |
 |---|---|---|
 | CombatManager | `laser_hit_radius` | 激光线段额外命中半径。 |
+| AttackEffectPayload | `DEFAULT_BRANCH_BUDGET=128` | 同一根攻击树中反射/命中生成子攻击的共享安全上限。 |
 | CombatTarget | `max_hp` / `move_speed` / `hit_radius` | 生命、最快索敌值和碰撞半径。 |
 | CombatTarget | `airborne` | 运行时空中分类；EnemyUnit 从定义复制。 |
 | BuildingLevelStats | `affects_airborne` | 当前等级的攻击、激光、屏障阻挡与反伤是否作用于飞行敌人；默认 true 兼容旧资源。 |
@@ -80,12 +83,13 @@
 | `scripts/combat/CombatTarget.gd` | `CombatTarget` / `Node3D` | 可受击目标契约、生命/死亡信号和 M3 靶标。 |
 | `scripts/unit/EnemyUnit.gd` | `EnemyUnit` / `CombatTarget` | M4 正式目标；附加护甲、路径移动和据点到达行为。 |
 | `scripts/combat/CombatManager.gd` | `CombatManager` / `Node3D` | **战斗唯一入口**；目标注册、范围/线段查询和投射物管理。 |
+| `scripts/combat/AttackEffectPayload.gd` | `AttackEffectPayload` / `RefCounted` | 一次攻击的效果/状态容器；区分新根攻击实例与共享分支预算的快照。 |
 | `scripts/combat/BallisticGeometry.gd` | `BallisticGeometry` / `RefCounted` | 投射物、光线与 Stuff 共用的稳定线段-球入射交点。 |
 | `scripts/combat/ContinuousLaserPath.gd` | `ContinuousLaserPath` / `RefCounted` | 持续激光的共享射程、反射、Stuff 和有限穿透路径查询。 |
 | `scripts/combat/ContinuousLaserVisual.gd` | `ContinuousLaserVisual` / `Node3D` | 本体/复制体共用的持续 BoxMesh 光段、发光材质和移动终点。 |
 | `scripts/combat/LaserBurstEffect.gd` | `LaserBurstEffect` / `Node3D` | 真实/复制激光终点的短时扩散环和闪光。 |
-| `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 单发攻击的飞行、短直线表现、距离截止、穿透和连续接触去重。 |
-| `scripts/combat/MissileProjectile.gd` | `MissileProjectile` / `Projectile` | 导弹绕圈、追踪/直飞、速度波动、镜面反射、Stuff/射程引爆与水平范围伤害。 |
+| `scripts/combat/Projectile.gd` | `Projectile` / `Node3D` | 单发攻击的飞行、短直线表现、距离截止、穿透、连续接触去重、命中效果与反射/径向分支快照。 |
+| `scripts/combat/MissileProjectile.gd` | `MissileProjectile` / `Projectile` | 导弹绕圈、追踪/直飞、速度波动、镜面反射、完整反射分支、Stuff/射程引爆与水平范围伤害。 |
 | `scripts/combat/MissileTargetMarker.gd` | `MissileTargetMarker` / `Node3D` | 使用 `aim.png` 跟随索敌导弹标记目标脚下。 |
 | `scripts/combat/MissileTrail.gd` | `MissileTrail` / `Node3D` | 独立世界空间带状拖尾，导弹销毁后继续衰减。 |
 | `scripts/combat/MissileExplosionEffect.gd` | `MissileExplosionEffect` / `Node3D` | 程序化闪光、冲击环与烟雾壳。 |
@@ -179,12 +183,13 @@ EnemyUnit attack state -> EnemyAttackStrategy.tick
 | `unregister_target` | `(target: CombatTarget) -> void` | 幂等移除候选、解除生命周期回调并广播。 |
 | `get_targets_in_range` | `(origin: Vector3, range_world: float) -> Array[CombatTarget]` | 按 XZ 距离返回范围候选。 |
 | `get_targets_on_segment` | `(start: Vector3, end: Vector3) -> Array[CombatTarget]` | 用点到线段距离返回全部激光触碰目标。 |
-| `spawn_projectile` | `(start: Vector3, target: CombatTarget, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null, penetration_count: int = 0) -> Projectile` | 创建、配置并跟踪投射物；最后一个参数为额外穿透预算。 |
-| `spawn_directional_projectile` | `(start: Vector3, direction: Vector3, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null, penetration_count: int = 0) -> Projectile` | 创建从起点即沿线段检敌的直线弹，复用投射物注册、反射查询、穿透和总路程预算。 |
-| `spawn_targeted_missile` | `(start, target, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, configuration = {}) -> MissileProjectile` | 创建带目标标记、出圈追踪和范围引爆的导弹。 |
-| `spawn_directional_missile` | `(start, direction, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, configuration = {}) -> MissileProjectile` | 创建出圈后沿发射朝向直飞的导弹。 |
-| `spawn_pulse_laser` | `(start, direction, damage, maximum_distance, maximum_width, emission_energy, fade_in_time, hold_time, fade_out_time, colors, maximum_reflections, source_building = null) -> PulseLaserBeam` | 瞬时构造并跟踪一次完整脉冲光路。 |
-| `Projectile.configure_directional` | `(start: Vector3, direction: Vector3, speed: float, damage: float, maximum_distance: float, visual_length: float, visual_width: float, color: Color, model_asset: ModelAssetDefinition = null, source_building: Building = null, target_query: Callable = Callable(), reflection_resolver: Callable = Callable(), penetration_count: int = 0) -> void` | 配置无独立目标的方向弹道与额外穿透预算。 |
+| `spawn_projectile` | `(start, target, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, penetration_count = 0, attack_effects = null) -> Projectile` | 创建、配置并跟踪投射物；可选携带镜子攻击效果快照。 |
+| `spawn_directional_projectile` | `(start, direction, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, penetration_count = 0, attack_effects = null) -> Projectile` | 创建从起点即沿线段检敌的直线弹，复用注册、反射、穿透、总路程和攻击效果快照。 |
+| `spawn_targeted_missile` | `(start, target, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, configuration = {}, attack_effects = null) -> MissileProjectile` | 创建带目标标记、出圈追踪、范围引爆与攻击效果快照的导弹。 |
+| `spawn_directional_missile` | `(start, direction, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, configuration = {}, attack_effects = null) -> MissileProjectile` | 创建出圈后沿发射朝向直飞的导弹，并在反射分支中保留运动/爆炸配置。 |
+| `spawn_pulse_laser` | `(start, direction, damage, maximum_distance, maximum_width, emission_energy, fade_in_time, hold_time, fade_out_time, colors, maximum_reflections, source_building = null, attack_effects = null, initial_color_offset = 0) -> PulseLaserBeam` | 瞬时构造并跟踪一次完整脉冲光路；反射分支保留剩余反射数和当前颜色阶段。 |
+| `adopt_projectile` / `adopt_auxiliary_projectile` | `(projectile: Node) -> bool` | 将一次攻击内临时生成的标准/复制投射物分支纳入统一信号与清理生命周期。 |
+| `Projectile.configure_directional` | `(start, direction, speed, damage, maximum_distance, visual_length, visual_width, color, model_asset = null, source_building = null, target_query = Callable(), reflection_resolver = Callable(), penetration_count = 0, blocker_resolver = Callable(), attack_effects = null) -> void` | 配置无独立目标的方向弹道、额外穿透预算与攻击效果快照。 |
 | `set_projectile_reflection_resolver` | `(resolver: Callable) -> void` | 注入 Mirror 模块聚合后的有限反射面查询，不让 CombatManager 持有镜子或柜体实现。 |
 | `clear_projectile_reflection_resolver` | `(expected_owner: Object = null) -> void` | 仅由当前提供者安全清除反射查询。 |
 | `set_projectile_blocker_resolver` / `clear_projectile_blocker_resolver` | `(resolver: Callable)` / `(expected_owner: Object = null)` | 注入或幂等清除 Stuff 最近球形阻挡查询。 |

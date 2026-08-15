@@ -48,6 +48,16 @@ func _test_single_direction_and_rotation(fixture: Dictionary) -> void:
 	var segments := visualizer.debug_get_projectile_trajectory_segments()
 	_expect(visualizer.has_projectile_trajectory_visual(), "selected projectile tower shows its trajectory")
 	_expect(segments.size() == 1, "single-direction tower produces one unreflected segment")
+	var original_projectile_width := building.get_level_stats().projectile_width
+	var fixed_preview_width := visualizer.projectile_preview_width
+	building.get_level_stats().projectile_width = original_projectile_width * 4.0
+	visualizer.refresh()
+	_expect(
+		is_equal_approx(visualizer.debug_get_projectile_trajectory_width(), fixed_preview_width),
+		"trajectory preview keeps one fixed width independent of projectile size"
+	)
+	building.get_level_stats().projectile_width = original_projectile_width
+	visualizer.refresh()
 	if segments.size() == 1:
 		var segment: Dictionary = segments[0]
 		var start: Vector3 = segment.get("start", Vector3.ZERO)
@@ -234,8 +244,11 @@ func _test_laser_placement_and_adjustment_preview(fixture: Dictionary) -> void:
 			"LaserTower adjustment preview follows its logical facing"
 		)
 	_expect(
-		is_equal_approx(laser.get_projectile_width_world(), laser.get_laser_beam_width_world()),
-		"LaserTower preview reads the configurable continuous-beam width"
+		is_equal_approx(
+			visualizer.debug_get_projectile_trajectory_width(),
+			visualizer.projectile_preview_width
+		),
+		"LaserTower trajectory uses the same fixed preview width"
 	)
 	manager.rotate_selected(9)
 	segments = visualizer.debug_get_projectile_trajectory_segments()

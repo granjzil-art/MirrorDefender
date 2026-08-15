@@ -1,9 +1,9 @@
-## Shared, non-destructive red selection overlay for live buildings and mirrors.
+## Shared, non-destructive green selection overlay for live buildings and mirrors.
 extends RefCounted
 
 const PREVIOUS_OVERLAY_META := &"selection_highlight_previous_overlay"
 const OWNED_OVERLAY_META := &"selection_highlight_owned_overlay"
-const HIGHLIGHT_COLOR := Color(1.0, 0.015, 0.005, 1.0)
+const HIGHLIGHT_COLOR := Color(0.12, 1.0, 0.24, 1.0)
 
 static var _shared_shader: Shader
 
@@ -40,7 +40,7 @@ static func _make_material() -> ShaderMaterial:
 		_shared_shader.code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled, blend_add, depth_draw_never, depth_test_disabled;
-uniform vec4 highlight_color : source_color = vec4(1.0, 0.015, 0.005, 1.0);
+uniform vec4 highlight_color : source_color = vec4(0.12, 1.0, 0.24, 1.0);
 uniform float body_alpha = 0.34;
 uniform float rim_alpha = 0.72;
 uniform float pulse_speed = 4.8;

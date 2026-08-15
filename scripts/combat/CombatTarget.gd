@@ -20,6 +20,13 @@ void fragment() {
 """
 
 static var _shared_cold_surface_shader: Shader
+static var _shared_burn_flame_texture: Texture2D
+
+const BURN_FLAME_TEXTURE_SIZE := 64
+const BURN_PARTICLE_COUNT := 8
+const BURN_OUTER_COLOR := Color(1.0, 0.055, 0.018, 1.0)
+const BURN_MIDDLE_COLOR := Color(1.0, 0.31, 0.035, 1.0)
+const BURN_CORE_COLOR := Color(1.0, 0.83, 0.12, 1.0)
 
 @export_group("Feature")
 @export var feature_enabled: bool = true
@@ -58,10 +65,13 @@ var _health_label: Label3D
 var _slow_multiplier: float = 1.0
 var _slow_remaining: float = 0.0
 var _freeze_remaining: float = 0.0
+var _burn_damage_per_second: float = 0.0
+var _burn_remaining: float = 0.0
 var _status_visual_elapsed: float = 0.0
 var _cold_surface_material: ShaderMaterial
 var _cold_surface_bindings: Array[Dictionary] = []
 var _freeze_visual: MeshInstance3D
+var _burn_visual: GPUParticles3D
 
 func _ready() -> void:
 	current_hp = max_hp
@@ -73,6 +83,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_tick_movement_statuses(delta)
+	_tick_burning(delta)
 
 func configure_debug_target(world_position: Vector3, hp: float, speed: float, reward_amount: float) -> void:
 	global_position = world_position
@@ -187,6 +198,30 @@ func get_slow_remaining() -> float:
 func get_freeze_remaining() -> float:
 	return maxf(0.0, _freeze_remaining)
 
+
+## Burning refreshes its duration and keeps the strongest active damage rate.
+## Damage is routed through take_damage_over_time so EnemyUnit armor applies.
+func apply_burning(damage_per_second: float, duration: float) -> bool:
+	if not feature_enabled or not is_alive() or damage_per_second <= 0.0 or duration <= 0.0:
+		return false
+	_burn_damage_per_second = maxf(_burn_damage_per_second, damage_per_second)
+	_burn_remaining = maxf(_burn_remaining, duration)
+	_ensure_burn_visual()
+	_update_status_visuals()
+	return true
+
+
+func is_burning() -> bool:
+	return _burn_remaining > 0.0 and _burn_damage_per_second > 0.0
+
+
+func get_burn_remaining() -> float:
+	return maxf(0.0, _burn_remaining)
+
+
+func get_burn_damage_per_second() -> float:
+	return maxf(0.0, _burn_damage_per_second) if is_burning() else 0.0
+
 func _build_debug_visual() -> void:
 	if model_asset != null:
 		_visual_root = model_asset.instantiate_grounded_model(&"EnemyModel")
@@ -240,6 +275,33 @@ func _build_status_visuals() -> void:
 	add_child(_freeze_visual)
 
 
+
+func _ensure_burn_visual() -> void:
+	if _burn_visual != null and is_instance_valid(_burn_visual):
+		return
+	_burn_visual = GPUParticles3D.new()
+	_burn_visual.name = &"BurningStatusVisual"
+	_burn_visual.amount = BURN_PARTICLE_COUNT
+	_burn_visual.lifetime = 0.72
+	_burn_visual.randomness = 0.42
+	_burn_visual.preprocess = 0.35
+	_burn_visual.fixed_fps = 30
+	_burn_visual.interpolate = true
+	_burn_visual.local_coords = true
+	_burn_visual.draw_order = GPUParticles3D.DRAW_ORDER_LIFETIME
+	_burn_visual.position.y = maxf(0.08, debug_height * 0.18)
+	var visual_extent := maxf(debug_height, hit_radius * 3.0)
+	_burn_visual.visibility_aabb = AABB(
+		Vector3(-visual_extent, -visual_extent * 0.4, -visual_extent),
+		Vector3(visual_extent * 2.0, visual_extent * 2.2, visual_extent * 2.0)
+	)
+	_burn_visual.process_material = _make_burn_particle_process_material()
+	_burn_visual.draw_pass_1 = _make_burn_particle_mesh()
+	_burn_visual.emitting = false
+	_burn_visual.visible = false
+	add_child(_burn_visual)
+
+
 func _make_status_material(color: Color, emission_energy: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -272,6 +334,18 @@ func _tick_movement_statuses(delta: float) -> void:
 		_emit_movement_status_changed()
 
 
+func _tick_burning(delta: float) -> void:
+	if not is_burning():
+		return
+	var step := minf(_burn_remaining, maxf(0.0, delta))
+	if step > 0.0:
+		take_damage_over_time(_burn_damage_per_second, step)
+	_burn_remaining = maxf(0.0, _burn_remaining - step)
+	if _burn_remaining <= 0.0:
+		_burn_damage_per_second = 0.0
+	_update_status_visuals()
+
+
 func _update_status_visuals() -> void:
 	_update_cold_surface_material(is_movement_slowed())
 	if _freeze_visual != null:
@@ -279,6 +353,155 @@ func _update_status_visuals() -> void:
 		if _freeze_visual.visible:
 			var shimmer := 1.0 + sin(_status_visual_elapsed * 7.0) * 0.025
 			_freeze_visual.scale = Vector3.ONE * shimmer
+	if _burn_visual != null:
+		var burn_active := is_burning()
+		if _burn_visual.visible != burn_active:
+			_burn_visual.visible = burn_active
+			_burn_visual.emitting = burn_active
+			if burn_active:
+				_burn_visual.restart()
+
+
+func _make_burn_particle_mesh() -> QuadMesh:
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(
+		maxf(0.12, hit_radius * 0.95),
+		maxf(0.22, debug_height * 0.58)
+	)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	material.vertex_color_use_as_albedo = true
+	material.vertex_color_is_srgb = true
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	material.albedo_texture = _get_burn_flame_texture()
+	material.emission_enabled = true
+	material.emission = Color.WHITE
+	material.emission_texture = _get_burn_flame_texture()
+	material.emission_energy_multiplier = 1.65
+	material.render_priority = 2
+	mesh.material = material
+	return mesh
+
+
+func _make_burn_particle_process_material() -> ParticleProcessMaterial:
+	var material := ParticleProcessMaterial.new()
+	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	material.emission_box_extents = Vector3(
+		maxf(0.04, hit_radius * 0.62),
+		maxf(0.02, debug_height * 0.08),
+		maxf(0.04, hit_radius * 0.62)
+	)
+	material.direction = Vector3.UP
+	material.spread = 22.0
+	material.initial_velocity_min = maxf(0.12, debug_height * 0.32)
+	material.initial_velocity_max = maxf(0.22, debug_height * 0.58)
+	material.gravity = Vector3(0.0, maxf(0.05, debug_height * 0.16), 0.0)
+	material.scale_min = 0.48
+	material.scale_max = 0.92
+	material.angle_min = -14.0
+	material.angle_max = 14.0
+	material.angular_velocity_min = -28.0
+	material.angular_velocity_max = 28.0
+	var fade := Gradient.new()
+	fade.offsets = PackedFloat32Array([0.0, 0.12, 0.72, 1.0])
+	fade.colors = PackedColorArray([
+		Color(1.0, 1.0, 1.0, 0.0),
+		Color.WHITE,
+		Color(1.0, 1.0, 1.0, 0.92),
+		Color(1.0, 1.0, 1.0, 0.0),
+	])
+	var fade_texture := GradientTexture1D.new()
+	fade_texture.gradient = fade
+	material.color_ramp = fade_texture
+	return material
+
+
+func _get_burn_flame_texture() -> Texture2D:
+	if _shared_burn_flame_texture != null:
+		return _shared_burn_flame_texture
+	var image := Image.create_empty(
+		BURN_FLAME_TEXTURE_SIZE,
+		BURN_FLAME_TEXTURE_SIZE,
+		false,
+		Image.FORMAT_RGBA8
+	)
+	var antialias_width := 2.0 / float(BURN_FLAME_TEXTURE_SIZE)
+	for pixel_y in range(BURN_FLAME_TEXTURE_SIZE):
+		var vertical := 1.0 - float(pixel_y) / float(BURN_FLAME_TEXTURE_SIZE - 1)
+		for pixel_x in range(BURN_FLAME_TEXTURE_SIZE):
+			var horizontal := (
+				float(pixel_x) / float(BURN_FLAME_TEXTURE_SIZE - 1) * 2.0 - 1.0
+			)
+			var outer := _sample_flame_layer(
+				horizontal,
+				vertical,
+				0.82,
+				1.0,
+				0.17,
+				0.0,
+				antialias_width
+			)
+			if outer <= 0.0:
+				image.set_pixel(pixel_x, pixel_y, Color.TRANSPARENT)
+				continue
+			var middle := _sample_flame_layer(
+				horizontal,
+				vertical,
+				0.54,
+				0.73,
+				-0.09,
+				1.7,
+				antialias_width
+			) * outer
+			var core := _sample_flame_layer(
+				horizontal,
+				vertical,
+				0.30,
+				0.43,
+				0.055,
+				3.1,
+				antialias_width
+			) * outer
+			var color := BURN_OUTER_COLOR
+			color = color.lerp(BURN_MIDDLE_COLOR, middle)
+			color = color.lerp(BURN_CORE_COLOR, core)
+			color.a = outer
+			image.set_pixel(pixel_x, pixel_y, color)
+	_shared_burn_flame_texture = ImageTexture.create_from_image(image)
+	return _shared_burn_flame_texture
+
+
+func _sample_flame_layer(
+	horizontal: float,
+	vertical: float,
+	base_width: float,
+	top: float,
+	bend: float,
+	phase: float,
+	antialias_width: float
+) -> float:
+	if vertical < 0.0 or vertical > top:
+		return 0.0
+	var progress := clampf(vertical / maxf(0.001, top), 0.0, 1.0)
+	var bottom_rounding := smoothstep(0.0, 0.08, progress)
+	var taper := pow(maxf(0.0, 1.0 - progress), 0.62)
+	var edge_wobble := 0.88 + sin(progress * 8.4 + phase) * 0.12
+	var half_width := base_width * taper * edge_wobble * bottom_rounding
+	var center := bend * sin(progress * PI * 1.2) * pow(progress, 1.45)
+	var edge_distance := half_width - absf(horizontal - center)
+	return smoothstep(-antialias_width, antialias_width, edge_distance)
+
+
+func debug_get_burn_particles() -> GPUParticles3D:
+	return _burn_visual
+
+
+func debug_get_burn_flame_texture() -> Texture2D:
+	return _get_burn_flame_texture()
 
 
 func debug_get_cold_surface_material() -> ShaderMaterial:

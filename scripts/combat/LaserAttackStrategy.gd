@@ -5,7 +5,6 @@ extends IAttackStrategy
 const ContinuousLaserPathScript := preload("res://scripts/combat/ContinuousLaserPath.gd")
 const ReflectionDamageScript := preload("res://scripts/combat/ReflectionDamage.gd")
 
-var _burst_elapsed: float = 0.0
 var _propagation_distance: float = 0.0
 var _last_origin: Vector3 = Vector3.ZERO
 var _last_direction: Vector3 = Vector3.ZERO
@@ -64,11 +63,9 @@ func tick(building: Node, delta: float) -> void:
 		maximum_end,
 		damage_per_second * resolved_delta
 	)
-	_tick_burst(building, combat_manager, path, start, maximum_end, resolved_delta)
 
 
 func reset(building: Node) -> void:
-	_burst_elapsed = 0.0
 	_reset_propagation()
 	building.call("clear_attack_visual")
 
@@ -77,51 +74,14 @@ func debug_get_propagation_distance() -> float:
 	return _propagation_distance
 
 
-func _tick_burst(
-	building: Node,
-	combat_manager: CombatManager,
-	path: Dictionary,
-	start: Vector3,
-	maximum_end: Vector3,
-	delta: float
-) -> void:
-	if int(building.get("level")) < 2:
-		_burst_elapsed = 0.0
-		return
-	var interval: float = building.call("get_laser_burst_interval")
-	if interval <= 0.0:
-		_burst_elapsed = 0.0
-		return
-	_burst_elapsed += maxf(0.0, delta)
-	var first_hit := get_first_hit_position(path)
-	while _burst_elapsed >= interval:
-		_burst_elapsed -= interval
-		if bool(first_hit.get("hit", false)):
-			apply_endpoint_burst(
-				building,
-				combat_manager,
-				first_hit.get("position", maximum_end),
-				true,
-				get_path_damage_multiplier(path)
-			)
-		# Copies resolve their own first hit from their independently traced path,
-		# so the source notification remains periodic even when this path is empty.
-		building.call(
-			"notify_copy_attack",
-			&"laser_burst",
-			start,
-			maximum_end,
-			float(building.call("get_laser_burst_damage"))
-		)
-
-
 static func trace_laser_path(
 	building: Node,
 	combat_manager: CombatManager,
 	start: Vector3,
 	direction: Vector3,
 	distance_limit: float = -1.0,
-	penetration_bonus: int = 0
+	penetration_bonus: int = 0,
+	attack_effects: AttackEffectPayload = null
 ) -> Dictionary:
 	var maximum_distance: float = building.call("get_attack_range_world")
 	if distance_limit >= 0.0:
@@ -134,11 +94,15 @@ static func trace_laser_path(
 		maximum_distance,
 		int(building.call("get_projectile_penetration_count")) + maxi(0, penetration_bonus),
 		combat_manager.get_projectile_reflection_resolver(),
-		combat_manager.get_projectile_blocker_resolver()
+		combat_manager.get_projectile_blocker_resolver(),
+		attack_effects
 	)
 
 
 static func get_path_length(path: Dictionary) -> float:
+	if path.has("main_length"):
+		var main_length := float(path.get("main_length", 0.0))
+		return maxf(0.0, main_length) if is_finite(main_length) else 0.0
 	var total := 0.0
 	for raw_segment in path.get("segments", []):
 		if raw_segment is Dictionary:
@@ -201,13 +165,18 @@ static func apply_continuous_hits(
 	duration: float,
 	notify_source: bool
 ) -> void:
-	var resolved_damage_per_second := (
-		maxf(0.0, damage_per_second) * get_path_damage_multiplier(path)
-	)
-	var mirror_damage := resolved_damage_per_second * maxf(0.0, duration)
 	for raw_reflection in path.get("reflections", []):
 		if raw_reflection is Dictionary:
-			ReflectionDamageScript.apply(raw_reflection, mirror_damage)
+			var reflection: Dictionary = raw_reflection
+			var reflection_multiplier := float(
+				reflection.get("path_damage_multiplier", get_path_damage_multiplier(path))
+			)
+			ReflectionDamageScript.apply(
+				reflection,
+				maxf(0.0, damage_per_second)
+					* maxf(0.0, reflection_multiplier)
+					* maxf(0.0, duration)
+			)
 	var slow_multiplier: float = building.call("get_laser_slow_multiplier")
 	var slow_duration: float = building.call("get_laser_slow_duration")
 	var raw_hits: Array = path.get("hits", [])
@@ -219,40 +188,8 @@ static func apply_continuous_hits(
 		if target == null or not is_instance_valid(target) or not target.is_alive():
 			continue
 		target.apply_movement_slow(slow_multiplier, slow_duration)
-		var applied := target.take_damage_over_time(resolved_damage_per_second, duration)
+		var hit_multiplier := float(hit.get("damage_multiplier", get_path_damage_multiplier(path)))
+		var hit_damage_per_second := maxf(0.0, damage_per_second) * maxf(0.0, hit_multiplier)
+		var applied := target.take_damage_over_time(hit_damage_per_second, duration)
 		if notify_source:
 			building.call("notify_attack", target, applied, true)
-
-
-static func apply_endpoint_burst(
-	building: Node,
-	combat_manager: CombatManager,
-	endpoint: Vector3,
-	notify_source: bool,
-	damage_multiplier: float = 1.0
-) -> void:
-	var radius: float = building.call("get_laser_burst_radius_world")
-	if radius <= 0.0:
-		return
-	var color: Color = building.call("get_attack_color")
-	combat_manager.spawn_laser_burst_visual(endpoint, radius, color)
-	var slow_multiplier: float = building.call("get_laser_slow_multiplier")
-	var slow_duration: float = building.call("get_laser_slow_duration")
-	var freeze_duration := (
-		float(building.call("get_laser_freeze_duration"))
-		if int(building.get("level")) >= 3
-		else 0.0
-	)
-	var burst_damage: float = (
-		float(building.call("get_laser_burst_damage"))
-		* (maxf(0.0, damage_multiplier) if is_finite(damage_multiplier) else 1.0)
-	)
-	for target in combat_manager.get_targets_in_range(endpoint, radius):
-		if not bool(building.call("affects_target", target)):
-			continue
-		target.apply_movement_slow(slow_multiplier, slow_duration)
-		if freeze_duration > 0.0:
-			target.apply_freeze(freeze_duration)
-		var applied := target.take_damage(burst_damage)
-		if notify_source:
-			building.call("notify_attack", target, applied, false)

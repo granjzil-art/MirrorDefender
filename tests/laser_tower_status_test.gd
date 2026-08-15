@@ -58,6 +58,9 @@ class TestLaserBuilding:
 	func get_attack_color() -> Color:
 		return Color(0.2, 0.9, 1.0, 1.0)
 
+	func get_grid_cell_size() -> float:
+		return 1.0
+
 	func affects_target(_target: Node) -> bool:
 		return true
 
@@ -132,14 +135,15 @@ func _test_production_configuration() -> void:
 	)
 	_expect(
 		level_two != null
-		and is_equal_approx(level_two.laser_burst_interval, 3.0)
-		and is_equal_approx(level_two.laser_burst_radius, 1.0)
-		and level_two.base_damage > 0.0,
-		"level 2 configures a damaging three-second one-cell first-hit burst"
+		and is_equal_approx(level_two.laser_burst_interval, 0.0)
+		and level_two.laser_dps > level_one.laser_dps,
+		"level 2 keeps body upgrades numeric and no longer unlocks a burst"
 	)
 	_expect(
-		level_three != null and is_equal_approx(level_three.laser_freeze_duration, 3.0),
-		"level 3 configures a three-second freeze"
+		level_three != null
+		and is_equal_approx(level_three.laser_freeze_duration, 0.0)
+		and level_three.laser_dps > level_two.laser_dps,
+		"level 3 keeps body upgrades numeric and no longer unlocks freeze"
 	)
 
 
@@ -405,34 +409,51 @@ func _test_burst_timing_and_freeze_resume() -> void:
 	host.add_child(building)
 	building.combat_manager = combat
 	building.laser_dps = 0.0
-	var empty_strategy := LaserAttackStrategy.new()
-	empty_strategy.tick(building, 3.0)
-	_expect(_find_burst_visual(combat) == null, "burst does not fall back to the endpoint when no enemy is hit")
-	building.burst_notifications = 0
 	var target := _spawn_target(combat, Vector3(2.0, 0.0, 0.0))
-	var endpoint_target := _spawn_target(combat, Vector3(4.0, 0.0, 0.0))
 	var strategy := LaserAttackStrategy.new()
-	strategy.tick(building, 2.9)
-	_expect(is_equal_approx(target.current_hp, 100.0) and building.burst_notifications == 0, "level 2 waits for the complete burst interval")
-	strategy.tick(building, 0.1)
-	_expect(is_equal_approx(target.current_hp, 85.0) and building.burst_notifications == 1, "first-hit burst deals one-time damage and notifies copies")
-	_expect(is_equal_approx(endpoint_target.current_hp, 100.0), "burst no longer uses the laser endpoint")
-	_expect(target.is_movement_slowed() and not target.is_frozen(), "level 2 burst applies the normal cold effect without freezing")
+	building.level = 3
+	strategy.tick(building, 3.0)
+	_expect(
+		is_equal_approx(target.current_hp, 100.0)
+		and building.burst_notifications == 0
+		and _find_burst_visual(combat) == null
+		and not target.is_frozen(),
+		"ice-tower body levels never trigger the retired burst or freeze"
+	)
+	var effect := IceBurstCopyMirrorEffect.new()
+	effect.apply_copy_burst(building, combat, target.get_target_position(), 1, 1.0)
+	_expect(
+		is_equal_approx(target.current_hp, 85.0)
+		and target.is_movement_slowed()
+		and target.is_frozen()
+		and is_equal_approx(target.get_freeze_remaining(), 1.5),
+		"one L2 copy unlocks burst and a 1.5-second freeze together"
+	)
 	var first_hit_visual := _find_burst_visual(combat)
 	_expect(
 		first_hit_visual != null
 		and is_equal_approx(first_hit_visual.global_position.x, target.get_target_position().x)
 		and is_equal_approx(first_hit_visual.global_position.z, target.get_target_position().z),
-		"burst visual is centered on the first enemy hit by the beam"
+		"copy-only burst visual is centered on the projection's first enemy"
 	)
-	building.level = 3
-	LaserAttackStrategy.apply_endpoint_burst(building, combat, target.get_target_position(), false)
-	_expect(target.is_frozen(), "level 3 first-hit burst freezes enemies in its circle")
 	var freeze_visual := target.get_node_or_null("FrozenShellVisual") as MeshInstance3D
 	_expect(freeze_visual != null and freeze_visual.visible, "freeze enables its visible ice shell")
-	target._process(3.0)
+	target._process(1.5)
 	_expect(not target.is_frozen() and target.is_movement_slowed(), "slow duration is preserved while frozen and resumes after thawing")
-	_expect(_find_burst_visual(combat) != null, "first-hit burst creates the expanding visual effect")
+	var tier_two := _spawn_target(combat, Vector3(5.0, 0.0, 0.0))
+	effect.apply_copy_burst(building, combat, tier_two.get_target_position(), 2, 1.0)
+	var tier_three := _spawn_target(combat, Vector3(8.0, 0.0, 0.0))
+	effect.apply_copy_burst(building, combat, tier_three.get_target_position(), 3, 1.0)
+	_expect(
+		is_equal_approx(tier_two.get_freeze_remaining(), 2.25)
+		and is_equal_approx(tier_three.get_freeze_remaining(), 3.0),
+		"recursive L2 copies extend freeze to the configurable 2.25/3.0-second tiers"
+	)
+	effect.apply_copy_burst(building, combat, tier_three.get_target_position(), 1, 1.0)
+	_expect(
+		is_equal_approx(tier_three.get_freeze_remaining(), 3.0),
+		"a shorter repeated freeze never reduces the stronger remaining duration"
+	)
 	host.queue_free()
 
 

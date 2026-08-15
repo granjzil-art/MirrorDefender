@@ -33,6 +33,16 @@ var _laser_has_endpoint: bool = false
 var _laser_reflection_damage_multiplier: float = 1.0
 var _laser_burst_position: Vector3 = Vector3.ZERO
 var _laser_has_burst_target: bool = false
+var _pulse_charge_orb: MeshInstance3D
+var _pulse_charge_orb_phase: float = 0.0
+var _pulse_overdrive_generation: int = -1
+var _pulse_overdrive_propagation_distance: float = 0.0
+var _pulse_overdrive_segments: Array = []
+var _pulse_overdrive_endpoint: Vector3 = Vector3.ZERO
+var _pulse_overdrive_has_endpoint: bool = false
+var _pulse_overdrive_visual_color: Color = Color.TRANSPARENT
+var _pulse_overdrive_visual_width: float = -1.0
+var _pulse_overdrive_visual_configured: bool = false
 var _inspection_label: Label3D
 var _stack_indicator: MeshInstance3D
 
@@ -174,6 +184,17 @@ func get_inspection_text() -> String:
 		return ""
 	return "%s · 虚像%d · 复制链%d" % [payload.display_name, _stack_index + 1, payload.chain_depth]
 
+
+func set_pulse_special_inspection_status(status: String) -> void:
+	if _inspection_label == null or payload == null:
+		return
+	_inspection_label.text = "%s · 虚像%d · 复制链%d · %s" % [
+		payload.display_name,
+		_stack_index + 1,
+		payload.chain_depth,
+		status,
+	]
+
 func set_inspection_active(active: bool) -> void:
 	if _inspection_label != null:
 		_inspection_label.visible = active or preview_mode
@@ -299,6 +320,172 @@ func reset_laser_propagation() -> void:
 	if _laser_visual != null:
 		_laser_visual.clear_path()
 
+
+func update_pulse_charge_orb(
+	world_position: Vector3,
+	color: Color,
+	base_radius: float,
+	minimum_scale: float,
+	maximum_scale: float,
+	pulse_speed: float,
+	delta: float
+) -> void:
+	if _pulse_charge_orb == null:
+		return
+	_pulse_charge_orb_phase += maxf(0.0, delta) * maxf(0.0, pulse_speed)
+	var low := maxf(0.01, minimum_scale)
+	var high := maxf(low, maximum_scale)
+	var factor := lerpf(low, high, sin(_pulse_charge_orb_phase) * 0.5 + 0.5)
+	var mesh := _pulse_charge_orb.mesh as SphereMesh
+	if mesh != null:
+		mesh.radius = maxf(0.001, base_radius)
+		mesh.height = mesh.radius * 2.0
+	var material := _pulse_charge_orb.material_override as StandardMaterial3D
+	if material != null:
+		material.albedo_color = color
+		material.emission = color
+	_pulse_charge_orb.position = to_local(world_position)
+	_pulse_charge_orb.scale = Vector3.ONE * factor
+	_pulse_charge_orb.visible = true
+
+
+func hide_pulse_charge_orb() -> void:
+	if _pulse_charge_orb != null:
+		_pulse_charge_orb.visible = false
+
+
+func advance_pulse_overdrive_propagation(
+	generation: int,
+	delta: float,
+	maximum_distance: float,
+	propagation_speed: float,
+	initial_elapsed: float = 0.0
+) -> float:
+	if _pulse_overdrive_generation != generation:
+		_pulse_overdrive_generation = generation
+		_pulse_overdrive_propagation_distance = minf(
+			maxf(0.0, maximum_distance),
+			maxf(0.0, initial_elapsed) * maxf(0.0, propagation_speed)
+		)
+	_pulse_overdrive_propagation_distance = minf(
+		maxf(0.0, maximum_distance),
+		_pulse_overdrive_propagation_distance
+			+ maxf(0.0, delta) * maxf(0.0, propagation_speed)
+	)
+	return _pulse_overdrive_propagation_distance
+
+
+func show_pulse_overdrive_path(
+	segments: Array,
+	world_endpoint: Vector3,
+	base_color: Color,
+	base_width: float,
+	emission_energy: float,
+	sine_tuning: Dictionary = {}
+) -> void:
+	if _laser_visual == null:
+		return
+	if (
+		not _pulse_overdrive_visual_configured
+		or not _pulse_overdrive_visual_color.is_equal_approx(base_color)
+		or not is_equal_approx(_pulse_overdrive_visual_width, base_width)
+	):
+		_laser_visual.configure(base_color, base_width, emission_energy)
+		_pulse_overdrive_visual_color = base_color
+		_pulse_overdrive_visual_width = base_width
+		_pulse_overdrive_visual_configured = true
+	_laser_visual.configure_single_sine_tuning(sine_tuning)
+	_laser_visual.show_single_sine_path(segments, world_endpoint)
+	_pulse_overdrive_segments = segments.duplicate(true)
+	_pulse_overdrive_endpoint = world_endpoint
+	_pulse_overdrive_has_endpoint = true
+
+
+func clear_pulse_overdrive_path() -> void:
+	if _laser_visual != null:
+		_laser_visual.clear_path()
+	_pulse_overdrive_segments.clear()
+	_pulse_overdrive_has_endpoint = false
+
+
+func get_pulse_special_state() -> Dictionary:
+	return {
+		"charge_orb_phase": _pulse_charge_orb_phase,
+		"overdrive_generation": _pulse_overdrive_generation,
+		"propagation_distance": _pulse_overdrive_propagation_distance,
+		"segments": _pulse_overdrive_segments.duplicate(true),
+		"endpoint": _pulse_overdrive_endpoint,
+		"has_endpoint": _pulse_overdrive_has_endpoint,
+		"visual_color": _pulse_overdrive_visual_color,
+		"visual_width": _pulse_overdrive_visual_width,
+	}
+
+
+func restore_pulse_special_state(state: Dictionary) -> void:
+	_pulse_charge_orb_phase = float(state.get("charge_orb_phase", 0.0))
+	_pulse_overdrive_generation = int(state.get("overdrive_generation", -1))
+	_pulse_overdrive_propagation_distance = maxf(
+		0.0,
+		float(state.get("propagation_distance", 0.0))
+	)
+	_pulse_overdrive_segments = state.get("segments", []).duplicate(true)
+	_pulse_overdrive_endpoint = state.get("endpoint", Vector3.ZERO)
+	_pulse_overdrive_has_endpoint = bool(state.get("has_endpoint", false))
+	_pulse_overdrive_visual_color = state.get("visual_color", Color.TRANSPARENT)
+	_pulse_overdrive_visual_width = float(state.get("visual_width", -1.0))
+	# The projection node owns a newly constructed renderer. Restored values are
+	# logical cache data only; force the first runtime update to configure the new
+	# materials instead of mistaking the cache for live renderer state.
+	_pulse_overdrive_visual_configured = false
+
+
+func debug_is_pulse_charge_orb_visible() -> bool:
+	return _pulse_charge_orb != null and _pulse_charge_orb.visible
+
+
+func debug_get_pulse_charge_orb_phase() -> float:
+	return _pulse_charge_orb_phase
+
+
+func debug_get_pulse_overdrive_propagation_distance() -> float:
+	return _pulse_overdrive_propagation_distance
+
+
+func debug_get_pulse_overdrive_visual_color() -> Color:
+	return _pulse_overdrive_visual_color
+
+
+func debug_get_pulse_overdrive_rendered_color() -> Color:
+	return (
+		_laser_visual.call("debug_get_single_sine_segment_color", 0) as Color
+		if _laser_visual != null and _laser_visual.has_method("debug_get_single_sine_segment_color")
+		else Color.TRANSPARENT
+	)
+
+
+func debug_get_pulse_overdrive_wave_pair_count() -> int:
+	return (
+		int(_laser_visual.call("debug_get_wave_pair_count"))
+		if _laser_visual != null and _laser_visual.has_method("debug_get_wave_pair_count")
+		else 0
+	)
+
+
+func debug_get_pulse_overdrive_single_sine_count() -> int:
+	return (
+		int(_laser_visual.call("debug_get_single_sine_segment_count"))
+		if _laser_visual != null and _laser_visual.has_method("debug_get_single_sine_segment_count")
+		else 0
+	)
+
+
+func debug_get_pulse_overdrive_axis_segment_count() -> int:
+	return (
+		int(_laser_visual.call("debug_get_visible_axis_segment_count"))
+		if _laser_visual != null and _laser_visual.has_method("debug_get_visible_axis_segment_count")
+		else 0
+	)
+
 func _build_visual() -> void:
 	if payload == null or _grid == null or _definition == null:
 		return
@@ -310,14 +497,18 @@ func _build_visual() -> void:
 		sync_source_visual_pose()
 	_build_stack_indicator()
 	_build_inspection_label()
-	if payload.copy_kind == &"laser_tower":
+	if payload.copy_kind in [&"laser_tower", &"pulse_laser_tower"]:
 		_laser_visual = ContinuousLaserVisualScript.new()
-		_laser_visual.name = &"ProjectedContinuousLaserVisual"
+		_laser_visual.name = (
+			&"ProjectedPulseOverdriveVisual"
+			if payload.copy_kind == &"pulse_laser_tower"
+			else &"ProjectedContinuousLaserVisual"
+		)
 		add_child(_laser_visual)
 		var beam_color := Color(0.88, 0.96, 1.0, 0.96)
 		var beam_width := _grid.cell_size * 0.08
 		var beam_emission := 3.0
-		if payload.root_source != null:
+		if payload.root_source != null and payload.copy_kind == &"laser_tower":
 			if payload.root_source.has_method("get_laser_beam_color"):
 				beam_color = payload.root_source.call("get_laser_beam_color")
 			if payload.root_source.has_method("get_laser_beam_width_world"):
@@ -325,6 +516,24 @@ func _build_visual() -> void:
 			if payload.root_source.has_method("get_laser_beam_emission_energy"):
 				beam_emission = float(payload.root_source.call("get_laser_beam_emission_energy"))
 		_laser_visual.configure(beam_color, beam_width, beam_emission)
+	if payload.copy_kind == &"pulse_laser_tower":
+		_build_pulse_charge_orb()
+
+
+func _build_pulse_charge_orb() -> void:
+	_pulse_charge_orb = MeshInstance3D.new()
+	_pulse_charge_orb.name = &"PulseMirrorChargeOrb"
+	_pulse_charge_orb.mesh = SphereMesh.new()
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(1.0, 0.025, 0.01, 0.92)
+	material.emission_enabled = true
+	material.emission = material.albedo_color
+	material.emission_energy_multiplier = 5.0
+	_pulse_charge_orb.material_override = material
+	_pulse_charge_orb.visible = false
+	add_child(_pulse_charge_orb)
 
 func _create_source_snapshot() -> Node3D:
 	if payload.root_source != null and payload.root_source.has_method("create_copy_visual_snapshot"):
@@ -391,7 +600,7 @@ func _refresh_projection_instance_state(node: Node) -> void:
 ## its material. A blue overlay makes the whole model unmistakably virtual while
 ## per-instance source duplicates preserve textures and mirrored culling.
 func _prepare_projection_materials(mesh_instance: MeshInstance3D) -> void:
-	# A selected source snapshot may carry its red live-selection overlay. Copies
+	# A selected source snapshot may carry its green live-selection overlay. Copies
 	# always replace that state with their own blue next pass.
 	mesh_instance.material_overlay = null
 	if mesh_instance.material_override != null:
@@ -428,6 +637,24 @@ func _duplicate_source_material(
 	material.next_pass = projection_overlay
 	if material is BaseMaterial3D:
 		var base_material := material as BaseMaterial3D
+		if (
+			preview_mode
+			and preview_valid
+			and payload != null
+			and payload.root_source is Building
+			and base_material.has_meta(&"preview_source_color")
+		):
+			var source_color: Color = base_material.get_meta(
+				&"preview_source_color",
+				Color.WHITE
+			)
+			source_color.a = (payload.root_source as Building).preview_alpha
+			base_material.albedo_color = source_color
+			var emissive := bool(base_material.get_meta(&"preview_emissive", false))
+			base_material.emission_enabled = emissive
+			if emissive:
+				base_material.emission = source_color
+				base_material.emission_energy_multiplier = 2.0
 		base_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 		base_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	return material

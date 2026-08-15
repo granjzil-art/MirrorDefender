@@ -9,6 +9,8 @@ var _reflection_plane_x: float = 0.0
 var _blocker_enabled: bool = false
 var _blocker_plane_x: float = 0.0
 var _spawn_count: int = 0
+var _pulse_reflection_effect: Resource
+var _reflection_fork_effect: Resource
 
 
 func _initialize() -> void:
@@ -17,6 +19,15 @@ func _initialize() -> void:
 
 func _run() -> void:
 	print("[PulseLaserTower] running")
+	var reflect_definition := load("res://resources/mirrors/ReflectMirror.tres") as ReflectMirrorDefinition
+	if reflect_definition != null:
+		for effect in reflect_definition.get_attack_effects(2):
+			if effect == null:
+				continue
+			if effect.get_effect_id() == &"pulse_laser_reflection":
+				_pulse_reflection_effect = effect
+			elif effect.get_effect_id() == &"reflection_fork":
+				_reflection_fork_effect = effect
 	var fixture := _make_fixture()
 	_test_production_definition(fixture)
 	_test_reflected_segment_damage_and_timing(fixture)
@@ -63,7 +74,8 @@ func _test_reflected_segment_damage_and_timing(fixture: Dictionary) -> void:
 		var second: Dictionary = segments[1]
 		var colors := building.get_pulse_laser_reflection_colors()
 		_expect((first.get("color") as Color).is_equal_approx(colors[0]), "initial segment is red")
-		_expect((second.get("color") as Color).is_equal_approx(colors[1]), "first reflected segment is orange")
+		_expect((second.get("color") as Color).is_equal_approx(colors[0]), "level-one reflection keeps the pulse color")
+		_expect(is_equal_approx(float(second.get("width_multiplier", 0.0)), 1.0), "level-one reflection keeps the pulse width")
 		var visible_distance := float(first.get("length", 0.0)) + float(second.get("length", 0.0))
 		_expect(
 			is_equal_approx(visible_distance + 0.01, building.get_attack_range_world()),
@@ -148,18 +160,178 @@ func _test_color_cycle(fixture: Dictionary) -> void:
 		building
 	)
 	var segments := beam.debug_get_segments() if beam != null else []
-	_expect(segments.size() >= 8, "reflection cap permits enough independent segments to exercise the palette cycle")
+	_expect(segments.size() >= 8, "reflection cap permits enough independent segments to verify level-one reflections")
 	if segments.size() >= 8:
-		_expect((segments[6].get("color") as Color).is_equal_approx(colors[6]), "sixth reflection uses purple")
-		_expect((segments[7].get("color") as Color).is_equal_approx(colors[0]), "color after purple cycles back to red")
+		_expect((segments[6].get("color") as Color).is_equal_approx(colors[0]), "repeated level-one reflections never change color")
+	_reflection_mode = &"synthetic_upgraded"
+	var upgraded_payload := AttackEffectPayload.new()
+	var upgraded_beam := combat.spawn_pulse_laser(
+		building.get_attack_origin(),
+		Vector3.RIGHT,
+		0.0,
+		10.0,
+		0.1,
+		2.0,
+		0.1,
+		0.1,
+		0.1,
+		colors,
+		8,
+		building,
+		upgraded_payload
+	)
+	var upgraded_segments := upgraded_beam.debug_get_segments() if upgraded_beam != null else []
+	_expect(
+		_pulse_reflection_effect != null and upgraded_segments.size() >= 8,
+		"level-two reflection effect and seven-reflection path are available"
+	)
+	if upgraded_segments.size() >= 8:
+		_expect(
+			(upgraded_segments[1].get("color") as Color).is_equal_approx(colors[1])
+			and is_equal_approx(float(upgraded_segments[1].get("width_multiplier", 0.0)), 1.25),
+			"first level-two reflection changes the pulse to orange and 1.25 width"
+		)
+		_expect(
+			(upgraded_segments[6].get("color") as Color).is_equal_approx(colors[6])
+			and is_equal_approx(float(upgraded_segments[6].get("width_multiplier", 0.0)), 2.5),
+			"six level-two reflections reach purple and 2.5 linear width"
+		)
+		_expect(
+			(upgraded_segments[7].get("color") as Color).is_equal_approx(colors[0])
+			and is_equal_approx(float(upgraded_segments[7].get("width_multiplier", 0.0)), 2.75),
+			"seventh level-two reflection cycles to red and reaches 2.75 width"
+		)
+	var overdrive_path := ContinuousLaserPath.trace(
+		combat,
+		building,
+		building.get_attack_origin(),
+		Vector3.RIGHT,
+		2.0,
+		1_000_000,
+		Callable(self, "_trace_reflection"),
+		Callable(),
+		AttackEffectPayload.new(),
+		1.0,
+		0,
+		&"pulse_overdrive"
+	)
+	var overdrive_segments: Array = overdrive_path.get("segments", [])
+	var reflected_overdrive_modifiers: Dictionary = (
+		overdrive_segments[1].get("laser_visual_modifiers", {})
+		if overdrive_segments.size() > 1
+		else {}
+	)
+	_expect(
+		overdrive_segments.size() > 1
+		and (reflected_overdrive_modifiers.get("color", Color.TRANSPARENT) as Color).is_equal_approx(colors[1])
+		and is_equal_approx(
+			float(reflected_overdrive_modifiers.get("width_multiplier", 0.0)),
+			1.25
+		),
+		"level-two reflection applies the same color/width rule to continuous overdrive paths"
+	)
+	var overdrive_visual := ContinuousLaserVisual.new()
+	var host := fixture.get("host") as Node
+	if host != null:
+		host.add_child(overdrive_visual)
+	overdrive_visual.configure(colors[0], 0.1, 2.0)
+	overdrive_visual.show_single_sine_path(
+		overdrive_segments,
+		overdrive_path.get("endpoint", building.get_attack_origin())
+	)
+	var reflected_wave := overdrive_visual.get_node_or_null("ContinuousLaserWaveLeft1") as MeshInstance3D
+	var reflected_material := (
+		reflected_wave.material_override as ShaderMaterial
+		if reflected_wave != null
+		else null
+	)
+	var reflected_visual_color: Variant = (
+		reflected_material.get_shader_parameter("beam_color")
+		if reflected_material != null
+		else Color.TRANSPARENT
+	)
+	var overdrive_endpoint := overdrive_visual.get_node_or_null("LaserEndpoint") as MeshInstance3D
+	_expect(
+		reflected_visual_color is Color
+		and (reflected_visual_color as Color).is_equal_approx(colors[1])
+		and reflected_material.shader != null
+		and not reflected_material.shader.code.contains("ALPHA =")
+		and not reflected_material.shader.code.contains("cull_disabled")
+		and overdrive_visual.debug_get_visible_axis_segment_count() == 0
+		and overdrive_visual.debug_get_wave_pair_count() == 0,
+		"one L2 reflection uses the opaque single-sided orange sine shader"
+	)
+	_expect(
+		overdrive_endpoint != null and not overdrive_endpoint.visible,
+		"single-sine overdrive hides the old transparent endpoint orb"
+	)
+	overdrive_visual.queue_free()
+	_test_first_reflection_fork_uses_stable_palette(fixture, colors)
+
+
+func _test_first_reflection_fork_uses_stable_palette(
+	fixture: Dictionary,
+	colors: Array[Color]
+) -> void:
+	var combat := fixture.get("combat") as CombatManager
+	var building := fixture.get("building") as Building
+	var host := fixture.get("host") as Node
+	_reflection_mode = &"single_upgraded_with_fork"
+	_reflection_plane_x = building.get_attack_origin().x + 0.5
+	var path := ContinuousLaserPath.trace(
+		combat,
+		building,
+		building.get_attack_origin(),
+		Vector3.RIGHT,
+		2.0,
+		1_000_000,
+		Callable(self, "_trace_reflection"),
+		Callable(),
+		AttackEffectPayload.new(),
+		1.0,
+		0,
+		&"pulse_overdrive"
+	)
+	var segments: Array = path.get("segments", [])
+	var visual := ContinuousLaserVisual.new()
+	host.add_child(visual)
+	visual.configure(colors[0], 0.1, 2.0)
+	visual.show_single_sine_path(segments, path.get("endpoint", Vector3.ZERO))
+	var palette_stable := segments.size() == 4
+	for index in range(segments.size()):
+		var wave := visual.get_node_or_null(
+			"ContinuousLaserWaveLeft%d" % index
+		) as MeshInstance3D
+		var material := wave.material_override as ShaderMaterial if wave != null else null
+		var expected_color := colors[0] if index == 0 else colors[1]
+		var rendered_color: Variant = (
+			material.get_shader_parameter("beam_color")
+			if material != null
+			else Color.TRANSPARENT
+		)
+		palette_stable = (
+			palette_stable
+			and rendered_color is Color
+			and (rendered_color as Color).is_equal_approx(expected_color)
+			and material.shader != null
+			and not material.shader.code.contains("ALPHA =")
+			and not material.shader.code.contains("cull_disabled")
+		)
+	_expect(
+		palette_stable
+		and visual.debug_get_single_sine_segment_count() == 4
+		and visual.debug_get_visible_axis_segment_count() == 0,
+		"first L2 reflection keeps red/orange on the central and forked opaque sine beams"
+	)
+	visual.queue_free()
 
 
 func _trace_reflection(start: Vector3, end: Vector3) -> Dictionary:
-	if _reflection_mode == &"single":
+	if _reflection_mode in [&"single", &"single_upgraded_with_fork"]:
 		if start.x < _reflection_plane_x - 0.0001 and end.x >= _reflection_plane_x:
 			var fraction := (_reflection_plane_x - start.x) / (end.x - start.x)
 			var position := start.lerp(end, fraction)
-			return {
+			var result := {
 				"hit": true,
 				"position": position,
 				"normal": Vector3.RIGHT,
@@ -167,9 +339,16 @@ func _trace_reflection(start: Vector3, end: Vector3) -> Dictionary:
 				"epsilon": 0.01,
 				"max_reflections_per_frame": 8,
 			}
-	elif _reflection_mode == &"synthetic_cycle" and start.distance_to(end) > 0.51:
+			if _reflection_mode == &"single_upgraded_with_fork":
+				result["is_upgraded_reflect_mirror"] = true
+				result["attack_effects"] = [
+					_pulse_reflection_effect,
+					_reflection_fork_effect,
+				]
+			return result
+	elif _reflection_mode in [&"synthetic_cycle", &"synthetic_upgraded"] and start.distance_to(end) > 0.51:
 		var direction := (end - start).normalized()
-		return {
+		var result := {
 			"hit": true,
 			"position": start + direction * 0.5,
 			"normal": Vector3.RIGHT,
@@ -177,6 +356,10 @@ func _trace_reflection(start: Vector3, end: Vector3) -> Dictionary:
 			"epsilon": 0.01,
 			"max_reflections_per_frame": 8,
 		}
+		if _reflection_mode == &"synthetic_upgraded":
+			result["is_upgraded_reflect_mirror"] = true
+			result["attack_effects"] = [_pulse_reflection_effect]
+		return result
 	return {"hit": false}
 
 

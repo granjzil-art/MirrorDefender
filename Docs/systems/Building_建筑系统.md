@@ -35,7 +35,7 @@
 - **移除事务**：主动删除、战斗摧毁、切关清理和外部 `queue_free()` 共用幂等释放路径，统一解除信号、清除字典/地块占位、释放建筑上限、选择和产出；同一建筑不会重复退款或重复注销。
 - **逻辑朝向与视觉朝向**：所有块建筑的自由逻辑朝向统一为 36 档，每档 10°，不读取相机 yaw；边建筑仍严格沿关卡物理边，保留 HEX 6 边 / SQUARE 4 边。`FIXED_FACING` 的逻辑和模型都跟随 `facing_index`；`TRACK_TARGET` 只在此基础上转动 `_visual_root` 追踪当前目标，失去目标后回到逻辑朝向。Stuff 与斜坡仍使用各自随网格的拓扑方向，不受建筑朝向升级影响。
 - **选中/放置世界 UI**：`BuildingSelectionVisualizer` 同时监听 BuildingManager 的选择和放置虚影信号；蓝色 `targeting_range` 圆优先跟随有效放置虚影，否则跟随已选索敌建筑。对 `Building.get_occupied_cells()` 返回的每个占格绘制的浅黄色半透明多边形仍只属于已选实体。当前单格建筑返回一个格；接口允许后续多格占用直接扩展返回数组。
-- **旋转弹道预览**：选中已放置的攻击建筑或悬停有效放置预览时，绘制沿当前逻辑朝向的粗红色半透明弹道。单向塔显示一条，钉锤读取当前级真实 `projectile_direction_count` 显示4/8向；长度读取当前级 `attack_range`，粗细至少为可调下限并乘算当前级实际宽度。持续激光读取 `laser_beam_width`，显示完整规划光路而非实战中的移动传播前沿。预览通过 Main 注入统一反射、Stuff 阻挡与复制投影查询，因此静态几何最近交点与实战一致。预览只读，不查询敌人、不生成攻击或结算伤害；持续激光塔和脉冲镭射塔均显示，防御建筑不显示。
+- **旋转弹道预览**：选中已放置的攻击建筑或悬停有效放置预览时，绘制沿当前逻辑朝向的粗红色半透明弹道。单向塔显示一条，钉锤读取当前级真实 `projectile_direction_count` 显示4/8向；长度读取当前级 `attack_range`，粗细统一读取固定预览宽度 `projectile_preview_width`，不受投射物模型、碰撞体或持续激光束宽影响。持续激光显示完整规划光路而非实战中的移动传播前沿。预览通过 Main 注入统一反射、Stuff 阻挡与复制投影查询，因此静态几何最近交点与实战一致。预览只读，不查询敌人、不生成攻击或结算伤害；持续激光塔和脉冲镭射塔均显示，防御建筑不显示。
 
 ## 参数编辑入口
 
@@ -109,8 +109,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 |---|---|
 | `projectile_preview_enabled` | 总开关；关闭只隐藏预览，不改变真实投射物。 |
 | `projectile_preview_color` | 粗射线颜色和透明度，默认红色半透明。 |
-| `projectile_preview_minimum_width` | 世界单位最小粗细，防止实际投射物很细时预览难以辨认。 |
-| `projectile_preview_width_multiplier` | 当前级实际 `projectile_width` 的显示倍率；最终宽度取该乘积与最小粗细的较大值。 |
+| `projectile_preview_width` | 所有建筑共用的固定世界单位粗细，默认 `0.10`；不读取投射物或激光宽度。 |
 | `projectile_preview_lift` | 仅对红色几何表现施加的向上偏移，避免与模型/地面深度重叠；反射查询仍使用真实攻击起点。 |
 | `projectile_preview_max_segments_per_direction` | 单方向最多绘制的反射段数，仅为异常闭环保护；总可见长度仍受 `attack_range` 限制。 |
 
@@ -282,8 +281,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 |---|---|---|
 | `BuildingSelectionVisualizer.set_projectile_reflection_resolver` | `(value: Callable) -> void` | 注入统一最近反射面查询并立即重建当前弹道。 |
 | `BuildingSelectionVisualizer.refresh` | `() -> void` | 地形高度或世界位置变化后重建范围、占地与弹道。 |
-| `ProjectileTrajectoryPreview.configure_style` | `(feature_enabled: bool, color: Color, minimum_width: float, width_multiplier: float, lift: float, max_segments_per_direction: int) -> void` | 应用可调表现参数，不写入建筑或战斗状态。 |
-| `ProjectileTrajectoryPreview.rebuild` | `(building: Building) -> void` | 读取当前级方向、射程和投射物宽度，逐段调用反射查询并生成粗射线网格。 |
+| `ProjectileTrajectoryPreview.configure_style` | `(feature_enabled: bool, color: Color, width: float, lift: float, max_segments_per_direction: int) -> void` | 应用固定预览粗细等表现参数，不写入建筑或战斗状态。 |
+| `ProjectileTrajectoryPreview.rebuild` | `(building: Building) -> void` | 读取当前级方向和射程，以固定预览宽度逐段生成反射射线网格。 |
 | `ProjectileTrajectoryPreview.debug_get_segments` | `() -> Array[Dictionary]` | 返回 `{start, end, length, direction_index, reflection_index}` 深副本供回归检查。 |
 
 ### BarrierDurability.gd

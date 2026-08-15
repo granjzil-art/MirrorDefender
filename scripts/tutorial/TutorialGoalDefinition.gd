@@ -85,7 +85,10 @@ func validate_configuration() -> Array[String]:
 func matches_building(building: Building, require_level: bool = false) -> bool:
 	if building == null or not is_instance_valid(building):
 		return false
-	if building_definition != null and building.definition != building_definition:
+	if building_definition != null and (
+		building.definition == null
+		or building.definition.kind != building_definition.kind
+	):
 		return false
 	if require_cell and building.cell != target_cell:
 		return false

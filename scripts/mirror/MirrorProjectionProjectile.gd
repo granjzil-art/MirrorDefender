@@ -27,6 +27,11 @@ var _blocker_resolver: Callable
 var _has_reflected: bool = false
 var _ballistic_from_start: bool = false
 var _active: bool = false
+var _attack_effects: AttackEffectPayload = AttackEffectPayload.new()
+var _visual_length: float = 0.1
+var _visual_width: float = 0.02
+var _visual_color: Color = Color.WHITE
+var _model_asset: ModelAssetDefinition
 
 
 func configure(
@@ -44,7 +49,8 @@ func configure(
 	reflection_resolver: Callable = Callable(),
 	ballistic_from_start: bool = false,
 	penetration_count: int = 0,
-	blocker_resolver: Callable = Callable()
+	blocker_resolver: Callable = Callable(),
+	attack_effects: AttackEffectPayload = null
 ) -> void:
 	_combat_manager = combat_manager
 	_source_building = source_building
@@ -60,9 +66,14 @@ func configure(
 	_contact_targets.clear()
 	_reflection_resolver = reflection_resolver
 	_blocker_resolver = blocker_resolver
+	_attack_effects = attack_effects if attack_effects != null else AttackEffectPayload.new()
 	_has_reflected = false
 	_ballistic_from_start = ballistic_from_start
 	_active = false
+	_visual_length = maxf(0.1, visual_length)
+	_visual_width = maxf(0.02, visual_width)
+	_visual_color = color
+	_model_asset = model_asset
 	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color, model_asset)
 	_update_orientation(_direction)
 	_active = true
@@ -100,6 +111,10 @@ func has_reflected() -> bool:
 
 func get_travel_direction() -> Vector3:
 	return _direction
+
+
+func get_source_building() -> Building:
+	return _source_building if _source_building != null and is_instance_valid(_source_building) else null
 
 
 func _advance(travel_budget: float) -> void:
@@ -185,8 +200,19 @@ func _advance(travel_budget: float) -> void:
 		if normal.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
 			remaining = 0.0
 			break
+		if not _attack_effects.record_successful_reflection(mirror_hit):
+			_absorb_at_reflector()
+			return
 		ReflectionDamageScript.apply(mirror_hit, _damage)
 		_apply_reflection_modifiers(mirror_hit)
+		_attack_effects.apply_reflection_effects(
+			mirror_hit,
+			{
+				"attack_kind": &"projectile",
+				"projectile": self,
+				"source_building": get_source_building(),
+			}
+		)
 		_direction = (_direction - 2.0 * _direction.dot(normal) * normal).normalized()
 		if reflecting_target != null and is_instance_valid(reflecting_target):
 			_contact_targets[reflecting_target.get_instance_id()] = reflecting_target
@@ -201,6 +227,7 @@ func _advance(travel_budget: float) -> void:
 			global_position += _direction * epsilon
 			_distance_traveled += epsilon
 			remaining -= epsilon
+		_spawn_reflection_attack_copies(mirror_hit)
 		var frame_cap := maxi(1, int(mirror_hit.get("max_reflections_per_frame", 1)))
 		if reflections_this_frame >= frame_cap:
 			break
@@ -212,14 +239,139 @@ func _apply_reflection_modifiers(reflection_hit: Dictionary) -> void:
 	if is_finite(damage_multiplier):
 		_damage *= maxf(0.0, damage_multiplier)
 	_penetration_limit += maxi(0, int(reflection_hit.get("penetration_bonus", 0)))
+	_penetration_limit += _attack_effects.get_reflection_penetration_bonus(
+		reflection_hit,
+		{
+			"attack_kind": &"projectile",
+			"projectile": self,
+			"source_building": get_source_building(),
+		}
+	)
 
 
 func debug_get_damage() -> float:
 	return _damage
 
 
+func debug_get_maximum_distance() -> float:
+	return _maximum_distance
+
+
 func debug_get_remaining_penetration() -> int:
 	return maxi(0, _penetration_limit - _penetration_value)
+
+
+func debug_get_attack_effect_ids() -> Array[StringName]:
+	return _attack_effects.get_effect_ids()
+
+
+func debug_get_total_reflection_count() -> int:
+	return _attack_effects.get_total_reflection_count()
+
+
+func debug_get_reflection_upgrade_count() -> int:
+	return _attack_effects.get_reflection_upgrade_count()
+
+
+func debug_can_spawn_reflection_branches() -> bool:
+	return _attack_effects.can_spawn_reflection_branches()
+
+
+func spawn_radial_attack_copies(
+	projectile_count: int,
+	damage_multiplier: float,
+	distance_multiplier: float,
+	penetration_count: int,
+	attack_effects: AttackEffectPayload,
+	branch_effect_state_overrides: Dictionary = {}
+) -> Array[Node]:
+	var result: Array[Node] = []
+	var count := maxi(0, projectile_count)
+	if count < 2 or not _active:
+		return result
+	var payload := attack_effects if attack_effects != null else _attack_effects
+	var granted := payload.request_impact_spawn_slots(count)
+	for index in range(granted):
+		var angle := TAU * float(index) / float(count)
+		var direction := Vector3(sin(angle), 0.0, cos(angle)).normalized()
+		var child := _spawn_directional_attack_copy(
+			global_position,
+			direction,
+			_damage * maxf(0.0, damage_multiplier),
+			maxf(0.1, _maximum_distance * clampf(distance_multiplier, 0.01, 1.0)),
+			maxi(0, penetration_count),
+			payload.duplicate_for_impact_child(branch_effect_state_overrides)
+		)
+		if child != null:
+			result.append(child)
+	return result
+
+
+func _spawn_reflection_attack_copies(reflection_hit: Dictionary) -> void:
+	var remaining_distance := maxf(0.0, _maximum_distance - _distance_traveled)
+	if remaining_distance <= 0.0001:
+		return
+	var angles := _attack_effects.get_reflection_branch_angles(
+		reflection_hit,
+		{
+			"attack_kind": &"projectile",
+			"projectile": self,
+			"source_building": get_source_building(),
+			"direction": _direction,
+			"remaining_distance": remaining_distance,
+		}
+	)
+	var granted := _attack_effects.request_reflection_branch_slots(angles.size())
+	for index in range(granted):
+		_spawn_directional_attack_copy(
+			global_position,
+			_direction.rotated(Vector3.UP, deg_to_rad(angles[index])).normalized(),
+			_damage,
+			remaining_distance,
+			debug_get_remaining_penetration(),
+			_attack_effects.duplicate_for_reflection_branch()
+		)
+
+
+func _absorb_at_reflector() -> void:
+	_active = false
+	queue_free()
+
+
+func _spawn_directional_attack_copy(
+	start: Vector3,
+	direction: Vector3,
+	damage: float,
+	maximum_distance: float,
+	penetration_count: int,
+	attack_effects: AttackEffectPayload
+) -> Node:
+	if _combat_manager == null or direction.length_squared() <= MIN_DIRECTION_LENGTH_SQUARED:
+		return null
+	var child := MirrorProjectionProjectile.new()
+	_combat_manager.add_child(child)
+	child.configure(
+		_combat_manager,
+		get_source_building(),
+		start,
+		start + direction.normalized() * maximum_distance,
+		_speed,
+		damage,
+		_visual_length,
+		_visual_width,
+		_visual_color,
+		_model_asset,
+		maximum_distance,
+		_reflection_resolver,
+		true,
+		penetration_count,
+		_blocker_resolver,
+		attack_effects
+	)
+	child._has_reflected = true
+	child._contact_targets = _contact_targets.duplicate()
+	_combat_manager.adopt_auxiliary_projectile(child)
+	return child
 
 
 func _query_reflection(start: Vector3, end: Vector3) -> Dictionary:
@@ -332,6 +484,7 @@ func _impact_target(target: CombatTarget) -> bool:
 	var applied_damage := 0.0
 	applied_damage = target.take_damage(_damage)
 	impacted.emit(target, applied_damage)
+	_attack_effects.notify_projectile_impact(self, target)
 	_penetration_value += 1
 	if _penetration_value > _penetration_limit:
 		_active = false

@@ -1,30 +1,51 @@
-[gd_resource type="Resource" script_class="ReflectMirrorDefinition" format=3 uid="uid://ber3a0bwsj4m4"]
+[gd_resource type="Resource" script_class="ReflectMirrorDefinition" format=3 uid="uid://hucjdq8tady2"]
 
 [ext_resource type="Script" uid="uid://df84lj0trmbvn" path="res://scripts/mirror/ReflectMirrorDefinition.gd" id="1_definition"]
 [ext_resource type="Texture2D" uid="uid://7p1qtdvcr15v" path="res://assets/ui/global_info/mirror.png" id="1_gohiu"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="2_inspection"]
+[ext_resource type="Script" uid="uid://fji3wkyewevi" path="res://scripts/mirror/effects/ReflectionForkMirrorEffect.gd" id="3_reflection_fork"]
+[ext_resource type="Script" uid="uid://cpia8bt6viu2j" path="res://scripts/mirror/MirrorAttackEffect.gd" id="4_attack_effect"]
+[ext_resource type="Script" uid="uid://cvsmb864y32pu" path="res://scripts/mirror/effects/ArrowReflectionMirrorEffect.gd" id="5_arrow_reflection"]
+[ext_resource type="Script" uid="uid://cxf38c6mq0g3y" path="res://scripts/mirror/effects/MissileReflectionGrowthEffect.gd" id="6_missile_growth"]
+[ext_resource type="Script" uid="uid://b8qxyr0skh6" path="res://scripts/mirror/effects/PulseLaserReflectionEffect.gd" id="7_pulse_reflection"]
+
+[sub_resource type="Resource" id="ReflectionForkEffect"]
+script = ExtResource("3_reflection_fork")
+effect_id = &"reflection_fork"
+minimum_mirror_level = 2
+
+[sub_resource type="Resource" id="ArrowReflectionEffect"]
+script = ExtResource("5_arrow_reflection")
+effect_id = &"arrow_reflection"
+minimum_mirror_level = 2
+
+[sub_resource type="Resource" id="MissileGrowthEffect"]
+script = ExtResource("6_missile_growth")
+effect_id = &"missile_reflection_growth"
+minimum_mirror_level = 2
+
+[sub_resource type="Resource" id="PulseReflectionEffect"]
+script = ExtResource("7_pulse_reflection")
+effect_id = &"pulse_laser_reflection"
+minimum_mirror_level = 2
 
 [sub_resource type="Resource" id="Inspection_reflect_mirror"]
 script = ExtResource("2_inspection")
 display_name = "反射镜"
-function_description = "反射与镜面接触的任意飞弹和激光
-反射只在镜面发生，背面可穿透
-可多次反射
-升级后会提升飞弹/激光的伤害与穿透
-地图的边缘也是镜面哦"
+function_description = "反射接触正面的投射物和激光，背面可穿过。
+每次成功反射造成1.1倍伤害；单条攻击路径最多成功反射7次。"
 
 [resource]
 script = ExtResource("1_definition")
 display_name = "反射镜"
 card_icon = ExtResource("1_gohiu")
 inspection_display = SubResource("Inspection_reflect_mirror")
-placement_cost = 50.0
-upgrade_costs = Array[float]([80.0, 80.0])
-level_damage_multipliers = Array[float]([1.1, 1.2, 1.2])
-level_penetration_bonuses = Array[int]([1, 2, 4])
+placement_cost = 80.0
+upgrade_costs = Array[float]([120.0])
+level_damage_multipliers = Array[float]([1.1, 1.1])
+attack_effects = Array[ExtResource("4_attack_effect")]([SubResource("ReflectionForkEffect"), SubResource("ArrowReflectionEffect"), SubResource("MissileGrowthEffect"), SubResource("PulseReflectionEffect")])
 mirror_height_ratio = 2.0
 reflection_two_sided_visual = false
 reflection_surface_offset_ratio = 1.0
 mirror_reflectivity = 1.0
 mirror_surface_tint = Color(0.92, 0.96, 1, 1)
-invalid_preview_color = Color(0.8, 0.94, 1, 1)

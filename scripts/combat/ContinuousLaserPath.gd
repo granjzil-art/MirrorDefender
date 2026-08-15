@@ -8,7 +8,6 @@ class_name ContinuousLaserPath
 extends RefCounted
 
 const MIN_SEGMENT_LENGTH := 0.0001
-const MAX_REFLECTIONS := 64
 
 
 static func trace(
@@ -19,8 +18,13 @@ static func trace(
 	maximum_distance: float,
 	penetration_count: int,
 	reflection_resolver: Callable = Callable(),
-	blocker_resolver: Callable = Callable()
+	blocker_resolver: Callable = Callable(),
+	attack_effects: AttackEffectPayload = null,
+	initial_damage_multiplier: float = 1.0,
+	initial_reflection_index: int = 0,
+	attack_kind: StringName = &"continuous_laser"
 ) -> Dictionary:
+	var resolved_effects := attack_effects if attack_effects != null else AttackEffectPayload.new()
 	var segments: Array[Dictionary] = []
 	var hits: Array[Dictionary] = []
 	var reflections: Array[Dictionary] = []
@@ -30,8 +34,9 @@ static func trace(
 		"reflections": reflections,
 		"endpoint": start,
 		"termination": &"none",
-		"damage_multiplier": 1.0,
+		"damage_multiplier": maxf(0.0, initial_damage_multiplier),
 		"penetration_limit": maxi(0, penetration_count),
+		"main_length": 0.0,
 	}
 	if (
 		combat_manager == null
@@ -42,7 +47,10 @@ static func trace(
 	var current_start := start
 	var direction := direction_value.normalized()
 	var remaining_distance := maximum_distance
-	var reflection_count := 0
+	var reflection_count := maxi(
+		maxi(0, initial_reflection_index),
+		resolved_effects.get_total_reflection_count()
+	)
 	var hit_count := 0
 	var previous_reflector: CombatTarget
 	var resolved_penetration_count := maxi(0, penetration_count)
@@ -99,8 +107,12 @@ static func trace(
 			current_start,
 			interaction_end,
 			reflection_count,
-			stopped_by_target or blocker_is_first and is_finite(blocker_distance)
+			stopped_by_target or blocker_is_first and is_finite(blocker_distance),
+			resolved_effects.get_laser_visual_modifiers(
+				{"attack_kind": attack_kind, "source_building": source_building}
+			)
 		)
+		result["main_length"] = float(result["main_length"]) + current_start.distance_to(interaction_end)
 		result["endpoint"] = interaction_end
 		remaining_distance = maxf(0.0, remaining_distance - segment_distance)
 		if stopped_by_target:
@@ -112,9 +124,6 @@ static func trace(
 		if not is_finite(reflection_distance):
 			result["termination"] = &"range"
 			break
-		if reflection_count >= MAX_REFLECTIONS:
-			result["termination"] = &"reflection_limit"
-			break
 		var raw_normal: Variant = reflection_hit.get("normal", Vector3.ZERO)
 		if not raw_normal is Vector3:
 			result["termination"] = &"invalid_reflection"
@@ -124,7 +133,11 @@ static func trace(
 			result["termination"] = &"invalid_reflection"
 			break
 		normal = normal.normalized()
-		reflections.append(reflection_hit.duplicate())
+		if not resolved_effects.record_successful_reflection(reflection_hit):
+			result["termination"] = &"reflection_absorbed"
+			break
+		var reflection_record := reflection_hit.duplicate()
+		reflections.append(reflection_record)
 		var reflection_damage_multiplier := float(reflection_hit.get("damage_multiplier", 1.0))
 		if is_finite(reflection_damage_multiplier):
 			result["damage_multiplier"] = (
@@ -132,7 +145,18 @@ static func trace(
 				* maxf(0.0, reflection_damage_multiplier)
 			)
 		resolved_penetration_count += maxi(0, int(reflection_hit.get("penetration_bonus", 0)))
+		resolved_penetration_count += resolved_effects.get_reflection_penetration_bonus(
+			reflection_hit,
+			{
+				"attack_kind": attack_kind,
+				"source_building": source_building,
+			}
+		)
 		result["penetration_limit"] = resolved_penetration_count
+		resolved_effects.apply_reflection_effects(
+			reflection_hit,
+			{"attack_kind": attack_kind, "source_building": source_building}
+		)
 		direction = (direction - 2.0 * direction.dot(normal) * normal).normalized()
 		reflection_count += 1
 		previous_reflector = terminal_reflector
@@ -143,7 +167,66 @@ static func trace(
 		current_start = interaction_end + direction * epsilon
 		remaining_distance = maxf(0.0, remaining_distance - epsilon)
 		result["endpoint"] = current_start
+		var branch_angles := resolved_effects.get_reflection_branch_angles(
+			reflection_hit,
+			{
+				"attack_kind": attack_kind,
+				"source_building": source_building,
+				"direction": direction,
+				"remaining_distance": remaining_distance,
+			}
+		)
+		var granted_branches := resolved_effects.request_reflection_branch_slots(branch_angles.size())
+		for branch_index in range(granted_branches):
+			var branch_path := trace(
+				combat_manager,
+				source_building,
+				current_start,
+				direction.rotated(
+					Vector3.UP,
+					deg_to_rad(branch_angles[branch_index])
+				).normalized(),
+				remaining_distance,
+				maxi(0, resolved_penetration_count - hit_count),
+				reflection_resolver,
+				blocker_resolver,
+				resolved_effects.duplicate_for_reflection_branch(),
+				float(result["damage_multiplier"]),
+				reflection_count,
+				attack_kind
+			)
+			_merge_branch_path(result, branch_path)
+	for hit_index in range(hits.size()):
+		var resolved_hit: Dictionary = hits[hit_index]
+		if not resolved_hit.has("damage_multiplier"):
+			resolved_hit["damage_multiplier"] = float(result["damage_multiplier"])
+		hits[hit_index] = resolved_hit
+	for reflection_index in range(reflections.size()):
+		var resolved_reflection: Dictionary = reflections[reflection_index]
+		if not resolved_reflection.has("path_damage_multiplier"):
+			resolved_reflection["path_damage_multiplier"] = float(result["damage_multiplier"])
+		reflections[reflection_index] = resolved_reflection
 	return result
+
+
+static func _merge_branch_path(result: Dictionary, branch_path: Dictionary) -> void:
+	var segments: Array = result.get("segments", [])
+	var segment_offset := segments.size()
+	for raw_segment in branch_path.get("segments", []):
+		if raw_segment is Dictionary:
+			var segment := (raw_segment as Dictionary).duplicate(true)
+			segment["branch"] = true
+			segments.append(segment)
+	var hits: Array = result.get("hits", [])
+	for raw_hit in branch_path.get("hits", []):
+		if raw_hit is Dictionary:
+			var hit := (raw_hit as Dictionary).duplicate(true)
+			hit["segment_index"] = int(hit.get("segment_index", 0)) + segment_offset
+			hits.append(hit)
+	var reflections: Array = result.get("reflections", [])
+	for raw_reflection in branch_path.get("reflections", []):
+		if raw_reflection is Dictionary:
+			reflections.append((raw_reflection as Dictionary).duplicate(true))
 
 
 static func _get_sorted_target_hits(
@@ -231,7 +314,8 @@ static func _append_segment(
 	start: Vector3,
 	end: Vector3,
 	reflection_index: int,
-	blocked: bool
+	blocked: bool,
+	laser_visual_modifiers: Dictionary = {}
 ) -> void:
 	var length := start.distance_to(end)
 	if length <= MIN_SEGMENT_LENGTH:
@@ -242,6 +326,7 @@ static func _append_segment(
 		"length": length,
 		"reflection_index": reflection_index,
 		"blocked": blocked,
+		"laser_visual_modifiers": laser_visual_modifiers.duplicate(true),
 	})
 
 
