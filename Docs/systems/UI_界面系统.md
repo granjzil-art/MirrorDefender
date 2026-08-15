@@ -20,7 +20,7 @@
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放和景深开关即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
 - **关卡失败画面（2026-08-11）**：`WaveManager.defeat` 打开比暂停菜单更高的输入阻断层，并经 `GameTimeController` 锁定 0x。失败画面直接复用第二个 `PauseMenu` 实例和同一个 `RuntimeSettings` 对象，因此设置控件、配置文件与即时应用语义一致。“重新挑战”复用当前关卡深重载，“返回选关”复用 AppFlow 退关；Esc/通用关闭不会跳过失败结果。
 - **关卡胜利画面（2026-08-13）**：`WaveManager.victory` 打开同级结果模态并锁定 0x，根据共享据点剩余生命显示即时评价：`1～5` 为 `★☆☆`、`6～15` 为 `★★☆`、`>15` 为 `★★★`；生命归零仍进入失败画面。胜利画面只显示“重启关卡”和“返回标题”两个按钮，不显示设置；两者分别复用当前关卡深重载与 AppFlow 返回现役选关页，Esc/通用关闭不会跳过胜利结果。
-- **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；成功后清除当前选卡/建筑/镜子及对应战术时缓，恢复此前 1x/2x/4x 档位。最后一波释放后禁用，另外两按钮仍可用。
+- **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡，三者之间保留 18px 空白死区以降低放置时误触。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；成功后清除当前选卡/建筑/镜子及对应战术时缓，恢复此前 1x/2x/4x 档位。最后一波释放后禁用，另外两按钮仍可用。
 - **下一波悬停预览（2026-08-03）**：悬停释放按钮时，`WaveTimelineModel` 聚合下一波敌人构成、唯一路径及地面/空中路线档案；请求经 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发并读取周期刷新的真实弯折路线。离开、点击、切关、暂停或控制台模态打开都会清除预览。
 - **旧左侧时间轴（历史兼容）**：`WaveTimelinePanel.gd/.tscn` 保留 2026-07-22 批次 4 历史实现，但 `RuntimeHud.tscn` 已不再实例化；“首波手动、后续自动”和纵向绝对时间轴不再是现役事实。
 - **F1 调试工具（批次 6 已实现）**：进入关卡时默认关闭，首次按 F1 呼出；最高 HUD 层提供八类实时开关、命令历史和注册表命令输入。F1 只控制调试工具，不关闭正式镜头键 `1/2`；控制台展开时仍按模态规则阻断世界和相机输入，但不自动改变游戏时间。
@@ -93,6 +93,7 @@
 | PauseMenu.`settings_icon` / `restart_icon` / `exit_icon` | null | 三个模态操作按钮的可选图标接口。 |
 | WaveControlPanel.`feature_enabled` | true | 右侧三按钮总开关。 |
 | WaveControlPanel.`button_size` | 68 | 释放、重启、退出三个圆形按钮边长，范围 48～96。 |
+| WaveControlPanel.`button_separation` | 18 | 三按钮之间的纵向空白死区，范围 8～40，用于降低相邻按钮误触。 |
 | WaveControlPanel.`start_next_wave_icon/restart_level_icon/exit_level_icon/fallback_enemy_icon` | null | 三按钮与下一波敌人图标的美术替换接口；空值使用文字灰盒。 |
 | LevelSelectPageDefinition.`SLOT_COUNT` | 6 | 每页固定 2×3 六槽；null 位置保留且不可点击。 |
 | LevelSelectView.`GridMargin` | 16 px | 选关六槽网格距屏幕四边的固定安全边距。 |
@@ -151,7 +152,7 @@
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 107 项新语义字段、旧等级字段删除、正式资源加载、纯文本/BBCode 入口、绿/黄/红标题色、自定义颜色/高亮/粗体及非白名单转义、对象/字段过滤回归。 |
 | `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 110 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、胜利星级/双按钮、失败模态、深重载和三档分辨率回归。 |
-| `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 55 项只读波次模型、单悬停窗、编号端点文案、共享据点生命、多路径流向和三档分辨率回归。 |
+| `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 58 项只读波次模型、三按钮 18px 防误触间距、单悬停窗、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 88 项默认关闭、首次 F1 呼出、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、胜利和 Debug 终态边界回归。 |
 | `tests/level_select_test.gd` | 无 class_name / `SceneTree` | Catalog/Page 校验、六槽分页顺序、空槽、翻页、信号和只读缩略图回归。 |
@@ -281,6 +282,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `WaveControlPanel.gd` | `set_preview_suppressed(suppressed: bool) -> void` | 模态打开时禁止并清理详情/世界路径预览。 |
 | `WaveControlPanel.gd` | `clear_hover_preview() -> void` | 隐藏详情并发送 `paths_preview_cleared()`。 |
 | `WaveControlPanel.gd` | `get_previewed_wave_number() -> int` | 返回当前预览的下一波号；未预览为 0。 |
+| `WaveControlPanel.gd` | `_apply_button_size() -> void` | 同步三按钮边长与可配的纵向防误触间距。 |
 | `WaveTimelineModel.gd` | `build(level: LevelResource) -> Array[Dictionary]` | 只读生成作者顺序摘要；`paths` 保持唯一路径兼容，`path_requests` 额外区分地面/空中真实路线。 |
 | `WaveTimelinePanel.gd` | `configure(wave_manager: WaveManager) -> void` 等 | 旧纵向时间轴兼容 API；正式 HUD 不调用。 |
 | `WaveStatusPanel.gd` | `configure(wave_manager: WaveManager, base_core: BaseCore) -> void` | 旧 M4 兼容摘要；正式 HUD 不调用。 |

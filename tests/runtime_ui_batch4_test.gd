@@ -63,12 +63,18 @@ func _test_wave_control_panel(fixture: Dictionary) -> void:
 	root.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	panel.position = Vector2(420.0, 40.0)
-	panel.size = Vector2(72.0, 228.0)
+	panel.size = Vector2(72.0, 248.0)
 	await process_frame
 	panel.configure(fixture["wave"])
 	panel.set_level(fixture["level"])
 	await process_frame
 	_expect(panel.button_column.get_child_count() == 3, "formal wave controls expose exactly three vertical buttons")
+	_expect(
+		panel.button_column.get_theme_constant("separation") == 18
+		and panel.restart_button.position.y - panel.start_button.position.y - panel.start_button.size.y >= 18.0
+		and panel.exit_button.position.y - panel.restart_button.position.y - panel.restart_button.size.y >= 18.0,
+		"wave controls keep an 18px dead zone between adjacent actions"
+	)
 	_expect(not panel.start_button.disabled, "next-wave button is enabled before the first release")
 	_previewed_paths.clear()
 	_preview_clear_count = 0

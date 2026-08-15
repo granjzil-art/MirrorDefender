@@ -9,6 +9,9 @@ const WaveTimelineModelScript := preload("res://scripts/ui/WaveTimelineModel.gd"
 
 @export_group("Layout")
 @export_range(48.0, 96.0, 1.0) var button_size: float = 68.0
+## Empty vertical space between the three destructive/flow controls reduces
+## accidental adjacent clicks while the player is placing world objects.
+@export_range(8.0, 40.0, 1.0) var button_separation: float = 18.0
 
 @export_group("Optional Icons")
 @export var start_next_wave_icon: Texture2D
@@ -180,6 +183,7 @@ func _apply_optional_art() -> void:
 
 func _apply_button_size() -> void:
 	var resolved_size := maxf(48.0, button_size)
+	button_column.add_theme_constant_override("separation", int(roundf(button_separation)))
 	for button in [start_button, restart_button, exit_button]:
 		button.custom_minimum_size = Vector2(resolved_size, resolved_size)
 
