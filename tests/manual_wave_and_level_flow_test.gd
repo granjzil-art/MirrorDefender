@@ -98,6 +98,9 @@ func _test_app_flow() -> void:
 	var restart_requests: Array[bool] = []
 	main.runtime_hud.restart_level_requested.connect(func() -> void: restart_requests.append(true))
 	wave_controls.restart_button.pressed.emit()
+	_expect(main.runtime_hud.is_confirmation_open() and restart_requests.is_empty(), "round restart waits for the centered confirmation")
+	main.runtime_hud.confirmation_confirm_button.pressed.emit()
+	await process_frame
 	_expect(restart_requests.size() == 1, "round button emits one high-level restart request")
 	var level_source_before_victory_restart := main.level_loader.get_current_source_path()
 	main.base_core.current_hp = 15.0
@@ -109,6 +112,8 @@ func _test_app_flow() -> void:
 		"victory opens the formal result with the remaining-health rating"
 	)
 	main.runtime_hud.victory_menu.restart_button.pressed.emit()
+	_expect(main.runtime_hud.is_confirmation_open(), "victory restart opens the confirmation layer")
+	main.runtime_hud.confirmation_confirm_button.pressed.emit()
 	await process_frame
 	_expect(
 		main.level_loader.get_current_source_path() == level_source_before_victory_restart
@@ -121,6 +126,8 @@ func _test_app_flow() -> void:
 	await process_frame
 	_expect(main.runtime_hud.is_defeat_menu_open(), "base defeat opens the formal failure result")
 	main.runtime_hud.defeat_menu.restart_button.pressed.emit()
+	_expect(main.runtime_hud.is_confirmation_open(), "failure restart opens the confirmation layer")
+	main.runtime_hud.confirmation_confirm_button.pressed.emit()
 	await process_frame
 	_expect(
 		main.level_loader.get_current_source_path() == level_source_before_defeat_restart
@@ -135,6 +142,8 @@ func _test_app_flow() -> void:
 	main.wave_manager.victory.emit()
 	await process_frame
 	main.runtime_hud.victory_menu.exit_button.pressed.emit()
+	_expect(main.runtime_hud.is_confirmation_open() and return_requests.is_empty(), "victory return-title waits for confirmation")
+	main.runtime_hud.confirmation_confirm_button.pressed.emit()
 	_expect(return_requests.size() == 1, "victory return-title requests the selection screen without quitting SceneTree")
 	await _wait_until(func() -> bool: return app.is_release_barrier_active())
 	_expect(
@@ -217,6 +226,8 @@ func _test_direct_main_compatibility() -> void:
 	var return_requests: Array[bool] = []
 	main.return_to_level_select_requested.connect(func() -> void: return_requests.append(true))
 	main.runtime_hud.wave_control_panel.exit_button.pressed.emit()
+	_expect(main.runtime_hud.is_confirmation_open() and return_requests.is_empty(), "right-side cross waits for confirmation")
+	main.runtime_hud.confirmation_confirm_button.pressed.emit()
 	_expect(return_requests.size() == 1, "right-side cross emits a return request without quitting SceneTree")
 	main.queue_free()
 	await process_frame

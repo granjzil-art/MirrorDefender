@@ -46,6 +46,58 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxFlat" id="Style_confirmation_panel"]
+bg_color = Color(0.035, 0.065, 0.085, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.870588, 0.662745, 0.403922, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 30.0
+content_margin_top = 24.0
+content_margin_right = 30.0
+content_margin_bottom = 24.0
+
+[sub_resource type="StyleBoxFlat" id="Style_confirmation_button_normal"]
+bg_color = Color(0.12, 0.18, 0.21, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.48, 0.62, 0.68, 0.9)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="Style_confirmation_button_hover"]
+bg_color = Color(0.18, 0.27, 0.31, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.870588, 0.662745, 0.403922, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="Style_confirmation_button_pressed"]
+bg_color = Color(0.870588, 0.662745, 0.403922, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.86, 0.62, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [node name="RuntimeHud" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -147,6 +199,88 @@ exit_button_text = "返回标题"
 result_text = "本关评价\n☆☆☆"
 show_settings_button = false
 collapsed_height = 300.0
+
+[node name="ConfirmationDialog" type="Control" parent="."]
+visible = false
+z_index = 320
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Shade" type="ColorRect" parent="ConfirmationDialog"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.015, 0.025, 0.035, 0.72)
+
+[node name="ModalPanel" type="PanelContainer" parent="ConfirmationDialog/Shade"]
+custom_minimum_size = Vector2(560, 210)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -105.0
+offset_right = 280.0
+offset_bottom = 105.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("Style_confirmation_panel")
+
+[node name="Content" type="VBoxContainer" parent="ConfirmationDialog/Shade/ModalPanel"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Message" type="Label" parent="ConfirmationDialog/Shade/ModalPanel/Content"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "将重启关卡，确认吗"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="ConfirmationDialog/Shade/ModalPanel/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 32
+
+[node name="CancelButton" type="Button" parent="ConfirmationDialog/Shade/ModalPanel/Content/Buttons"]
+custom_minimum_size = Vector2(150, 58)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.08, 0.1, 0.12, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("Style_confirmation_button_normal")
+theme_override_styles/hover = SubResource("Style_confirmation_button_hover")
+theme_override_styles/pressed = SubResource("Style_confirmation_button_pressed")
+text = "取消"
+
+[node name="ConfirmButton" type="Button" parent="ConfirmationDialog/Shade/ModalPanel/Content/Buttons"]
+custom_minimum_size = Vector2(150, 58)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(1, 0.83, 0.4, 1)
+theme_override_colors/font_hover_color = Color(1, 0.92, 0.72, 1)
+theme_override_colors/font_pressed_color = Color(0.08, 0.1, 0.12, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("Style_confirmation_button_normal")
+theme_override_styles/hover = SubResource("Style_confirmation_button_hover")
+theme_override_styles/pressed = SubResource("Style_confirmation_button_pressed")
+text = "确认"
 
 [node name="TimeControlPanel" parent="." instance=ExtResource("7_time_controls")]
 z_index = 90

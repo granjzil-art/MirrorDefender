@@ -27,8 +27,8 @@
 - **持久 AppFlow**：`project.godot` 启动 `AppRoot.tscn`。`AppFlowController` 自身不随单局销毁，`Content` 中任一时刻只提交一个选关页或一个活动 Main。
 - **选关加载事务**：选中合法关卡后，AppFlow 先实例化隐藏且禁用处理的候选 Main，在入树前调用 `configure_startup_level(level)`；Main 入树后仍由 `LevelLoader.load_level()` 装配。只有 `startup_level_load_resolved(true, ...)` 才释放选关页并启用 Main；失败释放候选 Main并保留当前选关页。
 - **直接 Main 兼容**：独立运行 `Main.tscn` 时若未注入启动关卡，仍调用 `LevelLoader.load_initial_level()`，便于编辑器和历史测试直接启动。
-- **局内重启**：右侧按钮、暂停菜单或胜利/失败结果画面只发高层请求；Main 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新深加载 `.tres`，内存关卡深复制后再走同一加载事务。
-- **退出当前关卡**：右侧叉号、暂停菜单和结果画面的返回按钮语义一致。胜利画面的“返回标题”返回现役选关页。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。不会调用 SceneTree 退出。
+- **局内重启**：右侧按钮、暂停菜单或胜利/失败结果画面先由 RuntimeHud 打开“将重启关卡，确认吗”居中层并暂停玩法，确认后才发高层请求；Main 调用 `LevelLoader.reload_current_level()`。资源路径关卡重新深加载 `.tres`，内存关卡深复制后再走同一加载事务。
+- **退出当前关卡**：右侧叉号、暂停菜单和结果画面的返回按钮统一先打开“将返回标题，确认吗”居中层，确认后胜利画面的“返回标题”等入口均返回现役选关页。Main 先 `prepare_for_level_transition()` 清理模态、时间倍率和路径预览，再发 `return_to_level_select_requested()`；AppFlow 延迟释放 Main，恢复 `Engine.time_scale = 1.0` 并创建新的选关页。取消确认不会发请求，并恢复打开前的运行/暂停状态；不会调用 SceneTree 退出。
 - **调试入口**：正式 Main 已不实例化 `LevelDebugPanel`；F1 `load` 仍作为开发入口复用 LevelLoader，不修改正式 Catalog，也不代表正式解锁/选关流程。
 - **当前上架范围**：`LevelSelectPage01.tres` 前两槽显式引用正式目录中的 `Level1.tres`、`Level2.tres`；其它页面当前为空。正式维护范围由 `res://resources/levels/` 决定，但选关顺序仍由 Catalog/Page 显式配置，不依赖目录扫描。
 - **据点生命统一**：`LevelResource.base_max_hp` 默认为 `20`，`resources/levels/` 中 Level1–Level4 全部显式保存 `20`；多据点仍共享这一份生命。
@@ -141,12 +141,16 @@ filled valid slot click
 	 -> failure: free candidate Main, keep current LevelSelectView
 
 right WaveControlPanel restart / PauseMenu restart
+  -> RuntimeHud confirmation + GameTimeController.set_paused(true)
+  -> cancel restores the prior pause state; confirm continues
   -> RuntimeHud.restart_level_requested
   -> Main._on_restart_level_requested()
   -> LevelLoader.reload_current_level()
   -> same full level_loaded rebuild transaction
 
 right WaveControlPanel exit / PauseMenu exit
+  -> RuntimeHud confirmation + GameTimeController.set_paused(true)
+  -> cancel restores the prior pause state; confirm continues
   -> RuntimeHud.exit_level_requested
   -> Main.prepare_for_level_transition()
 	 -> RuntimeHud.prepare_for_level_transition()
@@ -254,7 +258,7 @@ RuntimeStuffEditorPanel 全量保存
 - 正式维护白名单是 `res://resources/levels/`；选关 Catalog 不自动扫描目录，仍按 Page 中的显式引用决定展示顺序。目录外关卡与测试夹具不会上架；当前显式上架 Level1、Level2。
 - 程序启动场景是 AppRoot，不是 Main。AppFlow 跨单局持久；选关页和 Main 都是可替换 Content 子节点。
 - 选关到局内是两阶段事务：候选 Main 先完成 LevelLoader 首载，成功才释放旧选关页；失败不得留下半活动 Main。
-- 重启不离开 Main；退出当前关卡必须释放 Main 并重建选关。退出不终止 SceneTree。
+- 重启不离开 Main；退出当前关卡必须释放 Main 并重建选关。两者必须先经过 RuntimeHud 的统一二次确认，确认前不发高层请求；退出不终止 SceneTree。
 - 退关前必须恢复 `Engine.time_scale = 1.0`，关闭暂停/控制台并清理波次路径预览；AppFlow 再次确保 1x。
 - LevelThumbnail 只读 LevelResource。稀疏格仅在绘制缓存中以默认地形表达，资源数组、兼容据点缓存、路径和端点都不被修改。
 - `tiles` 空间唯一键是 TileCellData.`cell`，数组顺序不代表空间顺序；TileManager 加载时克隆运行时对象，occupant/清障/运行时高度不写回资源。

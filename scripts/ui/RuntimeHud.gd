@@ -30,6 +30,10 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var defeat_menu: PauseMenu = $DefeatMenu
 @onready var victory_menu: PauseMenu = $VictoryMenu
+@onready var confirmation_dialog: Control = $ConfirmationDialog
+@onready var confirmation_message: Label = $ConfirmationDialog/Shade/ModalPanel/Content/Message
+@onready var confirmation_cancel_button: Button = $ConfirmationDialog/Shade/ModalPanel/Content/Buttons/CancelButton
+@onready var confirmation_confirm_button: Button = $ConfirmationDialog/Shade/ModalPanel/Content/Buttons/ConfirmButton
 @onready var wave_control_panel: WaveControlPanelScript = $WaveControlPanel
 @onready var debug_overlay_panel: DebugOverlayPanelScript = $DebugOverlayPanel
 @onready var debug_console: DebugConsoleScript = $DebugConsole
@@ -57,6 +61,14 @@ var _debug_console_available: bool = true
 var _runtime_parameter_editor: Node
 var _debug_category_registry: DebugCategoryRegistryScript
 var _feedback_tween: Tween
+var _pending_confirmation_action: ConfirmationAction = ConfirmationAction.NONE
+var _confirmation_restore_paused: bool = false
+
+enum ConfirmationAction {
+	NONE,
+	RESTART_LEVEL,
+	EXIT_LEVEL,
+}
 
 
 func _ready() -> void:
@@ -69,6 +81,8 @@ func _ready() -> void:
 	defeat_menu.settings_changed.connect(_on_result_settings_changed)
 	victory_menu.restart_requested.connect(_on_restart_requested)
 	victory_menu.exit_level_requested.connect(_on_exit_requested)
+	confirmation_cancel_button.pressed.connect(_on_confirmation_cancelled)
+	confirmation_confirm_button.pressed.connect(_on_confirmation_confirmed)
 	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
 	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.next_wave_released_by_player.connect(_on_next_wave_released_by_player)
@@ -209,13 +223,19 @@ func apply_level_configuration(level: LevelResource, _source_path: String = "") 
 
 
 func is_modal_open() -> bool:
-	return (victory_menu != null and victory_menu.is_open()) or (
+	return is_confirmation_open() or (
+		victory_menu != null and victory_menu.is_open()
+	) or (
 		defeat_menu != null and defeat_menu.is_open()
 	) or (
 		pause_menu != null and pause_menu.is_open()
 	) or (
 		debug_console != null and debug_console.is_open()
 	)
+
+
+func is_confirmation_open() -> bool:
+	return confirmation_dialog != null and confirmation_dialog.visible
 
 
 func is_defeat_menu_open() -> bool:
@@ -249,6 +269,9 @@ func is_debug_console_open() -> bool:
 
 
 func close_top_modal() -> void:
+	if is_confirmation_open():
+		_on_confirmation_cancelled()
+		return
 	if is_victory_menu_open() or is_defeat_menu_open():
 		return
 	if debug_console != null and debug_console.is_open():
@@ -269,6 +292,7 @@ func prepare_for_level_transition() -> void:
 	_defeat_active = false
 	_victory_active = false
 	_victory_star_count = 0
+	_close_confirmation()
 	wave_control_panel.clear_hover_preview()
 	if defeat_menu != null:
 		defeat_menu.close_menu()
@@ -399,6 +423,11 @@ func _on_paused_changed(paused: bool) -> void:
 		defeat_menu.open_menu()
 		_sync_modal_state()
 		return
+	if is_confirmation_open():
+		if not _confirmation_restore_paused:
+			pause_menu.close_menu()
+		_sync_modal_state()
+		return
 	if paused:
 		pause_menu.open_menu()
 	else:
@@ -463,11 +492,57 @@ func _sync_modal_state() -> void:
 
 
 func _on_restart_requested() -> void:
-	restart_level_requested.emit()
+	_open_confirmation(ConfirmationAction.RESTART_LEVEL, "将重启关卡，确认吗")
 
 
 func _on_exit_requested() -> void:
-	exit_level_requested.emit()
+	_open_confirmation(ConfirmationAction.EXIT_LEVEL, "将返回标题，确认吗")
+
+
+func _open_confirmation(action: ConfirmationAction, message: String) -> void:
+	if action == ConfirmationAction.NONE or confirmation_dialog == null:
+		return
+	if _pending_confirmation_action == ConfirmationAction.NONE:
+		_confirmation_restore_paused = (
+			_time_controller != null and _time_controller.is_paused()
+		)
+	_pending_confirmation_action = action
+	confirmation_message.text = message
+	confirmation_dialog.show()
+	if _time_controller != null:
+		_time_controller.set_paused(true)
+	confirmation_confirm_button.grab_focus()
+	_sync_modal_state()
+
+
+func _on_confirmation_cancelled() -> void:
+	if _pending_confirmation_action == ConfirmationAction.NONE:
+		return
+	var restore_paused := _confirmation_restore_paused
+	_close_confirmation()
+	if _time_controller != null:
+		_time_controller.set_paused(restore_paused)
+	_sync_modal_state()
+
+
+func _on_confirmation_confirmed() -> void:
+	var action := _pending_confirmation_action
+	if action == ConfirmationAction.NONE:
+		return
+	_close_confirmation()
+	match action:
+		ConfirmationAction.RESTART_LEVEL:
+			restart_level_requested.emit()
+		ConfirmationAction.EXIT_LEVEL:
+			exit_level_requested.emit()
+	_sync_modal_state()
+
+
+func _close_confirmation() -> void:
+	_pending_confirmation_action = ConfirmationAction.NONE
+	_confirmation_restore_paused = false
+	if confirmation_dialog != null:
+		confirmation_dialog.hide()
 
 
 func _on_defeat() -> void:

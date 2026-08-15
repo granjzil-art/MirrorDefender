@@ -273,6 +273,7 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	_expect(hud.get_node_or_null("PauseMenu") != null, "runtime HUD owns the pause modal")
 	_expect(hud.get_node_or_null("DefeatMenu") != null, "runtime HUD owns the defeat modal")
 	_expect(hud.get_node_or_null("VictoryMenu") != null, "runtime HUD owns the victory modal")
+	_expect(hud.get_node_or_null("ConfirmationDialog") != null, "runtime HUD owns the centered destructive-action confirmation")
 	_expect(
 		hud.get_victory_star_count(0.0) == 0
 		and hud.get_victory_star_count(5.0) == 1
@@ -295,6 +296,39 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	hud.close_pause_menu()
 	await process_frame
 	_expect(not hud.is_modal_open() and not fixture["time"].is_paused(), "closing the HUD modal resumes simulation")
+	var running_restart_requests: Array[bool] = []
+	var running_exit_requests: Array[bool] = []
+	hud.restart_level_requested.connect(func() -> void: running_restart_requests.append(true))
+	hud.exit_level_requested.connect(func() -> void: running_exit_requests.append(true))
+	fixture["time"].set_playback_scale(4.0)
+	hud.wave_control_panel.restart_button.pressed.emit()
+	await process_frame
+	_expect(
+		hud.is_confirmation_open()
+		and hud.confirmation_message.text == "将重启关卡，确认吗"
+		and fixture["time"].is_paused()
+		and is_zero_approx(Engine.time_scale),
+		"right-side restart opens the centered confirmation and pauses gameplay"
+	)
+	_expect(not pause_modal.visible and running_restart_requests.is_empty(), "restart confirmation does not open the pause menu or emit early")
+	hud.confirmation_cancel_button.pressed.emit()
+	await process_frame
+	_expect(
+		not hud.is_confirmation_open()
+		and not fixture["time"].is_paused()
+		and is_equal_approx(fixture["time"].get_effective_scale(), 4.0),
+		"cancelling a running-game confirmation restores the remembered playback speed"
+	)
+	hud.wave_control_panel.exit_button.pressed.emit()
+	await process_frame
+	_expect(
+		hud.is_confirmation_open()
+		and hud.confirmation_message.text == "将返回标题，确认吗"
+		and running_exit_requests.is_empty(),
+		"right-side exit uses the return-title confirmation copy without emitting early"
+	)
+	hud.confirmation_cancel_button.pressed.emit()
+	await process_frame
 
 	var defeat_restart_requests: Array[bool] = []
 	var defeat_exit_requests: Array[bool] = []
@@ -313,11 +347,20 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	defeat_menu.depth_of_field_toggle.toggled.emit(true)
 	_expect(pause_menu.depth_of_field_toggle.button_pressed, "defeat and pause menus share the same settings state")
 	defeat_menu.restart_button.pressed.emit()
+	_expect(hud.is_confirmation_open() and hud.confirmation_message.text == "将重启关卡，确认吗", "defeat restart is routed through the shared confirmation")
+	_expect(defeat_restart_requests.is_empty(), "defeat restart does not emit before confirmation")
+	hud.confirmation_confirm_button.pressed.emit()
 	_expect(defeat_restart_requests.size() == 1, "defeat restart reuses the high-level level reload request")
 	hud.prepare_for_level_transition()
 	_expect(not hud.is_defeat_menu_open() and not fixture["time"].is_paused(), "level transition closes defeat and restores gameplay time")
 	wave_manager.defeat.emit()
 	defeat_menu.exit_button.pressed.emit()
+	_expect(hud.is_confirmation_open(), "defeat return opens confirmation above the result modal")
+	hud.confirmation_cancel_button.pressed.emit()
+	_expect(hud.is_defeat_menu_open() and fixture["time"].is_paused(), "cancelling from a result modal preserves its paused state")
+	_expect(defeat_exit_requests.is_empty(), "cancelled defeat return emits no exit request")
+	defeat_menu.exit_button.pressed.emit()
+	hud.confirmation_confirm_button.pressed.emit()
 	_expect(defeat_exit_requests.size() == 1, "defeat exit reuses the return-to-level-selection request")
 	hud.prepare_for_level_transition()
 
@@ -347,6 +390,8 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	var victory_restart_requests: Array[bool] = []
 	hud.restart_level_requested.connect(func() -> void: victory_restart_requests.append(true))
 	victory_menu.restart_button.pressed.emit()
+	_expect(victory_restart_requests.is_empty() and hud.is_confirmation_open(), "victory restart waits for confirmation")
+	hud.confirmation_confirm_button.pressed.emit()
 	_expect(victory_restart_requests.size() == 1, "victory restart reuses the current-level reload request")
 	hud.prepare_for_level_transition()
 	base_core.current_hp = 15.0
@@ -354,6 +399,8 @@ func _test_runtime_hud_integration_and_layout(fixture: Dictionary) -> void:
 	var victory_exit_requests: Array[bool] = []
 	hud.exit_level_requested.connect(func() -> void: victory_exit_requests.append(true))
 	victory_menu.exit_button.pressed.emit()
+	_expect(victory_exit_requests.is_empty() and hud.is_confirmation_open(), "victory return-title waits for confirmation")
+	hud.confirmation_confirm_button.pressed.emit()
 	_expect(victory_exit_requests.size() == 1, "victory return-title reuses the safe level-exit request")
 	hud.prepare_for_level_transition()
 

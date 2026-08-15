@@ -18,6 +18,7 @@
 - **右上图标统计（2026-08-11）**：`GlobalInfoPanel` 无底板、无边框，按三行两列展示透明图标和白色数字：第一行是剩余据点生命、当前/总波次，第二行是复制镜数/上限、反射镜数/上限，第三行是金币、建筑数/上限。数据只读来自 `BaseCore`、`WaveManager` 和 `ResourceManager` 公共信号。
 - **右上经济反馈（批次 3 已实现）**：`EconomyPanel` 是 `GlobalInfoPanel` 第三行第一列的金币单元，保留每次资源增减事件，独立生成 `+x/-x` 上浮渐隐文字，主数字在旧值和最新值间滚动。动画用真实时间计算，在 0x 暂停时仍正常播放。
 - **暂停菜单（批次 3 已实现，退出语义已更新）**：模态镜面层阻断世界选择和相机输入，提供设置、深重载当前关卡和退出当前关卡。主音量、窗口/全屏、UI 缩放和景深开关即时写入 `user://settings.cfg`；退出发送 `exit_level_requested()`，经 Main/AppFlow 返回选关页，不退出程序。
+- **重启/返回标题二次确认（2026-08-16）**：右侧快捷按钮、暂停菜单和胜利/失败结果页的重启与返回入口统一先打开屏幕中央确认层，分别显示“将重启关卡，确认吗”和“将返回标题，确认吗”。确认层打开即通过 `GameTimeController` 暂停玩法且不提前发出高层请求；确认后才沿用原重载/退关信号。取消时恢复打开前的暂停状态：战斗中进入会恢复此前 1x/2x/4x，暂停或结果页进入则继续保持原菜单与 0x。
 - **关卡失败画面（2026-08-11）**：`WaveManager.defeat` 打开比暂停菜单更高的输入阻断层，并经 `GameTimeController` 锁定 0x。失败画面直接复用第二个 `PauseMenu` 实例和同一个 `RuntimeSettings` 对象，因此设置控件、配置文件与即时应用语义一致。“重新挑战”复用当前关卡深重载，“返回选关”复用 AppFlow 退关；Esc/通用关闭不会跳过失败结果。
 - **关卡胜利画面（2026-08-13）**：`WaveManager.victory` 打开同级结果模态并锁定 0x，根据共享据点剩余生命显示即时评价：`1～5` 为 `★☆☆`、`6～15` 为 `★★☆`、`>15` 为 `★★★`；生命归零仍进入失败画面。胜利画面只显示“重启关卡”和“返回标题”两个按钮，不显示设置；两者分别复用当前关卡深重载与 AppFlow 返回现役选关页，Esc/通用关闭不会跳过胜利结果。
 - **最右侧波次三按钮（2026-07-27 现役）**：`WaveControlPanel` 贴画面最右侧纵向提供释放下一波、快速重启、退出当前关卡，三者之间保留 18px 空白死区以降低放置时误触。释放按钮每次只调用一次 `WaveManager.start_next_wave()`；成功后清除当前选卡/建筑/镜子及对应战术时缓，恢复此前 1x/2x/4x 档位。最后一波释放后禁用，另外两按钮仍可用。
@@ -128,8 +129,8 @@
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 兼容保留的只读检视调度器；正式 RuntimeHud 不实例化或配置。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 兼容保留的地块、建筑、镜子、虚像和元素只读模型聚合器。 |
 | `scripts/ui/TileInspectorPanel.gd` / `scenes/ui/TileInspectorPanel.tscn` | `TileInspectorPanel` / `Control` | 兼容保留的镜面滚动详情板；正式 RuntimeHud 不实例化。 |
-| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、全局/经济、时间、暂停/胜利/失败模态、右侧波次三按钮和调试控制台。 |
-| `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 PauseMenu/DefeatMenu/VictoryMenu 与 WaveControlPanel，不实例化 TileInspectorPanel 或旧 WaveTimelinePanel。 |
+| `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | M6 正式 HUD 组合根；连接卡片、全局/经济、时间、暂停/胜利/失败模态、破坏性操作确认、右侧波次三按钮和调试控制台。 |
+| `scenes/ui/RuntimeHud.tscn` | 无 class_name / `Control` 场景 | 正式局内 HUD；实例化 PauseMenu/DefeatMenu/VictoryMenu、居中 ConfirmationDialog 与 WaveControlPanel，不实例化 TileInspectorPanel 或旧 WaveTimelinePanel。 |
 | `scripts/ui/LevelSelectView.gd` | `LevelSelectView` / `Control` | 纯黑幕双页面 2×3 六槽、两侧箭头、滚轮/按钮横向滑动与关卡选择信号。 |
 | `scripts/ui/LevelSelectSlot.gd` | `LevelSelectSlot` / `Button` | 无框无文字缩略图槽；空/非法资源透明禁用，滑动期间独立锁定交互。 |
 | `scripts/ui/LevelThumbnail.gd` | `LevelThumbnail` / `Control` | 只读程序化绘制网格、地形、路径、出生点和据点；不创建玩法节点。 |
@@ -151,7 +152,7 @@
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
 | `tests/runtime_inspection_configuration_test.gd` | 无 / `SceneTree` | 107 项新语义字段、旧等级字段删除、正式资源加载、纯文本/BBCode 入口、绿/黄/红标题色、自定义颜色/高亮/粗体及非白名单转义、对象/字段过滤回归。 |
-| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 110 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、胜利星级/双按钮、失败模态、深重载和三档分辨率回归。 |
+| `tests/runtime_ui_batch3_test.gd` | 无 / `SceneTree` | 122 项图标统计/经济信号、三档倍率循环与按钮颜色、时间优先级、设置持久化、重启/返回二次确认及取消恢复、胜利/失败模态、深重载和三档分辨率回归。 |
 | `tests/runtime_ui_batch4_test.gd` | 无 / `SceneTree` | 58 项只读波次模型、三按钮 18px 防误触间距、单悬停窗、共享据点生命、多路径流向和三档分辨率回归。 |
 | `tests/runtime_ui_batch6_test.gd` | 无 class_name / `SceneTree` | 88 项默认关闭、首次 F1 呼出、注册表、八类开关、业务命令、三档控制台布局、左上常驻摘要、统一模态和旧入口迁移回归。 |
 | `tests/manual_wave_release_test.gd` | 无 class_name / `SceneTree` | 逐波释放、重叠、波内归一、胜利和 Debug 终态边界回归。 |
@@ -183,6 +184,7 @@ RuntimeHud (Main/HUD)
   ├─ WaveControlPanel: 最右侧下一波/重启/退出三按钮
   ├─ TimeControlPanel: 右下慢放/1x→2x→4x/暂停
   ├─ PauseMenu + DefeatMenu + VictoryMenu: 暂停/结果模态与重启/返回标题
+  ├─ ConfirmationDialog: 居中确认重启/返回标题并保存打开前暂停状态
   └─ DebugConsole + DebugOverlayPanel
 
 BuildCardBar -> RuntimeInteractionController -> BuildingManager / MirrorManager
@@ -207,9 +209,15 @@ Pause / console / click / level transition
   -> RuntimeHud -> Main -> PathHoverPreview.clear_preview()
 
 WaveControlPanel or PauseMenu/DefeatMenu/VictoryMenu restart
+  -> RuntimeHud opens ConfirmationDialog + GameTimeController 0x
+  -> cancel: close dialog and restore the prior pause/playback state
+  -> confirm:
   -> RuntimeHud.restart_level_requested
   -> Main -> LevelLoader.reload_current_level()
 WaveControlPanel or PauseMenu/DefeatMenu/VictoryMenu exit current level
+  -> RuntimeHud opens ConfirmationDialog + GameTimeController 0x
+  -> cancel: close dialog and restore the prior pause/playback state
+  -> confirm:
   -> RuntimeHud.exit_level_requested
   -> Main.prepare_for_level_transition()
   -> Main.return_to_level_select_requested
@@ -221,7 +229,7 @@ DebugConsole -> DebugCommandRegistry -> RuntimeDebugBindings
 DebugCategoryRegistry -> DebugConsole + DebugOverlayPanel + optional Path/Route visuals
 WaveManager.defeat -> RuntimeHud.DefeatMenu + GameTimeController 0x
 WaveManager.victory -> RuntimeHud.VictoryMenu + remaining BaseCore HP rating + GameTimeController 0x
-DebugConsole.open_changed + PauseMenu/DefeatMenu/VictoryMenu -> RuntimeHud unified modal -> Main input lock
+DebugConsole.open_changed + PauseMenu/DefeatMenu/VictoryMenu/ConfirmationDialog -> RuntimeHud unified modal -> Main input lock
 
 BuildingActionPanel -> BuildingManager remove / upgrade
 BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description_bbcode()
@@ -323,8 +331,8 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `DebugOverlayPanel.gd` | `configure(category_registry: DebugCategoryRegistry) -> void` | 订阅与控制台相同的分类事实源。 |
 | `DebugOverlayPanel.gd` | `refresh_now() -> void` | 刷新左上角摘要并在无启用分类时收起。 |
 | `RuntimeHud.gd` | `apply_level_configuration(level: LevelResource, source_path: String = "") -> void` | 切关时应用建筑槽数、关卡显示名及下一波摘要。 |
-| `RuntimeHud.gd` | `prepare_for_level_transition() -> void` | 退关前清理波次预览、控制台、暂停/胜利/失败菜单和时间倍率。 |
-| `RuntimeHud.gd` | `is_modal_open() -> bool` / `is_victory_menu_open() -> bool` / `is_defeat_menu_open() -> bool` / `close_top_modal() -> void` | 合并胜利、失败、暂停和控制台状态；结果画面不响应通用关闭。 |
+| `RuntimeHud.gd` | `prepare_for_level_transition() -> void` | 退关前清理确认层、波次预览、控制台、暂停/胜利/失败菜单和时间倍率。 |
+| `RuntimeHud.gd` | `is_modal_open() -> bool` / `is_confirmation_open() -> bool` / `is_victory_menu_open() -> bool` / `is_defeat_menu_open() -> bool` / `close_top_modal() -> void` | 合并确认、胜利、失败、暂停和控制台状态；通用关闭优先取消确认层，不能直接跳过结果画面。 |
 | `RuntimeHud.gd` | `get_victory_star_count(remaining_hp: float) -> int` / `get_displayed_victory_star_count() -> int` | 按 `0 / 1～5 / 6～15 / >15` 返回失败/1/2/3 星，并暴露当前显示星数供回归验证。 |
 | `RuntimeHud.gd` | `get_settings_snapshot() -> Dictionary` | 返回共享设置快照，供 Main 应用景深开关。 |
 | `TileInspectionService.gd` | `configure(...) -> void` / `set_selected_cell(...) -> void` / `inspect_cell(...) -> Dictionary` | 兼容工具的直接只读检视 API；正式 RuntimeHud 不再调用。 |
@@ -342,10 +350,10 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `LevelSelectView.level_selected` | `(level: LevelResource)` | 合法非空槽被点击；不直接装配关卡。 |
 | `MainController.startup_level_load_resolved` | `(success: bool, reason: String)` | 候选 Main 的首次 LevelLoader 事务结束，供 AppFlow 提交或回滚。 |
 | `MainController.return_to_level_select_requested` | `()` | 局内请求返回选关页；不退出 SceneTree。 |
-| `RuntimeHud.restart_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 的统一重启请求。 |
-| `RuntimeHud.exit_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 的统一退关请求。 |
+| `RuntimeHud.restart_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 且玩家确认后的统一重启请求。 |
+| `RuntimeHud.exit_level_requested` | `()` | 来自 PauseMenu、DefeatMenu、VictoryMenu 或 WaveControlPanel 且玩家确认后的统一退关请求。 |
 | `RuntimeHud.settings_changed` | `(settings: Dictionary)` | 任一复用菜单修改设置后发出同一快照，并先同步另一菜单控件。 |
-| `RuntimeHud.modal_state_changed` | `(open: bool)` | 胜利/失败/暂停/控制台任一开启状态，供 Main 锁定世界与相机输入。 |
+| `RuntimeHud.modal_state_changed` | `(open: bool)` | 确认、胜利/失败、暂停或控制台任一开启状态，供 Main 锁定世界与相机输入。 |
 | `RuntimeHud.wave_paths_preview_requested` | `(paths: Array)` | 把下一波唯一路径转发给 Main。 |
 | `RuntimeHud.wave_paths_preview_cleared` | `()` | 请求 Main 清理世界路径预览。 |
 | `WaveControlPanel.restart_level_requested` | `()` | 右侧重启按钮的高层请求。 |
