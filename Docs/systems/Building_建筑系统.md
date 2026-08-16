@@ -1,15 +1,15 @@
 # 建筑系统 · Building
 
-> 实现状态：已完成箭塔、导弹塔、钉锤、持续激光塔、脉冲镭射塔与屏障、三级完整参数、36档自由朝向、放置虚影、升级、逐级外观/产出、配置化目标追踪/无目标直射、选中范围/占地/反射弹道提示、初始陈列持久化，以及屏障耐久、脱战回血和反伤。
+> 实现状态：已完成箭塔、导弹塔、钉锤、持续激光塔、脉冲镭射塔与屏障、三级完整参数、36档自由朝向、放置虚影、升级/降级、逐级外观/产出、配置化目标追踪/无目标直射、选中范围/占地/反射弹道提示、初始陈列持久化，以及屏障耐久、脱战回血和反伤。
 
 ## 职责
 
-定义可放置防御建筑，用 `BuildingDefinition + BuildingLevelStats` 组合建筑身份和每级完整参数。`BuildingManager` 是放置、路径规则、预览、升级、占用、选择和移除的唯一入口。
+定义可放置防御建筑，用 `BuildingDefinition + BuildingLevelStats` 组合建筑身份和每级完整参数。`BuildingManager` 是放置、路径规则、预览、升降级、占用、选择和移除的唯一入口。
 
 ## 分类 / 做法
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
-- **检视配置**：每个塔的说明固定为三个可编辑语义字段：`inspection_display.function_description` 基础描述、`copy_enhancement_description` 强化复制、`reflection_enhancement_description` 强化反射。后两个新字段默认留空，不从旧等级说明迁移。三行绿/黄/红标题与默认白色正文同时供建筑卡悬停框、左侧只读塔图鉴和选中建筑说明页使用；正文支持 `[color]`、`[highlight]`、`[b]` 白名单标记。说明不参与玩法结算，虚像沿用根源建筑配置。
+- **检视配置**：每个塔的说明固定为三个可编辑语义字段：`inspection_display.function_description` 基础描述、`copy_enhancement_description` 强化复制、`reflection_enhancement_description` 强化反射。后两个新字段默认留空，不从旧等级说明迁移。三行绿/黄/红标题与默认白色正文供建筑卡悬停框和左侧只读塔图鉴使用；正文支持 `[color]`、`[highlight]`、`[b]` 白名单标记。说明不参与玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔类可逐级选择 `TARGET_ONLY`、`TARGET_OR_FACING` 或 `FACING_ONLY`；最后一种完全跳过索敌，无论场上是否存在目标都只沿逻辑朝向周期直射。
@@ -27,7 +27,8 @@
 - **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；实例会先把可视底部中心自动接地，再保留当前等级 Scale。`projectile_model_asset` 则精确拟合到该级的子弹长度/宽度。未指定时继续使用 `tower_color/attack_color` 灰盒。
 - **卡片美术与入口**：`BuildingDefinition.card_icon` 是程序镜面模式和左侧只读塔图鉴共用的可选透明建筑主体，不包含镜框、镜面、名称或费用。`full_card_art` 是原画卡面模式的独立完整卡面，可包含镜框、镜面和已烘焙名称但不能烘焙费用。BuildCardBar 默认程序化生成完整卡片；切换到原画模式后自动裁透明边、隐藏程序框和名称，只在建筑上方叠加实时费用。正式底部建筑卡组默认关闭，由 InputMap 的 F2 独立切换；左上两张镜卡和左侧四塔图鉴不随其隐藏。图鉴卡面只显示该 `card_icon` 和名称，不读取价格或选中状态。缺少对应素材时稳定回退程序镜面，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
-- **选中操作**：选择模式点中建筑后，在其动作锚点左/上/右投影出说明、升级、出售三个同尺寸图标；升级与出售数字位于对应图标上方，满级隐藏升级项。键盘 `R` 和滚轮的 10° 旋转仍保留，持续按住 `R` 按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
+- **选中操作**：选择模式点中建筑后，在动作锚点左/右投影出降级、升级两个同尺寸图标；不再显示说明和拆除。数字位于对应图标上方且统一为金币黄：降级显示 `+x`，升级显示 `-x`；1 级隐藏降级，满级隐藏升级。键盘 `R` 和滚轮的 10° 旋转仍保留，持续按住 `R` 按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
+- **降级退款**：建筑每次降一级，返还“升到当前等级”时支付的该级 `BuildingLevelStats.cost`；应用上一级完整参数后立即重算建筑产出，并保持当前选中。
 - **拆除退款**：主动拆除按当前等级动态累加 1 级建造费用和已经过等级的全部升级费用，100% 返还且无损失；不再配置独立退款数值。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
 - **关卡初始建筑**：`BuildingPlacementData` 保存 Definition、格/边、逻辑朝向和等级。`BuildingManager.export_initial_placements()` 只导出真实建筑；加载时不扣 `initial_resource`，但注册建筑上限、恢复产出并继续使用正常删除/升级/战斗规则。初始陈列属于作者数据，静态预检通过后不重复执行玩家封路守卫。
@@ -125,7 +126,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | `scripts/shared/ConfigurationValidator.gd` | `ConfigurationValidator` / `RefCounted` | BuildingDefinition/BuildingLevelStats 共用的有限数、范围、颜色和嵌套错误校验。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | 当前级运行时实体；装配攻击/耐久组件、外观、朝向和预览状态。 |
 | `scripts/building/BarrierDurability.gd` | `BarrierDurability` / `RefCounted` | 屏障耐久、升级保伤、脱战回血、反伤和耗尽信号。 |
-| `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | **建筑唯一入口**；放置事务、预览、升级、占用、选择、旋转、移除和产出汇总。 |
+| `scripts/building/BuildingManager.gd` | `BuildingManager` / `Node3D` | **建筑唯一入口**；放置事务、预览、升降级、占用、选择、旋转、移除和产出汇总。 |
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 订阅实体/放置预览的选择、等级和朝向变化，组合索敌范围、占地格与投射物弹道表现。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 用当前级投射参数和注入的只读反射查询构建粗红色半透明多段弹道。 |
 | `resources/buildings/ArrowTower.tres` | `BuildingDefinition` | 箭塔三等级参数。 |
@@ -147,7 +148,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 | `scripts/combat/MissileProjectile.gd` | `MissileProjectile` / `Projectile` | 导弹快照参数、绕圈、追踪/直飞、反射与范围引爆。 |
 | `scripts/combat/MissileTargetMarker.gd` / `MissileTrail.gd` / `MissileExplosionEffect.gd` | `Node3D` 表现类 | 目标脚下标记、世界空间拖尾和程序化爆炸。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 建造模式、升级按钮、预览/错误状态和经济摘要。 |
-| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 将选中建筑上方世界坐标投影为删除、升级、旋转悬浮操作。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 将选中建筑上方世界坐标投影为左降级、右升级两项悬浮操作。 |
 | `tests/projectile_trajectory_preview_test.gd` | 无 / `SceneTree` | 31项单向旋转、镜面反射、共享总射程、钉锤4/8向、三种索敌塔放置蓝圈、激光光路与防御建筑过滤回归。 |
 
 ### 模块调用关系 / 数据流
@@ -176,7 +177,7 @@ M3DebugPanel 升级
 
 Select occupied cell
   -> BuildingManager.select_at -> BuildingActionPanel projects action anchor
-  -> demolish: remove_selected_building -> unregister_building(definition.get_cumulative_cost(current_level))
+  -> downgrade: downgrade_selected -> apply_level(current_level - 1) -> gain(current_level.cost)
   -> upgrade: upgrade_selected
   -> rotate: rotate_selected(+1), no resource cost
   -> BuildingSelectionVisualizer -> ProjectileTrajectoryPreview
@@ -245,6 +246,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `configure` | `(definition: BuildingDefinition, cell: Vector3i, grid: GridManager, tiles: TileManager, combat: CombatManager, initial_level: int = 1, preview_mode: bool = false) -> void` | 注入依赖、定位并应用初始等级；预览模式禁用攻击。 |
 | `apply_level` | `(value: int) -> bool` | 切换整套等级参数，重建策略与外观。 |
 | `can_upgrade` / `get_upgrade_cost` | `() -> bool` / `() -> float` | 判断是否未到上限并读取下一等级费用。 |
+| `can_downgrade` / `get_downgrade_refund` | `() -> bool` / `() -> float` | 判断是否高于 1 级，并读取升到当前等级时支付的退款。 |
 | `get_level_stats` | `() -> BuildingLevelStats` | 返回当前级参数事实源。 |
 | `get_refund_amount` | `() -> float` | 返回定义中从 1 级到当前级的累计投入。 |
 | `is_path_blocker` / `is_structure_alive` | `() -> bool` | 判断是否为可阻挡路径且仍有耐久的屏障。 |
@@ -306,6 +308,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 | `load_initial_placements` | `(placements: Array) -> Array[String]` | 免建造费装配开局建筑并计入 cap；任一失败清理本批已装配实体。 |
 | `upgrade_selected` | `() -> bool` | 升级当前选择。 |
 | `upgrade_building` | `(building: Building) -> bool` | 扣下一等级费用、切换完整参数；失败回滚费用。 |
+| `downgrade_selected` | `() -> bool` | 将当前选中建筑降一级。 |
+| `downgrade_building` | `(building: Building) -> bool` | 切换到上一级完整参数，返还当前级费用，并重算产出。 |
 | `update_preview` | `(cell: Vector3i, definition: BuildingDefinition) -> bool` | 在可建造空格创建/更新不占格虚影。 |
 | `set_path_connectivity_validator` | `(value: Callable) -> void` | 注入障碍假设放置校验，不反向持有 Path 模块。 |
 | `clear_preview` | `(clear_definition: bool = true) -> void` | 清理虚影；可保留塔种/朝向供跨无效格移动。 |
@@ -345,5 +349,5 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 ## 已知限制 / 初版不做的部分
 
 - 当前正式美术为空时使用逐级颜色灰盒；模型场景和附加 Scale 的通用规则见 `Presentation_模型资产契约.md`。
-- 暂无分支升级树或降级；主动拆除固定全额退款，不支持全局售卖比例或确认弹窗。
+- 暂无分支升级树；降级只能每次回退一级。底层主动拆除 API 仍固定全额退款，但正式选中面板不再提供拆除按钮。
 - 当前由 MirrorManager 枚举复制来源，尚未形成 CONTRIBUTING 所述统一 `ICopyable` 契约；镭射塔已显式加入现有复制攻击分支。

@@ -33,11 +33,11 @@
 - **纯缩略图分页选关（2026-07-27 现役）**：`AppRoot/AppFlowController` 是持久程序根，启动先创建 `LevelSelectView`。目录按 `LevelSelectCatalog.pages` 作者顺序翻页，每页固定六槽并按 `levels[0..5]` 以 GridContainer 行优先顺序显示；网格距屏幕四边固定 16 px，三列两行等分其余空间，槽间距 12 px，不再使用固定 `924×432` 网格或 `300×210` 槽尺寸。null 保留排版位置但完全透明且不可点击。左右箭头与鼠标滚轮共用 `change_page(delta)`：下一页时当前页左滑、目标页从右滑入，上一页反向，默认 0.25 秒 QUAD 缓出；双页面缓冲避免中间黑屏。动画期间槽位锁定，最多保存最后一次合法翻页请求，首尾钳制且不循环。`LevelThumbnail` 只读程序化绘制 LevelResource，内部地图保持比例居中，不实例化玩法节点。
 - **旧调试 UI 已迁移**：主场景左上散落文字、提示与 `M3DebugPanel` 均隐藏且不再配置；右上 `LevelDebugPanel` 已从 Main 移除，不再显示关卡名或“加载关卡”按钮。F1 注册表仍提供开发用关卡加载、资源修改、逐波释放和敌人生成命令。
 - **放置反馈**：选择塔种后，可建造空格显示 1 级半透明塔虚影和朝向；无塔种或不可放置格不显示虚影，左侧 HUD 改为显示地块类型、高度、障碍、占位对象或占位建筑参数。
-- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点，在左、上、右固定偏移显示等尺寸的说明、升级、售卖三个图标；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。升级图标上方以金币金黄色显示下一等级费用 `-x`，满级时升级图标与费用同时消失；售卖图标上方以相同颜色显示累计返还 `+x`。点击说明展开与卡片悬停相同的紧凑富文本信息页；页面高度自适应内容，底边固定在操作图标上方，因此缩放时不会向按钮方向漂移。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
+- **选中建筑/镜子操作**：选择实体后，`BuildingActionPanel` 与 `MirrorActionPanel` 都以对象动作锚点的实时屏幕投影为原点；相机移动或右键旋转后重新投影，不做会造成相对漂移的屏幕边缘钳制。塔只显示左降级、右升级，已去掉说明和拆除；镜子保留上方出售，左侧由说明改为降级，右侧仍为升级。降级 `+x`、升级 `-x`和镜子出售 `+x` 都在图标上方显示同一金币黄；1 级隐藏降级，满级隐藏升级。建筑面板不提供旋转，镜子面板不提供翻面；原有建筑旋转和镜子 `R` 翻面快捷操作仍保留。
 - **旋转弹道参考**：选中实体投射物建筑或旋转放置虚影时，世界层显示当前逻辑朝向的粗红色半透明弹道；单向/4向/8向、实际射程及反射镜/亚克力侧板反射均读取运行时事实源，线宽则统一使用固定的 `projectile_preview_width`，不随投射物或激光尺寸变化。取消选择或预览即清理；该 UI 不创建攻击、目标或伤害。
 - **屏障反馈**：屏障模式只在合法路径格显示墙体虚影；左侧 HUD 和选择状态显示当前/最大耐久、脱战延迟、回血速度与反伤比例，屏障上方同时显示耐久数字。
-- **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后说明/升级/售卖可用，面板不提供旋转选项。
-- **复制镜反馈**：“复制镜”模式显示镜面生效侧、最近源格、对称目标格、整格内容名称与青蓝虚像；无源只警告仍可放置。`R` 翻面立即重算。选中后 `MirrorActionPanel` 悬浮提供说明/升级/出售，实体镜与建筑选择互斥。
+- **边屏障反馈**：“边障”模式在任意两个有效地块之间显示贴边虚影，不要求已有路径；默认双向时 HUD 显示 `cell ↔ edge_to_cell`。放置后使用与其它塔相同的左降级/右升级面板，不提供说明、拆除或旋转按钮。
+- **复制镜反馈**：“复制镜”模式显示镜面生效侧、最近源格、对称目标格、整格内容名称与青蓝虚像；无源只警告仍可放置。`R` 翻面立即重算。选中后 `MirrorActionPanel` 悬浮提供左降级/右升级/上出售，实体镜与建筑选择互斥。
 - **反射镜反馈**：“反射镜”模式复用真实镜框/实时镜面预览、边权限、红色非法提示、`R` 翻面和删除操作，但不生成复制内容预览；提示当前生效面将反射我方投射物。
 - **旧波次 UI 兼容**：`WaveStatusPanel` 与 `WaveTimelinePanel` 均保留脚本/场景用于历史兼容和模型回归，但二者都不在正式 `RuntimeHud.tscn` 实例化；现役操作统一由右侧 `WaveControlPanel` 承担。
 
@@ -149,13 +149,13 @@
 | `scripts/ui/DebugOverlayPanel.gd` / `scenes/ui/DebugOverlayPanel.tscn` | `DebugOverlayPanel` / `Control` | 在控制台关闭后仍持续显示已启用分类的左上角只读摘要。 |
 | `scripts/level/LevelDebugPanel.gd` | `LevelDebugPanel` / `Control` | 已退出正式主场景的旧运行时选关快捷脚本，仅保留源文件兼容。 |
 | `scripts/ui/M3DebugPanel.gd` | `M3DebugPanel` / `Control` | 旧 M3 灰盒兼容脚本；正式主场景隐藏且不配置。 |
-| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，以左/上/右图标提供说明、升级、售卖，并按说明内容调整页面高度。 |
+| `scripts/ui/BuildingActionPanel.gd` | `BuildingActionPanel` / `Control` | 根据相机投影跟随选中建筑，以左/右图标提供降级和升级及对应经济数字。 |
 | `scripts/building/BuildingSelectionVisualizer.gd` | `BuildingSelectionVisualizer` / `Node3D` | 组合选中/放置索敌范围、选中占地和实体/放置弹道参考，并订阅等级与朝向变化。 |
 | `scripts/building/ProjectileTrajectoryPreview.gd` | `ProjectileTrajectoryPreview` / `Node3D` | 读取当前投射物配置与注入反射查询，渲染粗红色半透明多段射线。 |
-| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以建筑一致的左/上/右图标提供说明、升级和出售，并保持自适应说明页底边稳定。 |
+| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随任意选中实体镜，以左/右/上图标提供降级、升级和出售及对应经济数字。 |
 | `tests/runtime_ui_batch1_test.gd` | 无 / `SceneTree` | 181 项左上双镜卡、左侧四塔只读图鉴、F2 独立显隐、镜子两行/塔三行悬停说明、程序/原画模式、费用颜色、HUD 布局和放置/调整交互回归。 |
-| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 28 项建筑三行语义说明/升级/售卖图标、经济数字、自适应富文本说明页和相机投影回归。 |
-| `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 66 项镜子两级战斗修正、升级/退款/持久化，以及两行语义说明和三操作布局回归。 |
+| `tests/building_action_panel_test.gd` | 无 / `SceneTree` | 23 项塔左降级/右升级布局、等级显隐、退款/扣费、选中保持和相机投影回归。 |
+| `tests/mirror_upgrade_test.gd` | 无 / `SceneTree` | 68 项镜子两级战斗修正、升降级/退款去重/持久化和三操作布局回归。 |
 | `tests/mirror_ui_visual_capture.gd` | 无 / `SceneTree` | 手工 Forward+ 截取镜子卡悬停说明与实体镜三操作布局。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 兼容摘要/首波入口；正式主场景不再实例化。 |
 | `tests/runtime_ui_batch2_test.gd` | 无 / `SceneTree` | 45 项兼容只读模型、实体/复制塔 Combat 一致性、动态刷新、正式 HUD 无地块详情节点及选择/慢放语义回归。 |
@@ -244,10 +244,10 @@ WaveManager.defeat -> RuntimeHud.DefeatMenu + GameTimeController 0x
 WaveManager.victory -> RuntimeHud.VictoryMenu + remaining BaseCore HP rating + GameTimeController 0x
 DebugConsole.open_changed + PauseMenu/DefeatMenu/VictoryMenu/ConfirmationDialog -> RuntimeHud unified modal -> Main input lock
 
-BuildingActionPanel -> BuildingManager remove / upgrade
-BuildCardBar hover + BuildingActionPanel info -> BuildingDefinition.get_formatted_inspection_description_bbcode()
-BuildCardBar hover + MirrorActionPanel info -> MirrorDefinition.get_formatted_inspection_description_bbcode()
-MirrorActionPanel -> MirrorManager upgrade / remove
+BuildingActionPanel -> BuildingManager downgrade / upgrade
+BuildCardBar hover + TowerCodexPanel hover -> BuildingDefinition.get_formatted_inspection_description_bbcode()
+BuildCardBar mirror hover -> MirrorDefinition.get_formatted_inspection_description_bbcode()
+MirrorActionPanel -> MirrorManager downgrade / upgrade / remove
 WaveTimelinePanel / WaveStatusPanel / M3DebugPanel：兼容文件保留，正式 RuntimeHud 不实例化
 LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 ```
@@ -288,16 +288,14 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `M3DebugPanel.gd` | `_refresh_summary() -> void` | 从 Manager 读取资源、上限与目标数量。 |
 | `M3DebugPanel.gd` | `_on_upgrade_pressed() -> void` | 请求 BuildingManager 升级当前选择。 |
 | `M3DebugPanel.gd` | `_on_preview_updated(building: Building) -> void` | 显示预览塔种、1 级和离散朝向。 |
-| `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/删除信号。 |
+| `BuildingActionPanel.gd` | `configure(building_manager: BuildingManager, camera: Camera3D) -> void` | 注入建筑公共入口与投影相机，并订阅选择/升级/降级/删除信号。 |
 | `BuildingActionPanel.gd` | `_update_projection() -> void` | 将选中建筑动作锚点投影到屏幕，越过相机背面时隐藏。 |
-| `BuildingActionPanel.gd` | `_fit_info_page() -> void` | 将说明页收缩/扩展到组合最小尺寸，并把底边重新固定在操作图标上方。 |
-| `BuildingActionPanel.gd` | `_on_info_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 展开逐塔说明页，或调用 BuildingManager 的升级、售卖公共操作。 |
+| `BuildingActionPanel.gd` | `_on_downgrade_pressed()` / `_on_upgrade_pressed()` | 调用 BuildingManager 的选中建筑降级或升级公共操作。 |
 | `BuildingSelectionVisualizer.gd` | `set_projectile_reflection_resolver(value: Callable) -> void` | 接收 Main 注入的统一投射物反射查询并重建当前预览。 |
 | `BuildingSelectionVisualizer.gd` | `debug_get_projectile_trajectory_segments() -> Array[Dictionary]` | 返回当前多段弹道的只读深副本供自动化检查。 |
 | `ProjectileTrajectoryPreview.gd` | `rebuild(building: Building) -> void` | 读取当前级实际方向、射程、宽度并构造含镜面反射的粗射线。 |
-| `MirrorActionPanel.gd` | `configure(mirror_manager: MirrorManager, camera: Camera3D) -> void` | 订阅镜子选择/删除/变化信号，并把说明/升级/出售图标投影到镜面上方。 |
-| `MirrorActionPanel.gd` | `_fit_info_page() -> void` | 按镜子说明实际换行高度重置页面尺寸并维持固定底边。 |
-| `MirrorActionPanel.gd` | `_on_info_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 展开逐镜说明页，或调用 MirrorManager 的升级、出售公共操作。 |
+| `MirrorActionPanel.gd` | `configure(mirror_manager: MirrorManager, camera: Camera3D) -> void` | 订阅镜子选择/删除/变化信号，并把降级/升级/出售图标投影到镜面上方。 |
+| `MirrorActionPanel.gd` | `_on_downgrade_pressed()` / `_on_upgrade_pressed()` / `_on_sell_pressed()` | 调用 MirrorManager 的降级、升级或出售公共操作。 |
 | `WaveControlPanel.gd` | `configure(wave_manager: WaveManager) -> void` | 订阅下一波、释放和状态信号，不维护第二份游标。 |
 | `WaveControlPanel.gd` | `set_level(level: LevelResource) -> void` | 重建只读摘要条目并清理旧关悬停。 |
 | `WaveControlPanel.gd` | `set_preview_suppressed(suppressed: bool) -> void` | 模态打开时禁止并清理详情/世界路径预览。 |

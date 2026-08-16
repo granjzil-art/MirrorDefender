@@ -357,6 +357,11 @@ func apply_runtime_level_data(value: int, level_data: BuildingLevelStats) -> boo
 func can_upgrade() -> bool:
 	return definition != null and level < definition.get_max_level()
 
+
+func can_downgrade() -> bool:
+	return definition != null and level > 1
+
+
 func get_level_stats() -> BuildingLevelStats:
 	return _stats
 
@@ -368,6 +373,13 @@ func get_upgrade_cost() -> float:
 		return 0.0
 	var next_stats := definition.get_level_stats(level + 1)
 	return next_stats.cost if next_stats != null else 0.0
+
+
+func get_downgrade_refund() -> float:
+	if not can_downgrade():
+		return 0.0
+	var current_stats := definition.get_level_stats(level)
+	return maxf(0.0, current_stats.cost) if current_stats != null else 0.0
 
 func get_resource_per_second() -> float:
 	return _stats.resource_per_second if _stats != null else 0.0

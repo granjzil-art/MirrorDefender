@@ -58,6 +58,7 @@ func configure(
 	_connect_dependency(_building_manager, &"building_placed")
 	_connect_dependency(_building_manager, &"building_removed")
 	_connect_dependency(_building_manager, &"building_upgraded")
+	_connect_dependency(_building_manager, &"building_downgraded")
 	_connect_dependency(_mirror_manager, &"mirror_placed")
 	_connect_dependency(_mirror_manager, &"mirror_removed")
 	_connect_dependency(_mirror_manager, &"mirror_changed")

@@ -233,7 +233,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.text == building_manager.arrow_tower.get_formatted_inspection_description_bbcode()
 		and description_text.get_parsed_text()
 		== building_manager.arrow_tower.get_formatted_inspection_description(),
-		"card hover and the selected-building info action share one formatted text source"
+		"building-card hover reads the definition's single formatted text source"
 	)
 	_expect(
 		description_text.get_parsed_text().split("\n").size() == 3

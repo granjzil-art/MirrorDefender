@@ -4,7 +4,7 @@ extends Control
 
 signal upgrade_feedback_requested(screen_position: Vector2)
 
-const INFO_ICON: Texture2D = preload("res://assets/ui/building_actions/exclamation-mark.png")
+const DOWNGRADE_ICON_PATH := "res://assets/ui/building_actions/downgrade.png"
 const UPGRADE_ICON: Texture2D = preload("res://assets/ui/building_actions/upgrade.png")
 const SELL_ICON: Texture2D = preload("res://assets/ui/building_actions/dollar.png")
 
@@ -12,10 +12,7 @@ const ACTION_BUTTON_SIZE := Vector2(58.0, 58.0)
 const COST_LABEL_SIZE := Vector2(92.0, 24.0)
 const COST_LABEL_GAP := 4.0
 const COIN_GOLD_COLOR := Color(1.0, 0.82, 0.24, 1.0)
-const INFO_PAGE_WIDTH := 360.0
-const INFO_PAGE_CONTENT_WIDTH := INFO_PAGE_WIDTH - 28.0
-const INFO_PAGE_BOTTOM_Y := -150.0
-const INFO_BUTTON_OFFSET := Vector2(-70.0, -58.0)
+const DOWNGRADE_BUTTON_OFFSET := Vector2(-70.0, -58.0)
 const UPGRADE_BUTTON_OFFSET := Vector2(70.0, -58.0)
 const SELL_BUTTON_OFFSET := Vector2(0.0, -128.0)
 ## The supplied dollar icon has a 37 px transparent inset on every side.
@@ -30,14 +27,12 @@ const SELL_ICON_REGION := Rect2(37.0, 37.0, 406.0, 406.0)
 var _mirror_manager: MirrorManager
 var _camera: Camera3D
 var _selected_mirror: CopyMirror
-var _info_button: Button
+var _downgrade_button: Button
 var _upgrade_button: Button
 var _sell_button: Button
+var _downgrade_refund_label: Label
 var _upgrade_cost_label: Label
 var _sell_refund_label: Label
-var _info_page: PanelContainer
-var _info_title: Label
-var _info_description: RichTextLabel
 
 
 func _ready() -> void:
@@ -65,12 +60,11 @@ func configure(mirror_manager: MirrorManager, camera: Camera3D) -> void:
 
 
 func _build_interface() -> void:
-	_build_info_page()
-	_info_button = _add_action_button(
-		"InfoButton",
-		INFO_ICON,
-		"说明",
-		INFO_BUTTON_OFFSET
+	_downgrade_button = _add_action_button(
+		"DowngradeButton",
+		_load_icon_texture(DOWNGRADE_ICON_PATH),
+		"降级并返还升级金币",
+		DOWNGRADE_BUTTON_OFFSET
 	)
 	_upgrade_button = _add_action_button(
 		"UpgradeButton",
@@ -84,56 +78,27 @@ func _build_interface() -> void:
 		"售卖并返还这面镜子的累计资源投入",
 		SELL_BUTTON_OFFSET
 	)
+	_downgrade_refund_label = _add_cost_label("DowngradeRefundLabel", DOWNGRADE_BUTTON_OFFSET)
 	_upgrade_cost_label = _add_cost_label("UpgradeCostLabel", UPGRADE_BUTTON_OFFSET)
 	_sell_refund_label = _add_cost_label("SellRefundLabel", SELL_BUTTON_OFFSET)
-	_info_button.pressed.connect(_on_info_pressed)
+	_downgrade_button.pressed.connect(_on_downgrade_pressed)
 	_upgrade_button.pressed.connect(_on_upgrade_pressed)
 	_sell_button.pressed.connect(_on_sell_pressed)
 
 
-func _build_info_page() -> void:
-	_info_page = PanelContainer.new()
-	_info_page.name = "InfoPage"
-	_info_page.position = Vector2(-INFO_PAGE_WIDTH * 0.5, INFO_PAGE_BOTTOM_Y)
-	_info_page.custom_minimum_size = Vector2(INFO_PAGE_WIDTH, 0.0)
-	_info_page.size = Vector2(INFO_PAGE_WIDTH, 0.0)
-	_info_page.mouse_filter = Control.MOUSE_FILTER_STOP
-	_info_page.visible = false
-
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.035, 0.055, 0.09, 0.96)
-	panel_style.border_color = Color(0.32, 0.68, 1.0, 0.9)
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(10)
-	panel_style.content_margin_left = 14.0
-	panel_style.content_margin_top = 12.0
-	panel_style.content_margin_right = 14.0
-	panel_style.content_margin_bottom = 12.0
-	_info_page.add_theme_stylebox_override("panel", panel_style)
-	add_child(_info_page)
-
-	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 3)
-	_info_page.add_child(content)
-
-	_info_title = Label.new()
-	_info_title.name = "InfoTitle"
-	_info_title.add_theme_font_size_override("font_size", 22)
-	_info_title.add_theme_color_override("font_color", Color(0.94, 0.96, 1.0))
-	content.add_child(_info_title)
-
-	_info_description = RichTextLabel.new()
-	_info_description.name = "InfoDescription"
-	_info_description.custom_minimum_size = Vector2(INFO_PAGE_CONTENT_WIDTH, 0.0)
-	_info_description.bbcode_enabled = true
-	_info_description.fit_content = true
-	_info_description.scroll_active = false
-	_info_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_info_description.add_theme_font_size_override("normal_font_size", 18)
-	_info_description.add_theme_font_size_override("bold_font_size", 18)
-	_info_description.add_theme_constant_override("line_separation", -2)
-	_info_description.add_theme_color_override("default_color", Color(0.94, 0.96, 1.0))
-	content.add_child(_info_description)
+func _load_icon_texture(path: String) -> Texture2D:
+	var can_load_imported := not OS.has_feature("editor")
+	if not can_load_imported:
+		var import_config := ConfigFile.new()
+		if import_config.load(path + ".import") == OK:
+			var imported_path := String(import_config.get_value("remap", "path", ""))
+			can_load_imported = not imported_path.is_empty() and FileAccess.file_exists(imported_path)
+	if can_load_imported:
+		var imported_texture := load(path) as Texture2D
+		if imported_texture != null:
+			return imported_texture
+	var image := Image.load_from_file(ProjectSettings.globalize_path(path))
+	return ImageTexture.create_from_image(image) if image != null and not image.is_empty() else null
 
 
 func _add_action_button(
@@ -192,55 +157,36 @@ func _add_cost_label(node_name: String, button_center: Vector2) -> Label:
 
 
 func _refresh_selection() -> void:
-	var previous_mirror := _selected_mirror
 	_selected_mirror = _mirror_manager.get_selected_mirror() if _mirror_manager != null else null
-	if previous_mirror != _selected_mirror and _info_page != null:
-		_info_page.visible = false
 	visible = feature_enabled and _selected_mirror != null
 	_refresh_action_state()
-	_refresh_info_content()
 
 
 func _refresh_action_state() -> void:
 	var has_selection := _selected_mirror != null
 	var can_upgrade := has_selection and _selected_mirror.can_upgrade()
+	var can_downgrade := has_selection and _selected_mirror.can_downgrade()
+	if _downgrade_button != null:
+		_downgrade_button.visible = can_downgrade
+		_downgrade_button.disabled = not can_downgrade
+	if _downgrade_refund_label != null:
+		_downgrade_refund_label.visible = can_downgrade
+		_downgrade_refund_label.text = (
+			"+%d" % roundi(_selected_mirror.get_downgrade_refund())
+			if can_downgrade
+			else ""
+		)
 	if _upgrade_button != null:
 		_upgrade_button.visible = can_upgrade
 		_upgrade_button.disabled = not can_upgrade
 	if _upgrade_cost_label != null:
 		_upgrade_cost_label.visible = can_upgrade
 		_upgrade_cost_label.text = "-%d" % roundi(_selected_mirror.get_upgrade_cost()) if can_upgrade else ""
-	if _info_button != null:
-		_info_button.disabled = not has_selection
 	if _sell_button != null:
 		_sell_button.disabled = not has_selection
 	if _sell_refund_label != null:
 		_sell_refund_label.visible = has_selection
 		_sell_refund_label.text = "+%d" % roundi(_selected_mirror.get_refund_amount()) if has_selection else ""
-
-
-func _refresh_info_content() -> void:
-	if _info_title == null or _info_description == null:
-		return
-	if _selected_mirror == null or _selected_mirror.definition == null:
-		_info_title.text = "镜子说明"
-		_info_description.text = ""
-		_fit_info_page.call_deferred()
-		return
-	var definition := _selected_mirror.definition
-	_info_title.text = definition.get_resolved_inspection_display_name()
-	_info_description.text = definition.get_formatted_inspection_description_bbcode()
-	_fit_info_page.call_deferred()
-
-
-func _fit_info_page() -> void:
-	if _info_page == null:
-		return
-	_info_page.reset_size()
-	_info_page.position = Vector2(
-		-INFO_PAGE_WIDTH * 0.5,
-		INFO_PAGE_BOTTOM_Y - _info_page.size.y
-	)
 
 
 func _update_projection() -> void:
@@ -269,11 +215,9 @@ func _disconnect_manager() -> void:
 		_mirror_manager.mirror_changed.disconnect(_on_mirror_changed)
 
 
-func _on_info_pressed() -> void:
-	if _info_page == null or _selected_mirror == null:
-		return
-	_refresh_info_content()
-	_info_page.visible = not _info_page.visible
+func _on_downgrade_pressed() -> void:
+	if _mirror_manager != null:
+		_mirror_manager.downgrade_selected_mirror()
 
 
 func _on_upgrade_pressed() -> void:

@@ -159,8 +159,21 @@ func can_upgrade() -> bool:
 	return definition != null and level < definition.get_max_level()
 
 
+func can_downgrade() -> bool:
+	return definition != null and level > 1
+
+
 func get_upgrade_cost() -> float:
 	return definition.get_upgrade_cost(level) if definition != null and can_upgrade() else 0.0
+
+
+func get_downgrade_refund() -> float:
+	if not can_downgrade():
+		return 0.0
+	return minf(
+		definition.get_upgrade_cost(level - 1),
+		get_refund_amount()
+	)
 
 
 func set_level(value: int) -> bool:

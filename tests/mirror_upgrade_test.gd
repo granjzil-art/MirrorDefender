@@ -378,34 +378,44 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	(fixture.host as Node).add_child(panel)
 	await process_frame
 	panel.configure(manager, null)
-	var info_button := panel.get_node_or_null("InfoButton") as Button
+	var downgrade_button := panel.get_node_or_null("DowngradeButton") as Button
 	var upgrade_button := panel.find_child("UpgradeButton", true, false) as Button
 	var sell_button := panel.get_node_or_null("SellButton") as Button
+	var downgrade_refund_label := panel.get_node_or_null("DowngradeRefundLabel") as Label
 	var upgrade_cost_label := panel.get_node_or_null("UpgradeCostLabel") as Label
 	var sell_refund_label := panel.get_node_or_null("SellRefundLabel") as Label
 	_expect(
-		info_button != null and upgrade_button != null and sell_button != null,
-		"selected mirror exposes explanation, upgrade, and sell actions"
+		downgrade_button != null and upgrade_button != null and sell_button != null,
+		"selected mirror exposes downgrade, upgrade, and sell actions"
 	)
 	_expect(
-		panel.get_node_or_null("FlipButton") == null and panel.get_node_or_null("DeleteButton") == null,
-		"the old flip and text demolition actions are absent from the mirror panel"
+		panel.get_node_or_null("InfoButton") == null
+		and panel.get_node_or_null("InfoPage") == null
+		and panel.get_node_or_null("FlipButton") == null
+		and panel.get_node_or_null("DeleteButton") == null,
+		"the mirror explanation, old flip, and text demolition controls are absent"
 	)
 	_expect(
-		info_button.position.x < upgrade_button.position.x
-		and upgrade_button.position.y == info_button.position.y
-		and sell_button.position.y < info_button.position.y
+		downgrade_button.position.x < upgrade_button.position.x
+		and upgrade_button.position.y == downgrade_button.position.y
+		and sell_button.position.y < downgrade_button.position.y
 		and sell_button.position.y < upgrade_button.position.y,
-		"mirror sell action is above the left-info/right-upgrade actions"
+		"mirror sell action is above the left-downgrade/right-upgrade actions"
 	)
 	_expect(
-		info_button.size == upgrade_button.size and upgrade_button.size == sell_button.size,
+		downgrade_button.size == upgrade_button.size and upgrade_button.size == sell_button.size,
 		"all three mirror action icons have the same size"
+	)
+	var downgrade_icon := downgrade_button.get_node_or_null("Icon") as TextureRect
+	_expect(
+		downgrade_icon != null and downgrade_icon.texture != null,
+		"mirror downgrade uses the supplied down-arrow icon"
 	)
 	_expect(
 		upgrade_cost_label != null and upgrade_cost_label.visible and upgrade_cost_label.text == "-50"
+		and downgrade_refund_label != null and not downgrade_refund_label.visible
 		and sell_refund_label != null and sell_refund_label.visible and sell_refund_label.text == "+40",
-		"mirror upgrade and sell numbers occupy the building-style economy labels"
+		"level-one mirror shows upgrade and sell economy while hiding downgrade"
 	)
 	_expect(
 		upgrade_cost_label.position.y < upgrade_button.position.y
@@ -415,39 +425,29 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		),
 		"mirror economy numbers share the gold color and render above their icons"
 	)
-	panel._on_info_pressed()
-	await process_frame
-	var info_page := panel.get_node_or_null("InfoPage") as PanelContainer
-	var info_title := panel.find_child("InfoTitle", true, false) as Label
-	var info_description := panel.find_child("InfoDescription", true, false) as RichTextLabel
-	_expect(
-		info_page != null and info_page.visible
-		and info_title != null and info_title.text == "测试复制镜"
-		and info_description != null
-		and info_description.text == manager.copy_mirror_definition.get_formatted_inspection_description_bbcode()
-		and info_description.get_parsed_text()
-		== manager.copy_mirror_definition.get_formatted_inspection_description(),
-		"mirror explanation action uses the same compact rich text as card hover"
-	)
-	_expect(
-		info_description.get_parsed_text().split("\n").size() == 2
-		and info_description.get_parsed_text().contains("基础描述：")
-		and info_description.get_parsed_text().contains("升级：")
-		and not info_description.get_parsed_text().contains("1级："),
-		"two-level mirror descriptions use only the semantic base and upgrade rows"
-	)
-	_expect(
-		info_page.size.y < 300.0
-		and is_equal_approx(info_page.position.y + info_page.size.y, -150.0),
-		"short mirror text shrinks the page while preserving its action-side bottom edge"
-	)
 	_expect(manager.upgrade_mirror(copy), "mirror manager accepts the selected copy upgrade")
 	_expect(
 		copy.level == 2
 		and is_equal_approx(resource.main_resource, 210.0)
-		and is_equal_approx(copy.get_refund_amount(), 90.0),
-		"first copy upgrade spends and records 50 resources"
+		and is_equal_approx(copy.get_refund_amount(), 90.0)
+		and downgrade_button.visible
+		and downgrade_refund_label.visible
+		and downgrade_refund_label.text == "+50"
+		and not upgrade_button.visible,
+		"first copy upgrade spends 50 and replaces upgrade with downgrade"
 	)
+	panel._on_downgrade_pressed()
+	_expect(
+		copy.level == 1
+		and is_equal_approx(resource.main_resource, 260.0)
+		and is_equal_approx(copy.get_refund_amount(), 40.0)
+		and not downgrade_button.visible
+		and upgrade_button.visible
+		and sell_refund_label.text == "+40"
+		and not manager.downgrade_mirror(copy),
+		"mirror downgrade returns its upgrade payment without duplicating later sell refund"
+	)
+	_expect(manager.upgrade_mirror(copy), "copy mirror can upgrade again after a downgrade")
 	var pair := grid.get_mirror_cell_pair(copy.from_cell, copy.edge_index, copy.active_from_side, 1)
 	var source_payload := MirrorCopyPayload.new()
 	source_payload.stable_key = "runtime-source"
@@ -473,10 +473,13 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	)
 	_expect(
 		not manager.upgrade_mirror(copy)
+		and downgrade_button.visible
+		and downgrade_refund_label.visible
+		and downgrade_refund_label.text == "+50"
 		and not upgrade_button.visible
 		and not upgrade_cost_label.visible
 		and sell_refund_label.text == "+90",
-		"level-two maximum mirror hides upgrade UI and keeps its full sell refund visible"
+		"level-two maximum mirror shows downgrade, hides upgrade, and keeps its full sell refund visible"
 	)
 	_expect(manager.remove_mirror(copy) and is_equal_approx(resource.main_resource, 300.0), "level-two copy demolition refunds construction plus its upgrade")
 	var reflect_from := Vector3i(2, 2, 0)
@@ -507,6 +510,16 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and reflect.get_penetration_bonus() == 0,
 		"level-two reflect mirror keeps 1.1 damage and zero generic penetration"
 	)
+	var reflect_upgrade_refund := reflect.get_downgrade_refund()
+	var resource_before_reflect_downgrade := resource.main_resource
+	_expect(
+		manager.downgrade_mirror(reflect)
+		and reflect.level == 1
+		and is_equal_approx(resource.main_resource, resource_before_reflect_downgrade + reflect_upgrade_refund)
+		and is_equal_approx(reflect.get_refund_amount(), manager.reflect_mirror_definition.placement_cost),
+		"reflect mirror downgrade returns its upgrade payment and removes it from later sell value"
+	)
+	_expect(manager.upgrade_mirror(reflect), "reflect mirror can upgrade again after a downgrade")
 	var level_two_hit := manager.trace_projectile_reflection(
 		reflect_plane + reflect_normal,
 		reflect_plane - reflect_normal

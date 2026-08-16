@@ -29,6 +29,7 @@ signal building_removed(building: Building)
 signal building_removed_by_player(building: Building)
 signal building_selected(building: Building)
 signal building_upgraded(building: Building, previous_level: int, new_level: int)
+signal building_downgraded(building: Building, previous_level: int, new_level: int)
 signal building_rotated_by_player(building: Building, previous_facing: int, new_facing: int)
 signal building_destroyed(building: Building, attacker: Node)
 signal building_runtime_rebuilt(previous: Building, current: Building)
@@ -586,6 +587,24 @@ func upgrade_building(building: Building) -> bool:
 		return false
 	_sync_building_income()
 	building_upgraded.emit(building, previous_level, building.level)
+	return true
+
+
+func downgrade_selected() -> bool:
+	return downgrade_building(get_selected_building())
+
+
+func downgrade_building(building: Building) -> bool:
+	if building == null or not is_instance_valid(building) or not building.can_downgrade():
+		return false
+	var previous_level := building.level
+	var refund := building.get_downgrade_refund()
+	if not building.apply_level(previous_level - 1):
+		return false
+	if refund > 0.0 and _resource_manager != null:
+		_resource_manager.gain(refund, "building_downgrade_refund")
+	_sync_building_income()
+	building_downgraded.emit(building, previous_level, building.level)
 	return true
 
 func remove_building(cell: Vector3i, refund: float = 0.0) -> bool:

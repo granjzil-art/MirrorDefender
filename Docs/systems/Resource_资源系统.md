@@ -64,12 +64,15 @@ LevelLoader.level_loaded
   -> ResourceManager.apply_level_configuration(level)
      -> initial_resource / caps / base_resource_per_second
 
-BuildingManager.place / upgrade / remove / clear
+BuildingManager.place / upgrade / downgrade / remove / clear
   -> sum(each Building.current_level.resource_per_second)
   -> ResourceManager.set_building_resource_per_second(total)
 
-BuildingActionPanel delete -> BuildingManager.remove_selected_building
-  -> ResourceManager.unregister_building(definition.get_cumulative_cost(current_level))
+BuildingActionPanel downgrade -> BuildingManager.downgrade_selected
+  -> ResourceManager.gain(current_level.cost, "building_downgrade_refund")
+
+BuildingActionPanel upgrade -> BuildingManager.upgrade_selected
+  -> ResourceManager.spend(next_level.cost, "building_upgrade")
 
 Barrier durability depleted -> BuildingManager.remove_building(cell, 0)
   -> ResourceManager.unregister_building(0), no refund

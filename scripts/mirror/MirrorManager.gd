@@ -116,6 +116,7 @@ func configure(
 		_building_manager.building_placed.connect(_on_building_placed)
 		_building_manager.building_removed.connect(_on_building_removed)
 		_building_manager.building_upgraded.connect(_on_building_upgraded)
+		_building_manager.building_downgraded.connect(_on_building_upgraded)
 		_building_manager.building_relocated.connect(_on_building_relocated)
 		_building_manager.preview_updated.connect(_on_building_preview_updated)
 		_building_manager.preview_cleared.connect(_on_building_preview_cleared)
@@ -796,6 +797,10 @@ func upgrade_selected_mirror() -> bool:
 	return upgrade_mirror(get_selected_mirror())
 
 
+func downgrade_selected_mirror() -> bool:
+	return downgrade_mirror(get_selected_mirror())
+
+
 func upgrade_mirror(mirror: CopyMirror) -> bool:
 	if (
 		mirror == null
@@ -819,6 +824,30 @@ func upgrade_mirror(mirror: CopyMirror) -> bool:
 	rebuild_now()
 	mirror_changed.emit(mirror)
 	mirror_upgraded.emit(mirror, previous_level, mirror.level)
+	return true
+
+
+func downgrade_mirror(mirror: CopyMirror) -> bool:
+	if (
+		mirror == null
+		or not is_instance_valid(mirror)
+		or not _mirrors.has(mirror.edge_id)
+		or _mirrors[mirror.edge_id] != mirror
+		or not mirror.can_downgrade()
+	):
+		return false
+	var previous_level := mirror.level
+	var refund := mirror.get_downgrade_refund()
+	if refund > 0.0 and not mirror._rollback_investment(refund):
+		return false
+	if not mirror.set_level(previous_level - 1):
+		if refund > 0.0:
+			mirror._record_investment(refund)
+		return false
+	if refund > 0.0 and _resource_manager != null:
+		_resource_manager.gain(refund, "mirror_downgrade_refund")
+	rebuild_now()
+	mirror_changed.emit(mirror)
 	return true
 
 
@@ -2569,6 +2598,8 @@ func _disconnect_dependencies() -> void:
 			_building_manager.building_removed.disconnect(_on_building_removed)
 		if _building_manager.building_upgraded.is_connected(_on_building_upgraded):
 			_building_manager.building_upgraded.disconnect(_on_building_upgraded)
+		if _building_manager.building_downgraded.is_connected(_on_building_upgraded):
+			_building_manager.building_downgraded.disconnect(_on_building_upgraded)
 		if _building_manager.building_relocated.is_connected(_on_building_relocated):
 			_building_manager.building_relocated.disconnect(_on_building_relocated)
 		if _building_manager.preview_updated.is_connected(_on_building_preview_updated):

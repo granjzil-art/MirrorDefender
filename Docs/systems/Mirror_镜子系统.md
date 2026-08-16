@@ -27,13 +27,13 @@
 - 冷却模式的波次实际行动按 1.0 倍回复；首波前和波间按 `mirror_preparation_cooldown_time_scale` 回复。终局、无波次或暂停时不推进，0.1x/2x 速度自然影响回复。
 - 冷却模式可用数量为 0 时，卡槽显示下一枚的扫描；有库存时显示 `×数量`。某种镜子达到自己 cap 时只禁用该卡，另一种和后台库存累计不受影响。
 
-### 1.2 二级升级、说明与出售
+### 1.2 二级升降级、说明与出售
 
-- `MirrorDefinition.upgrade_costs` 保存 1→2、2→3 两笔费用；两类默认均为 50。`level_damage_multipliers` 与 `level_penetration_bonuses` 分别按 1–3 级提供攻击修正。
+- `MirrorDefinition.upgrade_costs` 保存 1→2 的唯一一笔费用；两类默认均为 50。`level_damage_multipliers` 与 `level_penetration_bonuses` 分别按 1–2 级提供攻击修正。
 - 复制镜把自身等级修正累计进 `MirrorCopyPayload`：多面复制镜的伤害倍率相乘、额外穿透相加，并作用于复制投射物、持续激光和脉冲镭射。反射镜在每次有效反射时把当前级修正加入投射物/激光路径。
 - `MirrorDefinition.attack_effects` 是可选的资源化效果列表。每个 `MirrorAttackEffect` 自行声明最低镜子等级，并可实现复制附加、反射附加、反射分支角和投射物命中回调。`AttackEffectPayload` 保存一次攻击的效果与运行状态：镜链递归会深复制状态，同一次攻击产生的分支共享有界生成预算。
-- 每个实体镜只记录本局真实支付的建造和升级资源。金币模式放置会登记基础费用；冷却模式和关卡初始陈列的免费放置不登记基础费用；任何实际支付的升级费用都会登记。出售全额返还该累计值，避免免费镜产生金币套利；冷却模式另返还对应种类库存。
-- `inspection_display.function_description` 基础描述与 `MirrorDefinition.upgrade_description` 升级描述是镜子卡悬停和实体“说明”按钮的唯一文本事实源。两行分别显示绿色“基础描述：”与黄色“升级：”标题，正文默认白色；`upgrade_description` 默认留空，不迁移旧等级文本。两字段均支持 `[color]`、`[highlight]`、`[b]` 白名单标记。悬停框和选中说明页均按实际换行自适应高度；选中实体镜时，`MirrorActionPanel` 保持左说明、上升级、右出售布局及 `-x/+x` 金色数字。
+- 每个实体镜只记录本局真实支付的建造和升级资源。金币模式放置会登记基础费用；冷却模式和关卡初始陈列的免费放置不登记基础费用；任何实际支付的升级费用都会登记。降级返还 1→2 的实际投入，并从累计可售价值中同步扣除，防止降级和出售重复退款。出售全额返还剩余累计值；冷却模式另返还对应种类库存。
+- `inspection_display.function_description` 基础描述与 `MirrorDefinition.upgrade_description` 升级描述是镜子卡悬停文本的唯一事实源。两行分别显示绿色“基础描述：”与黄色“升级：”标题，正文默认白色；`upgrade_description` 默认留空，不迁移旧等级文本。两字段均支持 `[color]`、`[highlight]`、`[b]` 白名单标记，悬停框按实际换行自适应高度。选中实体镜时，`MirrorActionPanel` 显示左降级、右升级和上出售；经济数字均为金币黄，1 级隐藏降级，2 级隐藏升级。
 
 ---
 
@@ -257,14 +257,14 @@ MirrorProjection
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点或从起点直射投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、升级、出售、预览、固定点镜链和跨模块查询。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 镜像石头最终转发到的真实逐格耐久源。 |
-| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子，以建筑一致布局显示说明、升级、出售和经济数字。 |
+| `scripts/ui/MirrorActionPanel.gd` | `MirrorActionPanel` / `Control` | 跟随选中镜子，显示左降级、右升级、上出售及对应经济数字。 |
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
 | `tests/copy_mirror_test.gd` | `SceneTree` | 整格复制、虚像攻击、屏障/Stuff 共享根源、递归镜链、二级爆裂箭与复制镭射回归。 |
 | `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制投射物、持续/脉冲激光以及二级反射分支快照回归。 |
 | `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 默认金币放置、失败事务、实际投入全退、独立 5/10 cap，以及开关后的两类独立冷却、库存、阶段倍率、卡片扫描、正式资源与初始装配回归。 |
-| `tests/mirror_upgrade_test.gd` | `SceneTree` | 66 项两级配置、复制链/反射攻击修正、升级经济、两行语义说明/升级/出售 UI、满级状态、退款和等级持久化回归。 |
+| `tests/mirror_upgrade_test.gd` | `SceneTree` | 68 项两级配置、复制链/反射攻击修正、升降级经济、三操作 UI、退款去重和等级持久化回归。 |
 | `tests/mirror_ui_visual_capture.gd` | `SceneTree` | 手工 Forward+ 截取镜子卡悬停四段说明与选中镜子三图标布局。 |
 
 ## 六、函数索引
@@ -275,6 +275,7 @@ MirrorProjection
 | `MirrorManager.place_copy_mirror` | `(from_cell, edge_index, active_from_side = null) -> CopyMirror` | 完成校验、共享边登记、消耗 1 枚复制镜库存并重建投影。 |
 | `MirrorManager.place_reflect_mirror` | `(from_cell: Vector3i, edge_index: int, active_from_side: Variant = null) -> ReflectMirror` | 按同一物理边规则放置投射物反射镜并消耗其独立库存；不参与复制连通性计算。 |
 | `MirrorManager.upgrade_mirror` | `(mirror: CopyMirror) -> bool` | 原子扣除下一等级费用、登记累计投入、提升等级并立即重建复制/反射效果。 |
+| `MirrorManager.downgrade_mirror` | `(mirror: CopyMirror) -> bool` | 原子回退一级、返还该次升级投入、减记累计可售价值并立即重建效果。 |
 | `MirrorManager.remove_mirror` | `(mirror: CopyMirror) -> bool` | 主动出售实体镜、释放该种类 cap并返还其真实累计投入；冷却模式另返还同种镜子 1 枚库存。 |
 | `MirrorManager.export_initial_placements` | `() -> Array[MirrorPlacementData]` | 按实体镜 `placement_order` 导出种类、边、生效侧与等级，不包含投影。 |
 | `MirrorManager.load_initial_placements` | `(placements: Array) -> Array[String]` | 按数组顺序免建造费恢复实体镜等级、登记共享边并计入镜子 cap。 |
@@ -287,6 +288,7 @@ MirrorProjection
 | `MirrorManager.is_mirror_kind_ready` / `get_placement_cooldown_ready_ratio` | `(mirror_kind) -> bool` / `(mirror_kind) -> float` | 以库存判定可放置；库存为 0 时为卡片扫描提供下一枚的恢复进度。 |
 | `MirrorDefinition.get_formatted_inspection_description` | `() -> String` | 返回镜子卡悬停与实体说明共用的基础描述/升级两行纯文本。 |
 | `MirrorDefinition.get_formatted_inspection_description_bbcode` | `() -> String` | 返回绿色基础标题、黄色升级标题与默认白色正文组成的 BBCode。 |
+| `CopyMirror.can_downgrade` / `get_downgrade_refund` | `() -> bool` / `() -> float` | 判断是否高于 1 级，并读取不超过真实累计投入的本级退款。 |
 | `CopyMirrorDefinition.validate_configuration` | `() -> Array[String]` | 校验身份、放置/升级经济、三级战斗修正、链深、镜面预算、颜色与全部虚像表现范围。 |
 | `MirrorManager.rebuild_now` | `() -> void` | 从实体来源计算稳定有限镜链并重建投影覆盖层。 |
 | `MirrorManager.refresh_world_transforms` | `() -> void` | Terrain变化后重采样实体/预览镜的物理边坡高，再重建投影；不改变镜面陈列顺序。 |

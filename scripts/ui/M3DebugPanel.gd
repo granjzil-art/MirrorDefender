@@ -51,6 +51,7 @@ func configure(
 		_building_manager.placement_failed.connect(_on_placement_failed)
 		_building_manager.building_selected.connect(_on_building_selected)
 		_building_manager.building_upgraded.connect(_on_building_upgraded)
+		_building_manager.building_downgraded.connect(_on_building_upgraded)
 		_building_manager.upgrade_failed.connect(_on_upgrade_failed)
 		_building_manager.preview_updated.connect(_on_preview_updated)
 		_building_manager.preview_cleared.connect(_on_preview_cleared)
@@ -213,6 +214,8 @@ func _disconnect_managers() -> void:
 			_building_manager.building_selected.disconnect(_on_building_selected)
 		if _building_manager.building_upgraded.is_connected(_on_building_upgraded):
 			_building_manager.building_upgraded.disconnect(_on_building_upgraded)
+		if _building_manager.building_downgraded.is_connected(_on_building_upgraded):
+			_building_manager.building_downgraded.disconnect(_on_building_upgraded)
 		if _building_manager.upgrade_failed.is_connected(_on_upgrade_failed):
 			_building_manager.upgrade_failed.disconnect(_on_upgrade_failed)
 		if _building_manager.preview_updated.is_connected(_on_preview_updated):
