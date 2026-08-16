@@ -13,6 +13,7 @@
   - 鼠标滚轮默认缩放；建筑放置预览或已选中的实体建筑会消费滚轮来改变朝向
 - **交互输入**：
   - `R` 在建造模式旋转塔虚影；选择模式中按下立即旋转选中的实际塔一档，持续按住则按真实时间连续旋转。镜子接入后复用同一动作，但镜子翻面、建筑预览和运行时关卡元素保持单次触发。
+  - `F2` 切换底部建筑卡组显隐；进入关卡时默认关闭。该动作不影响左上复制镜/反射镜卡，也不改变当前放置或选择状态。
   - 鼠标左键：放置 / 选择
   - 鼠标右键短点击：取消；超过拖动阈值后转为相机旋转且不取消
 - **M6 正式交互**：`RuntimeInteractionController` 取代 M3DebugPanel 成为模式事实源；选卡后的下一次世界左键无论成功或失败都结束放置。CameraController 在右键释放时完成“点击/拖动”分类，并以 `cancel_requested()` 通知 Main；普通 HUD 上起手禁止相机旋转，但跟随选中建筑的悬浮操作图标显式允许右键拖动穿过，避免旋转视角时被菜单阻断。
@@ -258,6 +259,7 @@ LevelReflectionSurface / MirrorReflectionView
 | `cam_rotate_left/right` | Q/E | 旋转镜头 yaw | CameraController |
 | `cam_pitch_lower/raise` | X/C | 降低/提高相机俯仰角 | CameraController |
 | `camera_preset_1` / `camera_preset_2` | 1 / 2 | 切换当前关卡的两个正式游戏镜头；F1 不影响 | CameraPresetController |
+| `toggle_building_cards` | F2 | 切换底部建筑卡组显隐；镜子卡保持显示 | Main -> RuntimeHud -> BuildCardBar |
 | `rotate_facing` | R | 正常模式翻转镜子/旋转建筑；运行时关卡编辑中旋转 Stuff 预览/实体或斜坡预览/实体 | Main -> RuntimeStuffEditorController / MirrorManager / BuildingManager |
 | `place_select` | 鼠标左键 | 执行当前选择或一次正式卡片放置 | Main.gd -> RuntimeInteractionController |
 | `cancel_action` | 鼠标右键 | 模态层按下关闭；非模态由 CameraController 在短点击释放后请求取消 | CameraController -> Main -> RuntimeInteractionController |

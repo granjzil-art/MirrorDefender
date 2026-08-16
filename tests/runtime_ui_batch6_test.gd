@@ -230,6 +230,14 @@ func _test_main_scene_migration() -> void:
 	)
 	var marker_labels: Array[String] = main.path_manager.get_spawn_marker_labels()
 	_expect(not main.path_manager.show_paths and not marker_labels.is_empty(), "path debug lines default off while numbered endpoints remain")
+	var building_cards_toggle := InputEventAction.new()
+	building_cards_toggle.action = &"toggle_building_cards"
+	building_cards_toggle.pressed = true
+	_expect(not main.runtime_hud.are_building_cards_visible(), "Main starts with the building-card row closed")
+	main._input(building_cards_toggle)
+	_expect(main.runtime_hud.are_building_cards_visible(), "the first F2 press opens the building-card row")
+	main._input(building_cards_toggle)
+	_expect(not main.runtime_hud.are_building_cards_visible(), "the second F2 press closes the building-card row")
 	var debug_toggle := InputEventAction.new()
 	debug_toggle.action = &"toggle_debug_tools"
 	debug_toggle.pressed = true

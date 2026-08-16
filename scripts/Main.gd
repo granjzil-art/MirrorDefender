@@ -685,6 +685,11 @@ func _input(event: InputEvent) -> void:
 		_toggle_debug_tools()
 		get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("toggle_building_cards"):
+		if runtime_hud != null:
+			runtime_hud.toggle_building_cards()
+		get_viewport().set_input_as_handled()
+		return
 	if runtime_hud != null and runtime_hud.is_modal_open():
 		_cancel_building_drag()
 		if event.is_action_pressed("cancel_action") or event.is_action_pressed("ui_cancel"):

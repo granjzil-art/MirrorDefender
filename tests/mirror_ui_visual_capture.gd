@@ -23,7 +23,7 @@ func _capture() -> void:
 		await process_frame
 
 	var card := main.get_node_or_null(
-		"HUD/RuntimeHud/BuildCardBar/Layout/Cards/ReflectMirrorCard"
+		"HUD/RuntimeHud/BuildCardBar/Layout/MirrorCards/ReflectMirrorCard"
 	) as Button
 	if card == null:
 		push_error("Unable to find the formal reflect-mirror card")

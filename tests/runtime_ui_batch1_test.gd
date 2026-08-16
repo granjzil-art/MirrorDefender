@@ -35,6 +35,12 @@ func _run() -> void:
 
 
 func _test_level_and_asset_interfaces() -> void:
+	_expect(InputMap.has_action("toggle_building_cards"), "InputMap exposes the F2 building-card toggle")
+	var has_f2_binding := InputMap.action_get_events("toggle_building_cards").any(
+		func(event: InputEvent) -> bool:
+			return event is InputEventKey and (event as InputEventKey).physical_keycode == KEY_F2
+	)
+	_expect(has_f2_binding, "the building-card toggle is bound to physical F2")
 	var level := LevelResource.new()
 	_expect(level.building_card_slot_count == 6, "levels default to six building card slots")
 	var level1 := load("res://resources/levels/Level1.tres") as LevelResource
@@ -108,6 +114,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		mirror_manager.reflect_mirror_definition,
 		mirror_manager
 	)
+	await process_frame
 	_expect(not card_bar.has_signal("cancel_requested"), "right-click cancellation is centralized in the runtime camera click classifier")
 	_expect(card_bar.get_building_slot_count() == 6, "card bar respects the configured six-slot capacity")
 	_expect(card_bar.get_filled_building_card_count() == 3, "default loadout fills arrow, laser, and barrier cards")
@@ -125,6 +132,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		"procedural card frames use the authored #DEA967 color"
 	)
 	var configured_cards_row := card_bar.get_node("Layout/Cards") as HBoxContainer
+	var configured_mirror_cards_row := card_bar.get_node("Layout/MirrorCards") as HBoxContainer
 	var arrow_card := configured_cards_row.get_node("BuildingCard1") as Button
 	var mirror_surface := arrow_card.get_node_or_null("MirrorSurface") as ColorRect
 	var mirror_material := mirror_surface.material as ShaderMaterial if mirror_surface != null else null
@@ -151,8 +159,8 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		"card cost remains data-driven below the supplied artwork"
 	)
 	var building_cost_color := (arrow_card.get_node("Content/Footer") as Label).get_theme_color("font_color")
-	var copy_mirror_cost_color := (configured_cards_row.get_node("MirrorCard/Content/Footer") as Label).get_theme_color("font_color")
-	var reflect_mirror_cost_color := (configured_cards_row.get_node("ReflectMirrorCard/Content/Footer") as Label).get_theme_color("font_color")
+	var copy_mirror_cost_color := (configured_mirror_cards_row.get_node("MirrorCard/Content/Footer") as Label).get_theme_color("font_color")
+	var reflect_mirror_cost_color := (configured_mirror_cards_row.get_node("ReflectMirrorCard/Content/Footer") as Label).get_theme_color("font_color")
 	_expect(
 		copy_mirror_cost_color.is_equal_approx(building_cost_color)
 		and reflect_mirror_cost_color.is_equal_approx(building_cost_color),
@@ -173,7 +181,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		== "◆ %d" % ceili(building_manager.arrow_tower.get_level_stats(1).cost),
 		"building card cost returns when capacity becomes available"
 	)
-	var copy_mirror_card := configured_cards_row.get_node("MirrorCard") as Button
+	var copy_mirror_card := configured_mirror_cards_row.get_node("MirrorCard") as Button
 	copy_mirror_card.mouse_entered.emit()
 	await process_frame
 	var description_panel := card_bar.get_node("CardDescriptionPanel") as PanelContainer
@@ -194,7 +202,12 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		"mirror card descriptions contain only base and upgrade rows"
 	)
 	copy_mirror_card.mouse_exited.emit()
-	var reflect_mirror_card := configured_cards_row.get_node("ReflectMirrorCard") as Button
+	var reflect_mirror_card := configured_mirror_cards_row.get_node("ReflectMirrorCard") as Button
+	_expect(
+		is_equal_approx(copy_mirror_card.position.y, reflect_mirror_card.position.y)
+		and reflect_mirror_card.position.x >= copy_mirror_card.get_rect().end.x,
+		"copy and reflect mirror cards are laid out side by side"
+	)
 	reflect_mirror_card.mouse_entered.emit()
 	await process_frame
 	_expect(
@@ -204,6 +217,11 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		and description_text.get_parsed_text()
 		== mirror_manager.reflect_mirror_definition.get_formatted_inspection_description(),
 		"reflect-mirror card hover uses its own editable two-row description"
+	)
+	_expect(
+		card_bar.get_viewport_rect().has_point(description_panel.get_global_rect().position)
+		and description_panel.get_global_rect().position.y >= reflect_mirror_card.get_global_rect().end.y,
+		"top-left mirror descriptions stay on-screen below their cards"
 	)
 	reflect_mirror_card.mouse_exited.emit()
 	arrow_card.mouse_entered.emit()
@@ -270,6 +288,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		"card bar switches to the alternate complete-artwork mode"
 	)
 	configured_cards_row = card_bar.get_node("Layout/Cards") as HBoxContainer
+	configured_mirror_cards_row = card_bar.get_node("Layout/MirrorCards") as HBoxContainer
 	var full_art_card := configured_cards_row.get_node("BuildingCard1") as Button
 	var full_artwork := full_art_card.get_node_or_null("FullArtwork") as TextureRect
 	_expect(
@@ -314,7 +333,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		"alternate-mode empty building slots are invisible and input-transparent"
 	)
 	_expect(
-		configured_cards_row.get_node_or_null("MirrorCard/MirrorSurface") != null,
+		configured_mirror_cards_row.get_node_or_null("MirrorCard/MirrorSurface") != null,
 		"dedicated mirror cards retain their cooldown-capable procedural treatment"
 	)
 	var full_art_selections: Array[BuildingDefinition] = []
@@ -335,7 +354,15 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		var hud := hud_scene.instantiate()
 		root.add_child(hud)
 		await process_frame
-		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal bottom card bar")
+		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal card UI")
+		var formal_card_bar := hud.get_node("BuildCardBar") as BuildCardBarScript
+		var formal_mirror_row := hud.get_node("BuildCardBar/Layout/MirrorCards") as HBoxContainer
+		_expect(not hud.are_building_cards_visible(), "formal building cards default to closed")
+		_expect(formal_mirror_row.visible, "mirror cards remain visible while building cards are closed")
+		hud.toggle_building_cards()
+		_expect(hud.are_building_cards_visible(), "the formal toggle opens the building-card row")
+		hud.toggle_building_cards()
+		_expect(not hud.are_building_cards_visible(), "the formal toggle closes the building-card row again")
 		var legacy_status := hud.get_node_or_null("BuildCardBar/Layout/Status") as Label
 		_expect(legacy_status != null and not legacy_status.visible, "the fixed placement debug status stays hidden")
 		_expect(
@@ -414,6 +441,10 @@ func _test_card_bar(fixture: Dictionary) -> void:
 			style_toggle == null or not style_toggle.get_global_rect().intersects(debug_overlay.get_global_rect()),
 			"the relocated debug overlay leaves the top-left style toggle unobstructed"
 		)
+		_expect(
+			not formal_mirror_row.get_global_rect().intersects(debug_overlay.get_global_rect()),
+			"the relocated debug overlay leaves both top-left mirror cards unobstructed"
+		)
 		var lighting_test_panel_rect := Rect2(16.0, 16.0, 774.0, 42.0)
 		_expect(
 			style_toggle == null or not style_toggle.get_global_rect().intersects(lighting_test_panel_rect),
@@ -424,6 +455,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 			root.size = resolution
 			await process_frame
 			var cards_row := hud.get_node("BuildCardBar/Layout/Cards") as Control
+			var mirror_cards_row := hud.get_node("BuildCardBar/Layout/MirrorCards") as Control
 			var slow_button := hud.get_node("TimeControlPanel/Controls/TacticalSlowButton") as Control
 			# canvas_items keeps the authored 1600x900 logical viewport while the
 			# Window scales it to each physical 16:9 resolution.
@@ -443,6 +475,11 @@ func _test_card_bar(fixture: Dictionary) -> void:
 			_expect(
 				viewport_rect.encloses(cards_row.get_global_rect()),
 				"card row stays inside the %dx%d viewport" % [resolution.x, resolution.y]
+			)
+			_expect(
+				viewport_rect.encloses(mirror_cards_row.get_global_rect())
+				and mirror_cards_row.position.is_equal_approx(formal_card_bar.mirror_cards_position),
+				"two mirror cards stay together at the authored top-left position at %dx%d" % [resolution.x, resolution.y]
 			)
 			_expect(
 				not cards_row.get_global_rect().intersects(slow_button.get_global_rect()),

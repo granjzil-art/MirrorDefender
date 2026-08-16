@@ -111,9 +111,9 @@ script = ExtResource("1_runtime_hud")
 [node name="CardStyleToggle" type="Button" parent="."]
 z_index = 70
 layout_mode = 1
-offset_left = 18.0
+offset_left = 712.0
 offset_top = 68.0
-offset_right = 198.0
+offset_right = 892.0
 offset_bottom = 106.0
 focus_mode = 0
 mouse_default_cursor_shape = 2
@@ -129,16 +129,11 @@ tooltip_text = "切换程序镜面与完整卡面素材"
 
 [node name="BuildCardBar" type="Control" parent="."]
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 210.0
-offset_top = -176.0
-offset_right = -390.0
-offset_bottom = -12.0
 grow_horizontal = 2
-grow_vertical = 0
+grow_vertical = 2
 script = ExtResource("2_build_card_bar")
 
 [node name="ActionFeedback" type="Label" parent="."]

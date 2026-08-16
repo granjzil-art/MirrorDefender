@@ -12,6 +12,9 @@ extends Control
 @export_range(0.05, 3.0, 0.05, "or_greater") var feedback_fade_duration: float = 1.0
 @export var feedback_offset: Vector2 = Vector2(0.0, -12.0)
 
+@export_group("Building Cards")
+@export var building_cards_visible_by_default: bool = false
+
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
@@ -92,6 +95,7 @@ func _ready() -> void:
 	runtime_stuff_editor_panel.debug_console_requested.connect(_on_debug_console_requested)
 	runtime_stuff_editor_panel.runtime_parameter_editor_requested.connect(_on_runtime_parameter_editor_requested)
 	card_style_toggle.pressed.connect(_on_card_style_toggle_pressed)
+	build_card_bar.set_building_cards_visible(building_cards_visible_by_default)
 	_refresh_card_style_toggle()
 	set_debug_tools_enabled(_debug_tools_enabled)
 
@@ -214,6 +218,18 @@ func set_debug_tools_enabled(enabled: bool) -> void:
 
 func are_debug_tools_enabled() -> bool:
 	return _debug_tools_enabled
+
+
+func set_building_cards_visible(visible: bool) -> void:
+	build_card_bar.set_building_cards_visible(visible)
+
+
+func toggle_building_cards() -> void:
+	build_card_bar.toggle_building_cards()
+
+
+func are_building_cards_visible() -> bool:
+	return build_card_bar.are_building_cards_visible()
 
 
 func apply_level_configuration(level: LevelResource, _source_path: String = "") -> void:

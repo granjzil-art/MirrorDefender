@@ -135,17 +135,17 @@ func _test_coin_mode_and_independent_caps(fixture: Dictionary) -> void:
 		mirror_manager
 	)
 	await process_frame
-	var copy_sweep := card_bar.get_node("Layout/Cards/MirrorCard/CooldownSweep") as CanvasItem
-	var reflect_sweep := card_bar.get_node("Layout/Cards/ReflectMirrorCard/CooldownSweep") as CanvasItem
+	var copy_sweep := card_bar.get_node("Layout/MirrorCards/MirrorCard/CooldownSweep") as CanvasItem
+	var reflect_sweep := card_bar.get_node("Layout/MirrorCards/ReflectMirrorCard/CooldownSweep") as CanvasItem
 	_expect(not copy_sweep.visible and not reflect_sweep.visible, "coin mode hides both retained cooldown sweeps")
 	_expect(
-		(card_bar.get_node("Layout/Cards/MirrorCard/Content/Footer") as Label).text == "◆ 40"
-		and (card_bar.get_node("Layout/Cards/ReflectMirrorCard/Content/Footer") as Label).text == "◆ 60",
+		(card_bar.get_node("Layout/MirrorCards/MirrorCard/Content/Footer") as Label).text == "◆ 40"
+		and (card_bar.get_node("Layout/MirrorCards/ReflectMirrorCard/Content/Footer") as Label).text == "◆ 60",
 		"coin-mode mirror cards display their data-driven costs"
 	)
 	_expect(
-		(card_bar.get_node("Layout/Cards/MirrorCard/Content/Footer") as Label).get_theme_color("font_color").is_equal_approx(card_bar.full_art_cost_color)
-		and (card_bar.get_node("Layout/Cards/ReflectMirrorCard/Content/Footer") as Label).get_theme_color("font_color").is_equal_approx(card_bar.full_art_cost_color),
+		(card_bar.get_node("Layout/MirrorCards/MirrorCard/Content/Footer") as Label).get_theme_color("font_color").is_equal_approx(card_bar.full_art_cost_color)
+		and (card_bar.get_node("Layout/MirrorCards/ReflectMirrorCard/Content/Footer") as Label).get_theme_color("font_color").is_equal_approx(card_bar.full_art_cost_color),
 		"coin-mode mirror costs use the same yellow as building costs"
 	)
 	var copy_from := Vector3i(1, 1, 0)
@@ -217,7 +217,7 @@ func _test_independent_cooldowns_and_card_sweep(fixture: Dictionary) -> void:
 	_expect(mirror_manager.is_mirror_kind_ready(reflect_kind), "copy-mirror cooldown does not affect the reflector")
 	_expect(not card_bar.is_mirror_card_available() and card_bar.is_reflect_mirror_card_available(), "card availability follows the independent kind cooldowns")
 
-	var copy_sweep: Node = card_bar.get_node("Layout/Cards/MirrorCard/CooldownSweep") as Node
+	var copy_sweep: Node = card_bar.get_node("Layout/MirrorCards/MirrorCard/CooldownSweep") as Node
 	_expect(copy_sweep != null and float(copy_sweep.call("get_ready_ratio")) < 0.01, "fresh cooldown fully covers the copy-mirror card")
 	var first_scanline_y: float = float(copy_sweep.call("debug_get_scanline_y"))
 	var remaining_before_preparation_advance := mirror_manager.get_placement_cooldown_remaining(copy_kind)
@@ -244,7 +244,7 @@ func _test_independent_cooldowns_and_card_sweep(fixture: Dictionary) -> void:
 		and resource_manager.get_reflect_mirror_count() == 1,
 		"two physical mirrors consume their independent capacities"
 	)
-	var reflect_sweep: Node = card_bar.get_node("Layout/Cards/ReflectMirrorCard/CooldownSweep") as Node
+	var reflect_sweep: Node = card_bar.get_node("Layout/MirrorCards/ReflectMirrorCard/CooldownSweep") as Node
 	_expect(not bool(copy_sweep.call("is_blocked")) and bool(reflect_sweep.call("is_blocked")), "reflector cap does not hide copy-mirror cooldown progress")
 
 	_expect(mirror_manager.remove_mirror(reflector), "reflector can be removed while cooling")
@@ -254,8 +254,8 @@ func _test_independent_cooldowns_and_card_sweep(fixture: Dictionary) -> void:
 	mirror_manager.advance_placement_cooldowns(20.0)
 	_expect(mirror_manager.get_available_mirror_count(copy_kind) == 2, "multiple completed copy cooldowns accumulate multiple placements")
 	_expect(mirror_manager.get_available_mirror_count(reflect_kind) == 4, "reflector demolition stock and later cooldown cycles accumulate together")
-	var copy_footer := card_bar.get_node("Layout/Cards/MirrorCard/Content/Footer") as Label
-	var reflect_footer := card_bar.get_node("Layout/Cards/ReflectMirrorCard/Content/Footer") as Label
+	var copy_footer := card_bar.get_node("Layout/MirrorCards/MirrorCard/Content/Footer") as Label
+	var reflect_footer := card_bar.get_node("Layout/MirrorCards/ReflectMirrorCard/Content/Footer") as Label
 	_expect(copy_footer != null and copy_footer.text == "×2", "copy card displays its accumulated placement count")
 	_expect(reflect_footer != null and reflect_footer.text == "×4", "reflector card displays its accumulated placement count")
 

@@ -1,4 +1,5 @@
-## One-row production build card bar with dedicated physical-mirror cards.
+## Production card UI with top-left physical-mirror cards and a toggleable
+## bottom building-card row.
 class_name BuildCardBar
 extends Control
 
@@ -15,6 +16,10 @@ enum CardVisualMode {
 @export var card_size: Vector2 = Vector2(96.0, 126.0)
 @export_range(0.0, 32.0, 1.0) var card_separation: float = 6.0
 @export_range(0.0, 48.0, 1.0) var mirror_slot_separation: float = 14.0
+@export var mirror_cards_position: Vector2 = Vector2(18.0, 68.0)
+@export_range(0.0, 800.0, 1.0) var building_left_margin: float = 210.0
+@export_range(0.0, 800.0, 1.0) var building_right_margin: float = 390.0
+@export_range(0.0, 128.0, 1.0) var building_bottom_margin: float = 12.0
 
 @export_group("Visual Mode")
 @export var card_visual_mode: CardVisualMode = CardVisualMode.PROCEDURAL_MIRROR
@@ -58,6 +63,7 @@ var _mirror_button: Button
 var _reflect_mirror_button: Button
 var _mirror_cooldown_sweep: Node
 var _reflect_mirror_cooldown_sweep: Node
+var _mirror_cards_row: HBoxContainer
 var _cards_row: HBoxContainer
 var _status_label: Label
 var _card_description_panel: PanelContainer
@@ -67,6 +73,7 @@ var _hovered_card_button: Button
 var _selected_definition: BuildingDefinition
 var _mirror_selected: bool = false
 var _reflect_mirror_selected: bool = false
+var _building_cards_visible: bool = true
 var _trimmed_full_art_cache: Dictionary = {}
 
 
@@ -78,6 +85,11 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _card_description_panel != null and _card_description_panel.visible:
 		_position_card_description()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
+		_position_card_rows.call_deferred()
 
 
 func configure(
@@ -122,6 +134,23 @@ func set_card_visual_mode(value: CardVisualMode) -> void:
 
 func get_card_visual_mode() -> CardVisualMode:
 	return card_visual_mode
+
+
+func set_building_cards_visible(visible: bool) -> void:
+	_building_cards_visible = visible
+	if _cards_row == null:
+		return
+	if not visible and _hovered_card_button != null and _hovered_card_button.get_parent() == _cards_row:
+		_hide_card_description()
+	_cards_row.visible = visible
+
+
+func toggle_building_cards() -> void:
+	set_building_cards_visible(not _building_cards_visible)
+
+
+func are_building_cards_visible() -> bool:
+	return _building_cards_visible
 
 
 func set_selected_building(definition: BuildingDefinition) -> void:
@@ -197,10 +226,9 @@ func is_reflect_mirror_card_available() -> bool:
 
 
 func _build_interface() -> void:
-	var layout := VBoxContainer.new()
+	var layout := Control.new()
 	layout.name = "Layout"
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layout.alignment = BoxContainer.ALIGNMENT_END
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(layout)
 
@@ -215,9 +243,16 @@ func _build_interface() -> void:
 	_status_label.visible = false
 	layout.add_child(_status_label)
 
+	_mirror_cards_row = HBoxContainer.new()
+	_mirror_cards_row.name = "MirrorCards"
+	_mirror_cards_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_mirror_cards_row.add_theme_constant_override("separation", int(mirror_slot_separation))
+	_mirror_cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(_mirror_cards_row)
+
 	_cards_row = HBoxContainer.new()
 	_cards_row.name = "Cards"
-	_cards_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_cards_row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_cards_row.add_theme_constant_override("separation", int(card_separation))
 	_cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(_cards_row)
@@ -275,9 +310,12 @@ func _build_card_description_panel() -> void:
 
 
 func _rebuild_cards() -> void:
-	if _cards_row == null:
+	if _mirror_cards_row == null or _cards_row == null:
 		return
 	_hide_card_description()
+	for child in _mirror_cards_row.get_children():
+		_mirror_cards_row.remove_child(child)
+		child.queue_free()
 	for child in _cards_row.get_children():
 		_cards_row.remove_child(child)
 		child.queue_free()
@@ -296,7 +334,7 @@ func _rebuild_cards() -> void:
 			_on_mirror_card_mouse_entered.bind(_mirror_button, _mirror_definition)
 		)
 		_mirror_button.mouse_exited.connect(_on_card_mouse_exited.bind(_mirror_button))
-	_cards_row.add_child(_mirror_button)
+	_mirror_cards_row.add_child(_mirror_button)
 	if _reflect_mirror_definition != null:
 		_reflect_mirror_button = _create_card_button(
 			_reflect_mirror_definition.display_name,
@@ -316,15 +354,10 @@ func _rebuild_cards() -> void:
 		_reflect_mirror_button.mouse_exited.connect(
 			_on_card_mouse_exited.bind(_reflect_mirror_button)
 		)
-		_cards_row.add_child(_reflect_mirror_button)
+		_mirror_cards_row.add_child(_reflect_mirror_button)
 	else:
 		_reflect_mirror_button = null
 		_reflect_mirror_cooldown_sweep = null
-
-	var spacer := Control.new()
-	spacer.custom_minimum_size.x = mirror_slot_separation
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_cards_row.add_child(spacer)
 
 	for index in range(building_slot_count):
 		if index < _building_definitions.size() and _building_definitions[index] != null:
@@ -348,7 +381,27 @@ func _rebuild_cards() -> void:
 				if card_visual_mode == CardVisualMode.FULL_ARTWORK
 				else _create_empty_card(index)
 			)
+	_cards_row.visible = _building_cards_visible
 	_refresh_card_states()
+	_position_card_rows.call_deferred()
+
+
+func _position_card_rows() -> void:
+	if _mirror_cards_row == null or _cards_row == null:
+		return
+	var layout_size := size
+	if layout_size.x <= 0.0 or layout_size.y <= 0.0:
+		layout_size = get_viewport_rect().size
+	_mirror_cards_row.reset_size()
+	_mirror_cards_row.position = mirror_cards_position
+	var cards_size := _cards_row.get_combined_minimum_size()
+	_cards_row.size = cards_size
+	var available_left := minf(building_left_margin, layout_size.x)
+	var available_right := maxf(available_left, layout_size.x - building_right_margin)
+	_cards_row.position = Vector2(
+		available_left + (available_right - available_left - cards_size.x) * 0.5,
+		maxf(0.0, layout_size.y - building_bottom_margin - cards_size.y)
+	)
 
 
 func _create_full_art_card_button(
@@ -878,9 +931,16 @@ func _position_card_description() -> void:
 	var button_rect := _hovered_card_button.get_global_rect()
 	var bar_origin := get_global_rect().position
 	var panel_size := _card_description_panel.size
+	var layout_size := size
+	if layout_size.x <= 0.0 or layout_size.y <= 0.0:
+		layout_size = get_viewport_rect().size
+	var panel_x := button_rect.get_center().x - bar_origin.x - panel_size.x * 0.5
+	var panel_y := button_rect.position.y - bar_origin.y - panel_size.y - card_description_gap
+	if panel_y < 8.0:
+		panel_y = button_rect.end.y - bar_origin.y + card_description_gap
 	_card_description_panel.position = Vector2(
-		button_rect.get_center().x - bar_origin.x - panel_size.x * 0.5,
-		button_rect.position.y - bar_origin.y - panel_size.y - card_description_gap
+		clampf(panel_x, 8.0, maxf(8.0, layout_size.x - panel_size.x - 8.0)),
+		clampf(panel_y, 8.0, maxf(8.0, layout_size.y - panel_size.y - 8.0))
 	)
 
 

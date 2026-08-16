@@ -152,7 +152,8 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 		await process_frame
 		var viewport_rect := Rect2(Vector2.ZERO, Vector2(resolution))
 		var controls: WaveControlPanelScript = hud.get_node("WaveControlPanel")
-		var cards := hud.get_node("BuildCardBar") as Control
+		var cards := hud.get_node("BuildCardBar/Layout/Cards") as Control
+		var mirror_cards := hud.get_node("BuildCardBar/Layout/MirrorCards") as Control
 		var global_panel := hud.get_node("GlobalInfoPanel") as Control
 		var controls_rect := controls.get_global_rect()
 		var right_margin := viewport_rect.end.x - controls_rect.end.x
@@ -160,6 +161,7 @@ func _test_runtime_hud_layout(fixture: Dictionary) -> void:
 		_expect(right_margin >= 14.0 and right_margin <= 18.1, "wave controls stay against the right edge with a safe margin at %dx%d" % [resolution.x, resolution.y])
 		_expect(controls.start_button.global_position.y < controls.restart_button.global_position.y and controls.restart_button.global_position.y < controls.exit_button.global_position.y, "wave controls remain a vertical three-button column at %dx%d" % [resolution.x, resolution.y])
 		_expect(not controls_rect.intersects(cards.get_global_rect()), "wave controls leave the building cards clear at %dx%d" % [resolution.x, resolution.y])
+		_expect(not controls_rect.intersects(mirror_cards.get_global_rect()), "wave controls leave the top-left mirror cards clear at %dx%d" % [resolution.x, resolution.y])
 		_expect(not controls_rect.intersects(global_panel.get_global_rect()), "wave controls leave global information clear at %dx%d" % [resolution.x, resolution.y])
 		controls.preview_next_wave_for_test()
 		await process_frame
