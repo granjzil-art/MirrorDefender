@@ -1,10 +1,11 @@
-## Manual Forward+ captures for mirror card descriptions and contextual actions.
+## Manual Forward+ captures for mirror card descriptions, actions, and upgraded presentation.
 extends SceneTree
 
 const MainScene := preload("res://scenes/Main.tscn")
 const Level1 := preload("res://resources/levels/Level1.tres")
 const HOVER_OUTPUT_PATH := "res://outputs/ui/mirror_card_hover_description.png"
 const ACTION_OUTPUT_PATH := "res://outputs/ui/mirror_context_actions.png"
+const UPGRADED_FRAME_OUTPUT_PATH := "res://outputs/ui/mirror_upgraded_frame_glow.png"
 
 
 func _initialize() -> void:
@@ -46,6 +47,35 @@ func _capture() -> void:
 	for _frame in 4:
 		await process_frame
 	if not _save_viewport(ACTION_OUTPUT_PATH):
+		quit(1)
+		return
+	main.mirror_manager.select_mirror(null)
+	var upgraded_mirror := mirrors[0]
+	if not upgraded_mirror.set_level(2):
+		push_error("Unable to upgrade the mirror for frame-glow capture")
+		quit(1)
+		return
+	var mirror_center := (
+		upgraded_mirror.global_position
+		+ Vector3.UP * upgraded_mirror.get_mirror_height() * 0.5
+	)
+	var close_camera := Camera3D.new()
+	main.add_child(close_camera)
+	close_camera.global_position = (
+		mirror_center
+		+ upgraded_mirror.get_active_normal() * 2.2
+		+ upgraded_mirror.get_edge_direction().normalized() * 1.2
+		+ Vector3.UP * 1.1
+	)
+	close_camera.look_at(mirror_center)
+	close_camera.fov = 32.0
+	close_camera.make_current()
+	var hud_layer := main.get_node_or_null("HUD") as CanvasLayer
+	if hud_layer != null:
+		hud_layer.visible = false
+	for _frame in 4:
+		await process_frame
+	if not _save_viewport(UPGRADED_FRAME_OUTPUT_PATH):
 		quit(1)
 		return
 	main.queue_free()

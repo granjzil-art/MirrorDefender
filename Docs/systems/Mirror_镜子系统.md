@@ -123,6 +123,7 @@
 
 - 复制镜的玩法生效侧仍是唯一事实源，决定最近源格、投影方向和镜面法线箭头朝向。复制镜、反射镜及两者的放置预览都在镜体中央生成一根短箭头，箭头沿当前生效法线朝外；翻面或移动预览时与生效侧同步更新，不再使用旧的顶部朝向标记。默认仅在表现层启用双观察侧镜面：同一个反射 Quad 根据主相机所在侧贴到朝向观察者的实体表面，因此拉远视角跨过镜面无限平面时不会退回镜体底色，也不会增加第二个反射视口。可用 `reflection_two_sided_visual` 恢复仅生效侧可见。
 - 中央法线箭头是无碰撞、不可选取的程序化表现节点，只由主相机渲染；镜面反射相机排除其可见层，避免箭头进入反射纹理或产生递归假象。箭头开关、颜色、总长、杆/箭头尺寸、离面距离与发光强度均由 `MirrorDefinition` 配置。
+- 实体复制镜和反射镜达到二级后，原镜体边框切换为可配置的金色发光材质；降回一级立即恢复普通背框颜色，正式关卡中初始为二级的镜子也直接显示金光。放置/迁移预览继续优先使用绿/红合法性颜色，不让等级金光掩盖放置反馈。
 - 镜面相机的位置与朝向由主相机关于镜面轴严格反射得到，并复制主相机投影和宽高比；反射相机重建为右手基底后会交换屏幕 X 手性，因此镜面 Shader 用 `vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)` 做一次精确横向补偿。补偿后镜前右侧地块在镜中仍显示为右侧，不改纵向顺序。镜面和实体背板位于独立可见层，反射相机排除该层以同时阻断镜中镜递归与镜体自遮挡。镜面 Camera3D 不继承主相机最终视口 DOF，反射纹理由主视口统一虚化一次。
 - 实际镜面刷新由 `MirrorManager` 轮询调度；镜面中心或任一矩形角点处于主相机视锥时均可刷新，并限制刷新间隔与每帧上限。放置预览使用独立低分辨率。
 - 建筑投影创建 `Building._visual_root` 的无行为快照，之后每帧同步源的视觉根变换、子 `Node3D` 姿态、可见性和 `Skeleton3D` 骨骼姿态，不重建投影节点。地块元素投影通过 `TileRenderer.create_tile_content_visual_snapshot()` 只复用石头、尖刺、空洞等地块内容几何。地表顶面、侧壁、高度色、路径色和路面色均属于目标关卡基底，不被复制。
@@ -182,6 +183,8 @@
 | `mirror_reflectivity` | 1.00 | CopyMirrorDefinition | 反射画面相对镜面底色的混合比例 |
 | `mirror_surface_tint` | 淡蓝白 | CopyMirrorDefinition | 生效面反射画面的色调 |
 | `mirror_back_face_color` | 中性灰 | CopyMirrorDefinition | 镜体背面底色；与中央法线箭头共同区分当前生效方向 |
+| `upgraded_frame_glow_enabled` / `upgraded_frame_glow_color` | true / `#FFAD29` | MirrorDefinition | 二级实体镜是否把原镜体边框切换为金光，以及金光颜色 |
+| `upgraded_frame_glow_emission_energy` | 3.2 | MirrorDefinition | 二级镜框金光发光强度；选中高亮期间只提高、不降低该强度 |
 | `normal_arrow_enabled` / `normal_arrow_color` | true / `#FF3D1F` | MirrorDefinition | 两种镜子与放置预览是否显示中央法线箭头及其颜色 |
 | `normal_arrow_length_ratio` / `normal_arrow_surface_gap_ratio` | 0.36 / 0.025 格 | MirrorDefinition | 箭头从生效面向外的总长，以及箭杆起点与镜面的间隙 |
 | `normal_arrow_shaft_radius_ratio` | 0.025 格 | MirrorDefinition | 中央法线箭杆半径 |
@@ -248,12 +251,12 @@ MirrorProjection
 | 文件 | class_name / 基类 | 职责 |
 |---|---|---|
 | `scripts/shared/EdgeOccupancyRegistry.gd` | `EdgeOccupancyRegistry` / `RefCounted` | 镜子、边屏障共用的规范化物理边占用表。 |
-| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置/二级升级经济、模块化 `attack_effects`、两行语义说明、放置方向、实时镜面和中央法线箭头表现契约。 |
+| `scripts/mirror/MirrorDefinition.gd` | `MirrorDefinition` / `Resource` | 所有实体镜共享的身份、放置/二级升级经济、模块化 `attack_effects`、两行语义说明、实时镜面、二级边框金光和中央法线箭头表现契约。 |
 | `scripts/mirror/MirrorAttackEffect.gd` | `MirrorAttackEffect` / `Resource` | 镜子附加攻击效果扩展基类；暴露复制、反射、分支角、投射物命中与配置校验钩子。 |
 | `scripts/mirror/effects/BurstArrowMirrorEffect.gd` | `BurstArrowMirrorEffect` / `MirrorAttackEffect` | 二级复制箭塔的八方爆裂箭效果与可配子弹参数。 |
 | `scripts/mirror/effects/ReflectionForkMirrorEffect.gd` | `ReflectionForkMirrorEffect` / `MirrorAttackEffect` | 二级反射镜的左右 ±15° 完整攻击分支请求。 |
 | `scripts/mirror/CopyMirrorDefinition.gd` | `CopyMirrorDefinition` / `MirrorDefinition` | 复制链深、占位开关与虚像表现参数，并复用镜子基础配置校验。 |
-| `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧、等级、累计真实投入，以及跟随生效法线的程序化中央箭头表现。 |
+| `scripts/mirror/CopyMirror.gd` | `CopyMirror` / `Node3D` | 实体镜面边节点、生效侧、等级、累计真实投入，以及随等级切换的金色边框和程序化中央箭头表现。 |
 | `scripts/mirror/ReflectMirrorDefinition.gd` | `ReflectMirrorDefinition` / `MirrorDefinition` | 投射物反射防重入偏移和单帧工作预算。 |
 | `scripts/mirror/ReflectMirror.gd` | `ReflectMirror` / `CopyMirror` | 复用实体镜表现但只向弹道查询注册为反射镜。 |
 | `scripts/mirror/MirrorPlacementData.gd` | `MirrorPlacementData` / `Resource` | 一个开局实体镜子的种类、起始格、边方向、生效侧与等级。 |
@@ -271,8 +274,8 @@ MirrorProjection
 | `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制投射物、持续/脉冲激光以及二级反射分支快照回归。 |
 | `tests/mirror_body_selection_test.gd` | `SceneTree` | 两种镜体的双面拾取、选中高亮，以及共用中央法线箭头方向回归。 |
 | `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 默认金币放置、失败事务、实际投入全退、独立 5/10 cap、冷却/库存，以及正式 Definition 的法线箭头参数契约回归。 |
-| `tests/mirror_upgrade_test.gd` | `SceneTree` | 68 项两级配置、复制链/反射攻击修正、升降级经济、三操作 UI、退款去重和等级持久化回归。 |
-| `tests/mirror_ui_visual_capture.gd` | `SceneTree` | 手工 Forward+ 截取镜子卡悬停两行说明、选中镜子三图标布局与关卡内镜面表现。 |
+| `tests/mirror_upgrade_test.gd` | `SceneTree` | 73 项两级配置、复制/反射镜金光升降级同步、攻击修正、经济、UI、退款和等级持久化回归。 |
+| `tests/mirror_ui_visual_capture.gd` | `SceneTree` | 手工 Forward+ 截取镜子卡说明、选中操作布局、关卡内镜面及二级金色边框近景。 |
 
 ## 六、函数索引
 
@@ -332,7 +335,8 @@ MirrorProjection
 | `MirrorReflectionView.request_refresh` | `() -> bool` | 镜面矩形进入视锥时按当前观察侧更新实体表面与反射相机，并请求 SubViewport 单帧刷新。 |
 | `CopyMirror.get_reflection_viewport` | `() -> SubViewport` | 返回屏幕对齐反射目标，供调试与回归检查宽高比。 |
 | `CopyMirror.get_normal_direction_arrow` | `() -> Node3D` | 返回镜体中心的程序化方向箭头根；其局部正 Y 始终对齐当前玩法生效法线。 |
-| `CopyMirror.refresh_visual` | `() -> void` | Definition 表现参数变化时重建镜框、镜面目标与当前生效面。 |
+| `CopyMirror.set_level` | `(value: int) -> bool` | 校验并写入镜子等级，同时即时切换一级普通边框或二级金色发光边框。 |
+| `CopyMirror.refresh_visual` | `() -> void` | Definition 表现参数变化时重建镜框、金光状态、镜面目标与当前生效面。 |
 | `CopyMirror.refresh_world_transform` | `() -> void` | 只重采样共享边中点高度，保留生效侧和镜面运行时状态。 |
 | `EdgeOccupancyRegistry.try_register` / `unregister` | `(edge_id, occupant) -> bool` / `(edge_id, expected = null) -> bool` | 原子登记/释放物理边。 |
 

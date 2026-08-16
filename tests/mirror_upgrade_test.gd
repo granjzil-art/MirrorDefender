@@ -87,6 +87,13 @@ func _test_configured_level_rules() -> void:
 	_expect(copy.get_max_level() == 2 and copy.upgrade_costs == [50.0], "copy mirror has one level-two upgrade")
 	_expect(reflect.get_max_level() == 2 and reflect.upgrade_costs == [50.0], "reflect mirror has one level-two upgrade")
 	_expect(
+		copy.upgraded_frame_glow_enabled
+		and reflect.upgraded_frame_glow_enabled
+		and copy.upgraded_frame_glow_emission_energy > 0.0
+		and reflect.upgraded_frame_glow_emission_energy > 0.0,
+		"both mirror definitions enable an editable level-two gold frame glow"
+	)
+	_expect(
 		is_equal_approx(copy.get_damage_multiplier(1), 1.0)
 		and is_equal_approx(copy.get_damage_multiplier(2), 1.1),
 		"copy mirror exposes exactly two configured damage levels"
@@ -426,6 +433,10 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		"mirror economy numbers share the gold color and render above their icons"
 	)
 	_expect(manager.upgrade_mirror(copy), "mirror manager accepts the selected copy upgrade")
+	var copy_frame_material := (
+		(copy.get_node("MirrorBody") as MeshInstance3D).material_override
+		as StandardMaterial3D
+	)
 	_expect(
 		copy.level == 2
 		and is_equal_approx(resource.main_resource, 210.0)
@@ -435,6 +446,17 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and downgrade_refund_label.text == "+50"
 		and not upgrade_button.visible,
 		"first copy upgrade spends 50 and replaces upgrade with downgrade"
+	)
+	_expect(
+		copy_frame_material.albedo_color.is_equal_approx(
+			manager.copy_mirror_definition.upgraded_frame_glow_color
+		)
+		and copy_frame_material.emission.is_equal_approx(
+			manager.copy_mirror_definition.upgraded_frame_glow_color
+		)
+		and copy_frame_material.emission_energy_multiplier
+		>= manager.copy_mirror_definition.upgraded_frame_glow_emission_energy,
+		"level-two copy mirror immediately lights its frame with the configured gold glow"
 	)
 	panel._on_downgrade_pressed()
 	_expect(
@@ -446,6 +468,12 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and sell_refund_label.text == "+40"
 		and not manager.downgrade_mirror(copy),
 		"mirror downgrade returns its upgrade payment without duplicating later sell refund"
+	)
+	_expect(
+		copy_frame_material.albedo_color.is_equal_approx(
+			manager.copy_mirror_definition.mirror_back_face_color
+		),
+		"downgrading the copy mirror immediately restores its normal frame"
 	)
 	_expect(manager.upgrade_mirror(copy), "copy mirror can upgrade again after a downgrade")
 	var pair := grid.get_mirror_cell_pair(copy.from_cell, copy.edge_index, copy.active_from_side, 1)
@@ -504,11 +532,24 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		"actual level-one reflection hit carries 1.1 damage and no generic penetration"
 	)
 	_expect(manager.upgrade_mirror(reflect), "reflect mirror reaches its level-two maximum through one paid upgrade")
+	var reflect_frame_material := (
+		(reflect.get_node("MirrorBody") as MeshInstance3D).material_override
+		as StandardMaterial3D
+	)
 	_expect(
 		reflect.level == 2
 		and is_equal_approx(reflect.get_damage_multiplier(), 1.1)
 		and reflect.get_penetration_bonus() == 0,
 		"level-two reflect mirror keeps 1.1 damage and zero generic penetration"
+	)
+	_expect(
+		reflect_frame_material.albedo_color.is_equal_approx(
+			manager.reflect_mirror_definition.upgraded_frame_glow_color
+		)
+		and reflect_frame_material.emission.is_equal_approx(
+			manager.reflect_mirror_definition.upgraded_frame_glow_color
+		),
+		"level-two reflect mirror uses the same configurable gold frame glow"
 	)
 	var reflect_upgrade_refund := reflect.get_downgrade_refund()
 	var resource_before_reflect_downgrade := resource.main_resource
@@ -518,6 +559,12 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 		and is_equal_approx(resource.main_resource, resource_before_reflect_downgrade + reflect_upgrade_refund)
 		and is_equal_approx(reflect.get_refund_amount(), manager.reflect_mirror_definition.placement_cost),
 		"reflect mirror downgrade returns its upgrade payment and removes it from later sell value"
+	)
+	_expect(
+		reflect_frame_material.albedo_color.is_equal_approx(
+			manager.reflect_mirror_definition.mirror_back_face_color
+		),
+		"downgrading the reflect mirror restores its normal frame"
 	)
 	_expect(manager.upgrade_mirror(reflect), "reflect mirror can upgrade again after a downgrade")
 	var level_two_hit := manager.trace_projectile_reflection(
@@ -540,7 +587,13 @@ func _test_upgrade_economy_ui_and_persistence(fixture: Dictionary) -> void:
 	_expect(
 		loaded != null
 		and loaded.level == 2
-		and is_equal_approx(loaded.get_refund_amount(), authored_refund),
+		and is_equal_approx(loaded.get_refund_amount(), authored_refund)
+		and (
+			(loaded.get_node("MirrorBody") as MeshInstance3D).material_override
+			as StandardMaterial3D
+		).albedo_color.is_equal_approx(
+			manager.reflect_mirror_definition.upgraded_frame_glow_color
+		),
 		"reloaded authored mirror keeps level two and its full configured refund"
 	)
 	_expect(

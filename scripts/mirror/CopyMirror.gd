@@ -181,6 +181,7 @@ func set_level(value: int) -> bool:
 	if definition == null or value < 1 or value > definition.get_max_level():
 		return false
 	level = value
+	_update_frame_material()
 	return true
 
 
@@ -355,8 +356,15 @@ func _get_oval_pick_distance(
 func set_selected(selected: bool) -> void:
 	_selected = selected
 	if _frame_material != null:
+		var resting_emission_energy := (
+			definition.upgraded_frame_glow_emission_energy
+			if _uses_upgraded_frame_glow()
+			else 1.5
+		)
 		_frame_material.emission_energy_multiplier = (
-			3.6 if selected or (preview_mode and not _preview_valid) else 1.5
+			maxf(3.6, resting_emission_energy)
+			if selected or (preview_mode and not _preview_valid)
+			else resting_emission_energy
 		)
 	if _body != null and is_instance_valid(_body):
 		SelectionHighlightScript.apply_recursive(_body, _selected and not preview_mode)
@@ -506,9 +514,15 @@ func _update_frame_material() -> void:
 	if _frame_material == null or definition == null:
 		return
 	var placement_color := get_preview_display_color()
-	_frame_material.albedo_color = placement_color if preview_mode else definition.mirror_back_face_color
-	_frame_material.emission = placement_color if preview_mode else definition.mirror_back_face_color.darkened(0.38)
-	_frame_material.emission_energy_multiplier = 3.2 if preview_mode else 1.5
+	var uses_upgraded_glow := _uses_upgraded_frame_glow()
+	var frame_color := (
+		definition.upgraded_frame_glow_color
+		if uses_upgraded_glow
+		else definition.mirror_back_face_color
+	)
+	var frame_emission := frame_color if uses_upgraded_glow else frame_color.darkened(0.38)
+	_frame_material.albedo_color = placement_color if preview_mode else frame_color
+	_frame_material.emission = placement_color if preview_mode else frame_emission
 	if preview_mode:
 		var preview_color := _frame_material.albedo_color
 		preview_color.a = 0.72
@@ -516,6 +530,15 @@ func _update_frame_material() -> void:
 		_frame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_refresh_preview_surface_overlay(placement_color)
 	set_selected(_selected)
+
+
+func _uses_upgraded_frame_glow() -> bool:
+	return (
+		definition != null
+		and definition.upgraded_frame_glow_enabled
+		and not preview_mode
+		and level >= 2
+	)
 
 
 func _refresh_preview_surface_overlay(color: Color) -> void:

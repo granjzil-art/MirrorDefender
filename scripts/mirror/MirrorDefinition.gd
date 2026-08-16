@@ -55,6 +55,11 @@ const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 @export var valid_preview_color: Color = Color(0.12, 1.0, 0.24, 0.92)
 @export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 
+@export_group("Upgraded Frame Glow")
+@export var upgraded_frame_glow_enabled: bool = true
+@export var upgraded_frame_glow_color: Color = Color(1.0, 0.68, 0.16, 1.0)
+@export_range(0.0, 10.0, 0.1) var upgraded_frame_glow_emission_energy: float = 3.2
+
 @export_group("Normal Direction Indicator")
 @export var normal_arrow_enabled: bool = true
 @export var normal_arrow_color: Color = Color(1.0, 0.24, 0.12, 1.0)
@@ -198,6 +203,14 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_color(errors, "镜面背面颜色", mirror_back_face_color)
 	ConfigValidator.require_color(errors, "有效放置预览颜色", valid_preview_color)
 	ConfigValidator.require_color(errors, "无效放置预览颜色", invalid_preview_color)
+	ConfigValidator.require_color(errors, "升级镜框金光颜色", upgraded_frame_glow_color)
+	ConfigValidator.require_number(
+		errors,
+		"升级镜框金光发光强度",
+		upgraded_frame_glow_emission_energy,
+		0.0,
+		10.0
+	)
 	ConfigValidator.require_color(errors, "法线箭头颜色", normal_arrow_color)
 	ConfigValidator.require_number(errors, "法线箭头长度比例", normal_arrow_length_ratio, 0.1, 1.0)
 	ConfigValidator.require_number(errors, "法线箭头杆半径比例", normal_arrow_shaft_radius_ratio, 0.005, 0.1)
