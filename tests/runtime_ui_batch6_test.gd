@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TowerCodexPanelScript := preload("res://scripts/ui/TowerCodexPanel.gd")
+
 const DebugCommandRegistryScript := preload("res://scripts/debug/DebugCommandRegistry.gd")
 const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryRegistry.gd")
 const RuntimeDebugBindingsScript := preload("res://scripts/debug/RuntimeDebugBindings.gd")
@@ -233,11 +235,26 @@ func _test_main_scene_migration() -> void:
 	var building_cards_toggle := InputEventAction.new()
 	building_cards_toggle.action = &"toggle_building_cards"
 	building_cards_toggle.pressed = true
+	var tower_codex: TowerCodexPanelScript = main.runtime_hud.tower_codex_panel
+	var tower_codex_names := PackedStringArray()
+	for index in range(tower_codex.get_definition_count()):
+		tower_codex_names.append(tower_codex.get_definition_at(index).get_resolved_inspection_display_name())
+	_expect(
+		tower_codex.visible
+		and tower_codex_names == PackedStringArray(["箭塔", "冰冻塔", "导弹塔", "镭射塔"]),
+		"Main configures the default-open tower codex in the requested production order"
+	)
 	_expect(not main.runtime_hud.are_building_cards_visible(), "Main starts with the building-card row closed")
 	main._input(building_cards_toggle)
-	_expect(main.runtime_hud.are_building_cards_visible(), "the first F2 press opens the building-card row")
+	_expect(
+		main.runtime_hud.are_building_cards_visible() and tower_codex.visible,
+		"the first F2 press opens the building-card row without changing the codex"
+	)
 	main._input(building_cards_toggle)
-	_expect(not main.runtime_hud.are_building_cards_visible(), "the second F2 press closes the building-card row")
+	_expect(
+		not main.runtime_hud.are_building_cards_visible() and tower_codex.visible,
+		"the second F2 press closes the building-card row without changing the codex"
+	)
 	var debug_toggle := InputEventAction.new()
 	debug_toggle.action = &"toggle_debug_tools"
 	debug_toggle.pressed = true
@@ -257,6 +274,13 @@ func _test_main_scene_migration() -> void:
 		and main.lighting_test_panel.visible
 		and not main.runtime_debug_bindings.category_registry.is_suspended(),
 		"the first F1 press calls up the unified debug tools"
+	)
+	var debug_entry_buttons := debug_entries.get_node("DebugEntryButtons") as Control
+	_expect(
+		not debug_entry_buttons.get_global_rect().intersects(
+			(main.runtime_hud.get_node("TowerCodexPanel/Cards") as Control).get_global_rect()
+		),
+		"the relocated debug entries leave the default-open tower codex unobstructed"
 	)
 	var path_on: Dictionary = main.runtime_debug_bindings.command_registry.execute("debug set path on")
 	_expect(bool(path_on.get("success", false)) and main.path_manager.show_paths, "path category enables only the debug route lines")

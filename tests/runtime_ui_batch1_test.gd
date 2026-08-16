@@ -4,6 +4,7 @@ const TestDefinitionFactory := preload("res://tests/fixtures/TestDefinitionFacto
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
+const TowerCodexPanelScript := preload("res://scripts/ui/TowerCodexPanel.gd")
 const RuntimeHudScript := preload("res://scripts/ui/RuntimeHud.gd")
 const InspectionDisplayConfigScript := preload("res://scripts/shared/InspectionDisplayConfig.gd")
 
@@ -355,14 +356,87 @@ func _test_card_bar(fixture: Dictionary) -> void:
 		root.add_child(hud)
 		await process_frame
 		_expect(hud.get_node_or_null("BuildCardBar") != null, "runtime HUD owns the formal card UI")
+		var tower_codex := hud.get_node_or_null("TowerCodexPanel") as TowerCodexPanelScript
+		_expect(tower_codex != null and tower_codex.visible, "the read-only tower codex is visible by default")
+		var codex_definitions: Array[BuildingDefinition] = []
+		var codex_names := PackedStringArray(["箭塔", "冰冻塔", "导弹塔", "镭射塔"])
+		var codex_kinds: Array[BuildingDefinition.Kind] = [
+			BuildingDefinition.Kind.ARROW_TOWER,
+			BuildingDefinition.Kind.LASER_TOWER,
+			BuildingDefinition.Kind.CROSSBOW_TOWER,
+			BuildingDefinition.Kind.PULSE_LASER_TOWER,
+		]
+		for index in range(codex_names.size()):
+			var codex_definition := TestDefinitionFactory.make_building_definition(codex_kinds[index])
+			codex_definition.display_name = codex_names[index]
+			codex_definition.card_icon = _make_test_card_icon()
+			codex_definition.inspection_display = InspectionDisplayConfigScript.new()
+			codex_definition.inspection_display.function_description = "%s基础说明。" % codex_names[index]
+			codex_definition.copy_enhancement_description = "%s复制强化。" % codex_names[index]
+			codex_definition.reflection_enhancement_description = "%s反射强化。" % codex_names[index]
+			codex_definitions.append(codex_definition)
+		if tower_codex != null:
+			tower_codex.configure(codex_definitions)
+		await process_frame
+		var codex_cards := hud.get_node("TowerCodexPanel/Cards") as VBoxContainer
+		_expect(
+			tower_codex != null and tower_codex.get_definition_count() == 4
+			and codex_cards.get_child_count() == 4,
+			"the tower codex contains exactly four authored entries"
+		)
+		for index in range(codex_names.size()):
+			var codex_card := codex_cards.get_node("TowerCard%d" % (index + 1)) as PanelContainer
+			_expect(
+				(codex_card.get_node("Content/Title") as Label).text == codex_names[index]
+				and (codex_card.get_node("Content/Icon") as TextureRect).texture
+				== codex_definitions[index].card_icon,
+				"codex entry %d preserves the requested tower order, icon, and name" % (index + 1)
+			)
+			_expect(
+				not codex_card.has_signal("pressed")
+				and not codex_card.has_method("set_pressed")
+				and codex_card.get_node_or_null("Content/Cost") == null
+				and codex_card.get_node_or_null("Content/Footer") == null,
+				"codex entry %d is read-only and contains no price" % (index + 1)
+			)
+			if index > 0:
+				var previous_card := codex_cards.get_child(index - 1) as Control
+				_expect(
+					codex_card.position.y >= previous_card.get_rect().end.y,
+					"codex entry %d is stacked below the previous entry" % (index + 1)
+				)
+		var hovered_codex_card := codex_cards.get_node("TowerCard3") as PanelContainer
+		hovered_codex_card.mouse_entered.emit()
+		await process_frame
+		var codex_description := hud.get_node("TowerCodexPanel/DescriptionPanel") as PanelContainer
+		_expect(
+			codex_description.visible
+			and (hud.get_node("TowerCodexPanel/DescriptionPanel/Content/Title") as Label).text == "导弹塔"
+			and (hud.get_node("TowerCodexPanel/DescriptionPanel/Content/Description") as RichTextLabel).text
+			== codex_definitions[2].get_formatted_inspection_description_bbcode(),
+			"hovering a codex card shows its shared formatted tower description"
+		)
+		_expect(
+			codex_description.get_global_rect().position.x
+			>= hovered_codex_card.get_global_rect().end.x + tower_codex.description_gap - 0.1,
+			"tower codex descriptions open to the right of their card"
+		)
+		hovered_codex_card.mouse_exited.emit()
+		_expect(not codex_description.visible, "leaving a codex card closes its description")
 		var formal_card_bar := hud.get_node("BuildCardBar") as BuildCardBarScript
 		var formal_mirror_row := hud.get_node("BuildCardBar/Layout/MirrorCards") as HBoxContainer
 		_expect(not hud.are_building_cards_visible(), "formal building cards default to closed")
 		_expect(formal_mirror_row.visible, "mirror cards remain visible while building cards are closed")
 		hud.toggle_building_cards()
-		_expect(hud.are_building_cards_visible(), "the formal toggle opens the building-card row")
+		_expect(
+			hud.are_building_cards_visible() and tower_codex.visible,
+			"the formal toggle opens only the building-card row and leaves the codex visible"
+		)
 		hud.toggle_building_cards()
-		_expect(not hud.are_building_cards_visible(), "the formal toggle closes the building-card row again")
+		_expect(
+			not hud.are_building_cards_visible() and tower_codex.visible,
+			"the formal toggle closes only the building-card row and leaves the codex visible"
+		)
 		var legacy_status := hud.get_node_or_null("BuildCardBar/Layout/Status") as Label
 		_expect(legacy_status != null and not legacy_status.visible, "the fixed placement debug status stays hidden")
 		_expect(
@@ -456,6 +530,7 @@ func _test_card_bar(fixture: Dictionary) -> void:
 			await process_frame
 			var cards_row := hud.get_node("BuildCardBar/Layout/Cards") as Control
 			var mirror_cards_row := hud.get_node("BuildCardBar/Layout/MirrorCards") as Control
+			var tower_codex_cards := hud.get_node("TowerCodexPanel/Cards") as Control
 			var slow_button := hud.get_node("TimeControlPanel/Controls/TacticalSlowButton") as Control
 			# canvas_items keeps the authored 1600x900 logical viewport while the
 			# Window scales it to each physical 16:9 resolution.
@@ -480,6 +555,12 @@ func _test_card_bar(fixture: Dictionary) -> void:
 				viewport_rect.encloses(mirror_cards_row.get_global_rect())
 				and mirror_cards_row.position.is_equal_approx(formal_card_bar.mirror_cards_position),
 				"two mirror cards stay together at the authored top-left position at %dx%d" % [resolution.x, resolution.y]
+			)
+			_expect(
+				viewport_rect.encloses(tower_codex_cards.get_global_rect())
+				and tower_codex_cards.position.is_equal_approx(tower_codex.codex_position)
+				and not tower_codex_cards.get_global_rect().intersects(mirror_cards_row.get_global_rect()),
+				"the four-card tower codex stays on the left below the mirror row at %dx%d" % [resolution.x, resolution.y]
 			)
 			_expect(
 				not cards_row.get_global_rect().intersects(slow_button.get_global_rect()),

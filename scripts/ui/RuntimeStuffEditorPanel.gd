@@ -7,6 +7,9 @@ const RuntimeStuffEditorControllerScript := preload("res://scripts/stuff/Runtime
 @export_group("Feature")
 @export var feature_enabled: bool = true
 
+@export_group("Debug Entry Layout")
+@export var debug_entry_position: Vector2 = Vector2(712.0, 116.0)
+
 signal debug_console_requested
 signal runtime_parameter_editor_requested
 signal tutorial_editor_requested
@@ -107,7 +110,7 @@ func get_palette_definition_count() -> int:
 func _build_interface() -> void:
 	_debug_entry_buttons = VBoxContainer.new()
 	_debug_entry_buttons.name = "DebugEntryButtons"
-	_debug_entry_buttons.position = Vector2(18.0, 206.0)
+	_debug_entry_buttons.position = debug_entry_position
 	_debug_entry_buttons.add_theme_constant_override("separation", 6)
 	add_child(_debug_entry_buttons)
 

@@ -16,6 +16,7 @@ extends Control
 @export var building_cards_visible_by_default: bool = false
 
 const BuildCardBarScript := preload("res://scripts/ui/BuildCardBar.gd")
+const TowerCodexPanelScript := preload("res://scripts/ui/TowerCodexPanel.gd")
 const RuntimeInteractionControllerScript := preload("res://scripts/ui/RuntimeInteractionController.gd")
 const GameTimeControllerScript := preload("res://scripts/ui/GameTimeController.gd")
 const WaveControlPanelScript := preload("res://scripts/ui/WaveControlPanel.gd")
@@ -26,6 +27,7 @@ const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryR
 const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEditorPanel.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
+@onready var tower_codex_panel: TowerCodexPanelScript = $TowerCodexPanel
 @onready var card_style_toggle: Button = $CardStyleToggle
 @onready var economy_panel: EconomyPanel = $GlobalInfoPanel/StatsGrid/EconomyPanel
 @onready var global_info_panel: GlobalInfoPanel = $GlobalInfoPanel
@@ -121,6 +123,13 @@ func configure(
 		null,
 		null,
 	]
+	var codex_cards: Array[BuildingDefinition] = [
+		building_manager.arrow_tower,
+		building_manager.laser_tower,
+		building_manager.crossbow_tower,
+		building_manager.pulse_laser_tower,
+	]
+	tower_codex_panel.configure(codex_cards)
 	build_card_bar.configure(
 		resource_manager,
 		mirror_manager.copy_mirror_definition,
@@ -471,6 +480,7 @@ func _on_runtime_parameter_editor_requested() -> void:
 
 func _on_stuff_editor_active_changed(active: bool) -> void:
 	build_card_bar.visible = not active
+	tower_codex_panel.set_suppressed(active)
 	card_style_toggle.visible = _debug_tools_enabled and not active
 
 

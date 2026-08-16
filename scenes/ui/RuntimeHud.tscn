@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/ui/RuntimeHud.gd" id="1_runtime_hud"]
 [ext_resource type="Script" path="res://scripts/ui/BuildCardBar.gd" id="2_build_card_bar"]
+[ext_resource type="Script" path="res://scripts/ui/TowerCodexPanel.gd" id="3_tower_codex"]
 [ext_resource type="PackedScene" path="res://scenes/ui/GlobalInfoPanel.tscn" id="5_global_info"]
 [ext_resource type="PackedScene" path="res://scenes/ui/TimeControlPanel.tscn" id="7_time_controls"]
 [ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="8_pause_menu"]
@@ -135,6 +136,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_build_card_bar")
+
+[node name="TowerCodexPanel" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_tower_codex")
 
 [node name="ActionFeedback" type="Label" parent="."]
 z_index = 100

@@ -9,7 +9,7 @@
 ## 分类 / 做法
 
 - **三级参数**：建筑初始 1 级、上限 3 级。`levels[0..2]` 分别保存 1~3 级的完整经济、战斗、投射物和表现参数；升级直接切换到下一份参数，不把上一等级参数乘算后继承。
-- **检视配置**：每个塔的说明固定为三个可编辑语义字段：`inspection_display.function_description` 基础描述、`copy_enhancement_description` 强化复制、`reflection_enhancement_description` 强化反射。后两个新字段默认留空，不从旧等级说明迁移。三行绿/黄/红标题与默认白色正文同时供建筑卡悬停框和选中建筑说明页使用；正文支持 `[color]`、`[highlight]`、`[b]` 白名单标记。说明不参与玩法结算，虚像沿用根源建筑配置。
+- **检视配置**：每个塔的说明固定为三个可编辑语义字段：`inspection_display.function_description` 基础描述、`copy_enhancement_description` 强化复制、`reflection_enhancement_description` 强化反射。后两个新字段默认留空，不从旧等级说明迁移。三行绿/黄/红标题与默认白色正文同时供建筑卡悬停框、左侧只读塔图鉴和选中建筑说明页使用；正文支持 `[color]`、`[highlight]`、`[b]` 白名单标记。说明不参与玩法结算，虚像沿用根源建筑配置。
 - **伤害公式**：单发伤害为当前级 `base_damage × level_factor × extra_factor`；持续伤害为当前级 `laser_dps × level_factor × extra_factor × delta`。`level_factor` 是当前建筑等级数据的一部分，不是全局等级曲线。
 - **箭塔**：在 `targeting_range` 内选择目标，只在目标进入 `attack_range` 后发射投射物；伤害在投射物命中时结算。`attack_range` 同时是经过反射镜后的累计总飞行距离上限。正式资源使用 `TRACK_TARGET`，锁定期间只转动视觉姿态，不改写放置 `facing_index`。
 - **导弹塔 / 分级开火模式**：保留序列化 `CROSSBOW_TOWER=4` 和 `CrossbowTower.tres` 资源路径，对外名称/功能改为导弹塔，不破坏已有关卡引用。三级均使用 `TARGET_OR_FACING + projectile_is_missile`：有目标时标记并在绕圈后追踪，无目标时快照逻辑朝向并在绕圈后直飞。箭塔类可逐级选择 `TARGET_ONLY`、`TARGET_OR_FACING` 或 `FACING_ONLY`；最后一种完全跳过索敌，无论场上是否存在目标都只沿逻辑朝向周期直射。
@@ -25,7 +25,7 @@
 - **封路预防**：屏障/边障的虚影会通过注入的 `PathPlacementConnectivityGuard` 假设加入当前同目标路网；会堵死最后可达路线时虚影保留但改为高亮红色。点击后在占格/扣费前二次校验并拒绝。
 - **无效格信息**：未选择塔种或当前格不可放置时不创建虚影；Main HUD 显示地块类型、高度、障碍/占用对象和占位建筑等级、索敌范围、射程。
 - **美术替换**：每一级通过 `model_asset: ModelAssetDefinition` 配置模型场景和附加运行时 Scale；实例会先把可视底部中心自动接地，再保留当前等级 Scale。`projectile_model_asset` 则精确拟合到该级的子弹长度/宽度。未指定时继续使用 `tower_color/attack_color` 灰盒。
-- **卡片美术与入口**：`BuildingDefinition.card_icon` 是程序镜面模式的可选透明建筑主体，不包含镜框、镜面、名称或费用。`full_card_art` 是原画卡面模式的独立完整卡面，可包含镜框、镜面和已烘焙名称但不能烘焙费用。BuildCardBar 默认程序化生成完整卡片；切换到原画模式后自动裁透明边、隐藏程序框和名称，只在建筑上方叠加实时费用。正式底部建筑卡组默认关闭，由 InputMap 的 F2 独立切换；左上两张镜卡不随其隐藏。缺少对应素材时稳定回退程序镜面，不影响资源校验或放置。
+- **卡片美术与入口**：`BuildingDefinition.card_icon` 是程序镜面模式和左侧只读塔图鉴共用的可选透明建筑主体，不包含镜框、镜面、名称或费用。`full_card_art` 是原画卡面模式的独立完整卡面，可包含镜框、镜面和已烘焙名称但不能烘焙费用。BuildCardBar 默认程序化生成完整卡片；切换到原画模式后自动裁透明边、隐藏程序框和名称，只在建筑上方叠加实时费用。正式底部建筑卡组默认关闭，由 InputMap 的 F2 独立切换；左上两张镜卡和左侧四塔图鉴不随其隐藏。图鉴卡面只显示该 `card_icon` 和名称，不读取价格或选中状态。缺少对应素材时稳定回退程序镜面，不影响资源校验或放置。
 - **资源产出**：每一级独立配置 `resource_per_second`；放置、升级或移除后，BuildingManager 汇总当前所有建筑的当前级产出并同步到 ResourceManager。
 - **选中操作**：选择模式点中建筑后，在其动作锚点左/上/右投影出说明、升级、出售三个同尺寸图标；升级与出售数字位于对应图标上方，满级隐藏升级项。键盘 `R` 和滚轮的 10° 旋转仍保留，持续按住 `R` 按 Main 的真实时间重复参数连续旋转；边建筑仍拒绝自由旋转。
 - **拆除退款**：主动拆除按当前等级动态累加 1 级建造费用和已经过等级的全部升级费用，100% 返还且无损失；不再配置独立退款数值。
@@ -55,7 +55,7 @@ Definition 根节点的 `Orientation` 分组控制通用转向能力：
 |---|---|
 | `aim_mode` | `FIXED_FACING` 只跟随手动逻辑朝向；`TRACK_TARGET` 使视觉姿态追踪已锁定目标。新的转向索敌建筑应通过此字段声明能力，不在 Building 中按种类写死。 |
 | `visual_turn_speed_degrees` | 追踪模式每秒最大视觉转向角度；不影响索敌、攻击频率或发射条件。 |
-| `card_icon` | M6 正式卡槽透明建筑主体接口；不应烘焙完整卡面，可为空，空值使用名称首字灰盒。 |
+| `card_icon` | M6 正式可建造卡槽与只读塔图鉴共用的透明建筑主体接口；不应烘焙完整卡面，可为空，可建造卡空值使用名称首字灰盒。 |
 | `full_card_art` | 可选完整卡面接口；原画模式自动裁透明留白并隐藏程序标题/框体，费用必须留给 HUD 动态叠加。 |
 
 | 分组 | 参数 | 说明 |
@@ -340,7 +340,7 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 
 ## 使用入口
 
-运行 `scenes/Main.tscn`：先按 F2 打开底部建筑卡组，第三建筑卡为镭射塔（原屏障位置）；屏障玩法与资源仍保留，但不进入默认卡组。R 调整预览朝向，左键放置。
+运行 `scenes/Main.tscn`：左侧默认常驻箭塔、冰冻塔、导弹塔、镭射塔四张只读图鉴卡，悬停查看右侧说明；图鉴不能选中或建造。按 F2 只打开底部可建造卡组，第三建筑卡为镭射塔（原屏障位置）；屏障玩法与资源仍保留，但不进入默认卡组。R 调整预览朝向，左键放置。
 
 ## 已知限制 / 初版不做的部分
 
