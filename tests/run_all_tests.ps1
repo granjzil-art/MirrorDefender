@@ -39,6 +39,7 @@ $Tests = @(
 	"level_reflection_test.gd",
 	"level_select_test.gd",
 	"level1_wave_balance_test.gd",
+	"level1_special_enemy_addition_test.gd",
 	"level234_wave_balance_test.gd",
 	"level1_sky_decoration_test.gd",
 	"level_celestial_decoration_test.gd",

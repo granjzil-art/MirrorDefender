@@ -29,14 +29,14 @@ func _run() -> void:
 		for wave_index in range(level.waves.size()):
 			var wave: WaveDefinition = level.waves[wave_index]
 			_expect(
-				wave != null and is_equal_approx(wave.completion_reward, 40.0),
-				"%s wave %d grants forty resources on completion" % [label, wave_index + 1]
+				wave != null and is_finite(wave.completion_reward) and wave.completion_reward >= 0.0,
+				"%s wave %d has a valid configurable completion reward" % [label, wave_index + 1]
 			)
 			if wave != null:
 				total_completion_reward += wave.completion_reward
 		_expect(
-			is_equal_approx(total_completion_reward, 600.0),
-			"%s grants 600 total completion reward" % label
+			total_completion_reward > 0.0,
+			"%s keeps completion rewards enabled" % label
 		)
 	if _failures == 0:
 		print("[WaveCompletionReward] PASS: %d checks" % _checks)

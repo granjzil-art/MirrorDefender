@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://tbiw2q80815g"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://bmfuhdumu6iei"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 [ext_resource type="PackedScene" path="res://assets/enemies/stone-golem/stone_golem.tscn" id="2_model"]
@@ -14,7 +14,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 script = ExtResource("1_enemy")
 enemy_id = &"double_shield"
 display_name = "双盾士兵"
-max_hp = 300.0
+max_hp = 400.0
 move_speed = 0.5
 base_damage = 12.0
 reward = 7.0

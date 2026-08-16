@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TerrainDefinition" format=3 uid="uid://btyybv6eahbqi"]
 
-[ext_resource type="PackedScene" uid="uid://c4q3l83qh2hdo" path="res://assets/blocks/fbx/greenstone.fbx" id="1_8o84v"]
+[ext_resource type="PackedScene" path="res://outputs/model_decimation_20pct/2026-08-16_all_models_20pct/models/blocks/fbx/greenstone_20pct.scn" id="1_8o84v"]
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="2_l4205"]
 [ext_resource type="PackedScene" uid="uid://dfg1nktp42hui" path="res://assets/Ramp/ramp/stone_ramp.tscn" id="3_jdabw"]
 [ext_resource type="Script" uid="uid://c15igco13pxfa" path="res://scripts/terrain/TerrainDefinition.gd" id="4_u23ov"]

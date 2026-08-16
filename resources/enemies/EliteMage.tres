@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://csplxwrcmf5yg"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://dmd2fpu7735ms"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 [ext_resource type="PackedScene" uid="uid://cijs45ldnba30" path="res://assets/enemies/wizard/wizard.tscn" id="2_model"]
@@ -23,7 +23,7 @@ is_elite = true
 movement_active_duration = 5.0
 movement_pause_duration = 2.0
 armor_aura_radius = 2.0
-armor_aura_bonus = 4.0
+armor_aura_bonus = 8.0
 attack_damage = 14.0
 attacks_per_second = 0.7
 attack_range = 0.75

@@ -413,6 +413,50 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 
 回退：当前未替换生产引用，不存在源资产回退动作。删除 `outputs/model_decimation_20pct/2026-08-16_all_models_20pct/` 即可移除全部 20% 派生场景、回退输入和对比图；工具脚本可单独保留或删除。正式接入必须作为后续独立变更记录，逐项替换引用并进行游戏内回归。
 
+### PERF-014：生产模型引用切换到 20% 减面场景
+
+日期：2026-08-16
+状态：已实施；资源接口、生产资源加载、项目启动及定向玩法回归已验证。
+
+决策：不覆盖、不删除原 FBX/GLB/GLTF，也不改动其 `.import` 配置；仅把生产 `.tscn` / `.tres` 中当前实际使用、且 PERF-013 已生成减面结果的模型引用切换到对应 20% `.scn`。这样可以直接降低渲染顶点/三角面与模型实例化时的网格数据量，同时保留逐项精确回退能力。写实大树 `res://assets/greattree/realistic_tree_gltf/scene.gltf` 继续保持原模型，未生成或接入低模。
+
+生成的二进制 `.scn` 没有可跨工作区提交的稳定资源 UID，因此替换后的 `ext_resource` 删除旧高模 UID，只使用完整 `res://outputs/..._20pct.scn` 路径。Godot 资源重载确认此路径解析方式无新增 UID 警告。原模型仍保留在仓库中，方便画面对比与一键回退。
+
+| 参数 / 指标 | 修改前 | 修改后 |
+|---|---:|---:|
+| 可用减面模型 | 46 | 46 |
+| 当前生产实际引用的减面候选 | 39 个模型 / 40 处引用 | 39 个模型 / 40 处引用全部切换 |
+| 修改的生产资源文件 | 0 | 39 |
+| 候选高模引用残留 | 40 | 0 |
+| 候选低模引用 | 0 | 40 |
+| 39 个唯一生产模型总三角面 | 7,415,687 | 1,483,054（19.99888%） |
+| 唯一生产模型减少三角面 | — | 5,932,633（80.00112%） |
+| 写实大树 | 原模型 | 原模型，明确排除 |
+| 7 个当前未引用的减面输出 | 不接入 | 不强行新增生产引用 |
+
+39 个生产模型按用途包括：8 个地块/斜坡、14 个塔/城堡/敌方镜等级模型、2 个敌人、2 个投射物、6 颗星、月亮与太阳、2 个岩石、3 个普通树。当前没有生产引用、因此未改动的 7 个输出为 `Grassmud0`、`dalishi`、`flatstone1`、`arrowtower1_1`、`arrowtower2_2`、`mace` 和 `Nail/nails/scene`。每个引用文件、行号、修改前/后完整行、原/低模路径、前后 SHA-256 及对应三角面数均记录在 `outputs/model_decimation_20pct/2026-08-16_all_models_20pct/production_reference_switch.json`。
+
+修改范围：
+
+- `assets/blocks/tscn/`：7 个地块场景；`resources/terrains/Greenstone.tres`：1 处重复的 Greenstone 直接引用。
+- `assets/Ramp/ramp/stone_ramp.tscn`：1 个斜坡场景。
+- `assets/buildings/`：箭塔 4、城堡 4、弩 1、敌方镜 1、激光塔 1、脉冲激光塔 1；`resources/buildings/MaceTower.tres`：2 处钉锤等级模型引用。
+- `assets/enemies/`：Grunt 与 Stone Golem；后者保留 Skeleton、AnimationPlayer 及原动画名称。
+- `assets/projections/`：Arrow 与 daodan。
+- `assets/star/`：6 个星体场景；`assets/moon/moon.tscn` 与 `assets/sun/sun.tscn`。
+- `assets/stuffs/Rock/tscn/`：2 个岩石；`assets/stuffs/Tree/tscn/`：coco、santree、tree1，均不包含明确排除的写实大树。
+- 新增 `tools/performance/model_decimation/switch_decimated_model_references.ps1` 与 `validate_decimated_model_interfaces.gd`。
+
+操作：
+
+- 审计：`powershell -ExecutionPolicy Bypass -File tools/performance/model_decimation/switch_decimated_model_references.ps1 -Mode Audit`
+- 应用：`powershell -ExecutionPolicy Bypass -File tools/performance/model_decimation/switch_decimated_model_references.ps1 -Mode Apply`
+- 回退：`powershell -ExecutionPolicy Bypass -File tools/performance/model_decimation/switch_decimated_model_references.ps1 -Mode Rollback`
+
+回退脚本按清单中的精确“修改后整行 → 修改前整行”恢复旧路径和旧 UID；写入前先检查目标行是否仍匹配，若用户后来改过同一行则安全停止，不会覆盖后续修改。已实际执行过一次完整回退和重新应用：回退后为高模 40 / 低模 0，重新应用后为高模 0 / 低模 40。
+
+验证：46/46 源模型与低模的节点路径/节点类型签名一致；39/39 修改后的生产资源均可重新加载，其中 `.tscn` 均可实例化。`campaign_preflight_test.gd` 16/16、`model_asset_contract_test.gd` 62/62、`enemy_model_assets_test.gd` 51/51、`enemy_animation_states_test.gd` 25/25、`grass_terrain_reference_test.gd` 558/558、`level_celestial_decoration_test.gd` 15/15、`level1_sky_decoration_test.gd` 15/15、`projectile_trajectory_preview_test.gd` 42/42、`stuff_runtime_test.gd` 50/50、`terrain_runtime_test.gd` 56/56、`performance_optimization_test.gd` 64/64 通过；主场景运行 240 帧退出码为 0。弩塔、钉锤塔、激光塔仍存在当前工作区的策划参数与测试期望不一致；切回高模复跑得到完全相同的 4/21、4/24、1/36 失败项，确认不是模型替换引入。
+
 ## 明确保留的效果
 
 - `RuntimeSettings.depth_of_field_enabled` 默认值保持 `true`。
@@ -442,6 +486,7 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 | 2026-08-12 | Godot 4.7.1 Headless | `performance_optimization_test.gd` | 64/64 通过；性能档参数、独立回退基线、sidecar 和压缩缓存断言均通过 |
 | 2026-08-16 | Godot 4.7.1 Headless + OpenGL Compatibility / RTX 2060 | 程序减面隔离评估 | 3 个代表模型 × 3 档共 9 个场景可加载；三角面精确为 70%/50%/30%；源模型及 `.import` 前后 SHA-256 一致；完成 3 张四档同屏截图 |
 | 2026-08-16 | Godot 4.7.1 Headless + OpenGL Compatibility / RTX 2060 | 全模型 20% 程序减面 | 扫描 200，处理 46，跳过 154，失败 0；总三角面 9,000,420→1,799,949；46/46 输出重载及源/.import 哈希通过；写实大树排除；3 个受约束模型完成同屏截图 |
+| 2026-08-16 | PowerShell + Godot 4.7.1 Headless | 生产模型引用切换 | 39 个模型、40 处引用、39 个文件全部切到 20% 场景；高模引用残留 0；唯一模型总三角面 7,415,687→1,483,054；46/46 接口、39/39 生产资源加载及 11 个定向套件通过；完整回退/重应用通过 |
 | 2026-08-11 | Headless 全量回归（新增性能专项加入列表前） | 54 个测试套件 | 48 个通过；6 个因当前工作区既有战斗参数、树叶阴影素材、镜面表面偏移或模型空材质诊断失败，见下方说明 |
 | 2026-08-11 | 待执行 | 4K 全屏输出、2K 内部渲染、UI 清晰度 | 需要关闭编辑器后以单独导出版本验证 |
 | 2026-08-11 | 待执行 | 四套灯光档案截图对比 | 需要在真实渲染器中验证 SSIL 关闭后的差异 |

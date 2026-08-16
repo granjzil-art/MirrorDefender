@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="LightingProfile" format=3 uid="uid://cktd3p5x8uopf"]
+
+[ext_resource type="Script" uid="uid://dy7rri21tg83j" path="res://scripts/lighting/DisplayCaseLightingDefinition.gd" id="1_l06ex"]
+[ext_resource type="Script" uid="uid://lqhxsku87exn" path="res://scripts/lighting/LightDefinition.gd" id="2_7upl8"]
+[ext_resource type="Script" uid="uid://bar63sbfvggh8" path="res://scripts/lighting/ReflectionProbeDefinition.gd" id="3_6l03u"]
+[ext_resource type="Script" uid="uid://bs32qt02vd1s0" path="res://scripts/lighting/LightingProfile.gd" id="4_gl0sv"]
+
+[sub_resource type="Resource" id="Case_white"]
+script = ExtResource("1_l06ex")
+glass_tint = Color(0.76, 0.91, 0.96, 1)
+stripe_color = Color(0.92, 0.97, 1, 1)
+edge_color = Color(0.82, 0.94, 1, 1)
+
+[sub_resource type="Environment" id="Environment_white"]
+background_mode = 1
+background_color = Color(0.51754516, 0.7178362, 0.44834632, 1)
+background_energy_multiplier = 0.7
+ambient_light_source = 2
+ambient_light_color = Color(0.84, 0.88, 0.94, 1)
+ambient_light_sky_contribution = 0.0
+ambient_light_energy = 0.42
+tonemap_mode = 3
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 1.4
+ssao_intensity = 1.5
+ssao_power = 1.25
+ssil_radius = 3.0
+ssil_intensity = 0.55
+ssil_sharpness = 0.9
+glow_enabled = true
+glow_intensity = 0.16
+glow_hdr_threshold = 1.35
+glow_hdr_scale = 1.6
+adjustment_enabled = true
+
+[sub_resource type="Resource" id="Light_white_key"]
+script = ExtResource("2_7upl8")
+light_id = &"white_key"
+position = Vector3(-0.45, 0.62, 0.48)
+color = Color(1, 0.97, 0.92, 1)
+energy = 1.25
+indirect_energy = 0.9
+angular_distance = 0.9
+shadow_enabled = true
+shadow_opacity = 0.94
+shadow_bias = 0.055
+shadow_normal_bias = 0.9
+shadow_blur = 0.65
+
+[sub_resource type="Resource" id="Light_white_fill"]
+script = ExtResource("2_7upl8")
+light_id = &"white_fill"
+kind = 3
+position = Vector3(0.55, 0.38, -0.35)
+color = Color(0.8, 0.89, 1, 1)
+energy = 0.55
+indirect_energy = 0.45
+specular = 0.55
+area_size = Vector2(0.6, 0.5)
+
+[sub_resource type="Resource" id="Probe_white"]
+script = ExtResource("3_6l03u")
+intensity = 0.82
+
+[resource]
+script = ExtResource("4_gl0sv")
+profile_id = &"white_soft"
+display_name = "白色柔光"
+environment_template = SubResource("Environment_white")
+lights = Array[ExtResource("2_7upl8")]([SubResource("Light_white_key"), SubResource("Light_white_fill")])
+display_case_lighting = SubResource("Case_white")
+reflection_probe = SubResource("Probe_white")
+default_transition_duration = 0.55

@@ -6,9 +6,9 @@
 [ext_resource type="Texture2D" uid="uid://dixpsor6a7src" path="res://assets/png/mace.png" id="2_w4qi8"]
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_model_asset"]
-[ext_resource type="PackedScene" uid="uid://cup4cr0ye52p5" path="res://assets/buildings/mace/mace1.glb" id="6_c6n8s"]
+[ext_resource type="PackedScene" path="res://outputs/model_decimation_20pct/2026-08-16_all_models_20pct/models/buildings/mace/mace1_20pct.scn" id="6_c6n8s"]
 [ext_resource type="PackedScene" uid="uid://bt0q6xo452oh8" path="res://assets/projections/Nail/nail.tscn" id="7_eroo6"]
-[ext_resource type="PackedScene" uid="uid://chnv2c6fywa3w" path="res://assets/buildings/mace/mace8.glb" id="7_w4qi8"]
+[ext_resource type="PackedScene" path="res://outputs/model_decimation_20pct/2026-08-16_all_models_20pct/models/buildings/mace/mace8_20pct.scn" id="7_w4qi8"]
 
 [sub_resource type="Resource" id="Inspection_mace"]
 script = ExtResource("3_inspection")

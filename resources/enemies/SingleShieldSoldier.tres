@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://cxkhtd24fxsxx"]
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://bc0uexb68vtci"]
 
 [ext_resource type="Script" uid="uid://ty3h6ki11372" path="res://scripts/unit/EnemyDefinition.gd" id="1_enemy"]
 [ext_resource type="PackedScene" uid="uid://bukbhr12uh63p" path="res://assets/enemies/low_poly_wild_boar/wild_boar.tscn" id="2_model"]
@@ -14,7 +14,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 script = ExtResource("1_enemy")
 enemy_id = &"single_shield"
 display_name = "单盾士兵"
-max_hp = 320.0
+max_hp = 360.0
 move_speed = 0.7
 reward = 7.0
 hit_radius = 0.5
