@@ -551,6 +551,9 @@ func _update_wave_completions() -> void:
 		if not _all_wave_groups_spawned(wave_index) or _has_active_unit_for_wave(wave_index):
 			continue
 		_completed_wave_indices[wave_index] = true
+		var wave: WaveDefinition = _level.waves[wave_index]
+		if _resource_manager != null and wave != null:
+			_resource_manager.grant_wave_completion_reward(wave.completion_reward)
 		wave_completed.emit(wave_index + 1)
 
 func _all_wave_groups_spawned(wave_index: int) -> bool:

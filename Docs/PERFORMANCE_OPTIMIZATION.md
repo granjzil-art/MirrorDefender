@@ -347,6 +347,72 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 
 回退语义：执行性能档 `-Mode Rollback` 后，恢复到 PERF-008 基线：176 张恢复 `2048`，9 张 2K 敌人纹理恢复 `0`。若还需撤销 PERF-008，必须先回退性能档，再执行 `apply_world_texture_limits.ps1 -Mode Rollback`。每次回退后都需等待 Godot 重新导入。
 
+### PERF-012：程序减面隔离评估批次
+
+日期：2026-08-16
+状态：已生成并完成资源、画面与源文件完整性校验；仅用于评估，尚未接入任何生产场景或模型配置。
+
+决策：先选择当前三类最高负载的静态建筑模型生成独立减面副本，不覆盖 FBX/GLB，不修改 `.import`、`.tscn`、`.tres` 或运行时引用。使用 Godot 内置 meshoptimizer 简化索引，将 70%、50%、30% 三档简化结果提升为各自基础网格，并压缩未引用顶点，因此三角面与顶点缓冲都真实减少，不是只改变 LOD 切换距离。材质、UV、法线、节点变换和源场景层级沿用原模型。
+
+| 模型 / 参数 | 修改前（原模型） | 70% 评估档 | 50% 评估档 | 30% 评估档 |
+|---|---:|---:|---:|---:|
+| 沙漠城堡三角面 | 999,102 | 699,370 | 499,550 | 299,730 |
+| 沙漠城堡顶点 | 616,061 | 461,328 | 355,061 | 241,756 |
+| 三级箭塔三角面 | 998,471 | 698,929 | 499,235 | 299,541 |
+| 三级箭塔顶点 | 610,263 | 454,259 | 348,640 | 234,177 |
+| 钉锤 8 三角面 | 598,066 | 418,646 | 299,032 | 179,418 |
+| 钉锤 8 顶点 | 419,168 | 323,410 | 254,905 | 177,860 |
+| `NORMAL_DEVIATION_THRESHOLD` | 无程序减面 | 1.0 | 1.0 | 1.0 |
+| 生产资源引用 | 原 FBX/GLB | 未接入 | 未接入 | 未接入 |
+
+输出体积（不含共享纹理）：沙漠城堡为 20.33 / 15.20 / 9.89 MB，三级箭塔为 20.13 / 15.03 / 9.69 MB，钉锤 8 为 13.43 / 10.23 / 6.81 MB。输出 `.scn` 继续引用原材质和纹理，三个档位之间不会复制纹理文件。
+
+新增文件：
+
+- `tools/performance/model_decimation/generate_decimation_preview.gd`
+- `tools/performance/model_decimation/inspect_imported_mesh_lods.gd`
+- `tools/performance/model_decimation/decimation_comparison_viewer.gd`
+- `outputs/model_decimation_preview/2026-08-16_meshoptimizer_eval/` 下的 9 个 `.scn`、3 张对比图、`compare_all.tscn`、`manifest.json` 与 `README.md`
+- `Docs/PERFORMANCE_OPTIMIZATION.md`
+
+验证：9 个减面场景均可由 Godot 4.7.1 重新加载，并在真实 OpenGL Compatibility / RTX 2060 渲染器下完成原始、70%、50%、30% 四档同屏截图。`manifest.json` 记录的 3 个源模型和对应 `.import` 在每组生成前后 SHA-256 完全一致，`source_integrity_unchanged=true`，错误数为 0。对比场景仅载入评估副本，不写入项目主场景。
+
+评估入口：在 Godot 中运行 `outputs/model_decimation_preview/2026-08-16_meshoptimizer_eval/compare_all.tscn`；数字键 `1`/`2`/`3` 切换模型，`W` 切换材质/线框模式，按住鼠标左键同步旋转四档，滚轮缩放。建议先用 50% 档检查近景轮廓、屋顶曲面、旗帜/尖刺、硬边高光和阴影；确认无明显差异后再考虑 30%。
+
+回退：当前没有生产修改需要回退。若放弃本次试验，只删除 `outputs/model_decimation_preview/2026-08-16_meshoptimizer_eval/` 和 `tools/performance/model_decimation/` 即可；源模型、导入参数及现有场景不需要恢复。后续若决定接入，必须另开变更记录逐项替换资源引用，不能直接覆盖原模型。
+
+### PERF-013：全模型 20% 程序减面批次
+
+日期：2026-08-16
+状态：已生成并完成 46/46 资源重载、结构、哈希与重点画面对比校验；仍为隔离副本，未接入生产资源引用。
+
+决策：扫描 `res://assets` 下全部 FBX、GLB、GLTF、OBJ 与 DAE。原场景总三角面大于 5,000 时生成不超过 20% 的独立 `.scn`；小于或等于 5,000 时不处理。写实大树 `assets/greattree/realistic_tree_gltf/scene.gltf` 按用户要求明确排除，已确认批次内不存在其减面输出。源模型、`.import`、现有 `.tscn`、`.tres` 与项目配置均不覆盖。
+
+| 参数 / 指标 | 修改前 | 20% 隔离批次 |
+|---|---:|---:|
+| 扫描模型文件 | — | 200 |
+| `> 5,000` 候选 | — | 47 |
+| 用户排除 | — | 1（写实大树） |
+| 实际处理 | 0 | 46 |
+| 阈值跳过 + 用户排除 | 0 | 154 |
+| 失败 | — | 0 |
+| 已处理模型总三角面 | 9,000,420 | 1,799,949（19.99850%） |
+| 减少三角面 | — | 7,200,471（80.00150%） |
+| 已处理模型总顶点 | 5,638,175 | 1,630,780（28.92390%） |
+| 减少顶点 | — | 4,007,395 |
+| 46 个输出场景体积 | — | 64.20 MB，不含共享纹理 |
+| 生产资源引用 | 原 FBX/GLB/GLTF/DAE | 保持原引用，未接入副本 |
+
+分类处理数量：`buildings=17`、`blocks=10`、`star=6`、`stuffs=5`、`projections=3`、`enemies=2`、`Ramp=1`、`moon=1`、`sun=1`。全部 46 个模型的前后面数、顶点数、实际比例和输出路径记录在 `outputs/model_decimation_20pct/2026-08-16_all_models_20pct/REPORT.md`；同目录 `manifest.json` 保存可机器读取的逐表面算法、结构统计和 SHA-256。
+
+算法：43 个模型直接使用 Godot meshoptimizer 达到目标。大理石块、弩和钉子部分表面因断裂拓扑或属性缝导致 meshoptimizer 提前停止，启用第二级策略：大理石块使用保留源属性缝的体素聚类，弩与两个钉子子网格使用 `fast-simplification 0.2.0` QEM，并按源角点拆分 UV/法线缝后重新生成法线与切线。最终每个模型实际比例均不超过 20%。
+
+验证：每个输出保存后立即从磁盘重新加载，节点数、MeshInstance 数、表面数、非空材质槽、Skeleton、AnimationPlayer、三角面和顶点数全部符合预期。46 组源模型及对应 `.import` 的生成前后 SHA-256 一致，独立复查为 46/46、哈希不匹配 0。骨骼模型 Stone Golem 在输出中仍为 1 个 Skeleton 与 1 个 AnimationPlayer。RTX 2060 / OpenGL Compatibility 下完成大理石块、弩、钉子的原版/20% 同屏截图；大理石块和钉子主体保持，弩的严格 20% 档近景轮廓与高光变化较明显，生产接入前需明确接受该取舍。
+
+评估入口：运行 `outputs/model_decimation_20pct/2026-08-16_all_models_20pct/compare_fallback_models.tscn`，数字键 `1`/`2`/`3` 切换，`W` 切换线框，鼠标拖动同步旋转。全部处理与跳过清单见同目录 `REPORT.md`。
+
+回退：当前未替换生产引用，不存在源资产回退动作。删除 `outputs/model_decimation_20pct/2026-08-16_all_models_20pct/` 即可移除全部 20% 派生场景、回退输入和对比图；工具脚本可单独保留或删除。正式接入必须作为后续独立变更记录，逐项替换引用并进行游戏内回归。
+
 ## 明确保留的效果
 
 - `RuntimeSettings.depth_of_field_enabled` 默认值保持 `true`。
@@ -374,6 +440,8 @@ Godot 4.7 的 SSAO 半分辨率默认值为 `true`，本次不重复覆盖该全
 | 2026-08-12 | Godot 4.7.1 Headless | 预览合法性与复制镜回归 | `path_placement_connectivity_test.gd` 35/35；`copy_mirror_test.gd` 144/144 通过 |
 | 2026-08-12 | PowerShell + Godot 4.7.1 Headless 导入 | 185 张 2K+ 世界纹理性能档 | 185/185 上限为 1024；缓存 519.2→135.9 MB，减少 73.8% |
 | 2026-08-12 | Godot 4.7.1 Headless | `performance_optimization_test.gd` | 64/64 通过；性能档参数、独立回退基线、sidecar 和压缩缓存断言均通过 |
+| 2026-08-16 | Godot 4.7.1 Headless + OpenGL Compatibility / RTX 2060 | 程序减面隔离评估 | 3 个代表模型 × 3 档共 9 个场景可加载；三角面精确为 70%/50%/30%；源模型及 `.import` 前后 SHA-256 一致；完成 3 张四档同屏截图 |
+| 2026-08-16 | Godot 4.7.1 Headless + OpenGL Compatibility / RTX 2060 | 全模型 20% 程序减面 | 扫描 200，处理 46，跳过 154，失败 0；总三角面 9,000,420→1,799,949；46/46 输出重载及源/.import 哈希通过；写实大树排除；3 个受约束模型完成同屏截图 |
 | 2026-08-11 | Headless 全量回归（新增性能专项加入列表前） | 54 个测试套件 | 48 个通过；6 个因当前工作区既有战斗参数、树叶阴影素材、镜面表面偏移或模型空材质诊断失败，见下方说明 |
 | 2026-08-11 | 待执行 | 4K 全屏输出、2K 内部渲染、UI 清晰度 | 需要关闭编辑器后以单独导出版本验证 |
 | 2026-08-11 | 待执行 | 四套灯光档案截图对比 | 需要在真实渲染器中验证 SSIL 关闭后的差异 |

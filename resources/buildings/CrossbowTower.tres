@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://csxxkifndypte"]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://b44heity8acpn"]
 
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
 [ext_resource type="Texture2D" uid="uid://bjyr2pr0ia6sp" path="res://assets/png/crossbow.png" id="1_yr0hp"]
@@ -6,13 +6,12 @@
 [ext_resource type="Script" uid="uid://co8d7adkd86mp" path="res://scripts/shared/InspectionDisplayConfig.gd" id="3_inspection"]
 [ext_resource type="PackedScene" uid="uid://cmi4458foe27j" path="res://assets/buildings/crossbow/crossbow.tscn" id="3_sjpu4"]
 [ext_resource type="Script" uid="uid://bwuagxdhsne4" path="res://scripts/presentation/ModelAssetDefinition.gd" id="4_model_asset"]
-[ext_resource type="PackedScene" uid="uid://d2tkioawbgaw0" path="res://assets/projections/daodan/daodan.tscn" id="6_sjpu4"]
+[ext_resource type="PackedScene" uid="uid://djxcdun75dhra" path="res://assets/projections/daodan/source/missile.tscn" id="6_yr0hp"]
 
 [sub_resource type="Resource" id="Inspection_crossbow"]
 script = ExtResource("3_inspection")
 display_name = "导弹塔"
-function_description = "向敌人发射导弹，无敌人时向固定方向自动发射
-导弹可以被反射，飞行距离长，AOE"
+function_description = "发射导弹，爆炸造成[color=#ff0033]范围[/color]伤害"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -28,18 +27,20 @@ scene = ExtResource("3_sjpu4")
 
 [sub_resource type="Resource" id="Projectile_level_1"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("6_sjpu4")
+scene = ExtResource("6_yr0hp")
 runtime_scale = Vector3(1.2, 1.2, 1)
 
 [sub_resource type="Resource" id="Stats_level_1"]
 script = ExtResource("2_stats")
-cost = 180.0
+cost = 175.0
 prioritizes_airborne = true
-base_damage = 25.0
+base_damage = 35.0
 targeting_range = 2.0
 attack_range = 13.0
 attacks_per_second = 0.3
 projectile_fire_mode = 2
+projectile_length = 1.0
+projectile_width = 0.2
 projectile_model_asset = SubResource("Projectile_level_1")
 projectile_is_missile = true
 missile_explosion_radius = 1.3
@@ -56,20 +57,20 @@ runtime_scale = Vector3(1.1, 1.1, 1.1)
 
 [sub_resource type="Resource" id="Projectile_level_2"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("6_sjpu4")
+scene = ExtResource("6_yr0hp")
 runtime_scale = Vector3(1.3, 1.3, 1.1)
 
 [sub_resource type="Resource" id="Stats_level_2"]
 script = ExtResource("2_stats")
 cost = 120.0
 prioritizes_airborne = true
-base_damage = 30.0
+base_damage = 40.0
 targeting_range = 2.5
 attack_range = 22.0
 attacks_per_second = 0.4
 projectile_fire_mode = 2
-projectile_length = 1.0
-projectile_width = 0.1
+projectile_length = 1.2000000000000002
+projectile_width = 0.24
 projectile_model_asset = SubResource("Projectile_level_2")
 projectile_is_missile = true
 missile_explosion_radius = 1.7
@@ -86,20 +87,20 @@ runtime_scale = Vector3(1.2, 1.2, 1.2)
 
 [sub_resource type="Resource" id="Projectile_level_3"]
 script = ExtResource("4_model_asset")
-scene = ExtResource("6_sjpu4")
+scene = ExtResource("6_yr0hp")
 runtime_scale = Vector3(1.35, 1.35, 1.2)
 
 [sub_resource type="Resource" id="Stats_level_3"]
 script = ExtResource("2_stats")
-cost = 120.0
+cost = 140.0
 prioritizes_airborne = true
-base_damage = 35.0
+base_damage = 45.0
 targeting_range = 3.0
 attack_range = 27.0
 attacks_per_second = 0.5
 projectile_fire_mode = 2
-projectile_length = 0.4
-projectile_width = 0.1
+projectile_length = 1.5
+projectile_width = 0.28
 projectile_model_asset = SubResource("Projectile_level_3")
 projectile_is_missile = true
 missile_explosion_radius = 2.0
@@ -117,3 +118,6 @@ card_icon = ExtResource("1_yr0hp")
 inspection_display = SubResource("Inspection_crossbow")
 aim_mode = 1
 levels = Array[ExtResource("2_stats")]([SubResource("Stats_level_1"), SubResource("Stats_level_2"), SubResource("Stats_level_3")])
+copy_enhancement_description = "导弹爆炸时附加[color=#ff0033]燃烧[/color]效果"
+reflection_enhancement_description = "反射导弹变大，[color=#ff0033]爆炸范围[/color]提升
+"

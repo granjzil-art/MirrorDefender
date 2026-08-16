@@ -707,6 +707,8 @@ func _validate_m4_content(errors: Array[String]) -> void:
 			continue
 		if not is_finite(wave.enemy_drop_multiplier) or wave.enemy_drop_multiplier < 0.0:
 			errors.append("波次 %s 的敌人掉落倍率必须为有限非负数" % wave.display_name)
+		if not is_finite(wave.completion_reward) or wave.completion_reward < 0.0:
+			errors.append("波次 %s 的完成奖励必须为有限非负数" % wave.display_name)
 		if wave.spawn_groups.is_empty():
 			errors.append("波次 %s 没有出怪组" % wave.display_name)
 		for group in wave.spawn_groups:

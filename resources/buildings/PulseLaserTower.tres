@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://5h16eykhvv41"]
+[gd_resource type="Resource" script_class="BuildingDefinition" format=3 uid="uid://db2yh123nf7lx"]
 
 [ext_resource type="Texture2D" uid="uid://b0p4nvpf47eev" path="res://assets/png/PulseLayer_o.png" id="1_buxgg"]
 [ext_resource type="Script" uid="uid://8dmi7g0awgj3" path="res://scripts/building/BuildingDefinition.gd" id="1_definition"]
@@ -10,8 +10,7 @@
 [sub_resource type="Resource" id="Inspection_pulse_laser"]
 script = ExtResource("3_inspection")
 display_name = "镭射塔"
-function_description = "沿固定方向发射无限穿透的激光
-成本高，单发伤害低。无限穿透，强力对群"
+function_description = "一定频率发射[color=#ffc83e]无限穿透[/color]的激光"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -26,11 +25,11 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level1"]
 script = ExtResource("2_stats")
-cost = 250.0
+cost = 200.0
 affects_airborne = false
-base_damage = 15.0
+base_damage = 18.0
 targeting_range = 6.0
-attack_range = 9.0
+attack_range = 11.0
 attacks_per_second = 0.7
 model_asset = SubResource("Resource_hn4ii")
 tower_color = Color(0.72, 0.12, 0.08, 1)
@@ -46,11 +45,11 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level2"]
 script = ExtResource("2_stats")
-cost = 180.0
+cost = 120.0
 affects_airborne = false
-base_damage = 17.0
+base_damage = 21.0
 targeting_range = 7.0
-attack_range = 11.0
+attack_range = 15.0
 level_factor = 1.2
 model_asset = SubResource("Resource_nany5")
 tower_color = Color(0.86, 0.22, 0.05, 1)
@@ -68,10 +67,11 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
-cost = 180.0
+cost = 150.0
 affects_airborne = false
+base_damage = 24.0
 targeting_range = 8.0
-attack_range = 14.0
+attack_range = 18.0
 attacks_per_second = 1.2
 level_factor = 1.5
 model_asset = SubResource("Resource_bjg1l")
@@ -88,3 +88,5 @@ display_name = "镭射塔"
 card_icon = ExtResource("1_buxgg")
 inspection_display = SubResource("Inspection_pulse_laser")
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])
+copy_enhancement_description = "攻击方式变为[color=#ffc83e]充能爆发[/color]"
+reflection_enhancement_description = "反射光线变色，[color=#ffc83e]更粗！[/color][color=#ff0033]更强！[/color]"

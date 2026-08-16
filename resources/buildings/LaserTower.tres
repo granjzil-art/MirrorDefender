@@ -10,8 +10,7 @@
 [sub_resource type="Resource" id="Inspection_laser"]
 script = ExtResource("3_inspection")
 display_name = "冰冻塔"
-function_description = "沿固定方向持续发射冰冻光束，造成持续伤害并减速敌人。
-塔本体升级只提升数值；范围爆发与冻结由二级复制镜赋予复制体。"
+function_description = "发射冰冻光束对敌人造成[color=#2aa8db]减速[/color]"
 show_position = false
 show_height = false
 show_build_permissions = false
@@ -33,6 +32,7 @@ base_damage = 15.0
 targeting_range = 6.0
 attack_range = 8.0
 laser_dps = 8.0
+laser_slow_multiplier = 0.6
 projectile_penetration_count = 3
 model_asset = SubResource("Resource_ixmxi")
 tower_color = Color(0.16, 0.55, 0.88, 1)
@@ -54,6 +54,7 @@ laser_dps = 10.0
 laser_beam_width = 0.09
 laser_beam_emission_energy = 3.4
 laser_propagation_speed = 4.5
+laser_slow_multiplier = 0.5
 projectile_speed = 8.0
 projectile_length = 0.36
 projectile_width = 0.08
@@ -70,7 +71,7 @@ metadata/_custom_type_script = "uid://bwuagxdhsne4"
 
 [sub_resource type="Resource" id="Level3"]
 script = ExtResource("2_stats")
-cost = 100.0
+cost = 120.0
 affects_airborne = false
 base_damage = 25.0
 targeting_range = 8.0
@@ -94,3 +95,5 @@ display_name = "冰冻塔"
 card_icon = ExtResource("1_6brfg")
 inspection_display = SubResource("Inspection_laser")
 levels = Array[ExtResource("2_stats")]([SubResource("Level1"), SubResource("Level2"), SubResource("Level3")])
+copy_enhancement_description = "造成[color=#2aa8db]冰爆[/color]并[color=#2aa8db]冻结[/color]敌人"
+reflection_enhancement_description = "无"

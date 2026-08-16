@@ -279,27 +279,40 @@ func _build_status_visuals() -> void:
 func _ensure_burn_visual() -> void:
 	if _burn_visual != null and is_instance_valid(_burn_visual):
 		return
-	_burn_visual = GPUParticles3D.new()
+	_burn_visual = create_burn_particles(hit_radius, debug_height)
 	_burn_visual.name = &"BurningStatusVisual"
-	_burn_visual.amount = BURN_PARTICLE_COUNT
-	_burn_visual.lifetime = 0.72
-	_burn_visual.randomness = 0.42
-	_burn_visual.preprocess = 0.35
-	_burn_visual.fixed_fps = 30
-	_burn_visual.interpolate = true
-	_burn_visual.local_coords = true
-	_burn_visual.draw_order = GPUParticles3D.DRAW_ORDER_LIFETIME
-	_burn_visual.position.y = maxf(0.08, debug_height * 0.18)
-	var visual_extent := maxf(debug_height, hit_radius * 3.0)
-	_burn_visual.visibility_aabb = AABB(
+	add_child(_burn_visual)
+
+
+## Shared factory used by burning enemies and copied burning missiles so both
+## presentations retain the same cached flame texture and particle behaviour.
+static func create_burn_particles(
+	visual_radius: float,
+	visual_height: float,
+	active: bool = false
+) -> GPUParticles3D:
+	var radius := maxf(0.01, visual_radius)
+	var height := maxf(0.01, visual_height)
+	var particles := GPUParticles3D.new()
+	particles.amount = BURN_PARTICLE_COUNT
+	particles.lifetime = 0.72
+	particles.randomness = 0.42
+	particles.preprocess = 0.35
+	particles.fixed_fps = 30
+	particles.interpolate = true
+	particles.local_coords = true
+	particles.draw_order = GPUParticles3D.DRAW_ORDER_LIFETIME
+	particles.position.y = maxf(0.08, height * 0.18)
+	var visual_extent := maxf(height, radius * 3.0)
+	particles.visibility_aabb = AABB(
 		Vector3(-visual_extent, -visual_extent * 0.4, -visual_extent),
 		Vector3(visual_extent * 2.0, visual_extent * 2.2, visual_extent * 2.0)
 	)
-	_burn_visual.process_material = _make_burn_particle_process_material()
-	_burn_visual.draw_pass_1 = _make_burn_particle_mesh()
-	_burn_visual.emitting = false
-	_burn_visual.visible = false
-	add_child(_burn_visual)
+	particles.process_material = _make_burn_particle_process_material(radius, height)
+	particles.draw_pass_1 = _make_burn_particle_mesh(radius, height)
+	particles.emitting = active
+	particles.visible = active
+	return particles
 
 
 func _make_status_material(color: Color, emission_energy: float) -> StandardMaterial3D:
@@ -362,11 +375,11 @@ func _update_status_visuals() -> void:
 				_burn_visual.restart()
 
 
-func _make_burn_particle_mesh() -> QuadMesh:
+static func _make_burn_particle_mesh(visual_radius: float, visual_height: float) -> QuadMesh:
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(
-		maxf(0.12, hit_radius * 0.95),
-		maxf(0.22, debug_height * 0.58)
+		maxf(0.12, visual_radius * 0.95),
+		maxf(0.22, visual_height * 0.58)
 	)
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -387,19 +400,22 @@ func _make_burn_particle_mesh() -> QuadMesh:
 	return mesh
 
 
-func _make_burn_particle_process_material() -> ParticleProcessMaterial:
+static func _make_burn_particle_process_material(
+	visual_radius: float,
+	visual_height: float
+) -> ParticleProcessMaterial:
 	var material := ParticleProcessMaterial.new()
 	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	material.emission_box_extents = Vector3(
-		maxf(0.04, hit_radius * 0.62),
-		maxf(0.02, debug_height * 0.08),
-		maxf(0.04, hit_radius * 0.62)
+		maxf(0.04, visual_radius * 0.62),
+		maxf(0.02, visual_height * 0.08),
+		maxf(0.04, visual_radius * 0.62)
 	)
 	material.direction = Vector3.UP
 	material.spread = 22.0
-	material.initial_velocity_min = maxf(0.12, debug_height * 0.32)
-	material.initial_velocity_max = maxf(0.22, debug_height * 0.58)
-	material.gravity = Vector3(0.0, maxf(0.05, debug_height * 0.16), 0.0)
+	material.initial_velocity_min = maxf(0.12, visual_height * 0.32)
+	material.initial_velocity_max = maxf(0.22, visual_height * 0.58)
+	material.gravity = Vector3(0.0, maxf(0.05, visual_height * 0.16), 0.0)
 	material.scale_min = 0.48
 	material.scale_max = 0.92
 	material.angle_min = -14.0
@@ -420,7 +436,7 @@ func _make_burn_particle_process_material() -> ParticleProcessMaterial:
 	return material
 
 
-func _get_burn_flame_texture() -> Texture2D:
+static func _get_burn_flame_texture() -> Texture2D:
 	if _shared_burn_flame_texture != null:
 		return _shared_burn_flame_texture
 	var image := Image.create_empty(
@@ -475,7 +491,7 @@ func _get_burn_flame_texture() -> Texture2D:
 	return _shared_burn_flame_texture
 
 
-func _sample_flame_layer(
+static func _sample_flame_layer(
 	horizontal: float,
 	vertical: float,
 	base_width: float,

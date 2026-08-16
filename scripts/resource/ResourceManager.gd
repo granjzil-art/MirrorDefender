@@ -190,6 +190,10 @@ func grant_enemy_drop(amount: float) -> void:
 	gain(amount, "enemy_drop")
 
 
+func grant_wave_completion_reward(amount: float) -> void:
+	gain(amount, "wave_completion")
+
+
 func get_building_count() -> int:
 	return _building_count
 

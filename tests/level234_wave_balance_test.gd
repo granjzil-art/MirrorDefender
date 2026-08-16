@@ -159,6 +159,7 @@ func _test_level_contract(
 	var total_count := 0
 	var total_base_hp := 0.0
 	var total_adjusted_reward := 0.0
+	var total_completion_reward := 0.0
 	for wave_index in range(level.waves.size()):
 		var wave: WaveDefinition = level.waves[wave_index]
 		_expect(wave != null, "%s wave %d is configured" % [label, wave_index + 1])
@@ -167,6 +168,8 @@ func _test_level_contract(
 		_expect(wave.display_name == "第 %d 波" % (wave_index + 1), "%s wave %d has a stable display name" % [label, wave_index + 1])
 		var expected_drop_multiplier := 0.5 if wave_index >= 10 else 1.0
 		_expect(is_equal_approx(wave.enemy_drop_multiplier, expected_drop_multiplier), "%s wave %d uses the authored phase drop multiplier" % [label, wave_index + 1])
+		_expect(is_equal_approx(wave.completion_reward, 40.0), "%s wave %d grants the standard forty-resource completion reward" % [label, wave_index + 1])
+		total_completion_reward += wave.completion_reward
 		_expect(wave.spawn_groups.size() == expected_group_counts[wave_index], "%s wave %d keeps its authored group count" % [label, wave_index + 1])
 		var wave_count := 0
 		var wave_base_hp := 0.0
@@ -195,6 +198,7 @@ func _test_level_contract(
 	_expect(total_count == expected_total_count, "%s keeps its total authored enemy count" % label)
 	_expect(is_equal_approx(total_base_hp, expected_total_base_hp), "%s keeps its total authored base HP budget" % label)
 	_expect(is_equal_approx(total_adjusted_reward, expected_total_adjusted_reward), "%s keeps its intended phase-adjusted total kill reward" % label)
+	_expect(is_equal_approx(total_completion_reward, 600.0), "%s grants 600 total completion reward across fifteen waves" % label)
 
 
 func _first_enemy_wave(level: LevelResource, enemy_id: StringName) -> int:

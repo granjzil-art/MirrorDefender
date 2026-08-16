@@ -455,6 +455,13 @@ func debug_get_pulse_overdrive_visual_color() -> Color:
 	return _pulse_overdrive_visual_color
 
 
+func debug_get_laser_base_color() -> Color:
+	if _laser_visual == null or not _laser_visual.has_method("debug_get_beam_material"):
+		return Color.TRANSPARENT
+	var material := _laser_visual.call("debug_get_beam_material") as StandardMaterial3D
+	return material.albedo_color if material != null else Color.TRANSPARENT
+
+
 func debug_get_pulse_overdrive_rendered_color() -> Color:
 	return (
 		_laser_visual.call("debug_get_single_sine_segment_color", 0) as Color
@@ -515,6 +522,9 @@ func _build_visual() -> void:
 				beam_width = float(payload.root_source.call("get_laser_beam_width_world"))
 			if payload.root_source.has_method("get_laser_beam_emission_energy"):
 				beam_emission = float(payload.root_source.call("get_laser_beam_emission_energy"))
+		var ice_copy_effect := payload.attack_effects.get_effect_resource(&"ice_copy_burst")
+		if ice_copy_effect != null and ice_copy_effect.has_method("get_copy_beam_color"):
+			beam_color = ice_copy_effect.call("get_copy_beam_color") as Color
 		_laser_visual.configure(beam_color, beam_width, beam_emission)
 	if payload.copy_kind == &"pulse_laser_tower":
 		_build_pulse_charge_orb()

@@ -83,6 +83,10 @@ func _test_targeted_missile(fixture: Dictionary) -> void:
 		_remove_target(combat, target)
 		_remove_target(combat, airborne_splash)
 		return
+	_expect(
+		missile.debug_get_burning_particles() == null,
+		"ordinary missiles do not allocate the copied burning particle presentation"
+	)
 	_expect(not missile.is_ballistic(), "the targeted missile retains its marked homing target")
 	_expect(absi(missile.get_orbit_direction_sign()) == 1, "each missile chooses a valid clockwise or counter-clockwise loop")
 	var marker := missile.get_target_marker()
@@ -204,6 +208,9 @@ func _test_mirror_special_effects(fixture: Dictionary) -> void:
 		2,
 		{"copy_kind": &"crossbow_tower", "copy_upgrade_count": 1}
 	)
+	var burning_effect := burn_payload.get_effect_resource(&"burning_missile")
+	var configured_burn_ratio := float(burning_effect.get("damage_per_second_ratio"))
+	var configured_burn_duration := float(burning_effect.get("burn_duration"))
 	var burning_missile := combat.spawn_directional_missile(
 		origin,
 		Vector3.RIGHT,
@@ -218,26 +225,54 @@ func _test_mirror_special_effects(fixture: Dictionary) -> void:
 		building.get_missile_configuration(),
 		burn_payload
 	)
+	var missile_burn_particles := (
+		burning_missile.debug_get_burning_particles()
+		if burning_missile != null
+		else null
+	)
+	var missile_flame_texture: Texture2D
+	if missile_burn_particles != null and missile_burn_particles.draw_pass_1 is QuadMesh:
+		var flame_mesh := missile_burn_particles.draw_pass_1 as QuadMesh
+		var flame_material := flame_mesh.material as StandardMaterial3D
+		if flame_material != null:
+			missile_flame_texture = flame_material.albedo_texture
+	_expect(
+		missile_burn_particles != null
+		and missile_burn_particles.visible
+		and missile_burn_particles.emitting
+		and missile_burn_particles.amount == CombatTarget.BURN_PARTICLE_COUNT
+		and missile_flame_texture == burning_target.debug_get_burn_flame_texture(),
+		"copied burning missiles reuse the enemy burn particle presentation and cached flame texture"
+	)
 	if burning_missile != null:
 		burning_missile._explode()
 	var burn_particles := burning_target.debug_get_burn_particles()
 	_expect(
 		is_equal_approx(burning_target.current_hp, 100.0)
 		and burning_target.is_burning()
-		and is_equal_approx(burning_target.get_burn_damage_per_second(), 2.5)
+		and is_equal_approx(
+			burning_target.get_burn_damage_per_second(),
+			20.0 * configured_burn_ratio
+		)
 		and burn_particles != null
 		and burn_particles.visible
 		and burn_particles.emitting
 		and burn_particles.amount == CombatTarget.BURN_PARTICLE_COUNT
 		and burn_particles.draw_pass_1 is QuadMesh
 		and burning_target.debug_get_burn_flame_texture() != null,
-		"one L2 copy ignites the independent 1.5-cell area at 12.5% explosion damage per second"
+		"one L2 copy ignites the independent area using the configured explosion-damage ratio"
 	)
 	burning_target._process(1.0)
 	_expect(
-		is_equal_approx(burning_target.current_hp, 97.5)
-		and is_equal_approx(burning_target.get_burn_remaining(), 3.0),
-		"burning deals continuous damage and consumes its four-second duration"
+		is_equal_approx(
+			burning_target.current_hp,
+			100.0 - 20.0 * configured_burn_ratio
+		)
+		and is_equal_approx(
+			burning_target.get_burn_remaining(),
+			maxf(0.0, configured_burn_duration - 1.0)
+		),
+		"burning deals continuous damage and consumes its configured duration"
 	)
 	var stronger_missile := combat.spawn_directional_missile(
 		origin,
@@ -256,8 +291,11 @@ func _test_mirror_special_effects(fixture: Dictionary) -> void:
 	if stronger_missile != null:
 		stronger_missile._explode()
 	_expect(
-		is_equal_approx(burning_target.get_burn_damage_per_second(), 5.0)
-		and is_equal_approx(burning_target.get_burn_remaining(), 4.0),
+		is_equal_approx(
+			burning_target.get_burn_damage_per_second(),
+			40.0 * configured_burn_ratio
+		)
+		and is_equal_approx(burning_target.get_burn_remaining(), configured_burn_duration),
 		"repeat ignition refreshes duration and keeps the stronger damage rate"
 	)
 

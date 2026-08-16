@@ -695,6 +695,11 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 		and laser_projection.payload.attack_effects.has_effect(&"ice_copy_burst"),
 		"level-two copied ice tower receives burst and freeze together"
 	)
+	_expect(
+		laser_projection != null
+		and laser_projection.debug_get_laser_base_color().is_equal_approx(Color("349fed")),
+		"level-two copied ice tower uses the dedicated #349fed beam color"
+	)
 	var ice_path_start := laser_projection.payload.transform_point(laser.get_attack_origin())
 	var ice_path_end := laser_projection.payload.transform_point(original_endpoint)
 	var ice_direction := (ice_path_end - ice_path_start).normalized()

@@ -12,6 +12,7 @@ func _run() -> void:
 	print("[ManualWaveRelease] running")
 	await _test_manual_release_flow()
 	await _test_wave_bound_economy()
+	await _test_wave_completion_reward()
 	await _test_preflight_failure_is_not_victory()
 	if _failures == 0:
 		print("[ManualWaveRelease] PASS: %d checks" % _checks)
@@ -212,6 +213,48 @@ func _test_wave_bound_economy() -> void:
 	var test_enemy := _find_enemy_named(manager, "Test Economy")
 	_expect(bool(test_result.get("success", false)) and test_enemy != null and test_enemy.defeat(), "a test enemy can be defeated during the economy test")
 	_expect(is_equal_approx(resource_manager.main_resource, before_test + 5.0), "test enemies keep the unscaled one-times reward")
+
+	host.queue_free()
+	await process_frame
+
+
+func _test_wave_completion_reward() -> void:
+	var level := _make_three_wave_level()
+	level.waves[0].completion_reward = 40.0
+	level.waves[1].completion_reward = 25.0
+	level.waves[2].completion_reward = 15.0
+	var fixture := _make_runtime_fixture(level)
+	var host: Node3D = fixture["host"]
+	var manager: WaveManager = fixture["wave"]
+	var resource_manager: ResourceManager = fixture["resource"]
+	var initial_resource := resource_manager.main_resource
+	var completed_waves: Array[int] = []
+	manager.wave_completed.connect(
+		func(wave_number: int) -> void:
+			completed_waves.append(wave_number)
+	)
+
+	_expect(manager.start_next_wave() and manager.start_next_wave(), "two reward-test waves can overlap")
+	manager._process(2.0)
+	await _clear_active_enemies(manager)
+	_expect(completed_waves == [1, 2], "overlapping waves complete independently in authored order")
+	_expect(
+		is_equal_approx(resource_manager.main_resource, initial_resource + 65.0),
+		"each completed overlapping wave grants its configured reward exactly once"
+	)
+	manager._process(0.0)
+	_expect(
+		is_equal_approx(resource_manager.main_resource, initial_resource + 65.0),
+		"rechecking completed waves cannot grant duplicate completion rewards"
+	)
+
+	_expect(manager.start_next_wave(), "the final reward-test wave can be released")
+	await _clear_active_enemies(manager)
+	_expect(completed_waves == [1, 2, 3], "the final wave emits its own completion event")
+	_expect(
+		is_equal_approx(resource_manager.main_resource, initial_resource + 80.0),
+		"the final completion reward is granted before victory settles"
+	)
 
 	host.queue_free()
 	await process_frame

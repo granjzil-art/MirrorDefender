@@ -32,15 +32,15 @@ minimum_mirror_level = 2
 [sub_resource type="Resource" id="Inspection_reflect_mirror"]
 script = ExtResource("2_inspection")
 display_name = "反射镜"
-function_description = "反射接触正面的投射物和激光，背面可穿过。
-每次成功反射造成1.1倍伤害；单条攻击路径最多成功反射7次。"
+function_description = "反射接触[color=#06c763]正面[/color]的子弹，[color=#349fed]背面[/color]穿过
+反射后子弹伤害变为[color=#ff0033]110%[/color]"
 
 [resource]
 script = ExtResource("1_definition")
 display_name = "反射镜"
 card_icon = ExtResource("1_gohiu")
 inspection_display = SubResource("Inspection_reflect_mirror")
-placement_cost = 80.0
+placement_cost = 60.0
 upgrade_costs = Array[float]([120.0])
 level_damage_multipliers = Array[float]([1.1, 1.1])
 attack_effects = Array[ExtResource("4_attack_effect")]([SubResource("ReflectionForkEffect"), SubResource("ArrowReflectionEffect"), SubResource("MissileGrowthEffect"), SubResource("PulseReflectionEffect")])
@@ -49,3 +49,5 @@ reflection_two_sided_visual = false
 reflection_surface_offset_ratio = 1.0
 mirror_reflectivity = 1.0
 mirror_surface_tint = Color(0.92, 0.96, 1, 1)
+upgrade_description = "解锁[color=#ff0033]强化反射[/color]
+反射子弹会发生[color=#06c763]分裂[/color]"

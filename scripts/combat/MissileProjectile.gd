@@ -38,6 +38,7 @@ var _trail_width: float = 0.055
 var _target_marker_size: float = 0.72
 var _color: Color = Color(1.0, 0.45, 0.08, 1.0)
 var _visual_wobble_root: Node3D
+var _burning_visual: GPUParticles3D
 var _target_marker: MissileTargetMarker
 var _configuration_snapshot: Dictionary = {}
 
@@ -168,6 +169,7 @@ func _configure_missile(
 	_randomize_motion()
 	_build_visual(maxf(0.1, visual_length), maxf(0.02, visual_width), color, model_asset)
 	_wrap_projectile_visuals()
+	_build_burning_visual()
 	_update_orientation(_direction)
 	_active = true
 	_spawn_trail()
@@ -228,6 +230,10 @@ func apply_mirror_reflection_growth(
 
 func get_mirror_visual_scale() -> float:
 	return _visual_wobble_root.scale.x if _visual_wobble_root != null else 1.0
+
+
+func debug_get_burning_particles() -> GPUParticles3D:
+	return _burning_visual
 
 
 func apply_burning_area(
@@ -616,6 +622,21 @@ func _wrap_projectile_visuals() -> void:
 	for child in existing_children:
 		remove_child(child)
 		_visual_wobble_root.add_child(child)
+
+
+func _build_burning_visual() -> void:
+	if _attack_effects == null or not _attack_effects.has_effect(&"burning_missile"):
+		return
+	var visual_radius := maxf(0.08, _visual_width * 1.5)
+	var visual_height := maxf(_visual_width * 2.0, _visual_length * 0.65)
+	_burning_visual = CombatTarget.create_burn_particles(
+		visual_radius,
+		visual_height,
+		true
+	)
+	_burning_visual.name = &"BurningMissileVisual"
+	_visual_wobble_root.add_child(_burning_visual)
+	_burning_visual.restart()
 
 
 func _update_visual_wobble() -> void:

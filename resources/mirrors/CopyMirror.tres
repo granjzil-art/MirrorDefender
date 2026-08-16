@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="CopyMirrorDefinition" format=3 uid="uid://b236cmcuc4fdf"]
+[gd_resource type="Resource" script_class="CopyMirrorDefinition" format=3 uid="uid://cqye56m8hemqt"]
 
 [ext_resource type="Script" uid="uid://rx7xjm50tfnu" path="res://scripts/mirror/CopyMirrorDefinition.gd" id="1_definition"]
 [ext_resource type="Texture2D" uid="uid://ceit6aqd8desj" path="res://assets/ui/global_info/mirror1.png" id="1_uv4ha"]
@@ -28,7 +28,7 @@ minimum_mirror_level = 2
 script = ExtResource("6_pulse_overdrive")
 charge_shots = 4
 charge_orb_pulse_speed = 14.01
-dps_multipliers = PackedFloat32Array(1.5, 1.8, 2)
+dps_multipliers = PackedFloat32Array(2, 2.3, 2.8)
 beam_width_multipliers = PackedFloat32Array(1.5, 1.75, 2)
 effect_id = &"pulse_laser_overdrive"
 minimum_mirror_level = 2
@@ -43,9 +43,8 @@ minimum_mirror_level = 2
 script = ExtResource("2_inspection")
 visible = false
 display_name = "复制镜"
-function_description = "将最近非空地块上的全部对象复制到镜面对称位置。
-复制体同步源塔朝向、等级和攻击事件，可继续被复制，且不占据格子。
-复制链最多三层；二级镜会按塔类型强化复制体的攻击方式。"
+function_description = "复制朝向[color=#06c763]最近非空[/color]格子上的[color=#ff0033]全部[/color]对象
+复制体伤害为[color=#dea967]80%[/color]"
 
 [resource]
 script = ExtResource("1_definition")
@@ -54,7 +53,8 @@ projection_rim_alpha = 0.56
 display_name = "复制镜"
 card_icon = ExtResource("1_uv4ha")
 inspection_display = SubResource("Inspection_copy_mirror")
-upgrade_costs = Array[float]([150.0])
+placement_cost = 80.0
+upgrade_costs = Array[float]([100.0])
 level_damage_multipliers = Array[float]([0.8, 1.0])
 level_penetration_bonuses = Array[int]([0, 1])
 attack_effects = Array[ExtResource("4_attack_effect")]([SubResource("BurstArrowEffect"), SubResource("BurningMissileEffect"), SubResource("PulseOverdriveEffect"), SubResource("IceBurstEffect")])
@@ -64,3 +64,5 @@ reflection_surface_offset_ratio = 1.0
 mirror_reflectivity = 1.0
 mirror_surface_tint = Color(0, 0, 0, 0.007843138)
 mirror_back_face_color = Color(0.8700769, 0.89158946, 0.8612653, 1)
+upgrade_description = "解锁[color=#ffc83e]强化复制[/color]
+复制体伤害变为[color=#ff0033]100%[/color]"

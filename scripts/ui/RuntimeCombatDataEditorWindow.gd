@@ -743,6 +743,7 @@ func _append_copy_effect_sections(
 		var fields: Array[Dictionary] = [
 			_float_field("burst_interval", "爆发间隔（秒）", 0.01, 60.0, 0.1),
 			_float_field("burst_radius_cells", "爆发半径（格）", 0.0, 20.0, 0.05),
+			_color_field("beam_color", "强化复制光线颜色"),
 		]
 		for index in range((ice.get("freeze_durations") as PackedFloat32Array).size()):
 			fields.append(_indexed_field(

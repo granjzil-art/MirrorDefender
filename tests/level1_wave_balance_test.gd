@@ -46,6 +46,7 @@ func _test_level1_wave_contract() -> void:
 	var total_count := 0
 	var total_base_hp := 0.0
 	var total_adjusted_reward := 0.0
+	var total_completion_reward := 0.0
 	for wave_index in range(level.waves.size()):
 		var wave: WaveDefinition = level.waves[wave_index]
 		_expect(wave != null, "wave %d is configured" % (wave_index + 1))
@@ -54,6 +55,8 @@ func _test_level1_wave_contract() -> void:
 		_expect(wave.display_name == "第 %d 波" % (wave_index + 1), "wave %d has a stable display name" % (wave_index + 1))
 		var expected_drop_multiplier := 0.5 if wave_index >= 10 else 1.0
 		_expect(is_equal_approx(wave.enemy_drop_multiplier, expected_drop_multiplier), "wave %d uses the authored phase drop multiplier" % (wave_index + 1))
+		_expect(is_equal_approx(wave.completion_reward, 40.0), "wave %d grants the standard forty-resource completion reward" % (wave_index + 1))
+		total_completion_reward += wave.completion_reward
 		_expect(wave.spawn_groups.size() == expected_group_counts[wave_index], "wave %d keeps its authored group count" % (wave_index + 1))
 		var wave_count := 0
 		var wave_base_hp := 0.0
@@ -90,6 +93,7 @@ func _test_level1_wave_contract() -> void:
 	_expect(total_count == 501, "the full fifteen-wave sequence contains 501 enemies")
 	_expect(is_equal_approx(total_base_hp, 42580.0), "the full sequence keeps its authored base HP budget")
 	_expect(is_equal_approx(total_adjusted_reward, 2590.0), "the phase multipliers produce the intended 2590 total kill reward")
+	_expect(is_equal_approx(total_completion_reward, 600.0), "fifteen completed waves grant 600 total completion reward")
 	_expect(_is_enemy(level.waves[2].spawn_groups[1], &"runner") and level.waves[2].spawn_groups[1].path == level.paths[0], "wave three teaches runners before opening the second route")
 	_expect(level.waves[3].spawn_groups[1].path == level.paths[1], "wave four opens the second route")
 	_expect(_is_enemy(level.waves[6].spawn_groups[0], &"single_shield") and is_equal_approx(level.waves[6].spawn_groups[0].interval_jitter_ratio, 0.0), "wave seven starts with the deterministic shield showcase")

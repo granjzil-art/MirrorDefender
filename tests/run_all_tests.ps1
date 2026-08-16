@@ -47,6 +47,7 @@ $Tests = @(
 	"mace_tower_test.gd",
 	"manual_wave_and_level_flow_test.gd",
 	"manual_wave_release_test.gd",
+	"wave_completion_reward_test.gd",
 	"missile_tower_test.gd",
 	"miniature_dof_test.gd",
 	"model_asset_contract_test.gd",

@@ -6,6 +6,7 @@ extends MirrorAttackEffect
 
 @export_range(0.01, 60.0, 0.1, "or_greater") var burst_interval: float = 3.0
 @export_range(0.0, 20.0, 0.05, "or_greater") var burst_radius_cells: float = 1.5
+@export var beam_color: Color = Color("349fed")
 @export var freeze_durations: PackedFloat32Array = PackedFloat32Array([1.5, 2.25, 3.0])
 
 
@@ -18,6 +19,10 @@ func apply_on_copy(attack_effects: AttackEffectPayload, context: Dictionary) -> 
 	if StringName(context.get("copy_kind", &"")) != &"laser_tower":
 		return
 	attack_effects.add_effect(self)
+
+
+func get_copy_beam_color() -> Color:
+	return beam_color
 
 
 func apply_copy_burst(
