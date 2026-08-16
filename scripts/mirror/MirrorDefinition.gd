@@ -55,6 +55,17 @@ const DEFAULT_FUNCTION_DESCRIPTION := "暂未配置说明文本。"
 @export var valid_preview_color: Color = Color(0.12, 1.0, 0.24, 0.92)
 @export var invalid_preview_color: Color = Color(1.0, 0.06, 0.06, 0.92)
 
+@export_group("Normal Direction Indicator")
+@export var normal_arrow_enabled: bool = true
+@export var normal_arrow_color: Color = Color(1.0, 0.24, 0.12, 1.0)
+## Total arrow length measured in grid-cell units.
+@export_range(0.1, 1.0, 0.01) var normal_arrow_length_ratio: float = 0.36
+@export_range(0.005, 0.1, 0.005) var normal_arrow_shaft_radius_ratio: float = 0.025
+@export_range(0.03, 0.5, 0.01) var normal_arrow_head_length_ratio: float = 0.12
+@export_range(0.01, 0.2, 0.01) var normal_arrow_head_radius_ratio: float = 0.07
+@export_range(0.0, 0.2, 0.005) var normal_arrow_surface_gap_ratio: float = 0.025
+@export_range(0.0, 10.0, 0.1) var normal_arrow_emission_energy: float = 2.4
+
 @export_group("Inspection Description Lines")
 ## Describes the single level-one to level-two upgrade. Supports the same
 ## color/highlight/bold author markup as the base description.
@@ -187,4 +198,15 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_color(errors, "镜面背面颜色", mirror_back_face_color)
 	ConfigValidator.require_color(errors, "有效放置预览颜色", valid_preview_color)
 	ConfigValidator.require_color(errors, "无效放置预览颜色", invalid_preview_color)
+	ConfigValidator.require_color(errors, "法线箭头颜色", normal_arrow_color)
+	ConfigValidator.require_number(errors, "法线箭头长度比例", normal_arrow_length_ratio, 0.1, 1.0)
+	ConfigValidator.require_number(errors, "法线箭头杆半径比例", normal_arrow_shaft_radius_ratio, 0.005, 0.1)
+	ConfigValidator.require_number(errors, "法线箭头尖长度比例", normal_arrow_head_length_ratio, 0.03, 0.5)
+	ConfigValidator.require_number(errors, "法线箭头尖半径比例", normal_arrow_head_radius_ratio, 0.01, 0.2)
+	ConfigValidator.require_number(errors, "法线箭头离面比例", normal_arrow_surface_gap_ratio, 0.0, 0.2)
+	ConfigValidator.require_number(errors, "法线箭头发光强度", normal_arrow_emission_energy, 0.0, 10.0)
+	if normal_arrow_head_length_ratio >= normal_arrow_length_ratio:
+		errors.append("法线箭头尖长度必须小于总长度")
+	if normal_arrow_head_radius_ratio <= normal_arrow_shaft_radius_ratio:
+		errors.append("法线箭头尖半径必须大于箭杆半径")
 	return errors

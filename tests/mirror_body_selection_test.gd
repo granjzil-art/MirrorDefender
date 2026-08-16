@@ -69,6 +69,13 @@ func _test_two_sided_body_pick_and_selection() -> void:
 		and reflect_mirror.get_reflection_surface().mesh is QuadMesh,
 		"reflect mirror keeps its original rectangular body and reflection face"
 	)
+	_expect(
+		mirror.get_normal_direction_arrow() != null
+		and reflect_mirror.get_normal_direction_arrow() != null
+		and mirror.get_normal_direction_arrow().global_basis.y.normalized().dot(mirror.get_active_normal()) > 0.99
+		and reflect_mirror.get_normal_direction_arrow().global_basis.y.normalized().dot(reflect_mirror.get_active_normal()) > 0.99,
+		"copy and reflect mirrors both expose the same center normal-direction arrow"
+	)
 	mirror_manager.set("_mirrors", {mirror.edge_id: mirror})
 	var body_center := mirror.global_position + Vector3.UP * mirror.get_mirror_height() * 0.5
 	var face_normal := mirror.get_active_normal()

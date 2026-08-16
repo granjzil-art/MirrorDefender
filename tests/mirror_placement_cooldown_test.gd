@@ -64,6 +64,13 @@ func _test_production_resource_contract() -> void:
 		_expect(definition.reflection_preview_resolution == 128, "%s uses the optimized 128px preview reflection" % definition.display_name)
 		_expect(definition.reflection_update_interval_frames == 4, "%s uses the optimized four-frame reflection interval" % definition.display_name)
 		_expect(definition.reflection_max_updates_per_frame == 1, "%s uses the optimized one-mirror per-frame budget" % definition.display_name)
+		_expect(
+			definition.normal_arrow_enabled
+			and definition.normal_arrow_length_ratio > definition.normal_arrow_head_length_ratio
+			and definition.normal_arrow_head_radius_ratio > definition.normal_arrow_shaft_radius_ratio
+			and definition.normal_arrow_emission_energy > 0.0,
+			"%s enables a valid editable center normal-direction arrow" % definition.display_name
+		)
 		var back_color: Color = definition.mirror_back_face_color
 		var darkest_channel := minf(back_color.r, minf(back_color.g, back_color.b))
 		var brightest_channel := maxf(back_color.r, maxf(back_color.g, back_color.b))

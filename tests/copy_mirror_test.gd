@@ -462,7 +462,21 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var mirror_body_material := mirror_body.material_override as StandardMaterial3D
 	var back_color := mirror_body_material.albedo_color
 	_expect(absf(back_color.r - back_color.g) < 0.04 and absf(back_color.g - back_color.b) < 0.04, "copy mirror body uses a neutral grey back-face base")
-	_expect(mirror.get_children().filter(func(child: Node) -> bool: return child is MeshInstance3D).size() == 1, "copy mirror has no separate top-facing marker mesh")
+	var normal_direction_arrow := mirror.get_normal_direction_arrow()
+	_expect(
+		normal_direction_arrow != null
+		and normal_direction_arrow.global_position.distance_to(mirror_center) < 0.001
+		and normal_direction_arrow.global_basis.y.normalized().dot(mirror.get_active_normal()) > 0.99
+		and normal_direction_arrow.get_node_or_null("Shaft") is MeshInstance3D
+		and normal_direction_arrow.get_node_or_null("Head") is MeshInstance3D,
+		"copy mirror owns a short center arrow aligned with its gameplay surface normal"
+	)
+	var normal_arrow_shaft := normal_direction_arrow.get_node("Shaft") as MeshInstance3D
+	_expect(
+		not normal_arrow_shaft.get_layer_mask_value(1)
+		and normal_arrow_shaft.get_layer_mask_value(20),
+		"normal arrow stays visible to the main camera but outside reflection captures"
+	)
 	_expect(not mirror_body.get_layer_mask_value(1) and mirror_body.get_layer_mask_value(20), "mirror body is excluded from reflection cameras to prevent self-occlusion")
 	var active_camera_position := reflection_camera.global_position
 	var gameplay_active_normal := mirror.get_active_normal()
@@ -476,7 +490,12 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	mirror.request_reflection_refresh()
 	var previous_active_normal := mirror.get_active_normal()
 	mirror.flip_side()
-	_expect(mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99 and mirror.get_active_normal().dot(previous_active_normal) < -0.99, "flipping the mirror moves the only reflection surface to the opposite active face")
+	_expect(
+		mirror.get_reflection_surface().global_basis.z.normalized().dot(mirror.get_active_normal()) > 0.99
+		and mirror.get_active_normal().dot(previous_active_normal) < -0.99
+		and normal_direction_arrow.global_basis.y.normalized().dot(mirror.get_active_normal()) > 0.99,
+		"flipping the mirror moves both the reflection surface and center normal arrow to the opposite active face"
+	)
 	mirror.flip_side()
 	var effect_system := TileEffectSystem.new()
 	host.add_child(effect_system)

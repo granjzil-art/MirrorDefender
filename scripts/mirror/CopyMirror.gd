@@ -28,6 +28,7 @@ var _source_camera: Camera3D
 var _body: MeshInstance3D
 var _frame_material: StandardMaterial3D
 var _reflection_view: Node3D
+var _normal_direction_arrow: Node3D
 var _preview_surface_overlay: StandardMaterial3D
 var _selected: bool = false
 var _preview_valid: bool = true
@@ -226,6 +227,10 @@ func get_action_anchor() -> Vector3:
 	return global_position + Vector3(0.0, get_mirror_height() + 0.2, 0.0)
 
 
+func get_normal_direction_arrow() -> Node3D:
+	return _normal_direction_arrow
+
+
 ## Tracks the mirror's refundable lifetime value. Runtime coin placements add
 ## actual spending; authored initial mirrors seed the equivalent configured
 ## construction/upgrade value; free cooldown placements remain at zero.
@@ -388,6 +393,7 @@ func _build_visual() -> void:
 		child.queue_free()
 	_body = null
 	_reflection_view = null
+	_normal_direction_arrow = null
 	if _grid == null or definition == null or get_axis_endpoints().size() != 2:
 		return
 	var body := MeshInstance3D.new()
@@ -416,9 +422,84 @@ func _build_visual() -> void:
 	_reflection_view = MirrorReflectionViewScript.new()
 	add_child(_reflection_view)
 	_reflection_view.configure(self, definition, _source_camera, preview_mode)
+	_build_normal_direction_arrow()
 	_update_frame_material()
 	_update_active_side_visual()
 	set_selected(_selected)
+
+
+func _build_normal_direction_arrow() -> void:
+	if not definition.normal_arrow_enabled:
+		return
+	var cell_size := _grid.cell_size
+	var total_length := cell_size * definition.normal_arrow_length_ratio
+	var head_length := cell_size * definition.normal_arrow_head_length_ratio
+	var shaft_length := maxf(0.01, total_length - head_length)
+	var surface_start := (
+		get_mirror_thickness() * 0.5
+		+ cell_size * definition.normal_arrow_surface_gap_ratio
+	)
+
+	var arrow := Node3D.new()
+	arrow.name = "NormalDirectionArrow"
+	arrow.position = Vector3.UP * get_mirror_height() * 0.5
+	add_child(arrow)
+	_normal_direction_arrow = arrow
+
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = definition.normal_arrow_color
+	material.emission_enabled = true
+	material.emission = definition.normal_arrow_color
+	material.emission_energy_multiplier = definition.normal_arrow_emission_energy
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.no_depth_test = true
+	material.render_priority = Material.RENDER_PRIORITY_MAX - 1
+	if definition.normal_arrow_color.a < 0.999:
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	var shaft := MeshInstance3D.new()
+	shaft.name = "Shaft"
+	var shaft_mesh := CylinderMesh.new()
+	shaft_mesh.top_radius = cell_size * definition.normal_arrow_shaft_radius_ratio
+	shaft_mesh.bottom_radius = shaft_mesh.top_radius
+	shaft_mesh.height = shaft_length
+	shaft_mesh.radial_segments = 12
+	shaft.mesh = shaft_mesh
+	shaft.position.y = surface_start + shaft_length * 0.5
+	shaft.material_override = material
+	shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	shaft.set_layer_mask_value(1, false)
+	shaft.set_layer_mask_value(MirrorReflectionViewScript.REFLECTION_VISIBILITY_LAYER, true)
+	arrow.add_child(shaft)
+
+	var head := MeshInstance3D.new()
+	head.name = "Head"
+	var head_mesh := CylinderMesh.new()
+	head_mesh.top_radius = 0.0
+	head_mesh.bottom_radius = cell_size * definition.normal_arrow_head_radius_ratio
+	head_mesh.height = head_length
+	head_mesh.radial_segments = 16
+	head.mesh = head_mesh
+	head.position.y = surface_start + shaft_length + head_length * 0.5
+	head.material_override = material
+	head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	head.set_layer_mask_value(1, false)
+	head.set_layer_mask_value(MirrorReflectionViewScript.REFLECTION_VISIBILITY_LAYER, true)
+	arrow.add_child(head)
+	_update_normal_direction_arrow()
+
+
+func _update_normal_direction_arrow() -> void:
+	if _normal_direction_arrow == null or not is_instance_valid(_normal_direction_arrow):
+		return
+	var active_normal := get_active_normal()
+	if active_normal.length_squared() <= 0.000001:
+		_normal_direction_arrow.visible = false
+		return
+	_normal_direction_arrow.visible = true
+	var local_normal := (global_basis.inverse() * active_normal).normalized()
+	_normal_direction_arrow.quaternion = Quaternion(Vector3.UP, local_normal)
 
 
 func _update_frame_material() -> void:
@@ -462,3 +543,4 @@ func _refresh_preview_surface_overlay(color: Color) -> void:
 func _update_active_side_visual() -> void:
 	if _reflection_view != null:
 		_reflection_view.update_active_side()
+	_update_normal_direction_arrow()
