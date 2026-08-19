@@ -19,6 +19,8 @@ signal wave_gate_changed
 signal event_activated(event: TutorialEventDefinition)
 signal event_completed(event: TutorialEventDefinition)
 signal goal_completed(event: TutorialEventDefinition, goal_index: int)
+signal automatic_tower_placed(event: TutorialEventDefinition, building: Building)
+signal automatic_tower_failed(event: TutorialEventDefinition, cell: Vector3i)
 
 var _building_manager: BuildingManager
 var _wave_manager: WaveManager
@@ -35,6 +37,7 @@ var _wave_completion_times: Dictionary = {}
 var _event_completion_times: Dictionary = {}
 var _released_waves: Dictionary = {}
 var _completed_waves: Dictionary = {}
+var _automatic_tower_attempted_events: Dictionary = {}
 var _building_state_ledger: Array[Dictionary] = []
 var _deleted_building_ledger: Array[Dictionary] = []
 var _blank_click_count: int = 0
@@ -313,6 +316,7 @@ func remove_last_event() -> Dictionary:
 	_bubble_acknowledged.erase(removed.event_id)
 	_event_action_baselines.erase(removed.event_id)
 	_event_completion_times.erase(removed.event_id)
+	_automatic_tower_attempted_events.erase(removed.event_id)
 	if _level != null:
 		_level.emit_changed()
 	authoring_changed.emit()
@@ -450,6 +454,7 @@ func _reset_runtime_state() -> void:
 	_event_completion_times.clear()
 	_released_waves.clear()
 	_completed_waves.clear()
+	_automatic_tower_attempted_events.clear()
 	_building_state_ledger.clear()
 	_deleted_building_ledger.clear()
 	_blank_click_count = 0
@@ -470,6 +475,7 @@ func _initialize_event(event: TutorialEventDefinition, active: bool) -> void:
 	if active:
 		_event_action_baselines[event.event_id] = _make_action_baseline()
 		event_activated.emit(event)
+		_try_place_automatic_tower(event)
 		_evaluate_goals_for_event(event)
 
 
@@ -485,11 +491,39 @@ func _evaluate_timeline() -> void:
 			_bubble_revealed_counts[event.event_id] = 1 if not event.bubbles.is_empty() else 0
 			_event_action_baselines[event.event_id] = _make_action_baseline()
 			event_activated.emit(event)
+			_try_place_automatic_tower(event)
 			_evaluate_goals_for_event(event)
 			changed = true
 	if changed:
 		presentation_changed.emit()
 		wave_gate_changed.emit()
+
+
+func _try_place_automatic_tower(event: TutorialEventDefinition) -> void:
+	if (
+		event == null
+		or not event.automatic_tower_enabled
+		or event.trigger_kind != TutorialEventDefinitionScript.TriggerKind.WAVE_COMPLETED
+		or _automatic_tower_attempted_events.has(event.event_id)
+	):
+		return
+	_automatic_tower_attempted_events[event.event_id] = true
+	if (
+		_building_manager == null
+		or event.automatic_tower_definition == null
+		or not event.automatic_tower_cell_set
+	):
+		automatic_tower_failed.emit(event, event.automatic_tower_cell)
+		return
+	var building := _building_manager.place_tutorial_tower(
+		event.automatic_tower_cell,
+		event.automatic_tower_definition,
+		event.automatic_tower_facing_index
+	)
+	if building == null:
+		automatic_tower_failed.emit(event, event.automatic_tower_cell)
+		return
+	automatic_tower_placed.emit(event, building)
 
 
 func _is_trigger_satisfied(event: TutorialEventDefinition) -> bool:

@@ -433,6 +433,7 @@ func _ready() -> void:
 	tutorial_director.configure(building_manager, wave_manager)
 	wave_manager.set_wave_release_guard(Callable(tutorial_director, "get_wave_block_reason"))
 	tutorial_director.wave_gate_changed.connect(wave_manager.notify_wave_release_guard_changed)
+	runtime_hud.configure_tutorial_rewards(tutorial_director)
 	tutorial_target_highlighter = TutorialTargetHighlighterScript.new()
 	tutorial_target_highlighter.name = "TutorialTargetHighlighter"
 	add_child(tutorial_target_highlighter)

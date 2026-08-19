@@ -33,6 +33,11 @@
 [ext_resource type="Resource" uid="uid://bc0uexb68vtci" path="res://resources/enemies/SingleShieldSoldier.tres" id="24_single_shield"]
 [ext_resource type="Resource" uid="uid://bmfuhdumu6iei" path="res://resources/enemies/DoubleShieldSoldier.tres" id="25_double_shield"]
 [ext_resource type="Resource" uid="uid://dpo000nne50on" path="res://resources/enemies/EliteTitan.tres" id="26_elite_titan"]
+[ext_resource type="Resource" uid="uid://cwdiyx3nnwups" path="res://resources/buildings/ArrowTower.tres" id="27_reward_arrow"]
+[ext_resource type="Script" uid="uid://bxfppixc2uaco" path="res://scripts/tutorial/TutorialBubbleDefinition.gd" id="28_ptblq"]
+[ext_resource type="Script" uid="uid://dsixnnk2lmxha" path="res://scripts/tutorial/TutorialEventDefinition.gd" id="28_reward_event"]
+[ext_resource type="Script" uid="uid://vl7x425ndxjf" path="res://scripts/tutorial/TutorialGoalDefinition.gd" id="29_reward_goal"]
+[ext_resource type="Script" uid="uid://ct7mfnjw7osjq" path="res://scripts/tutorial/TutorialDefinition.gd" id="30_tutorial_definition"]
 [ext_resource type="Script" uid="uid://ca4sp2wvpaui" path="res://scripts/lighting/AcrylicDisplayCaseDefinition.gd" id="100_acrylic_case"]
 
 [sub_resource type="Resource" id="Resource_3jb4j"]
@@ -1191,18 +1196,6 @@ script = ExtResource("4_rxywg")
 cell = Vector3i(14, 14, 0)
 terrain = ExtResource("5_kuv7j")
 
-[sub_resource type="Resource" id="Resource_ugvjj"]
-script = ExtResource("6_q0prt")
-definition = ExtResource("13_vf2u4")
-cell = Vector3i(11, 3, 0)
-facing_index = 15
-
-[sub_resource type="Resource" id="Resource_g7pwb"]
-script = ExtResource("6_q0prt")
-definition = ExtResource("12_3jb4j")
-cell = Vector3i(3, 2, 0)
-facing_index = 8
-
 [sub_resource type="Resource" id="Resource_lgtyr"]
 script = ExtResource("6_q0prt")
 definition = ExtResource("13_vf2u4")
@@ -1336,6 +1329,78 @@ script = ExtResource("10_f7y1q")
 placement_id = &"tree_1_1"
 cell = Vector3i(14, 0, 0)
 definition = ExtResource("20_13yjj")
+
+[sub_resource type="Resource" id="Resource_reward_l2_pulse_a_goal"]
+script = ExtResource("29_reward_goal")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_reward_l2_pulse_a"]
+script = ExtResource("28_reward_event")
+event_id = &"level2_tower_pulse_a"
+display_name = "获得镭射塔"
+trigger_kind = 2
+trigger_wave_number = 1
+goals = Array[ExtResource("29_reward_goal")]([SubResource("Resource_reward_l2_pulse_a_goal")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("12_3jb4j")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(3, 2, 0)
+automatic_tower_facing_index = 8
+
+[sub_resource type="Resource" id="Resource_reward_l2_missile_goal"]
+script = ExtResource("29_reward_goal")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_reward_l2_missile"]
+script = ExtResource("28_reward_event")
+event_id = &"level2_tower_missile"
+display_name = "获得导弹塔"
+trigger_kind = 2
+trigger_wave_number = 2
+goals = Array[ExtResource("29_reward_goal")]([SubResource("Resource_reward_l2_missile_goal")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("13_vf2u4")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(11, 3, 0)
+automatic_tower_facing_index = 15
+
+[sub_resource type="Resource" id="Resource_reward_l2_arrow_goal"]
+script = ExtResource("29_reward_goal")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_reward_l2_arrow"]
+script = ExtResource("28_reward_event")
+event_id = &"level2_tower_arrow"
+display_name = "获得箭塔"
+trigger_kind = 2
+trigger_wave_number = 4
+goals = Array[ExtResource("29_reward_goal")]([SubResource("Resource_reward_l2_arrow_goal")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("27_reward_arrow")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(7, 3, 0)
+automatic_tower_facing_index = 9
+
+[sub_resource type="Resource" id="Resource_reward_l2_pulse_b_goal"]
+script = ExtResource("29_reward_goal")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_reward_l2_pulse_b"]
+script = ExtResource("28_reward_event")
+event_id = &"level2_tower_pulse_b"
+display_name = "获得镭射塔"
+trigger_kind = 2
+trigger_wave_number = 6
+goals = Array[ExtResource("29_reward_goal")]([SubResource("Resource_reward_l2_pulse_b_goal")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("12_3jb4j")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(11, 2, 0)
+automatic_tower_facing_index = 10
+
+[sub_resource type="Resource" id="Resource_tutorial_l2"]
+script = ExtResource("30_tutorial_definition")
+events = Array[ExtResource("28_reward_event")]([SubResource("Resource_reward_l2_pulse_a"), SubResource("Resource_reward_l2_missile"), SubResource("Resource_reward_l2_arrow"), SubResource("Resource_reward_l2_pulse_b")])
 
 [sub_resource type="Resource" id="Resource_i0dxa"]
 script = ExtResource("20_cinte")
@@ -2297,7 +2362,7 @@ terrain_content_version = 2
 default_terrain = ExtResource("3_ydrpr")
 grid_cells = Array[ExtResource("4_rxywg")]([SubResource("Resource_ptblq"), SubResource("Resource_jasmq"), SubResource("Resource_tw3o4"), SubResource("Resource_gmrma"), SubResource("Resource_cq5uq"), SubResource("Resource_jsstr"), SubResource("Resource_0aisi"), SubResource("Resource_7n87k"), SubResource("Resource_bwesy"), SubResource("Resource_yvchh"), SubResource("Resource_chm2i"), SubResource("Resource_v5exc"), SubResource("Resource_iyruf"), SubResource("Resource_hn485"), SubResource("Resource_71w13"), SubResource("Resource_rqhcv"), SubResource("Resource_c6yqc"), SubResource("Resource_p0f6n"), SubResource("Resource_qs4qn"), SubResource("Resource_l0jsh"), SubResource("Resource_4n3r5"), SubResource("Resource_pk1u5"), SubResource("Resource_ijj01"), SubResource("Resource_pj4y3"), SubResource("Resource_ikm7q"), SubResource("Resource_hj4m8"), SubResource("Resource_1i6vk"), SubResource("Resource_7gf4g"), SubResource("Resource_kggpl"), SubResource("Resource_bnej0"), SubResource("Resource_nkk14"), SubResource("Resource_ja7v5"), SubResource("Resource_nwulf"), SubResource("Resource_g6p7g"), SubResource("Resource_a73qy"), SubResource("Resource_or6fl"), SubResource("Resource_mqx0i"), SubResource("Resource_did5l"), SubResource("Resource_ft7go"), SubResource("Resource_erhv5"), SubResource("Resource_e1n4r"), SubResource("Resource_wfcfd"), SubResource("Resource_5i8ri"), SubResource("Resource_41slk"), SubResource("Resource_3ykx3"), SubResource("Resource_05b0o"), SubResource("Resource_10ypt"), SubResource("Resource_aywvs"), SubResource("Resource_vm3l0"), SubResource("Resource_ltkns"), SubResource("Resource_0dbi8"), SubResource("Resource_1qisq"), SubResource("Resource_eny1b"), SubResource("Resource_xgwy1"), SubResource("Resource_0gn5u"), SubResource("Resource_ehw76"), SubResource("Resource_lx1m1"), SubResource("Resource_0ap3w"), SubResource("Resource_6rn2b"), SubResource("Resource_noxfv"), SubResource("Resource_y67y3"), SubResource("Resource_xgend"), SubResource("Resource_yr0bj"), SubResource("Resource_abgds"), SubResource("Resource_45ucu"), SubResource("Resource_o1pss"), SubResource("Resource_6vctm"), SubResource("Resource_l06kn"), SubResource("Resource_jtk8e"), SubResource("Resource_jux22"), SubResource("Resource_7tqke"), SubResource("Resource_i04md"), SubResource("Resource_gjvde"), SubResource("Resource_7gfse"), SubResource("Resource_mi8gn"), SubResource("Resource_cf4w4"), SubResource("Resource_tnspl"), SubResource("Resource_4p5h3"), SubResource("Resource_6pkma"), SubResource("Resource_dbesc"), SubResource("Resource_e6s8h"), SubResource("Resource_2mng4"), SubResource("Resource_dj5yh"), SubResource("Resource_m1gpa"), SubResource("Resource_grpoq"), SubResource("Resource_diyd8"), SubResource("Resource_2cu6b"), SubResource("Resource_no4v5"), SubResource("Resource_126oa"), SubResource("Resource_rqwfy"), SubResource("Resource_vim3o"), SubResource("Resource_y3ojq"), SubResource("Resource_6ieop"), SubResource("Resource_e3kg3"), SubResource("Resource_v623p"), SubResource("Resource_b4o0f"), SubResource("Resource_6a5d8"), SubResource("Resource_ng18n"), SubResource("Resource_b1utt"), SubResource("Resource_43rw3"), SubResource("Resource_aqci0"), SubResource("Resource_t6ixp"), SubResource("Resource_wv46q"), SubResource("Resource_5mtrr"), SubResource("Resource_f42bc"), SubResource("Resource_f63yp"), SubResource("Resource_ngnub"), SubResource("Resource_3qn6p"), SubResource("Resource_4dncl"), SubResource("Resource_28aw8"), SubResource("Resource_fgy5o"), SubResource("Resource_r7bcd"), SubResource("Resource_1jlao"), SubResource("Resource_oo6s2"), SubResource("Resource_tpvxs"), SubResource("Resource_m6xy5"), SubResource("Resource_trfhq"), SubResource("Resource_j0fen"), SubResource("Resource_kfpc8"), SubResource("Resource_rxjsj"), SubResource("Resource_ewuf6"), SubResource("Resource_l41cy"), SubResource("Resource_blehm"), SubResource("Resource_jsqed"), SubResource("Resource_bah86"), SubResource("Resource_erh75"), SubResource("Resource_8gvji"), SubResource("Resource_fpcr0"), SubResource("Resource_lmvn3"), SubResource("Resource_wjju3"), SubResource("Resource_p8yba"), SubResource("Resource_eb7np"), SubResource("Resource_ifpaj"), SubResource("Resource_juqvh"), SubResource("Resource_lbblh"), SubResource("Resource_e2oef"), SubResource("Resource_2f04g"), SubResource("Resource_lhyql"), SubResource("Resource_184xs"), SubResource("Resource_lq821"), SubResource("Resource_wn3u6"), SubResource("Resource_w04mk"), SubResource("Resource_5r3am"), SubResource("Resource_a0e83"), SubResource("Resource_wngxw"), SubResource("Resource_cb8fs"), SubResource("Resource_luh2d"), SubResource("Resource_0hnle"), SubResource("Resource_br8q4"), SubResource("Resource_hxing"), SubResource("Resource_o8k06"), SubResource("Resource_8xy4e"), SubResource("Resource_xj3yk"), SubResource("Resource_f3qkn"), SubResource("Resource_p1xtd"), SubResource("Resource_nqe2o"), SubResource("Resource_op5ol"), SubResource("Resource_ry0k6"), SubResource("Resource_1v2xt"), SubResource("Resource_7xejp"), SubResource("Resource_ddoky"), SubResource("Resource_6lxxu"), SubResource("Resource_tfn6f"), SubResource("Resource_4sbvf"), SubResource("Resource_d768u"), SubResource("Resource_4rx8n"), SubResource("Resource_4eqok"), SubResource("Resource_g58cx"), SubResource("Resource_k4qb2"), SubResource("Resource_6lfuy"), SubResource("Resource_gk7nl"), SubResource("Resource_sq61u"), SubResource("Resource_feelh"), SubResource("Resource_t1xaw"), SubResource("Resource_mj5qf"), SubResource("Resource_4wvqr"), SubResource("Resource_himms"), SubResource("Resource_0sh76"), SubResource("Resource_hqnaj"), SubResource("Resource_cup14"), SubResource("Resource_jv1ux"), SubResource("Resource_sju1v"), SubResource("Resource_4hvaa"), SubResource("Resource_nwseg"), SubResource("Resource_xm7c4"), SubResource("Resource_c44m4"), SubResource("Resource_u6bhi"), SubResource("Resource_vuu5r"), SubResource("Resource_5dhmj"), SubResource("Resource_t1edp"), SubResource("Resource_y513h"), SubResource("Resource_u810v"), SubResource("Resource_dniyy"), SubResource("Resource_dtidn"), SubResource("Resource_dus6j"), SubResource("Resource_02dl3"), SubResource("Resource_qkrew"), SubResource("Resource_4qj0d"), SubResource("Resource_xsauh"), SubResource("Resource_3p06c"), SubResource("Resource_ie5po"), SubResource("Resource_stiuw"), SubResource("Resource_ikwfc"), SubResource("Resource_2b0ss"), SubResource("Resource_3wu6d"), SubResource("Resource_tvlja"), SubResource("Resource_tmkfk"), SubResource("Resource_68h7r"), SubResource("Resource_tmoe2"), SubResource("Resource_dhnne"), SubResource("Resource_05u5d"), SubResource("Resource_q6c6s"), SubResource("Resource_amau5"), SubResource("Resource_upxv2"), SubResource("Resource_uah2o"), SubResource("Resource_og28c"), SubResource("Resource_0rtxv"), SubResource("Resource_kw3ni"), SubResource("Resource_8ykxd"), SubResource("Resource_f04dn"), SubResource("Resource_2qtbk"), SubResource("Resource_vmedb"), SubResource("Resource_0veen"), SubResource("Resource_cepq6"), SubResource("Resource_66xj2")])
 stuff_placements = Array[ExtResource("10_f7y1q")]([SubResource("Resource_lefjs"), SubResource("Resource_qs1rn"), SubResource("Resource_5wqlm"), SubResource("Resource_1cyke"), SubResource("Resource_w270r"), SubResource("Resource_ait6c"), SubResource("Resource_nr802"), SubResource("Resource_yulw3"), SubResource("Resource_k3mhl"), SubResource("Resource_dymuo"), SubResource("Resource_61fhc"), SubResource("Resource_q71bp"), SubResource("Resource_vw5fw")])
-initial_building_placements = Array[ExtResource("6_q0prt")]([SubResource("Resource_ugvjj"), SubResource("Resource_g7pwb"), SubResource("Resource_lgtyr"), SubResource("Resource_2bpxl")])
+initial_building_placements = Array[ExtResource("6_q0prt")]([SubResource("Resource_lgtyr"), SubResource("Resource_2bpxl")])
 initial_mirror_placements = Array[ExtResource("8_f7y1q")]([SubResource("Resource_uanbg"), SubResource("Resource_36swl")])
 lighting_profile = ExtResource("16_3jb4j")
 foliage_shadow_enabled = true
@@ -2309,6 +2374,7 @@ building_cap = 6
 copy_mirror_cap = 8
 base_resource_per_second = 0.0
 building_card_slot_count = 4
+tutorial = SubResource("Resource_tutorial_l2")
 camera_presets = Array[ExtResource("2_mwvsq")]([SubResource("Resource_qm88u"), SubResource("Resource_ymilh")])
 base_cell = Vector3i(7, 10, 0)
 base_points = Array[ExtResource("1_ru23r")]([SubResource("Resource_vf2u4")])

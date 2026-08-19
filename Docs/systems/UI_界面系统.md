@@ -6,6 +6,7 @@
 ## 分类 / 做法
 - **正式卡槽布局（2026-08-16）**：复制镜与反射镜从底部卡组拆出，常驻左上 `Layout/MirrorCards` 并排显示；底部 `Layout/Cards` 只承载关卡配置的建筑槽。建筑卡组进入关卡时默认关闭，由 InputMap 动作 `toggle_building_cards` 的物理 F2 每次切换开/关；镜子卡不跟随该开关隐藏。建筑卡顺序仍为箭塔、旧持续激光塔、脉冲镭射塔、弩箭塔、钉锤，后续位置为空槽；屏障与边障玩法保留但不进入默认卡组。
 - **左侧塔图鉴（2026-08-16）**：`TowerCodexPanel` 默认开启，在镜卡下方纵向常驻箭塔、冰冻塔、导弹塔、镭射塔四张只读卡。卡面只读取 `card_icon` 与名称，不显示费用、冷却、容量或选中状态；卡根使用非按钮容器，不发送建造信号。悬停时在卡片右侧显示同源塔说明，移出即关闭。图鉴不属于 `BuildCardBar` 且不受 F2 影响。
+- **逐波塔奖励（2026-08-19）**：塔图鉴在卡片右侧为初始/自动投放的每一座塔显示独立“第X波”可用标签。教程奖励塔成功生成后打开强制暂停的 `TowerRewardPopup`，复用塔图标和说明；确认后恢复原暂停状态并播放5秒到达脉冲。Escape 与通用关闭不能跳过奖励弹窗。
 - **卡片状态**：建筑卡显示名称、可替换图标和建造费用；复制镜与反射镜使用各自的独立 cap。默认金币模式在卡底显示 Definition 费用，余额不足或该种镜子达 cap 时只置灰该卡。开启保留冷却开关后，有库存时改显示 `×数量`；库存为 0 时由 `CardCooldownSweep` 绘制下一枚从上向下的水平恢复扫描。选中卡继续使用金色镜框。
 - **单次放置**：`RuntimeInteractionController` 是正式交互事实源。每次选卡只允许一次世界点击；成功、资源不足、上限、非法地块、非法边或未命中都会取消卡片/预览/实体选择并回 `SELECT`，成功放置的实体不会保持自动选中。
 - **取消和输入消费**：左键执行肯定操作；右键短点击在释放时全局取消并回选择模式，右键拖动超过阈值后改为运行时相机旋转且不取消。中/右键通常仅从世界区域起手可导航相机；正式卡片和按钮消费左键，点击 UI 不会穿透到世界。选中建筑的悬浮操作区是右键旋转例外，可从图标上直接起手拖动视角。
@@ -133,6 +134,7 @@
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧左侧纵向时间轴兼容文件；正式 HUD 不实例化。 |
 | `scripts/ui/BuildCardBar.gd` | `BuildCardBar` / `Control` | 组合左上常驻 `MirrorCards` 与底部可切换 `Cards`，并提供程序镜面/原画卡面、实时费用、悬停说明、分种类 cap 和金币/冷却反馈。 |
 | `scripts/ui/TowerCodexPanel.gd` | `TowerCodexPanel` / `Control` | 左侧常驻四塔只读图鉴；渲染图标/名称卡，并在悬停时向右显示同源格式化说明。 |
+| `scripts/ui/TowerRewardPopup.gd` | `TowerRewardPopup` / `Control` | 教程塔成功投放后的强制确认模态；显示塔图标、名称与说明，只通过确认信号关闭。 |
 | `scripts/shared/InspectionDisplayConfig.gd` | `InspectionDisplayConfig` / `Resource` | 持有基础描述与检视显示策略，将 Definition 提供的镜子两行/塔三行语义文本及受控标记输出为纯文本或安全 BBCode。 |
 | `scripts/ui/TileInspectionService.gd` | `TileInspectionService` / `Node` | 兼容保留的只读检视调度器；正式 RuntimeHud 不实例化或配置。 |
 | `scripts/ui/TileInspectionModelBuilder.gd` | `TileInspectionModelBuilder` / `RefCounted` | 兼容保留的地块、建筑、镜子、虚像和元素只读模型聚合器。 |
@@ -188,6 +190,7 @@ project.godot -> AppRoot.tscn -> AppFlowController (persistent)
 RuntimeHud (Main/HUD)
   ├─ BuildCardBar.MirrorCards: 左上常驻复制镜/反射镜
   ├─ TowerCodexPanel.Cards: 左侧常驻四塔只读图鉴，悬停说明向右展开
+  ├─ TowerRewardPopup: 教程塔奖励强制暂停确认
   ├─ BuildCardBar.Cards: 底部建筑卡，默认关闭，F2 切换
   ├─ GlobalInfoPanel: 右上生命/波次/双镜子/金币/建筑图标数字
   │    └─ EconomyPanel: 第三行金币数字滚动与增减浮字
@@ -201,6 +204,9 @@ BuildCardBar -> RuntimeInteractionController -> BuildingManager / MirrorManager
 physical F2 -> Main.toggle_building_cards action -> RuntimeHud -> BuildCardBar.Cards visibility
 BuildingManager four tower definitions -> RuntimeHud.configure -> TowerCodexPanel read-only cards
 TowerCodexPanel hover -> BuildingDefinition.get_formatted_inspection_description_bbcode()
+TutorialDirector.automatic_tower_placed
+  -> RuntimeHud queues TowerRewardPopup + pauses
+  -> confirm -> TowerArrivalPulse + restore previous pause state
 RuntimeInteractionController.world_selection_changed
   -> Main / BuildingManager / MirrorManager: 保留选中操作、F 清障与战术慢放
 RuntimeInteractionController + Building/Mirror selection
@@ -306,6 +312,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `WaveTimelinePanel.gd` | `configure(wave_manager: WaveManager) -> void` 等 | 旧纵向时间轴兼容 API；正式 HUD 不调用。 |
 | `WaveStatusPanel.gd` | `configure(wave_manager: WaveManager, base_core: BaseCore) -> void` | 旧 M4 兼容摘要；正式 HUD 不调用。 |
 | `RuntimeHud.gd` | `configure_wave_controls(wave_manager: WaveManager) -> void` | 注入现役 WaveManager，由 WaveControlPanel 驱动逐波操作并订阅胜利/失败终态。 |
+| `RuntimeHud.gd` | `configure_tutorial_rewards(director: TutorialDirector) -> void` | 订阅自动塔成功事件，驱动奖励队列、强制暂停弹窗和确认后的到达脉冲。 |
 | `RuntimeInteractionController.gd` | `select_building_card(definition) -> bool` | 清除实体选择并进入块/边建筑放置状态。 |
 | `RuntimeInteractionController.gd` | `select_copy_mirror_card() -> bool` | 清除实体选择并进入复制镜边放置状态。 |
 | `RuntimeInteractionController.gd` | `select_reflect_mirror_card() -> bool` | 清除实体选择并进入投射物反射镜边放置状态。 |
@@ -333,6 +340,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `BuildCardBar.gd` | `_position_card_rows() -> void` | 把镜卡行固定到左上作者坐标，并在预留左右区域间居中底部建筑卡。 |
 | `BuildCardBar.gd` | `_fit_card_description() -> void` | 在富文本完成换行后把悬停框重置为内容高度并重新锚定到当前卡槽。 |
 | `TowerCodexPanel.gd` | `configure(definitions: Array[BuildingDefinition]) -> void` | 按注入顺序重建只读塔卡；不订阅经济/容量，不发出建造信号。 |
+| `TowerCodexPanel.gd` | `set_deployment_waves(waves_by_kind: Dictionary) -> void` / `get_deployment_waves_for_kind(kind: int) -> Array[int]` | 配置并读取每类塔的独立可用波次标签；同类多塔不合并。 |
 | `TowerCodexPanel.gd` | `set_feature_enabled(enabled: bool) -> void` / `set_suppressed(suppressed: bool) -> void` | 设置作者总开关，或在运行时编辑工作区开启期间临时抑制图鉴；隐藏时同步清理悬停说明。 |
 | `TowerCodexPanel.gd` | `get_definition_count() -> int` / `get_definition_at(index: int) -> BuildingDefinition` | 暴露只读顺序供 HUD 回归与调试验证。 |
 | `BuildingDefinition.get_formatted_inspection_description` / `_bbcode` | `() -> String` | 把基础描述、强化复制、强化反射格式化为卡片悬停/选中建筑共用的三行纯文本或 BBCode。 |
@@ -350,6 +358,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 | `RuntimeHud.gd` | `apply_level_configuration(level: LevelResource, source_path: String = "") -> void` | 切关时应用建筑槽数、关卡显示名及下一波摘要。 |
 | `RuntimeHud.gd` | `prepare_for_level_transition() -> void` | 退关前清理确认层、波次预览、控制台、暂停/胜利/失败菜单和时间倍率。 |
 | `RuntimeHud.gd` | `is_modal_open() -> bool` / `is_confirmation_open() -> bool` / `is_victory_menu_open() -> bool` / `is_defeat_menu_open() -> bool` / `close_top_modal() -> void` | 合并确认、胜利、失败、暂停和控制台状态；通用关闭优先取消确认层，不能直接跳过结果画面。 |
+| `TowerRewardPopup.gd` | `present(definition, completed_wave_number) -> void` / `dismiss() -> void` / `is_open() -> bool` | 显示/关闭/读取获得塔模态；玩家入口只发送 `confirmed`。 |
 | `RuntimeHud.gd` | `get_victory_star_count(remaining_hp: float) -> int` / `get_displayed_victory_star_count() -> int` | 按 `0 / 1～5 / 6～15 / >15` 返回失败/1/2/3 星，并暴露当前显示星数供回归验证。 |
 | `RuntimeHud.gd` | `get_settings_snapshot() -> Dictionary` | 返回共享设置快照，供 Main 应用景深开关。 |
 | `TileInspectionService.gd` | `configure(...) -> void` / `set_selected_cell(...) -> void` / `inspect_cell(...) -> Dictionary` | 兼容工具的直接只读检视 API；正式 RuntimeHud 不再调用。 |
@@ -386,6 +395,7 @@ LevelDebugPanel：Main 内开发快捷入口，位于正式 RuntimeHud 之外
 - 正式局内波次操作只来自 `WaveControlPanel -> WaveManager`；旧 Timeline/Status 不得重新成为现役事实源。
 - `BuildCardBar/Layout/MirrorCards` 是两张常驻镜卡的布局事实源；`BuildCardBar/Layout/Cards` 只含建筑卡并由 F2 显隐。隐藏建筑卡不取消当前放置模式，也不隐藏镜卡。
 - `TowerCodexPanel/Cards` 是四张只读塔卡的独立布局事实源；顺序固定由 `RuntimeHud.configure()` 注入箭塔、冰冻塔、导弹塔、镭射塔。它不是 `BaseButton`，不显示费用，不读取 F2 或 `BuildCardBar` 显隐状态。
+- 塔图鉴的“第X波”表示该塔从该波开始可用：初始塔为第一波，完成第 N 波投放的塔显示第 N+1 波。奖励弹窗优先于暂停菜单和通用关闭，确认前不得恢复游戏时间。
 - 路径预览只能按 `WaveControlPanel -> RuntimeHud -> Main -> PathHoverPreview` 转发；UI 不直接持有 PathManager。
 - 左侧“运行时关卡编辑”是开发者作者工具：地形按钮启用地形刷；高度下拉选择1～4层后点击“启用高度刷”；斜坡选择坡长、基础层和可选覆盖地形后启用，鼠标悬停显示真实候选，`R` 或“旋转选中/预览”改变方向，`Delete` 删除选中 Stuff/斜坡。
 - 工作区标题固定在面板顶部；地形、高度、斜坡、Stuff、选择、历史和保存操作统一位于单一纵向滚动区。窗口高度不足时用鼠标滚轮浏览，滚轮由 UI 消费，不传递给关卡相机缩放。

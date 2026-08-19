@@ -17,9 +17,19 @@ extends Control
 @export var card_hover_color: Color = Color(0.075, 0.18, 0.22, 0.98)
 @export var frame_color: Color = Color("dea967")
 @export var frame_hover_color: Color = Color(0.95, 0.82, 0.58, 1.0)
+@export var deployment_badge_size: Vector2 = Vector2(76.0, 22.0)
+@export_range(0.0, 24.0, 1.0) var deployment_badge_gap: float = 7.0
+
+const WAVE_NUMERALS := [
+	"一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+	"十一", "十二", "十三", "十四", "十五",
+]
 
 var _definitions: Array[BuildingDefinition] = []
+var _deployment_waves_by_kind: Dictionary = {}
 var _cards_column: VBoxContainer
+var _deployment_badge_layer: Control
+var _deployment_badge_stacks: Dictionary = {}
 var _description_panel: PanelContainer
 var _description_title: Label
 var _description_text: RichTextLabel
@@ -34,6 +44,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	_position_deployment_badges()
 	if _description_panel != null and _description_panel.visible:
 		_position_description()
 
@@ -46,6 +57,29 @@ func _notification(what: int) -> void:
 func configure(definitions: Array[BuildingDefinition]) -> void:
 	_definitions = definitions.duplicate()
 	_rebuild_cards()
+
+
+func set_deployment_waves(waves_by_kind: Dictionary) -> void:
+	_deployment_waves_by_kind.clear()
+	for raw_kind: Variant in waves_by_kind:
+		var normalized: Array[int] = []
+		var values: Variant = waves_by_kind[raw_kind]
+		if values is Array:
+			for raw_wave: Variant in values:
+				var wave_number := maxi(1, int(raw_wave))
+				normalized.append(wave_number)
+		normalized.sort()
+		_deployment_waves_by_kind[int(raw_kind)] = normalized
+	_rebuild_cards()
+
+
+func get_deployment_waves_for_kind(kind: int) -> Array[int]:
+	var result: Array[int] = []
+	var stored: Variant = _deployment_waves_by_kind.get(kind, [])
+	if stored is Array:
+		for value: Variant in stored:
+			result.append(int(value))
+	return result
 
 
 func set_feature_enabled(enabled: bool) -> void:
@@ -81,6 +115,11 @@ func _build_interface() -> void:
 	_cards_column.add_theme_constant_override("separation", int(card_separation))
 	_cards_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cards_column)
+	_deployment_badge_layer = Control.new()
+	_deployment_badge_layer.name = "DeploymentWaveLayer"
+	_deployment_badge_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_deployment_badge_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_deployment_badge_layer)
 	_build_description_panel()
 	_rebuild_cards()
 
@@ -138,8 +177,12 @@ func _rebuild_cards() -> void:
 	if _cards_column == null:
 		return
 	_hide_description()
+	_deployment_badge_stacks.clear()
 	for child in _cards_column.get_children():
 		_cards_column.remove_child(child)
+		child.queue_free()
+	for child in _deployment_badge_layer.get_children():
+		_deployment_badge_layer.remove_child(child)
 		child.queue_free()
 	for index in range(_definitions.size()):
 		var definition := _definitions[index]
@@ -150,13 +193,14 @@ func _rebuild_cards() -> void:
 		card.mouse_entered.connect(_on_card_mouse_entered.bind(card, definition))
 		card.mouse_exited.connect(_on_card_mouse_exited.bind(card))
 		_cards_column.add_child(card)
+		_create_deployment_badges(card, definition)
 	_position_layout.call_deferred()
 
 
 func _create_codex_card(definition: BuildingDefinition) -> PanelContainer:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = card_size
-	card.clip_contents = true
+	card.clip_contents = false
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.mouse_default_cursor_shape = Control.CURSOR_HELP
 	card.add_theme_stylebox_override("panel", _make_card_style(card_color, frame_color))
@@ -210,6 +254,93 @@ func _create_codex_card(definition: BuildingDefinition) -> PanelContainer:
 	return card
 
 
+func _create_deployment_badges(card: PanelContainer, definition: BuildingDefinition) -> void:
+	var stack := VBoxContainer.new()
+	stack.name = "%sWaves" % card.name
+	stack.add_theme_constant_override("separation", 3)
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.z_index = 1
+	_deployment_badge_layer.add_child(stack)
+	_deployment_badge_stacks[card.get_instance_id()] = stack
+	var waves := get_deployment_waves_for_kind(definition.kind)
+	for index in range(waves.size()):
+		var badge := PanelContainer.new()
+		badge.name = "Wave%d" % (index + 1)
+		badge.custom_minimum_size = deployment_badge_size
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var background := _get_deployment_badge_color(index)
+		badge.add_theme_stylebox_override(
+			"panel",
+			_make_deployment_badge_style(background)
+		)
+		var label := Label.new()
+		label.name = "Label"
+		label.text = "第%s波" % _format_wave_number(waves[index])
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 15)
+		label.add_theme_color_override("font_color", Color("26313a"))
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.add_child(label)
+		stack.add_child(badge)
+	var stack_height := (
+		deployment_badge_size.y * waves.size()
+		+ 3.0 * maxi(0, waves.size() - 1)
+	)
+	stack.custom_minimum_size = Vector2(deployment_badge_size.x, stack_height)
+	stack.size = stack.custom_minimum_size
+	stack.visible = not waves.is_empty()
+
+
+func _position_deployment_badges() -> void:
+	if _cards_column == null or _deployment_badge_layer == null:
+		return
+	var layer_origin := _deployment_badge_layer.get_global_rect().position
+	for child in _cards_column.get_children():
+		var card := child as PanelContainer
+		if card == null:
+			continue
+		var stack := _get_deployment_badge_stack(card)
+		if stack == null or not stack.visible:
+			continue
+		var card_rect := card.get_global_rect()
+		stack.position = Vector2(
+			card_rect.end.x - layer_origin.x + deployment_badge_gap,
+			card_rect.get_center().y - layer_origin.y - stack.size.y * 0.5
+		)
+
+
+func _get_deployment_badge_stack(card: PanelContainer) -> VBoxContainer:
+	if card == null:
+		return null
+	return _deployment_badge_stacks.get(card.get_instance_id()) as VBoxContainer
+
+
+func _get_deployment_badge_color(index: int) -> Color:
+	var palette: Array[Color] = [
+		Color("d8c4f0"),
+		Color("b9e8c2"),
+		Color("d2d5da"),
+		Color("ffd09a"),
+	]
+	return palette[posmod(index, palette.size())]
+
+
+func _format_wave_number(wave_number: int) -> String:
+	if wave_number >= 1 and wave_number <= WAVE_NUMERALS.size():
+		return WAVE_NUMERALS[wave_number - 1]
+	return str(wave_number)
+
+
+func _make_deployment_badge_style(background: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = background.darkened(0.28)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	return style
+
+
 func _make_card_style(background: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
@@ -253,6 +384,7 @@ func _position_layout() -> void:
 		return
 	_cards_column.reset_size()
 	_cards_column.position = codex_position
+	_position_deployment_badges.call_deferred()
 
 
 func _position_description() -> void:
@@ -265,6 +397,9 @@ func _position_description() -> void:
 		_hide_description()
 		return
 	var card_rect := _hovered_card.get_global_rect()
+	var deployment_badges := _get_deployment_badge_stack(_hovered_card)
+	if deployment_badges != null and deployment_badges.visible:
+		card_rect = card_rect.merge(deployment_badges.get_global_rect())
 	var panel_size := _description_panel.size
 	var panel_origin := get_global_rect().position
 	var layout_size := size

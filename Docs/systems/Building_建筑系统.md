@@ -32,6 +32,7 @@
 - **拆除退款**：主动拆除按当前等级动态累加 1 级建造费用和已经过等级的全部升级费用，100% 返还且无损失；不再配置独立退款数值。
 - **放置事务**：依次校验定义、边界、`TileManager.can_place()`、建筑上限和资源。占格或扣费失败会回滚，不留下半放置建筑。
 - **关卡初始建筑**：`BuildingPlacementData` 保存 Definition、格/边、逻辑朝向和等级。`BuildingManager.export_initial_placements()` 只导出真实建筑；加载时不扣 `initial_resource`，但注册建筑上限、恢复产出并继续使用正常删除/升级/战斗规则。初始陈列属于作者数据，静态预检通过后不重复执行玩家封路守卫。
+- **教程奖励塔**：`place_tutorial_tower()` 免费生成普通一级塔但仍占用建筑上限并遵守地图、占位和路径连通性。作者格无效时只在当前正方形网格中寻找最近合法格，同距离按坐标稳定排序；无合法格时返回失败，不覆盖玩家建筑。
 - **正式单次放置**：BuildingManager 仍维持通用“放置后选中”兼容行为；M6 `RuntimeInteractionController` 在卡片放置完成后立即清除该选择，并让成功/失败统一回 `SELECT`。其他调试或测试入口不受此 UI 规则反向耦合。
 - **移除事务**：主动删除、战斗摧毁、切关清理和外部 `queue_free()` 共用幂等释放路径，统一解除信号、清除字典/地块占位、释放建筑上限、选择和产出；同一建筑不会重复退款或重复注销。
 - **逻辑朝向与视觉朝向**：所有块建筑的自由逻辑朝向统一为 36 档，每档 10°，不读取相机 yaw；边建筑仍严格沿关卡物理边，保留 HEX 6 边 / SQUARE 4 边。`FIXED_FACING` 的逻辑和模型都跟随 `facing_index`；`TRACK_TARGET` 只在此基础上转动 `_visual_root` 追踪当前目标，失去目标后回到逻辑朝向。Stuff 与斜坡仍使用各自随网格的拓扑方向，不受建筑朝向升级影响。
@@ -175,6 +176,11 @@ M3DebugPanel 升级
 	 -> Building.apply_level(next_level)
 	 -> sync sum(Building.current_stats.resource_per_second)
 
+TutorialDirector wave-completed event
+  -> BuildingManager.place_tutorial_tower(preferred_cell, definition, facing)
+  -> preferred cell invalid: find_nearest_tutorial_tower_cell
+  -> normal level-1 placement transaction, no resource cost, counts toward cap
+
 Select occupied cell
   -> BuildingManager.select_at -> BuildingActionPanel projects action anchor
   -> downgrade: downgrade_selected -> apply_level(current_level - 1) -> gain(current_level.cost)
@@ -304,6 +310,8 @@ EnemyUnit blocker query -> BuildingManager.get_path_blocker(next path cells)
 |---|---|---|
 | `configure` | `(grid: GridManager, tiles: TileManager, resources: ResourceManager, combat: CombatManager) -> void` | 注入模块入口，并深度刷新 `.tres` 等级资源缓存。 |
 | `place_building` | `(cell: Vector3i, definition: BuildingDefinition, placement_facing: int = -1) -> Building` | 原子放置 1 级建筑并可继承预览朝向。 |
+| `place_tutorial_tower` | `(cell: Vector3i, definition: BuildingDefinition, placement_facing: int = 0) -> Building` | 免费放置普通一级教程奖励塔；仍登记建筑上限并执行正常占位/连通性校验。 |
+| `find_nearest_tutorial_tower_cell` | `(preferred_cell: Vector3i, definition: BuildingDefinition) -> Dictionary` | 优先作者格，否则按正方形网格距离与坐标稳定顺序返回最近合法格。 |
 | `export_initial_placements` | `() -> Array[BuildingPlacementData]` | 按稳定空间键导出全部真实建筑；排除预览与镜像虚像。 |
 | `load_initial_placements` | `(placements: Array) -> Array[String]` | 免建造费装配开局建筑并计入 cap；任一失败清理本批已装配实体。 |
 | `upgrade_selected` | `() -> bool` | 升级当前选择。 |

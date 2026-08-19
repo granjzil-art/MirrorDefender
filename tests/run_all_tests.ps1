@@ -85,6 +85,7 @@ $Tests = @(
 	"terrain_stuff_editor_test.gd",
 	"terrain_runtime_test.gd",
 	"tile_elements_and_rerouting_test.gd",
+	"tower_wave_tutorial_test.gd",
 	"tutorial_system_test.gd"
 )
 

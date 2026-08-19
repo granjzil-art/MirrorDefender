@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/DebugConsole.tscn" id="10_debug_console"]
 [ext_resource type="PackedScene" path="res://scenes/ui/DebugOverlayPanel.tscn" id="11_debug_overlay"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RuntimeStuffEditorPanel.tscn" id="12_stuff_editor"]
+[ext_resource type="Script" path="res://scripts/ui/TowerRewardPopup.gd" id="13_tower_reward_popup"]
 
 [sub_resource type="StyleBoxFlat" id="Style_card_toggle_normal"]
 bg_color = Color(0.035, 0.09, 0.12, 0.94)
@@ -287,6 +288,18 @@ theme_override_styles/normal = SubResource("Style_confirmation_button_normal")
 theme_override_styles/hover = SubResource("Style_confirmation_button_hover")
 theme_override_styles/pressed = SubResource("Style_confirmation_button_pressed")
 text = "确认"
+
+[node name="TowerRewardPopup" type="Control" parent="."]
+visible = false
+z_index = 330
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("13_tower_reward_popup")
 
 [node name="TimeControlPanel" parent="." instance=ExtResource("7_time_controls")]
 z_index = 90

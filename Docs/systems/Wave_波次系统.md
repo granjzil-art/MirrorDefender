@@ -64,6 +64,8 @@ next_spawn_time += max(0.01, group.interval)
 | `scripts/ui/WaveControlPanel.gd` | `WaveControlPanel` / `Control` | 右侧三按钮、下一波悬停详情及路径预览信号；不维护释放游标。 |
 | `scenes/ui/WaveControlPanel.tscn` | 无 class_name / `Control` 场景 | 三个 68px 圆形按钮与向左展开的下一波详情板。 |
 | `scripts/ui/RuntimeHud.gd` | `RuntimeHud` / `Control` | 注入 WaveManager，把 victory/defeat 转为正式胜利评价/失败模态，转发重启/退出和路径预览信号。 |
+| `scripts/tutorial/TutorialEventDefinition.gd` | `TutorialEventDefinition` / `Resource` | 可在指定波次完成事件上配置一座免费一级塔、作者格和36档朝向。 |
+| `scripts/tutorial/TutorialDirector.gd` | `TutorialDirector` / `Node` | 监听 `wave_completed`，对每个奖励事件执行一次 BuildingManager 自动投放并发送成功/失败信号。 |
 | `scripts/ui/WaveTimelinePanel.gd` / `scenes/ui/WaveTimelinePanel.tscn` | `WaveTimelinePanel` / `Control` | 旧纵向时间轴兼容实现；不在正式 HUD 实例化。 |
 | `scripts/ui/WaveStatusPanel.gd` | `WaveStatusPanel` / `Control` | 旧 M4 首波/摘要兼容脚本；不在正式 HUD 实例化。 |
 | `scripts/debug/RuntimeDebugBindings.gd` | `RuntimeDebugBindings` / `Node` | 把 `wave start` 绑定到 `start_next_wave()`，并为 `spawn` 解析当前关卡敌人与路径。 |
@@ -124,6 +126,11 @@ WaveManager -> VICTORY
   -> restart: Main -> LevelLoader.reload_current_level()
   -> return title: Main -> AppFlowController -> LevelSelectView
 
+WaveManager.wave_completed(wave_number)
+  -> TutorialDirector activates matching event once
+  -> BuildingManager.place_tutorial_tower
+  -> automatic_tower_placed -> RuntimeHud reward modal
+
 all waves released
 + every spawn state remaining == 0
 + active units (authored and Debug) empty
@@ -161,6 +168,7 @@ all waves released
 | `WaveControlPanel.clear_hover_preview` | `() -> void` | 隐藏详情并发送路径清理信号。 |
 | `WaveControlPanel.get_previewed_wave_number` | `() -> int` | 返回当前悬停预览的下一波号；未预览为 0。 |
 | `WaveTimelineModel.build` | `(level: LevelResource) -> Array[Dictionary]` | 返回作者顺序条目；除唯一 `paths` 外增加 `{path, airborne}` 的 `path_requests`，仅作只读摘要与真实路线预览。 |
+| `TutorialDirector.configure` | `(building_manager: BuildingManager, wave_manager: WaveManager) -> void` | 订阅建筑动作与波次释放/完成事件，保持教程判定和自动奖励入口集中。 |
 
 ## 信号索引
 
@@ -171,6 +179,7 @@ all waves released
 | `next_wave_changed` | `(wave_number: int, wave: WaveDefinition)` | 加载关卡或释放后更新下一波；全部释放时为 `(0, null)`。 |
 | `wave_started` | `(wave_number: int, wave: WaveDefinition)` | 本波第一只敌人成功注册；不等同于按钮释放。 |
 | `wave_completed` | `(wave_number: int)` | 本波组已生成完且该波活动敌人为空。 |
+| `TutorialDirector.automatic_tower_placed` / `automatic_tower_failed` | `(event, building)` / `(event, cell)` | 波次奖励只尝试一次后的成功实体或失败作者格。 |
 | `enemy_spawned` | `(unit: EnemyUnit)` | 一个作者或 Debug 敌人已完成配置和 Combat 注册。 |
 | `enemy_reached_base` | `(unit: EnemyUnit, damage: float)` | 单位抵达据点并完成结算；`damage` 是 WaveManager 已归一的全局漏怪惩罚，默认 1。 |
 | `configuration_failed` | `(reason: String)` | 波次预检或生成事务失败并进入 `CONFIG_ERROR`。 |

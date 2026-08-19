@@ -15,6 +15,7 @@ func _run() -> void:
 	_test_configuration_validation()
 	_test_latched_all_goal_runtime()
 	_test_trigger_types()
+	_test_automatic_wave_tower()
 	_test_wave_gate()
 	_test_tail_deletion()
 	_test_level_resource_reload_isolation()
@@ -48,6 +49,21 @@ func _test_configuration_validation() -> void:
 	)
 	goal.goal_type = TutorialGoalDefinition.GoalType.ACKNOWLEDGE_ALL_BUBBLES
 	_expect(tutorial.validate_configuration(2).is_empty(), "valid all-goal tutorial data passes validation")
+	var automatic_event := _make_click_event(&"automatic_tower", 1)
+	automatic_event.trigger_kind = TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+	automatic_event.trigger_wave_number = 1
+	automatic_event.automatic_tower_enabled = true
+	var automatic_tutorial := TutorialDefinition.new()
+	automatic_tutorial.events.append(automatic_event)
+	var automatic_errors := automatic_tutorial.validate_configuration(2)
+	_expect(
+		automatic_errors.any(func(message: String) -> bool: return message.contains("未选择塔"))
+		and automatic_errors.any(func(message: String) -> bool: return message.contains("未选择地图格")),
+		"automatic tower validation requires both a tower and a sampled cell"
+	)
+	automatic_event.automatic_tower_definition = _make_building_definition()
+	automatic_event.automatic_tower_cell_set = true
+	_expect(automatic_tutorial.validate_configuration(2).is_empty(), "valid wave-completion tower data passes validation")
 
 
 func _test_latched_all_goal_runtime() -> void:
@@ -231,6 +247,97 @@ func _test_trigger_types() -> void:
 	host.free()
 
 
+func _test_automatic_wave_tower() -> void:
+	var host := Node3D.new()
+	root.add_child(host)
+	var grid := GridManager.new()
+	var tiles := TileManager.new()
+	var resources := ResourceManager.new()
+	var combat := CombatManager.new()
+	var buildings := BuildingManager.new()
+	var waves := WaveManager.new()
+	var loader := LevelLoader.new()
+	var director := TutorialDirector.new()
+	for node in [grid, tiles, resources, combat, buildings, waves, loader, director]:
+		host.add_child(node)
+	tiles.set_grid(grid)
+	buildings.arrow_tower = load("res://resources/buildings/ArrowTower.tres")
+	buildings.configure(grid, tiles, resources, combat)
+	loader.configure(grid, tiles)
+	var level := _make_level(2)
+	level.initial_resource = 0
+	level.building_cap = 2
+	var fallback_cell := Vector3i(1, -1, 0)
+	var fallback_tile := TileCellData.new()
+	fallback_tile.configure(fallback_cell, TileCellData.TileType.BUILDABLE, 1)
+	level.tiles.append(fallback_tile)
+	var tutorial_waves := level.waves.duplicate()
+	level.waves.clear()
+	resources.apply_level_configuration(level)
+	var fixture_errors := level.validate_runtime()
+	_expect(fixture_errors.is_empty(), "automatic-tower fixture data validates: %s" % "; ".join(fixture_errors))
+	_expect(loader.load_level(level, "memory://tutorial-auto-tower"), "automatic-tower fixture level loads")
+	level.waves.assign(tutorial_waves)
+	director.configure(buildings, waves)
+	var tutorial := TutorialDefinition.new()
+	var event := _make_click_event(&"automatic_wave_tower", 99)
+	event.trigger_kind = TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+	event.trigger_wave_number = 1
+	event.automatic_tower_enabled = true
+	event.automatic_tower_definition = buildings.arrow_tower
+	event.automatic_tower_cell_set = true
+	event.automatic_tower_cell = Vector3i.ZERO
+	event.automatic_tower_facing_index = 9
+	tutorial.events.append(event)
+	var fallback_event := _make_click_event(&"automatic_wave_tower_fallback", 99)
+	fallback_event.trigger_kind = TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+	fallback_event.trigger_wave_number = 2
+	fallback_event.automatic_tower_enabled = true
+	fallback_event.automatic_tower_definition = buildings.arrow_tower
+	fallback_event.automatic_tower_cell_set = true
+	fallback_event.automatic_tower_cell = Vector3i.ZERO
+	fallback_event.automatic_tower_facing_index = 11
+	tutorial.events.append(fallback_event)
+	level.tutorial = tutorial
+	director.load_level(level)
+	_expect(buildings.get_buildings().is_empty(), "automatic tower waits for its selected wave to finish")
+	waves.wave_completed.emit(1)
+	var tower := buildings.get_building(Vector3i.ZERO)
+	_expect(tower != null, "selected wave completion automatically adds the configured tower")
+	if tower != null:
+		_expect(tower.level == 1, "automatic tutorial towers are always level one")
+		_expect(tower.facing_index == 9, "automatic tutorial tower keeps its authored facing")
+		_expect(tower.definition.kind == buildings.arrow_tower.kind, "automatic tutorial tower keeps its authored type")
+	_expect(is_equal_approx(resources.main_resource, 0.0), "automatic tutorial tower does not consume resources")
+	_expect(resources.get_building_count() == 1, "automatic tutorial tower consumes one building-cap slot")
+	waves.wave_completed.emit(1)
+	director._process(1.0)
+	_expect(buildings.get_buildings().size() == 1, "repeated completion checks never duplicate an automatic tower")
+	var fallback_resolution := buildings.find_nearest_tutorial_tower_cell(
+		Vector3i.ZERO,
+		buildings.arrow_tower
+	)
+	var resolved_fallback_cell: Vector3i = fallback_resolution.get("cell", Vector3i.ZERO)
+	_expect(
+		bool(fallback_resolution.get("found", false))
+		and bool(fallback_resolution.get("used_fallback", false))
+		and grid.distance(Vector3i.ZERO, resolved_fallback_cell) == 1,
+		"occupied tutorial cells resolve to a legal nearest-neighbor cell before placement"
+	)
+	waves.wave_completed.emit(2)
+	var fallback_tower := buildings.get_building(resolved_fallback_cell)
+	_expect(
+		fallback_tower != null and buildings.get_building(Vector3i.ZERO) == tower,
+		"an occupied authored cell moves the next automatic tower to the nearest legal cell"
+	)
+	if fallback_tower != null:
+		_expect(fallback_tower.level == 1, "fallback tutorial towers remain level one")
+		_expect(fallback_tower.facing_index == 11, "fallback tutorial towers preserve the authored facing")
+	_expect(buildings.get_buildings().size() == 2, "fallback placement creates exactly one additional tower")
+	_expect(is_equal_approx(resources.main_resource, 0.0), "fallback placement remains free")
+	host.free()
+
+
 func _test_content_sized_bubble() -> void:
 	var short_definition := TutorialBubbleDefinition.new()
 	short_definition.text = "短句"
@@ -282,7 +389,14 @@ func _test_runtime_editor_controls() -> void:
 	tutorial.events.append(event)
 	level.tutorial = tutorial
 	director.load_level(level)
-	editor.configure(director, null, buildings, waves, Callable())
+	var hovered_cell := Vector3i(1, 1, 0)
+	editor.configure(
+		director,
+		null,
+		buildings,
+		waves,
+		func() -> Dictionary: return {"hit": true, "cell": hovered_cell}
+	)
 	_expect(editor._trigger_kind.item_count == 4, "runtime editor offers the four authored trigger types")
 	var goal := event.goals[0]
 	var placement_type_item := editor._goal_type.get_item_index(TutorialGoalDefinition.GoalType.PLACE_BUILDING)
@@ -319,6 +433,18 @@ func _test_runtime_editor_controls() -> void:
 	event.trigger_kind = TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
 	editor._refresh_all()
 	_expect(editor._trigger_wave_row.visible and not editor._trigger_time_row.visible, "wave-end trigger shows only its wave parameter")
+	editor._on_automatic_tower_enabled_changed(true)
+	_expect(
+		event.automatic_tower_enabled and event.automatic_tower_definition == arrow_definition,
+		"wave-end events can enable an automatic tower and default to the first tower type"
+	)
+	_expect(not editor._automatic_tower_option.disabled, "automatic tower type becomes editable for a wave-end event")
+	editor.set_active(true)
+	_expect(editor.capture_hovered_cell(), "T capture is accepted while automatic tower authoring is enabled")
+	_expect(
+		event.automatic_tower_cell_set and event.automatic_tower_cell == hovered_cell,
+		"T captures the hovered cell for the automatic tower"
+	)
 	bubble.anchor_kind = TutorialBubbleDefinition.AnchorKind.SCREEN
 	editor._refresh_all()
 	editor._on_bubble_x_changed(640.0)

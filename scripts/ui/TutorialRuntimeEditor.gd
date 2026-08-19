@@ -31,6 +31,12 @@ var _trigger_event_row: HBoxContainer
 var _trigger_event_option: OptionButton
 var _trigger_label: Label
 var _gate_spin: SpinBox
+var _automatic_tower_enabled: CheckBox
+var _automatic_tower_option: OptionButton
+var _automatic_tower_cell_label: Label
+var _automatic_tower_facing_spin: SpinBox
+var _automatic_tower_capture_button: Button
+var _automatic_tower_hint: Label
 var _bubble_option: OptionButton
 var _delete_bubble_button: Button
 var _bubble_text: TextEdit
@@ -112,12 +118,28 @@ func set_active(value: bool) -> void:
 
 
 func capture_hovered_cell() -> bool:
-	if not _active or not _pick_provider.is_valid() or _selected_goal == null:
+	if not _active or not _pick_provider.is_valid():
+		return false
+	var captures_automatic_tower := (
+		_selected_event != null
+		and _selected_event.automatic_tower_enabled
+		and _selected_event.trigger_kind == TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+	)
+	if not captures_automatic_tower and _selected_goal == null:
 		return false
 	var pick: Variant = _pick_provider.call()
 	if not pick is Dictionary or not bool((pick as Dictionary).get("hit", false)):
 		_set_status("鼠标当前没有悬停在有效地图格上", true)
 		return false
+	if captures_automatic_tower:
+		_selected_event.automatic_tower_cell = (pick as Dictionary).get("cell", Vector3i.ZERO)
+		_selected_event.automatic_tower_cell_set = true
+		_selected_event.emit_changed()
+		if _director != null:
+			_director.notify_authoring_changed()
+		_refresh_automatic_tower_fields()
+		_set_status("已采样自动建塔格 %s" % str(_selected_event.automatic_tower_cell), false)
+		return true
 	_selected_goal.target_cell = (pick as Dictionary).get("cell", Vector3i.ZERO)
 	_selected_goal.require_cell = true
 	_selected_goal.emit_changed()
@@ -236,6 +258,36 @@ func _build_interface() -> void:
 	_gate_spin.max_value = 999
 	_gate_spin.value_changed.connect(_on_gate_changed)
 	gate_row.add_child(_gate_spin)
+	root.add_child(_make_section_label("波次结束自动建塔"))
+	_automatic_tower_enabled = CheckBox.new()
+	_automatic_tower_enabled.text = "事件触发时自动添加一级塔"
+	_automatic_tower_enabled.toggled.connect(_on_automatic_tower_enabled_changed)
+	root.add_child(_automatic_tower_enabled)
+	var automatic_tower_grid := GridContainer.new()
+	automatic_tower_grid.columns = 2
+	root.add_child(automatic_tower_grid)
+	automatic_tower_grid.add_child(_make_label("塔类型"))
+	_automatic_tower_option = OptionButton.new()
+	_automatic_tower_option.item_selected.connect(_on_automatic_tower_selected)
+	automatic_tower_grid.add_child(_automatic_tower_option)
+	automatic_tower_grid.add_child(_make_label("目标格"))
+	_automatic_tower_cell_label = Label.new()
+	automatic_tower_grid.add_child(_automatic_tower_cell_label)
+	automatic_tower_grid.add_child(_make_label("初始朝向"))
+	_automatic_tower_facing_spin = SpinBox.new()
+	_automatic_tower_facing_spin.min_value = 0
+	_automatic_tower_facing_spin.max_value = 35
+	_automatic_tower_facing_spin.value_changed.connect(_on_automatic_tower_facing_changed)
+	automatic_tower_grid.add_child(_automatic_tower_facing_spin)
+	_automatic_tower_capture_button = Button.new()
+	_automatic_tower_capture_button.text = "取当前悬停格（T）"
+	_automatic_tower_capture_button.pressed.connect(_on_capture_automatic_tower_cell)
+	root.add_child(_automatic_tower_capture_button)
+	_automatic_tower_hint = Label.new()
+	_automatic_tower_hint.text = "仅用于“波次结束”触发；免费生成并计入建筑上限，等级固定为1。"
+	_automatic_tower_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_automatic_tower_hint.add_theme_color_override("font_color", Color(1.0, 0.78, 0.35))
+	root.add_child(_automatic_tower_hint)
 	root.add_child(HSeparator.new())
 	var bubble_header := HBoxContainer.new()
 	root.add_child(bubble_header)
@@ -442,6 +494,7 @@ func _refresh_all() -> void:
 	_gate_spin.editable = _selected_event != null
 	_gate_spin.value = _selected_event.gated_wave_number if _selected_event != null else 0
 	_refresh_trigger_fields(events)
+	_refresh_automatic_tower_fields()
 	_refresh_bubble_list()
 	_refresh_goal_list()
 	_updating = false
@@ -571,6 +624,45 @@ func _refresh_trigger_fields(events: Array[TutorialEventDefinition]) -> void:
 		_trigger_event_option.disabled = not has_event
 		_trigger_event_option.select(selected_trigger_event)
 	_trigger_label.text = _describe_trigger(_selected_event)
+
+
+func _refresh_automatic_tower_fields() -> void:
+	var event := _selected_event
+	var has_event := event != null
+	var wave_trigger := has_event and event.trigger_kind == TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+	var editable := wave_trigger and event.automatic_tower_enabled
+	_automatic_tower_enabled.disabled = not has_event
+	_automatic_tower_enabled.button_pressed = event.automatic_tower_enabled if has_event else false
+	_automatic_tower_option.clear()
+	_automatic_tower_option.add_item("请选择塔")
+	_automatic_tower_option.set_item_metadata(0, null)
+	var selected_item := 0
+	for definition in _building_definitions:
+		if definition == null or definition.is_defensive_structure() or definition.is_edge_building():
+			continue
+		var item_index := _automatic_tower_option.item_count
+		_automatic_tower_option.add_item(definition.display_name)
+		_automatic_tower_option.set_item_metadata(item_index, definition)
+		if has_event and event.automatic_tower_definition != null and (
+			definition == event.automatic_tower_definition
+			or definition.kind == event.automatic_tower_definition.kind
+		):
+			selected_item = item_index
+	_automatic_tower_option.select(selected_item)
+	_automatic_tower_option.disabled = not editable
+	_automatic_tower_cell_label.text = (
+		str(event.automatic_tower_cell)
+		if has_event and event.automatic_tower_cell_set
+		else "未设置（移到地图后按 T）"
+	)
+	_automatic_tower_facing_spin.editable = editable
+	_automatic_tower_facing_spin.value = event.automatic_tower_facing_index if has_event else 0
+	_automatic_tower_capture_button.disabled = not editable
+	_automatic_tower_hint.text = (
+		"免费生成并计入建筑上限，等级固定为1。"
+		if wave_trigger
+		else "请先把触发类型设为“波次结束”；自动塔免费生成、计入建筑上限且固定为1级。"
+	)
 
 
 func _refresh_goal_fields() -> void:
@@ -711,6 +803,11 @@ func _on_trigger_kind_changed(index: int) -> void:
 	if _updating or _selected_event == null:
 		return
 	_selected_event.trigger_kind = _trigger_kind.get_item_id(index)
+	if (
+		_selected_event.trigger_kind != TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+		and _selected_event.automatic_tower_enabled
+	):
+		_selected_event.automatic_tower_enabled = false
 	if _selected_event.trigger_kind == TutorialEventDefinition.TriggerKind.LEVEL_TIME:
 		_selected_event.trigger_delay_seconds = _director.get_level_elapsed() if _director != null else 0.0
 	else:
@@ -753,6 +850,45 @@ func _on_gate_changed(value: float) -> void:
 		return
 	_selected_event.gated_wave_number = roundi(value)
 	_notify_changed()
+
+
+func _on_automatic_tower_enabled_changed(value: bool) -> void:
+	if _updating or _selected_event == null:
+		return
+	if value and _selected_event.trigger_kind != TutorialEventDefinition.TriggerKind.WAVE_COMPLETED:
+		_set_status("自动建塔只能用于“波次结束”触发", true)
+		_refresh_automatic_tower_fields()
+		return
+	_selected_event.automatic_tower_enabled = value
+	if value and _selected_event.automatic_tower_definition == null:
+		for definition in _building_definitions:
+			if definition != null and not definition.is_defensive_structure() and not definition.is_edge_building():
+				_selected_event.automatic_tower_definition = definition
+				break
+	_notify_changed()
+	if value:
+		_set_status("自动建塔已启用；将鼠标移到目标格后按 T", false)
+
+
+func _on_automatic_tower_selected(index: int) -> void:
+	if _updating or _selected_event == null or _automatic_tower_option.disabled:
+		return
+	_selected_event.automatic_tower_definition = (
+		_automatic_tower_option.get_item_metadata(index) as BuildingDefinition
+	)
+	_notify_changed()
+
+
+func _on_automatic_tower_facing_changed(value: float) -> void:
+	if _updating or _selected_event == null:
+		return
+	_selected_event.automatic_tower_facing_index = roundi(value)
+	_notify_changed()
+
+
+func _on_capture_automatic_tower_cell() -> void:
+	if not capture_hovered_cell():
+		_set_status("鼠标当前没有悬停在有效地图格上", true)
 
 
 func _on_add_bubble() -> void:

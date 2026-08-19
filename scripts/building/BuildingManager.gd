@@ -109,6 +109,88 @@ func place_building(
 	)
 
 
+## Places one authored tutorial tower for free at level one. It still consumes
+## one building-cap slot and obeys normal occupancy/connectivity rules. When
+## the authored cell is unavailable, the nearest legal grid cell is used.
+func place_tutorial_tower(
+	cell: Vector3i,
+	definition: BuildingDefinition,
+	placement_facing: int = 0
+) -> Building:
+	if definition == null or definition.is_defensive_structure() or definition.is_edge_building():
+		placement_failed.emit(cell, "教程自动建造只能选择普通塔")
+		return null
+	var resolved_definition := _resolve_runtime_definition(definition)
+	var placement := find_nearest_tutorial_tower_cell(cell, resolved_definition)
+	if not bool(placement.get("found", false)):
+		placement_failed.emit(
+			cell,
+			String(placement.get("failure", "预设格及附近没有可放置格"))
+		)
+		return null
+	var resolved_cell: Vector3i = placement["cell"]
+	return _place_tile_building(
+		resolved_cell,
+		resolved_definition,
+		placement_facing,
+		1,
+		false,
+		true,
+		false
+	)
+
+
+## Returns {found, cell, used_fallback, failure}. Distance uses the active
+## square/hex grid topology. Coordinate order breaks equal-distance ties so a
+## blocked authored cell always resolves to the same fallback cell.
+func find_nearest_tutorial_tower_cell(
+	preferred_cell: Vector3i,
+	definition: BuildingDefinition
+) -> Dictionary:
+	var result := {
+		"found": false,
+		"cell": preferred_cell,
+		"used_fallback": false,
+		"failure": "",
+	}
+	var resolved_definition := _resolve_runtime_definition(definition)
+	var preferred_failure := _validate_placement(
+		preferred_cell,
+		resolved_definition,
+		false
+	)
+	if preferred_failure.is_empty():
+		result["found"] = true
+		return result
+	result["failure"] = preferred_failure
+	if _grid == null:
+		return result
+	var candidates: Array[Vector3i] = _grid.enumerate_cells()
+	candidates.sort_custom(
+		func(a: Vector3i, b: Vector3i) -> bool:
+			var distance_a := _grid.distance(preferred_cell, a)
+			var distance_b := _grid.distance(preferred_cell, b)
+			if distance_a != distance_b:
+				return distance_a < distance_b
+			if a.x != b.x:
+				return a.x < b.x
+			if a.y != b.y:
+				return a.y < b.y
+			return a.z < b.z
+	)
+	for candidate: Vector3i in candidates:
+		if candidate == preferred_cell:
+			continue
+		if _validate_placement(candidate, resolved_definition, false).is_empty():
+			result["found"] = true
+			result["cell"] = candidate
+			result["used_fallback"] = true
+			result["failure"] = ""
+			return result
+	result["failure"] = "预设格及附近没有可放置格"
+	return result
+
+
 func place_edge_building(
 	from_cell: Vector3i,
 	placement_edge_index: int,

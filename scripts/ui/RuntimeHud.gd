@@ -25,6 +25,7 @@ const DebugOverlayPanelScript := preload("res://scripts/ui/DebugOverlayPanel.gd"
 const DebugCommandRegistryScript := preload("res://scripts/debug/DebugCommandRegistry.gd")
 const DebugCategoryRegistryScript := preload("res://scripts/debug/DebugCategoryRegistry.gd")
 const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEditorPanel.gd")
+const TowerArrivalPulseScript := preload("res://scripts/presentation/TowerArrivalPulse.gd")
 
 @onready var build_card_bar: BuildCardBarScript = $BuildCardBar
 @onready var tower_codex_panel: TowerCodexPanelScript = $TowerCodexPanel
@@ -44,6 +45,7 @@ const RuntimeStuffEditorPanelScript := preload("res://scripts/ui/RuntimeStuffEdi
 @onready var debug_console: DebugConsoleScript = $DebugConsole
 @onready var runtime_stuff_editor_panel: RuntimeStuffEditorPanelScript = $RuntimeStuffEditorPanel
 @onready var action_feedback: Label = $ActionFeedback
+@onready var tower_reward_popup: TowerRewardPopup = $TowerRewardPopup
 
 signal restart_level_requested
 signal exit_level_requested
@@ -68,6 +70,10 @@ var _debug_category_registry: DebugCategoryRegistryScript
 var _feedback_tween: Tween
 var _pending_confirmation_action: ConfirmationAction = ConfirmationAction.NONE
 var _confirmation_restore_paused: bool = false
+var _tutorial_director: TutorialDirector
+var _tower_reward_queue: Array[Dictionary] = []
+var _active_tower_reward_building: Building
+var _tower_reward_restore_paused: bool = false
 
 enum ConfirmationAction {
 	NONE,
@@ -88,6 +94,7 @@ func _ready() -> void:
 	victory_menu.exit_level_requested.connect(_on_exit_requested)
 	confirmation_cancel_button.pressed.connect(_on_confirmation_cancelled)
 	confirmation_confirm_button.pressed.connect(_on_confirmation_confirmed)
+	tower_reward_popup.confirmed.connect(_on_tower_reward_confirmed)
 	wave_control_panel.restart_level_requested.connect(_on_restart_requested)
 	wave_control_panel.exit_level_requested.connect(_on_exit_requested)
 	wave_control_panel.next_wave_released_by_player.connect(_on_next_wave_released_by_player)
@@ -208,6 +215,17 @@ func configure_debug_tool_entries(
 	set_debug_tools_enabled(_debug_tools_enabled)
 
 
+func configure_tutorial_rewards(director: TutorialDirector) -> void:
+	if (
+		_tutorial_director != null
+		and _tutorial_director.automatic_tower_placed.is_connected(_on_automatic_tower_placed)
+	):
+		_tutorial_director.automatic_tower_placed.disconnect(_on_automatic_tower_placed)
+	_tutorial_director = director
+	if _tutorial_director != null:
+		_tutorial_director.automatic_tower_placed.connect(_on_automatic_tower_placed)
+
+
 func set_debug_tools_enabled(enabled: bool) -> void:
 	_debug_tools_enabled = enabled
 	debug_console.set_feature_enabled(_debug_console_available and _debug_tools_enabled)
@@ -244,11 +262,48 @@ func are_building_cards_visible() -> bool:
 func apply_level_configuration(level: LevelResource, _source_path: String = "") -> void:
 	if level != null:
 		build_card_bar.set_slot_count(level.building_card_slot_count)
+		tower_codex_panel.set_deployment_waves(build_tower_deployment_schedule(level))
+	else:
+		tower_codex_panel.set_deployment_waves({})
 	wave_control_panel.set_level(level)
 
 
+static func build_tower_deployment_schedule(level: LevelResource) -> Dictionary:
+	var schedule: Dictionary = {}
+	if level == null:
+		return schedule
+	for placement: BuildingPlacementData in level.initial_building_placements:
+		if placement != null and placement.definition != null:
+			_append_deployment_wave(schedule, placement.definition.kind, 1)
+	if level.tutorial != null:
+		for event: TutorialEventDefinition in level.tutorial.events:
+			if (
+				event != null
+				and event.automatic_tower_enabled
+				and event.automatic_tower_definition != null
+				and event.trigger_kind == TutorialEventDefinition.TriggerKind.WAVE_COMPLETED
+			):
+				_append_deployment_wave(
+					schedule,
+					event.automatic_tower_definition.kind,
+					event.trigger_wave_number + 1
+				)
+	for kind: Variant in schedule:
+		var waves: Array = schedule[kind]
+		waves.sort()
+	return schedule
+
+
+static func _append_deployment_wave(schedule: Dictionary, kind: int, wave_number: int) -> void:
+	if not schedule.has(kind):
+		schedule[kind] = []
+	var waves: Array = schedule[kind]
+	waves.append(maxi(1, wave_number))
+	schedule[kind] = waves
+
+
 func is_modal_open() -> bool:
-	return is_confirmation_open() or (
+	return is_tower_reward_open() or is_confirmation_open() or (
 		victory_menu != null and victory_menu.is_open()
 	) or (
 		defeat_menu != null and defeat_menu.is_open()
@@ -261,6 +316,10 @@ func is_modal_open() -> bool:
 
 func is_confirmation_open() -> bool:
 	return confirmation_dialog != null and confirmation_dialog.visible
+
+
+func is_tower_reward_open() -> bool:
+	return tower_reward_popup != null and tower_reward_popup.is_open()
 
 
 func is_defeat_menu_open() -> bool:
@@ -294,6 +353,8 @@ func is_debug_console_open() -> bool:
 
 
 func close_top_modal() -> void:
+	if is_tower_reward_open():
+		return
 	if is_confirmation_open():
 		_on_confirmation_cancelled()
 		return
@@ -317,6 +378,11 @@ func prepare_for_level_transition() -> void:
 	_defeat_active = false
 	_victory_active = false
 	_victory_star_count = 0
+	_tower_reward_queue.clear()
+	_active_tower_reward_building = null
+	_tower_reward_restore_paused = false
+	if tower_reward_popup != null:
+		tower_reward_popup.dismiss()
 	_close_confirmation()
 	wave_control_panel.clear_hover_preview()
 	if defeat_menu != null:
@@ -356,6 +422,57 @@ func _on_mode_changed(mode: RuntimeInteractionControllerScript.Mode) -> void:
 		build_card_bar.set_reflect_mirror_selected(true)
 	elif _interaction != null:
 		build_card_bar.set_selected_building(_interaction.get_selected_definition())
+
+
+func _on_automatic_tower_placed(
+	event: TutorialEventDefinition,
+	building: Building
+) -> void:
+	if event == null or building == null or not is_instance_valid(building):
+		return
+	_tower_reward_queue.append({"event": event, "building": building})
+	if not is_tower_reward_open():
+		_tower_reward_restore_paused = (
+			_time_controller != null and _time_controller.is_paused()
+		)
+		_show_next_tower_reward()
+
+
+func _show_next_tower_reward() -> void:
+	if _tower_reward_queue.is_empty() or tower_reward_popup == null:
+		return
+	var reward: Dictionary = _tower_reward_queue.pop_front()
+	var event := reward.get("event") as TutorialEventDefinition
+	var building := reward.get("building") as Building
+	if event == null or building == null or not is_instance_valid(building):
+		_show_next_tower_reward()
+		return
+	_active_tower_reward_building = building
+	tower_reward_popup.present(building.definition, event.trigger_wave_number)
+	if _time_controller != null:
+		_time_controller.set_paused(true)
+	_sync_modal_state()
+
+
+func _on_tower_reward_confirmed() -> void:
+	if not is_tower_reward_open():
+		return
+	tower_reward_popup.dismiss()
+	if (
+		_active_tower_reward_building != null
+		and is_instance_valid(_active_tower_reward_building)
+	):
+		var pulse := TowerArrivalPulseScript.new()
+		pulse.name = "TowerArrivalPulse"
+		_active_tower_reward_building.add_child(pulse)
+	_active_tower_reward_building = null
+	if not _tower_reward_queue.is_empty():
+		_show_next_tower_reward()
+		return
+	if _time_controller != null:
+		_time_controller.set_paused(_tower_reward_restore_paused)
+	_tower_reward_restore_paused = false
+	_sync_modal_state()
 
 
 ## Displays only the player-facing placement failures explicitly approved for
@@ -451,6 +568,10 @@ func _on_paused_changed(paused: bool) -> void:
 	if is_confirmation_open():
 		if not _confirmation_restore_paused:
 			pause_menu.close_menu()
+		_sync_modal_state()
+		return
+	if is_tower_reward_open():
+		pause_menu.close_menu()
 		_sync_modal_state()
 		return
 	if paused:

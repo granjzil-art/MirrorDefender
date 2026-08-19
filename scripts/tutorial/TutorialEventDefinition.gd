@@ -31,6 +31,14 @@ enum TriggerKind {
 ## Zero leaves waves unrestricted. Positive values block that authored wave until all goals latch.
 @export_range(0, 999, 1) var gated_wave_number: int = 0
 
+@export_group("Wave Completion Tower")
+## Adds one free level-one tower when this wave-completed event activates.
+@export var automatic_tower_enabled: bool = false
+@export var automatic_tower_definition: BuildingDefinition
+@export var automatic_tower_cell_set: bool = false
+@export var automatic_tower_cell: Vector3i = Vector3i.ZERO
+@export_range(0, 35, 1) var automatic_tower_facing_index: int = 0
+
 
 func validate_configuration(total_waves: int, known_event_ids: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
@@ -45,6 +53,15 @@ func validate_configuration(total_waves: int, known_event_ids: Dictionary) -> Ar
 		errors.append("教学事件 %s 引用了不存在的前置事件" % event_id)
 	if gated_wave_number < 0 or gated_wave_number > total_waves:
 		errors.append("教学事件 %s 的门禁波次无效" % event_id)
+	if automatic_tower_enabled:
+		if trigger_kind != TriggerKind.WAVE_COMPLETED:
+			errors.append("教学事件 %s 的自动建塔只能使用波次结束触发" % event_id)
+		if automatic_tower_definition == null:
+			errors.append("教学事件 %s 的自动建塔未选择塔" % event_id)
+		elif automatic_tower_definition.is_defensive_structure() or automatic_tower_definition.is_edge_building():
+			errors.append("教学事件 %s 的自动建塔只能选择普通塔" % event_id)
+		if not automatic_tower_cell_set:
+			errors.append("教学事件 %s 的自动建塔未选择地图格" % event_id)
 	if goals.is_empty():
 		errors.append("教学事件 %s 至少需要一个目标" % event_id)
 	for bubble_index in range(bubbles.size()):

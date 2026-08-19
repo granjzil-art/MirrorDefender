@@ -10,6 +10,7 @@
 - **水坑质感**：反射材质提供五点柔化、Fresnel、颜色保留和程序化雨滴环形微波纹，不依赖固定投影或预烘焙贴图。
 - **激光束 VFX**：激光塔射线的视觉表现（含复制后光路段）。
 - **命中特效**：伤害命中单位/据点的粒子反馈。
+- **教程塔到达提示**：玩家确认获得塔弹窗后，在新塔脚下播放5秒双层红色扩散环；按真实时间推进，不被暂停或倍速冻结。
 - **音效 / BGM**：UI、开火、命中、建造、镜子放置和背景音乐。
 
 ## 文件构成
@@ -21,6 +22,7 @@
 | `resources/fx/LevelReflection.gdshader` | Spatial Shader | 实时反射采样、五点柔化、Fresnel 与稀疏雨滴波纹。 |
 | `resources/fx/LevelReflection.tres` | `LevelReflectionDefinition` 数据 | 运行时默认倒影配置，可在 Godot Inspector 中直接编辑。 |
 | `scripts/Main.gd` | `Node3D` | 只负责实例化 FX 节点并注入 Grid、TileManager 和主相机。 |
+| `scripts/presentation/TowerArrivalPulse.gd` | `TowerArrivalPulse` / `Node3D` | 教程奖励塔确认后的5秒双层程序化脉冲，只读跟随塔节点且不改变玩法。 |
 
 ## 可编辑参数
 
@@ -77,6 +79,10 @@ SubViewportTexture ──五点柔化/波纹/Fresnel──> 水平 PlaneMesh
 
 - `validate_configuration() -> Array[String]`：校验全部数值范围、有限数和颜色分量；空数组表示配置可用。
 - 运行时调用 `emit_changed()` 后，LevelReflectionSurface 会立即应用高度、范围、材质和刷新参数；重新 `configure()` 会先解除旧 Grid/Tile/Definition 信号。
+
+### `TowerArrivalPulse`
+
+- `_process(delta: float) -> void`：使用真实时间累积5秒生命周期并刷新两层扩散环；完成后自行释放。
 
 ## 约定与限制
 

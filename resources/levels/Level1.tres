@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://cqp31ytkpckqk"]
+[gd_resource type="Resource" script_class="LevelResource" format=3 uid="uid://cm113t1ibprws"]
 
 [ext_resource type="PackedScene" uid="uid://cd5nxsfdc7ofb" path="res://assets/buildings/Castle/tscn/desertcastle.tscn" id="1_fxe43"]
 [ext_resource type="Script" uid="uid://sas13o1pwy8h" path="res://scripts/path/BasePointDefinition.gd" id="1_nx7p2"]
@@ -1346,28 +1346,11 @@ script = ExtResource("5_j7tra")
 cell = Vector3i(14, 16, 0)
 terrain = ExtResource("5_8tj5o")
 
-[sub_resource type="Resource" id="Resource_d58a8"]
-script = ExtResource("7_fxe43")
-definition = ExtResource("12_y415d")
-cell = Vector3i(3, 13, 0)
-facing_index = 30
-
-[sub_resource type="Resource" id="Resource_lmebr"]
-script = ExtResource("7_fxe43")
-definition = ExtResource("13_hrldx")
-cell = Vector3i(5, 10, 0)
-
 [sub_resource type="Resource" id="Resource_sv15o"]
 script = ExtResource("7_fxe43")
 definition = ExtResource("29_hrldx")
 cell = Vector3i(6, 10, 0)
 facing_index = 34
-
-[sub_resource type="Resource" id="Resource_myrdx"]
-script = ExtResource("7_fxe43")
-definition = ExtResource("28_flri3")
-cell = Vector3i(6, 2, 0)
-facing_index = 4
 
 [sub_resource type="Resource" id="Resource_jvd3x"]
 script = ExtResource("8_v2y8g")
@@ -1526,61 +1509,82 @@ placement_id = &"tree_9"
 cell = Vector3i(11, 12, 0)
 definition = ExtResource("19_1dmoi")
 
-[sub_resource type="Resource" id="Resource_35j8s"]
+[sub_resource type="Resource" id="Resource_d58a8"]
 script = ExtResource("26_flri3")
 text = "欢迎游玩MirrorDefender！
 (点击下一句)"
 screen_position = Vector2(100, 180)
 flow_strength = 2
 
-[sub_resource type="Resource" id="Resource_ifqav"]
+[sub_resource type="Resource" id="Resource_lmebr"]
 script = ExtResource("26_flri3")
 text = "这是一个利用镜子
 复制和反射的塔防游戏"
 screen_position = Vector2(100, 180)
 flow_strength = 2
 
-[sub_resource type="Resource" id="Resource_uw4eq"]
+[sub_resource type="Resource" id="Resource_myrdx"]
 script = ExtResource("26_flri3")
 text = "先来熟悉一下游戏的基本操作吧！"
 screen_position = Vector2(100, 180)
 
-[sub_resource type="Resource" id="Resource_pcw0h"]
+[sub_resource type="Resource" id="Resource_35j8s"]
 script = ExtResource("27_h7crc")
 show_in_checklist = false
 
-[sub_resource type="Resource" id="Resource_sqy1j"]
+[sub_resource type="Resource" id="Resource_ifqav"]
 script = ExtResource("25_bn3hd")
 event_id = &"tutorial_event_01"
 display_name = "欢迎游玩MirrorDefender"
-bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_35j8s"), SubResource("Resource_ifqav"), SubResource("Resource_uw4eq")])
-goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_pcw0h")])
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_d58a8"), SubResource("Resource_lmebr"), SubResource("Resource_myrdx")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_35j8s")])
 gated_wave_number = 1
 
-[sub_resource type="Resource" id="Resource_52cw2"]
+[sub_resource type="Resource" id="Resource_uw4eq"]
 script = ExtResource("26_flri3")
 text = "WASD可以移动视角"
 screen_position = Vector2(100, 180)
 associated_goal_index = 0
 flow_strength = 2
 
-[sub_resource type="Resource" id="Resource_8gfv4"]
+[sub_resource type="Resource" id="Resource_pcw0h"]
 script = ExtResource("26_flri3")
 text = "右键旋转，滚轮缩放"
 screen_position = Vector2(100, 180)
 flow_strength = 2
 
-[sub_resource type="Resource" id="Resource_0m4fq"]
+[sub_resource type="Resource" id="Resource_sqy1j"]
 script = ExtResource("26_flri3")
 text = "数字键1 2可以复位视角"
 screen_position = Vector2(100, 180)
 flow_strength = 2
 
-[sub_resource type="Resource" id="Resource_i4k41"]
+[sub_resource type="Resource" id="Resource_52cw2"]
 script = ExtResource("26_flri3")
 text = "尽情观赏沙盘吧！"
 screen_position = Vector2(100, 180)
 flow_strength = 2
+
+[sub_resource type="Resource" id="Resource_8gfv4"]
+script = ExtResource("26_flri3")
+text = "这是箭塔"
+anchor_kind = 1
+screen_position = Vector2(128, 216)
+world_cell = Vector3i(6, 10, 0)
+
+[sub_resource type="Resource" id="Resource_0m4fq"]
+script = ExtResource("26_flri3")
+text = "这是复制镜"
+anchor_kind = 1
+screen_position = Vector2(156, 252)
+world_cell = Vector3i(8, 11, 0)
+
+[sub_resource type="Resource" id="Resource_i4k41"]
+script = ExtResource("26_flri3")
+text = "这是反射镜"
+anchor_kind = 1
+screen_position = Vector2(184, 288)
+world_cell = Vector3i(8, 9, 0)
 
 [sub_resource type="Resource" id="Resource_xvkrk"]
 script = ExtResource("27_h7crc")
@@ -1592,13 +1596,325 @@ event_id = &"tutorial_event_02"
 display_name = "视角操作"
 trigger_kind = 3
 trigger_event_id = &"tutorial_event_01"
-bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_52cw2"), SubResource("Resource_8gfv4"), SubResource("Resource_0m4fq"), SubResource("Resource_i4k41")])
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_uw4eq"), SubResource("Resource_pcw0h"), SubResource("Resource_sqy1j"), SubResource("Resource_52cw2"), SubResource("Resource_8gfv4"), SubResource("Resource_0m4fq"), SubResource("Resource_i4k41")])
 goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_xvkrk")])
 gated_wave_number = 1
 
 [sub_resource type="Resource" id="Resource_gnn6a"]
+script = ExtResource("26_flri3")
+text = "镜子和塔都可以拖动"
+anchor_kind = 1
+world_cell = Vector3i(6, 10, 0)
+
+[sub_resource type="Resource" id="Resource_4a41r"]
+script = ExtResource("26_flri3")
+text = "把箭塔拖动到旁边吧"
+anchor_kind = 1
+screen_position = Vector2(388, 256)
+world_cell = Vector3i(6, 11, 0)
+dismiss_condition = 1
+associated_goal_index = 1
+
+[sub_resource type="Resource" id="Resource_r6xbv"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_xpa4s"]
+script = ExtResource("27_h7crc")
+goal_type = 2
+building_definition = ExtResource("29_hrldx")
+require_cell = true
+target_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_3ig2n"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_03"
+display_name = "拖动教学"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_02"
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_gnn6a"), SubResource("Resource_4a41r")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_r6xbv"), SubResource("Resource_xpa4s")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_7egjg"]
+script = ExtResource("26_flri3")
+text = "塔和建筑都可以旋转"
+anchor_kind = 1
+world_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_7qunu"]
+script = ExtResource("26_flri3")
+text = "选中塔使用滚轮旋转，让箭塔发生反射吧"
+anchor_kind = 1
+screen_position = Vector2(388, 256)
+world_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_3xv3m"]
+script = ExtResource("26_flri3")
+text = "选中塔使用滚轮旋转，让箭塔发生反射吧"
+anchor_kind = 1
+screen_position = Vector2(416, 292)
+world_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_51ye8"]
+script = ExtResource("26_flri3")
+text = "塔和镜子都可以升级"
+anchor_kind = 1
+screen_position = Vector2(444, 328)
+world_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_o3o3g"]
+script = ExtResource("26_flri3")
+text = "选中箭塔，提升一级吧"
+anchor_kind = 1
+screen_position = Vector2(472, 364)
+world_cell = Vector3i(9, 11, 0)
+dismiss_condition = 1
+associated_goal_index = 1
+
+[sub_resource type="Resource" id="Resource_f6e51"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_h38aq"]
+script = ExtResource("27_h7crc")
+goal_type = 3
+building_definition = ExtResource("29_hrldx")
+require_cell = true
+target_cell = Vector3i(6, 11, 0)
+
+[sub_resource type="Resource" id="Resource_5bn76"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_04"
+display_name = "反射教学"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_03"
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_7egjg"), SubResource("Resource_7qunu"), SubResource("Resource_3xv3m"), SubResource("Resource_51ye8"), SubResource("Resource_o3o3g")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_f6e51"), SubResource("Resource_h38aq")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_ngxyu"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_uo2p4"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_05"
+display_name = "虚影可放置教学"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_09"
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_ngxyu")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_wow4h"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_6q85n"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_06"
+display_name = "虚影可重叠教学"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_05"
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_wow4h")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_at4py"]
+script = ExtResource("26_flri3")
+text = "这里有各项信息"
+screen_position = Vector2(1100, 50)
+
+[sub_resource type="Resource" id="Resource_vsp1g"]
+script = ExtResource("26_flri3")
+text = "这里有各项信息"
+screen_position = Vector2(1100, 100)
+
+[sub_resource type="Resource" id="Resource_gpyjq"]
+script = ExtResource("26_flri3")
+text = "这里有速度选项"
+screen_position = Vector2(1200, 700)
+
+[sub_resource type="Resource" id="Resource_k5fcl"]
+script = ExtResource("26_flri3")
+text = "这里可以开始下一波"
+screen_position = Vector2(1300, 200)
+
+[sub_resource type="Resource" id="Resource_uayfd"]
+script = ExtResource("26_flri3")
+text = "开始下一波，重启，退出"
+screen_position = Vector2(1200, 400)
+
+[sub_resource type="Resource" id="Resource_2q14t"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_ppauy"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_07"
+display_name = "一次复制多个教学"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_06"
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_at4py"), SubResource("Resource_vsp1g"), SubResource("Resource_gpyjq"), SubResource("Resource_k5fcl"), SubResource("Resource_uayfd")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_2q14t")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_3hlg6"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_wpqyl"]
+script = ExtResource("25_bn3hd")
+event_id = &"level1_tower_ice"
+display_name = "获得冰冻塔"
+trigger_kind = 2
+trigger_wave_number = 1
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_3hlg6")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("28_flri3")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(6, 2, 0)
+automatic_tower_facing_index = 4
+
+[sub_resource type="Resource" id="Resource_nkmve"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_bvnl6"]
+script = ExtResource("25_bn3hd")
+event_id = &"level1_tower_missile"
+display_name = "获得导弹塔"
+trigger_kind = 2
+trigger_wave_number = 3
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_nkmve")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("12_y415d")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(3, 13, 0)
+automatic_tower_facing_index = 30
+
+[sub_resource type="Resource" id="Resource_7u0t0"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_3qx6x"]
+script = ExtResource("25_bn3hd")
+event_id = &"level1_tower_pulse"
+display_name = "获得镭射塔"
+trigger_kind = 2
+trigger_wave_number = 6
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_7u0t0")])
+automatic_tower_enabled = true
+automatic_tower_definition = ExtResource("13_hrldx")
+automatic_tower_cell_set = true
+automatic_tower_cell = Vector3i(5, 10, 0)
+
+[sub_resource type="Resource" id="Resource_fn5hs"]
+script = ExtResource("26_flri3")
+text = "虚影可以与任何东西重叠！"
+anchor_kind = 1
+world_cell = Vector3i(6, 3, 0)
+
+[sub_resource type="Resource" id="Resource_1of03"]
+script = ExtResource("26_flri3")
+text = "虚影可以与任何东西重叠！"
+anchor_kind = 1
+screen_position = Vector2(388, 256)
+world_cell = Vector3i(6, 2, 0)
+
+[sub_resource type="Resource" id="Resource_gmkdf"]
+script = ExtResource("26_flri3")
+text = "复制镜升级同样有特殊效果"
+anchor_kind = 1
+screen_position = Vector2(416, 292)
+world_cell = Vector3i(5, 2, 0)
+
+[sub_resource type="Resource" id="Resource_pl8ax"]
+script = ExtResource("26_flri3")
+text = "复制镜升级同样有特殊效果"
+anchor_kind = 1
+screen_position = Vector2(444, 328)
+world_cell = Vector3i(6, 2, 0)
+
+[sub_resource type="Resource" id="Resource_qp613"]
+script = ExtResource("26_flri3")
+text = "各种效果都可以在左侧查看"
+screen_position = Vector2(200, 364)
+
+[sub_resource type="Resource" id="Resource_ip58s"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_o2i1t"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_08"
+display_name = "重叠"
+trigger_kind = 2
+trigger_wave_number = 1
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_fn5hs"), SubResource("Resource_1of03"), SubResource("Resource_gmkdf"), SubResource("Resource_pl8ax"), SubResource("Resource_qp613")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_ip58s")])
+gated_wave_number = 2
+
+[sub_resource type="Resource" id="Resource_6f7uj"]
+script = ExtResource("26_flri3")
+text = "再给反射镜升一级"
+anchor_kind = 1
+world_cell = Vector3i(8, 9, 0)
+
+[sub_resource type="Resource" id="Resource_nhxrt"]
+script = ExtResource("26_flri3")
+text = "再给反射镜升一级"
+anchor_kind = 1
+screen_position = Vector2(388, 256)
+world_cell = Vector3i(8, 10, 0)
+
+[sub_resource type="Resource" id="Resource_3j1fp"]
+script = ExtResource("26_flri3")
+text = "复制镜也可以升级"
+anchor_kind = 1
+screen_position = Vector2(416, 292)
+world_cell = Vector3i(6, 7, 0)
+
+[sub_resource type="Resource" id="Resource_ae6wv"]
+script = ExtResource("26_flri3")
+text = "镜子也可以随意拖动"
+anchor_kind = 1
+screen_position = Vector2(444, 328)
+world_cell = Vector3i(6, 7, 0)
+
+[sub_resource type="Resource" id="Resource_nwijk"]
+script = ExtResource("26_flri3")
+text = "这里可以花钱购买镜子"
+screen_position = Vector2(250, 100)
+
+[sub_resource type="Resource" id="Resource_rav0h"]
+script = ExtResource("26_flri3")
+text = "这里可以花钱购买镜子"
+screen_position = Vector2(300, 100)
+world_cell = Vector3i(8, 9, 0)
+offset = Vector2(200, 0)
+
+[sub_resource type="Resource" id="Resource_6i3ap"]
+script = ExtResource("26_flri3")
+text = "塔只能在特定波次获取"
+screen_position = Vector2(250, 350)
+
+[sub_resource type="Resource" id="Resource_py4jv"]
+script = ExtResource("27_h7crc")
+show_in_checklist = false
+
+[sub_resource type="Resource" id="Resource_8hig5"]
+script = ExtResource("25_bn3hd")
+event_id = &"tutorial_event_09"
+display_name = "反射镜"
+trigger_kind = 3
+trigger_event_id = &"tutorial_event_04"
+bubbles = Array[ExtResource("26_flri3")]([SubResource("Resource_6f7uj"), SubResource("Resource_nhxrt"), SubResource("Resource_3j1fp"), SubResource("Resource_ae6wv"), SubResource("Resource_nwijk"), SubResource("Resource_rav0h"), SubResource("Resource_6i3ap")])
+goals = Array[ExtResource("27_h7crc")]([SubResource("Resource_py4jv")])
+gated_wave_number = 1
+
+[sub_resource type="Resource" id="Resource_gtytw"]
 script = ExtResource("28_6c353")
-events = Array[ExtResource("25_bn3hd")]([SubResource("Resource_sqy1j"), SubResource("Resource_uypvl")])
+events = Array[ExtResource("25_bn3hd")]([SubResource("Resource_ifqav"), SubResource("Resource_uypvl"), SubResource("Resource_3ig2n"), SubResource("Resource_5bn76"), SubResource("Resource_uo2p4"), SubResource("Resource_6q85n"), SubResource("Resource_ppauy"), SubResource("Resource_wpqyl"), SubResource("Resource_bvnl6"), SubResource("Resource_3qx6x"), SubResource("Resource_o2i1t"), SubResource("Resource_8hig5")])
 
 [sub_resource type="Resource" id="Resource_dl8o1"]
 script = ExtResource("14_ykc4r")
@@ -2566,7 +2882,7 @@ terrain_content_version = 2
 default_terrain = ExtResource("5_ykc4r")
 grid_cells = Array[ExtResource("5_j7tra")]([SubResource("Resource_v241p"), SubResource("Resource_id04o"), SubResource("Resource_237h5"), SubResource("Resource_4gldk"), SubResource("Resource_lmft1"), SubResource("Resource_e1q74"), SubResource("Resource_f3xhj"), SubResource("Resource_fwm37"), SubResource("Resource_8ucqf"), SubResource("Resource_jilkc"), SubResource("Resource_8bedg"), SubResource("Resource_n6thw"), SubResource("Resource_t6uab"), SubResource("Resource_pbxrt"), SubResource("Resource_34mj7"), SubResource("Resource_p404l"), SubResource("Resource_d0n57"), SubResource("Resource_ynfrd"), SubResource("Resource_5msbv"), SubResource("Resource_ualvh"), SubResource("Resource_6mfy7"), SubResource("Resource_w022p"), SubResource("Resource_tl72g"), SubResource("Resource_cnnjy"), SubResource("Resource_o52jj"), SubResource("Resource_k6b70"), SubResource("Resource_32l7r"), SubResource("Resource_43wr4"), SubResource("Resource_y1p0g"), SubResource("Resource_1iyt1"), SubResource("Resource_mj1vp"), SubResource("Resource_dtjee"), SubResource("Resource_u1iuw"), SubResource("Resource_tx5f3"), SubResource("Resource_v8ouc"), SubResource("Resource_igbi6"), SubResource("Resource_oe0wp"), SubResource("Resource_m42ol"), SubResource("Resource_5w3eh"), SubResource("Resource_detxl"), SubResource("Resource_5l2ss"), SubResource("Resource_7dmdl"), SubResource("Resource_pd4bt"), SubResource("Resource_34mw2"), SubResource("Resource_mt2cj"), SubResource("Resource_rwfuy"), SubResource("Resource_s5s8e"), SubResource("Resource_f67ro"), SubResource("Resource_81xdq"), SubResource("Resource_5hki2"), SubResource("Resource_ob7rn"), SubResource("Resource_soldh"), SubResource("Resource_r18h4"), SubResource("Resource_vgk6d"), SubResource("Resource_lxobe"), SubResource("Resource_tfkxv"), SubResource("Resource_7vees"), SubResource("Resource_o2r2a"), SubResource("Resource_e58m8"), SubResource("Resource_gmnev"), SubResource("Resource_bd8m5"), SubResource("Resource_j4xxr"), SubResource("Resource_1w51v"), SubResource("Resource_ri7vx"), SubResource("Resource_s2st0"), SubResource("Resource_2dxen"), SubResource("Resource_2aqhx"), SubResource("Resource_6lavn"), SubResource("Resource_qussw"), SubResource("Resource_g0esq"), SubResource("Resource_rwswr"), SubResource("Resource_u086b"), SubResource("Resource_fg5fd"), SubResource("Resource_rexkb"), SubResource("Resource_g62yc"), SubResource("Resource_x8xg0"), SubResource("Resource_abda8"), SubResource("Resource_f6sw3"), SubResource("Resource_2ffti"), SubResource("Resource_ltbv5"), SubResource("Resource_c2alg"), SubResource("Resource_kbhey"), SubResource("Resource_u0jvr"), SubResource("Resource_4ljbf"), SubResource("Resource_layls"), SubResource("Resource_pqij4"), SubResource("Resource_pq8tq"), SubResource("Resource_7yp0q"), SubResource("Resource_f4ihq"), SubResource("Resource_pxa6k"), SubResource("Resource_65o07"), SubResource("Resource_p3psx"), SubResource("Resource_fc6ru"), SubResource("Resource_vwkbo"), SubResource("Resource_bux7u"), SubResource("Resource_mm7bs"), SubResource("Resource_2jhyq"), SubResource("Resource_tvdtu"), SubResource("Resource_7is6m"), SubResource("Resource_noavt"), SubResource("Resource_rhycw"), SubResource("Resource_83vcs"), SubResource("Resource_rc7e6"), SubResource("Resource_2j5g4"), SubResource("Resource_mimp4"), SubResource("Resource_3f6el"), SubResource("Resource_18veq"), SubResource("Resource_78rbg"), SubResource("Resource_3aw3l"), SubResource("Resource_x0c2e"), SubResource("Resource_7yn66"), SubResource("Resource_nqqrb"), SubResource("Resource_1hvhf"), SubResource("Resource_jm0m2"), SubResource("Resource_7ggq1"), SubResource("Resource_hm2d0"), SubResource("Resource_p0lrh"), SubResource("Resource_wdqns"), SubResource("Resource_vg0xv"), SubResource("Resource_l616l"), SubResource("Resource_vx14w"), SubResource("Resource_7mqoa"), SubResource("Resource_i72a0"), SubResource("Resource_6o123"), SubResource("Resource_q4l7h"), SubResource("Resource_i7lq0"), SubResource("Resource_wyiwn"), SubResource("Resource_ykvlt"), SubResource("Resource_pcwa5"), SubResource("Resource_0v0hx"), SubResource("Resource_4nv3r"), SubResource("Resource_5y7tm"), SubResource("Resource_unwdg"), SubResource("Resource_2th0u"), SubResource("Resource_2otas"), SubResource("Resource_0v51i"), SubResource("Resource_5x8wm"), SubResource("Resource_71qgt"), SubResource("Resource_b218e"), SubResource("Resource_ceirj"), SubResource("Resource_dbomk"), SubResource("Resource_t5juf"), SubResource("Resource_encfb"), SubResource("Resource_fje1a"), SubResource("Resource_2gs2s"), SubResource("Resource_y6taw"), SubResource("Resource_n7by3"), SubResource("Resource_cea5l"), SubResource("Resource_nvpgd"), SubResource("Resource_wnir4"), SubResource("Resource_oongp"), SubResource("Resource_jgkse"), SubResource("Resource_so736"), SubResource("Resource_uqcj2"), SubResource("Resource_73qob"), SubResource("Resource_wt0qn"), SubResource("Resource_0k26h"), SubResource("Resource_6qs3u"), SubResource("Resource_de67a"), SubResource("Resource_we1co"), SubResource("Resource_sweqk"), SubResource("Resource_x7ad6"), SubResource("Resource_7sdv3"), SubResource("Resource_nx7nf"), SubResource("Resource_lhj7x"), SubResource("Resource_ppa1p"), SubResource("Resource_4ens1"), SubResource("Resource_nve6q"), SubResource("Resource_akw4j"), SubResource("Resource_3c7xu"), SubResource("Resource_2y7y8"), SubResource("Resource_k2ijp"), SubResource("Resource_ywr28"), SubResource("Resource_yu4bw"), SubResource("Resource_6n73h"), SubResource("Resource_cchs7"), SubResource("Resource_eajo1"), SubResource("Resource_28b8i"), SubResource("Resource_r5qrq"), SubResource("Resource_424s1"), SubResource("Resource_p5xsn"), SubResource("Resource_af3yv"), SubResource("Resource_yv6cq"), SubResource("Resource_md1ak"), SubResource("Resource_snm2j"), SubResource("Resource_perqt"), SubResource("Resource_8xftb"), SubResource("Resource_dy5t0"), SubResource("Resource_oovcb"), SubResource("Resource_2qxjx"), SubResource("Resource_obsmj"), SubResource("Resource_qk8fc"), SubResource("Resource_f2tue"), SubResource("Resource_eusj7"), SubResource("Resource_x1ka4"), SubResource("Resource_qs37h"), SubResource("Resource_qd170"), SubResource("Resource_y0ob2"), SubResource("Resource_qhhrl"), SubResource("Resource_5807k"), SubResource("Resource_oof01"), SubResource("Resource_04ul5"), SubResource("Resource_h1vs7"), SubResource("Resource_gg1e3"), SubResource("Resource_7dxuw"), SubResource("Resource_722u0"), SubResource("Resource_xq1yi"), SubResource("Resource_yn5uu"), SubResource("Resource_qvd25"), SubResource("Resource_otlac"), SubResource("Resource_dqoac"), SubResource("Resource_r2c5o"), SubResource("Resource_j4wxf"), SubResource("Resource_0817q"), SubResource("Resource_2nijl"), SubResource("Resource_bfo7c"), SubResource("Resource_34rgf"), SubResource("Resource_1br4q"), SubResource("Resource_wn51k"), SubResource("Resource_tp16v"), SubResource("Resource_jb63b"), SubResource("Resource_j6u4g"), SubResource("Resource_tbgya"), SubResource("Resource_sscly"), SubResource("Resource_w7bqh"), SubResource("Resource_sliub"), SubResource("Resource_xbm50"), SubResource("Resource_sbjis"), SubResource("Resource_m4spc"), SubResource("Resource_8p3jn"), SubResource("Resource_ovmkx"), SubResource("Resource_25wn7"), SubResource("Resource_3cumq"), SubResource("Resource_uyu6w"), SubResource("Resource_wltek"), SubResource("Resource_c5wco"), SubResource("Resource_h1v45"), SubResource("Resource_if1vi"), SubResource("Resource_a3sx3"), SubResource("Resource_s1ujp"), SubResource("Resource_ws4fj"), SubResource("Resource_b6a5e"), SubResource("Resource_c35gm"), SubResource("Resource_lm6e2"), SubResource("Resource_r347m"), SubResource("Resource_td0rj"), SubResource("Resource_6uxgq"), SubResource("Resource_4ulbd"), SubResource("Resource_jenex"), SubResource("Resource_3dpgh"), SubResource("Resource_p3idn"), SubResource("Resource_lj6uq"), SubResource("Resource_flmf3"), SubResource("Resource_cxqll"), SubResource("Resource_wglsl")])
 stuff_placements = Array[ExtResource("13_pshws")]([SubResource("Resource_i7sfs"), SubResource("Resource_yh07j"), SubResource("Resource_gmm5u"), SubResource("Resource_wow8r"), SubResource("Resource_lm2bd"), SubResource("Resource_pxa7m"), SubResource("Resource_jdqdf"), SubResource("Resource_nntgq"), SubResource("Resource_qilnw"), SubResource("Resource_ga1t4"), SubResource("Resource_ek4xf"), SubResource("Resource_ykhs5"), SubResource("Resource_peckk"), SubResource("Resource_3hfqo"), SubResource("Resource_0q784"), SubResource("Resource_n6bcj"), SubResource("Resource_f52y1")])
-initial_building_placements = Array[ExtResource("7_fxe43")]([SubResource("Resource_d58a8"), SubResource("Resource_lmebr"), SubResource("Resource_sv15o"), SubResource("Resource_myrdx")])
+initial_building_placements = Array[ExtResource("7_fxe43")]([SubResource("Resource_sv15o")])
 initial_mirror_placements = Array[ExtResource("8_v2y8g")]([SubResource("Resource_jvd3x"), SubResource("Resource_lgd0m"), SubResource("Resource_opfkf"), SubResource("Resource_thr8n")])
 lighting_profile = ExtResource("lighting_white_soft")
 foliage_shadow_enabled = true
@@ -2580,7 +2896,7 @@ building_cap = 4
 copy_mirror_cap = 6
 base_resource_per_second = 0.0
 building_card_slot_count = 4
-tutorial = SubResource("Resource_gnn6a")
+tutorial = SubResource("Resource_gtytw")
 camera_presets = Array[ExtResource("3_ykc4r")]([SubResource("Resource_1fuiq"), SubResource("Resource_qwb7y")])
 base_cell = Vector3i(7, 13, 0)
 base_points = Array[ExtResource("1_nx7p2")]([SubResource("Resource_nyq42")])
