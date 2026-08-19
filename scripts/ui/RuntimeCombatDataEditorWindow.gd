@@ -650,6 +650,14 @@ func _mirror_sections(mirror_kind: int, definition: MirrorDefinition) -> Array[D
 				_float_field("recursive_projection_min_alpha", "递归最低透明度", 0.01, 0.5, 0.01),
 				_float_field("projection_emission_energy", "虚像发光强度", 0.0, 8.0, 0.1),
 				_float_field("projection_rim_alpha", "虚像轮廓透明度", 0.0, 1.0, 0.01),
+				_color_field("copy_link_color", "源与复制体连接线颜色"),
+				_float_field("copy_link_width_ratio", "连接线宽度/格子", 0.005, 0.2, 0.005),
+				_float_field("copy_link_arch_height_ratio", "每条曲线拱高/格子", 0.0, 3.0, 0.05),
+				_int_field("copy_link_sample_count", "连接线曲线采样数", 2, 96),
+				_float_field("copy_link_flow_speed", "连接线流动速度", 0.0, 10.0, 0.05),
+				_float_field("copy_link_flow_repeat", "连接线流动密度", 0.1, 20.0, 0.1),
+				_float_field("copy_link_emission_energy", "连接线发光强度", 0.0, 8.0, 0.1),
+				_float_field("copy_link_endpoint_height_ratio", "连接线端点高度/格子", 0.0, 3.0, 0.05),
 			],
 		})
 		_append_copy_effect_sections(sections, copy)

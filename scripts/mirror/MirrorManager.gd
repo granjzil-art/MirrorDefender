@@ -1574,6 +1574,7 @@ func rebuild_now() -> void:
 		return
 	var payloads := _calculate_projection_payloads(get_copy_mirrors())
 	var stack_counts: Dictionary = {}
+	var link_curve_counts: Dictionary = {}
 	var active_laser_state_keys: Dictionary = {}
 	var active_pulse_state_keys: Dictionary = {}
 	for payload in payloads:
@@ -1581,6 +1582,7 @@ func rebuild_now() -> void:
 			continue
 		var stack_index := int(stack_counts.get(payload.projected_cell, 0))
 		stack_counts[payload.projected_cell] = stack_index + 1
+		var link_curve_index := _consume_link_curve_index(payload, link_curve_counts)
 		var projection := MirrorProjection.new()
 		add_child(projection)
 		projection.configure(
@@ -1590,7 +1592,9 @@ func rebuild_now() -> void:
 			copy_mirror_definition,
 			stack_index,
 			false,
-			_tile_visual_snapshot_resolver
+			_tile_visual_snapshot_resolver,
+			true,
+			link_curve_index
 		)
 		if payload.copy_kind == &"laser_tower":
 			active_laser_state_keys[payload.stable_key] = true
@@ -1864,17 +1868,20 @@ func _refresh_preview_projection() -> void:
 		"mirror_kind": MirrorPlacementData.MirrorKind.COPY,
 	}
 	var stack_index := 0
+	var link_curve_counts: Dictionary = {}
 	var next_projections: Array[MirrorProjection] = []
 	var reusable_projections: Array = _preview_projections.duplicate() if reuse_placement_preview_instances else []
 	if not reuse_placement_preview_instances:
 		_clear_preview_projections()
 	for payload in group:
 		_preview_info.types.append(payload.display_name)
+		var link_curve_index := _consume_link_curve_index(payload, link_curve_counts)
 		var projection := _take_reusable_preview_projection(
 			reusable_projections,
 			payload,
 			stack_index,
-			preview_valid
+			preview_valid,
+			link_curve_index
 		)
 		if projection == null:
 			projection = MirrorProjection.new()
@@ -1887,7 +1894,8 @@ func _refresh_preview_projection() -> void:
 				stack_index,
 				true,
 				_tile_visual_snapshot_resolver,
-				preview_valid
+				preview_valid,
+				link_curve_index
 			)
 		next_projections.append(projection)
 		stack_index += 1
@@ -1913,6 +1921,7 @@ func _refresh_building_preview_projections(building: Building) -> void:
 		building_preview_projections_rebuilt.emit(0)
 		return
 	var stack_counts: Dictionary = {}
+	var link_curve_counts: Dictionary = {}
 	for raw_cell in _projections_by_cell:
 		stack_counts[raw_cell] = (_projections_by_cell[raw_cell] as Array).size()
 	var next_projections: Array[MirrorProjection] = []
@@ -1924,11 +1933,13 @@ func _refresh_building_preview_projections(building: Building) -> void:
 			continue
 		var stack_index := int(stack_counts.get(payload.projected_cell, 0))
 		stack_counts[payload.projected_cell] = stack_index + 1
+		var link_curve_index := _consume_link_curve_index(payload, link_curve_counts)
 		var projection := _take_reusable_preview_projection(
 			reusable_projections,
 			payload,
 			stack_index,
-			building.is_preview_valid()
+			building.is_preview_valid(),
+			link_curve_index
 		)
 		if projection == null:
 			projection = MirrorProjection.new()
@@ -1941,7 +1952,8 @@ func _refresh_building_preview_projections(building: Building) -> void:
 				stack_index,
 				true,
 				_tile_visual_snapshot_resolver,
-				building.is_preview_valid()
+				building.is_preview_valid(),
+				link_curve_index
 			)
 		next_projections.append(projection)
 	_release_unused_preview_projections(reusable_projections)
@@ -1953,16 +1965,34 @@ func _take_reusable_preview_projection(
 	candidates: Array,
 	payload: MirrorCopyPayload,
 	stack_index: int,
-	preview_valid: bool
+	preview_valid: bool,
+	link_curve_index: int
 ) -> MirrorProjection:
 	for index in range(candidates.size()):
 		var candidate := candidates[index] as MirrorProjection
 		if candidate == null or not is_instance_valid(candidate):
 			continue
-		if candidate.retarget_preview(payload, stack_index, preview_valid):
+		if candidate.retarget_preview(payload, stack_index, preview_valid, link_curve_index):
 			candidates.remove_at(index)
 			return candidate
 	return null
+
+
+func _consume_link_curve_index(
+	payload: MirrorCopyPayload,
+	curve_counts: Dictionary
+) -> int:
+	if payload == null or payload.lineage.is_empty():
+		return 0
+	var producing_mirror_id := payload.lineage[payload.lineage.size() - 1]
+	var group_key := "%s|%s|%s" % [
+		producing_mirror_id,
+		str(payload.source_cell),
+		str(payload.projected_cell),
+	]
+	var result := int(curve_counts.get(group_key, 0))
+	curve_counts[group_key] = result + 1
+	return result
 
 
 func _release_unused_preview_projections(candidates: Array) -> void:

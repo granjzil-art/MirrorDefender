@@ -7,6 +7,7 @@ static var _shared_rim_shader: Shader
 
 const PathBlockerPolicyScript := preload("res://scripts/path/PathBlockerPolicy.gd")
 const ContinuousLaserVisualScript := preload("res://scripts/combat/ContinuousLaserVisual.gd")
+const MirrorCopyLinkVisualScript := preload("res://scripts/mirror/MirrorCopyLinkVisual.gd")
 const PROJECTION_PRIORITY_BASE := 8
 const PROJECTION_PRIORITY_STRIDE := 2
 const PREVIEW_PRIORITY_OFFSET := 64
@@ -20,8 +21,10 @@ var _tile_manager: TileManager
 var _definition: CopyMirrorDefinition
 var _tile_visual_snapshot_resolver: Callable
 var _stack_index: int = 0
+var _link_curve_index: int = 0
 var _accent_color: Color = Color.WHITE
 var _visual_snapshot: Node3D
+var _copy_link_visual: Node3D
 var _laser_visual: Node3D
 var _laser_propagation_distance: float = 0.0
 var _laser_origin: Vector3 = Vector3.ZERO
@@ -57,13 +60,15 @@ func configure(
 	stack_index: int = 0,
 	p_preview_mode: bool = false,
 	tile_visual_snapshot_resolver: Callable = Callable(),
-	p_preview_valid: bool = true
+	p_preview_valid: bool = true,
+	p_link_curve_index: int = 0
 ) -> void:
 	payload = copy_payload
 	_grid = grid_manager
 	_tile_manager = tile_manager
 	_definition = mirror_definition
 	_stack_index = stack_index
+	_link_curve_index = maxi(0, p_link_curve_index)
 	preview_mode = p_preview_mode
 	preview_valid = p_preview_valid
 	_tile_visual_snapshot_resolver = tile_visual_snapshot_resolver
@@ -71,6 +76,7 @@ func configure(
 	position = _grid.cell_to_world(payload.projected_cell) + Vector3(0.0, base_height, 0.0)
 	_accent_color = _resolve_accent_color()
 	_build_visual()
+	_refresh_copy_link_visual()
 
 
 func can_retarget_preview(next_payload: MirrorCopyPayload) -> bool:
@@ -89,12 +95,14 @@ func can_retarget_preview(next_payload: MirrorCopyPayload) -> bool:
 func retarget_preview(
 	next_payload: MirrorCopyPayload,
 	next_stack_index: int,
-	next_preview_valid: bool
+	next_preview_valid: bool,
+	next_link_curve_index: int = 0
 ) -> bool:
 	if not can_retarget_preview(next_payload):
 		return false
 	payload = next_payload
 	_stack_index = next_stack_index
+	_link_curve_index = maxi(0, next_link_curve_index)
 	preview_valid = next_preview_valid
 	var base_height := _tile_manager.get_world_height(payload.projected_cell) if _tile_manager != null else 0.0
 	position = _grid.cell_to_world(payload.projected_cell) + Vector3(0.0, base_height, 0.0)
@@ -105,6 +113,7 @@ func retarget_preview(
 		_inspection_label.text = get_inspection_text()
 		_inspection_label.position.y = _grid.cell_size * (1.08 + float(_stack_index) * 0.16)
 		_inspection_label.modulate = _accent_color
+	_refresh_copy_link_visual()
 	sync_source_visual_pose()
 	return true
 
@@ -178,6 +187,26 @@ func get_tile_effect() -> TileEffect:
 
 func get_visual_snapshot() -> Node3D:
 	return _visual_snapshot
+
+
+func debug_get_copy_link_curve_index() -> int:
+	return int(_copy_link_visual.call("get_curve_index")) if _copy_link_visual != null else -1
+
+
+func debug_get_copy_link_points() -> PackedVector3Array:
+	return (
+		_copy_link_visual.call("get_curve_points") as PackedVector3Array
+		if _copy_link_visual != null
+		else PackedVector3Array()
+	)
+
+
+func debug_get_copy_link_material() -> ShaderMaterial:
+	return (
+		_copy_link_visual.call("get_flow_material") as ShaderMaterial
+		if _copy_link_visual != null
+		else null
+	)
 
 func get_inspection_text() -> String:
 	if payload == null:
@@ -528,6 +557,48 @@ func _build_visual() -> void:
 		_laser_visual.configure(beam_color, beam_width, beam_emission)
 	if payload.copy_kind == &"pulse_laser_tower":
 		_build_pulse_charge_orb()
+
+
+func _refresh_copy_link_visual() -> void:
+	if payload == null or _grid == null or _definition == null:
+		return
+	if _copy_link_visual == null:
+		_copy_link_visual = MirrorCopyLinkVisualScript.new() as Node3D
+		_copy_link_visual.name = &"CopySourceLink"
+		add_child(_copy_link_visual)
+	var endpoint_height := _grid.cell_size * _definition.copy_link_endpoint_height_ratio
+	var source_height := (
+		_tile_manager.get_world_height(payload.source_cell)
+		if _tile_manager != null
+		else 0.0
+	)
+	var target_height := (
+		_tile_manager.get_world_height(payload.projected_cell)
+		if _tile_manager != null
+		else 0.0
+	)
+	var world_start := (
+		_grid.cell_to_world(payload.source_cell)
+		+ Vector3(0.0, source_height + endpoint_height, 0.0)
+	)
+	var world_end := (
+		_grid.cell_to_world(payload.projected_cell)
+		+ Vector3(0.0, target_height + endpoint_height, 0.0)
+	)
+	_copy_link_visual.call(
+		"configure",
+		to_local(world_start),
+		to_local(world_end),
+		_link_curve_index,
+		_grid.cell_size,
+		_definition.copy_link_color,
+		_definition.copy_link_width_ratio,
+		_definition.copy_link_arch_height_ratio,
+		_definition.copy_link_sample_count,
+		_definition.copy_link_flow_speed,
+		_definition.copy_link_flow_repeat,
+		_definition.copy_link_emission_energy
+	)
 
 
 func _build_pulse_charge_orb() -> void:

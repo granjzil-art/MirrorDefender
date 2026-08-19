@@ -345,6 +345,66 @@ func _test_whole_tile_preview_stacking_and_tower_attacks() -> void:
 	var projections := mirror_manager.get_projections(target_cell)
 	_expect(projections.size() == 2, "one mirror projects the source tile's tower and spike as one group")
 	_expect(_has_projection_kind(projections, &"arrow_tower") and _has_projection_kind(projections, &"spike"), "whole-tile projection preserves both source content kinds")
+	var straight_link_projection: MirrorProjection
+	var arched_link_projection: MirrorProjection
+	for projection in projections:
+		if projection.debug_get_copy_link_curve_index() == 0:
+			straight_link_projection = projection
+		elif projection.debug_get_copy_link_curve_index() == 1:
+			arched_link_projection = projection
+	var straight_link_points := (
+		straight_link_projection.debug_get_copy_link_points()
+		if straight_link_projection != null
+		else PackedVector3Array()
+	)
+	var arched_link_points := (
+		arched_link_projection.debug_get_copy_link_points()
+		if arched_link_projection != null
+		else PackedVector3Array()
+	)
+	var straight_midpoint_index := int(straight_link_points.size() / 2)
+	var arched_midpoint_index := int(arched_link_points.size() / 2)
+	_expect(
+		straight_link_projection != null
+		and arched_link_projection != null
+		and straight_link_points.size() == mirror_manager.copy_mirror_definition.copy_link_sample_count + 1
+		and arched_link_points.size() == straight_link_points.size(),
+		"one mirror assigns a straight link first and a distinct arched link to its extra copied source"
+	)
+	_expect(
+		straight_link_points.size() > 2
+		and arched_link_points.size() > 2
+		and is_equal_approx(
+			straight_link_points[straight_midpoint_index].y,
+			lerpf(
+				straight_link_points[0].y,
+				straight_link_points[straight_link_points.size() - 1].y,
+				0.5
+			)
+		)
+		and arched_link_points[arched_midpoint_index].y
+		> straight_link_points[straight_midpoint_index].y
+			+ grid.cell_size * mirror_manager.copy_mirror_definition.copy_link_arch_height_ratio * 0.99,
+		"the first source-copy link stays linear while each additional link gains one configured arch-height step"
+	)
+	var link_material: ShaderMaterial = (
+		straight_link_projection.debug_get_copy_link_material()
+		if straight_link_projection != null
+		else null
+	)
+	var link_color: Color = (
+		link_material.get_shader_parameter("line_color")
+		if link_material != null
+		else Color.TRANSPARENT
+	)
+	_expect(
+		link_material != null
+		and link_color.b > link_color.r
+		and link_color.a > 0.0
+		and link_color.a < 1.0
+		and link_material.shader.code.contains("TIME"),
+		"copy links use a translucent blue shader with time-driven flow"
+	)
 	var tower_projection := _find_projection_kind(projections, &"arrow_tower")
 	var tile_projection := _find_projection_kind(projections, &"spike")
 	_expect(tower_projection.get_visual_snapshot() != null, "tower projection reuses a snapshot of the source Building visual")

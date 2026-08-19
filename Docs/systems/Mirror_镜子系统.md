@@ -131,6 +131,7 @@
 - 正常投影逐表面保留源模型的材质类型、RGB、纹理与 Shader，只通过 `GeometryInstance3D.transparency` 应用统一可调透明度；禁止用白模材质、统一染色或发光覆盖源资产。封路无效预览可临时叠加红色提示层。同格多项投影继续通过不同强调色的同心标识环和悬停标签区分，标识不参与玩法也不替代源几何。
 - 同格透明投影按稳定的叠放序号分配 `render_priority`，且不写入深度缓冲；重建时先隐藏旧投影再延迟释放，避免新旧几何在同一帧闪烁。
 - 悬停投影格时 HUD 与世界标签显示同格虚像数量、类型、序号和复制链深度。
+- 每个投影额外绘制源格到投影格的流动蓝色带。相同生产镜、源格和投影格的第一条保持直线，后续对象按稳定序号使用拱线分离；正式投影、镜子预览与建筑预览共用该规则。连线只表达复制来源，不参与碰撞、占位、战斗或寻路。
 - 投影不播放独立待机或攻击动画；攻击表现由原件事件同步驱动。
 
 ---
@@ -199,6 +200,13 @@
 | `projection_rim_alpha` | 0.42 | CopyMirrorDefinition | 仅用于封路无效预览的红色边缘提示强度 |
 | `projection_ring_spacing_ratio` | 0.045 格 | CopyMirrorDefinition | 同格虚像标识环的半径间隔，不移动源几何 |
 | `projection_ring_thickness_ratio` | 0.022 格 | CopyMirrorDefinition | 标识环粗细 |
+| `copy_link_color` | 半透明蓝 | CopyMirrorDefinition | 源格到投影格流动连线的颜色与透明度 |
+| `copy_link_width_ratio` | 0.035 格 | CopyMirrorDefinition | 流动连线宽度 |
+| `copy_link_arch_height_ratio` | 0.55 格 | CopyMirrorDefinition | 同一源/目标存在后续对象时，每档稳定拱线的抬高量 |
+| `copy_link_sample_count` | 24 | CopyMirrorDefinition | 拱线网格采样数；直线仍走同一生成入口 |
+| `copy_link_flow_speed` / `copy_link_flow_repeat` | 1.15 / 3.0 | CopyMirrorDefinition | Shader 流动速度与沿线重复密度 |
+| `copy_link_emission_energy` | 2.4 | CopyMirrorDefinition | 无光照连线的发光强度 |
+| `copy_link_endpoint_height_ratio` | 0.62 格 | CopyMirrorDefinition | 两端相对格子表面的统一抬高量 |
 | `mirror_side_default` | from | CopyMirrorDefinition | 新镜子默认生效侧 |
 | `collision_epsilon_ratio` | 0.002 格 | ReflectMirrorDefinition | 反射点沿新方向推进的防重入距离；计入总路径。 |
 | `max_reflections_per_frame` | 8 | ReflectMirrorDefinition | 单帧最多处理的反射次数；不是投射物生命周期上限。 |
@@ -232,6 +240,7 @@ CopyMirror
 MirrorProjection
   ├─ payload / lineage / composed_transform
   ├─ Building 真实视觉快照 / TileRenderer 地块内容快照
+  ├─ MirrorCopyLinkVisual（源格到投影格的稳定直线/拱线）
   ├─ 不写入地块 occupant
   └─ 屏障/石头共享源伤害转发与玩法代理
 ```
@@ -263,6 +272,7 @@ MirrorProjection
 | `scripts/mirror/MirrorReflectionView.gd` | `MirrorReflectionView` / `Node3D` | 生效面的共享世界 SubViewport、屏幕对齐反射与反射相机横向手性补偿。 |
 | `scripts/mirror/MirrorCopyPayload.gd` | `MirrorCopyPayload` / `RefCounted` | 稳定来源、镜子谱系、复合反射变换与递归保留的攻击效果模板。 |
 | `scripts/mirror/MirrorProjection.gd` | `MirrorProjection` / `Node3D` | 真实源内容快照、源模型实时姿态同步、稳定透明渲染顺序、严格反射、屏障与地块效果代理。 |
+| `scripts/mirror/MirrorCopyLinkVisual.gd` | `MirrorCopyLinkVisual` / `Node3D` | 生成源格到投影格的程序化流动带；按稳定序号选择直线或拱线，只负责表现。 |
 | `scripts/mirror/MirrorProjectionProjectile.gd` | `MirrorProjectionProjectile` / `Node3D` | 不追踪的固定镜像落点或从起点直射投射物。 |
 | `scripts/mirror/MirrorManager.gd` | `MirrorManager` / `Node3D` | M5 唯一入口，管理放置、升级、出售、预览、固定点镜链和跨模块查询。 |
 | `scripts/tile/TileObstacleRuntime.gd` | `TileObstacleRuntime` / `Node3D` | 镜像石头最终转发到的真实逐格耐久源。 |
@@ -270,7 +280,7 @@ MirrorProjection
 | `resources/mirrors/CopyMirror.tres` | `CopyMirrorDefinition` | 默认 M5 参数资源。 |
 | `scripts/building/Building.gd` | `Building` / `Node3D` | `create_copy_visual_snapshot` 创建无行为建筑视觉，`sync_copy_visual_snapshot` 向既有快照同步完整实时姿态。 |
 | `scripts/tile/TileRenderer.gd` | `TileRenderer` / `Node3D` | `create_tile_content_visual_snapshot` 沿正常渲染几何路径生成不含基底的石头/尖刺/空洞快照。 |
-| `tests/copy_mirror_test.gd` | `SceneTree` | 整格复制、虚像攻击、递归镜链、二级攻击，以及中央法线箭头翻面同步/反射层隔离回归。 |
+| `tests/copy_mirror_test.gd` | `SceneTree` | 整格复制、虚像攻击、递归镜链、二级攻击、中央法线箭头，以及正式/预览复制连线的稳定曲线回归。 |
 | `tests/reflect_mirror_test.gd` | `SceneTree` | 严格反射角、背面穿过、多镜反射、实体/复制投射物、持续/脉冲激光以及二级反射分支快照回归。 |
 | `tests/mirror_body_selection_test.gd` | `SceneTree` | 两种镜体的双面拾取、选中高亮，以及共用中央法线箭头方向回归。 |
 | `tests/mirror_placement_cooldown_test.gd` | `SceneTree` | 默认金币放置、失败事务、实际投入全退、独立 5/10 cap、冷却/库存，以及正式 Definition 的法线箭头参数契约回归。 |
@@ -329,6 +339,8 @@ MirrorProjection
 | `Building.create_copy_visual_snapshot` | `() -> Node3D` | 复制当前真实视觉，剥离标签、音频、脚本和独立动画节点。 |
 | `Building.sync_copy_visual_snapshot` | `(snapshot: Node3D) -> bool` | 把当前子节点与骨骼姿态同步到既有无行为快照，不启动独立动画时钟。 |
 | `MirrorProjection.sync_source_visual_pose` | `() -> bool` | 不重建投影，先同步源模型姿态，再将 payload 的全部镜轴组合变换作用于视觉根。 |
+| `MirrorCopyLinkVisual.configure` | `(local_start, local_end, curve_index, cell_size, line_color, width_ratio, arch_height_ratio, sample_count, flow_speed, flow_repeat, emission_energy) -> void` | 按当前网格端点与复制镜表现参数构建直线/拱线网格和流动材质。 |
+| `MirrorCopyLinkVisual.get_curve_index` / `get_curve_points` | `() -> int` / `() -> PackedVector3Array` | 暴露稳定曲线序号和采样点副本供回归验证。 |
 | `MirrorProjectionProjectile.configure` | `(combat_manager, source_building, start, end, speed, damage, visual_length, visual_width, color, model_asset = null, maximum_distance = -1.0, reflection_resolver = Callable(), ballistic_from_start = false, penetration_count = 0, blocker_resolver = Callable(), attack_effects = null) -> void` | 配置固定镜像终点或从起点直射，并携带可继承的镜子攻击效果；反射/命中分支由 CombatManager 统一跟踪生命周期。 |
 | `MirrorProjection.take_structure_damage` | `(amount: float, attacker: Node = null) -> float` | 把屏障或石头投影承伤转发到 payload 的真实根源耐久。 |
 | `TileRenderer.create_tile_content_visual_snapshot` | `(cell: Vector3i) -> Node3D` | 复用正常地块内容几何函数，只生成障碍与元素快照，不含地表基底。 |

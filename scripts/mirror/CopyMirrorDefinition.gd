@@ -26,6 +26,16 @@ extends MirrorDefinition
 @export_range(0.0, 0.20, 0.005) var projection_ring_spacing_ratio: float = 0.045
 @export_range(0.01, 0.10, 0.005) var projection_ring_thickness_ratio: float = 0.022
 
+@export_group("Copy Link Visual")
+@export var copy_link_color: Color = Color(0.12, 0.56, 1.0, 0.72)
+@export_range(0.005, 0.20, 0.005) var copy_link_width_ratio: float = 0.035
+@export_range(0.0, 3.0, 0.05) var copy_link_arch_height_ratio: float = 0.55
+@export_range(2, 96, 1) var copy_link_sample_count: int = 24
+@export_range(0.0, 10.0, 0.05) var copy_link_flow_speed: float = 1.15
+@export_range(0.1, 20.0, 0.1) var copy_link_flow_repeat: float = 3.0
+@export_range(0.0, 8.0, 0.1) var copy_link_emission_energy: float = 2.4
+@export_range(0.0, 3.0, 0.05) var copy_link_endpoint_height_ratio: float = 0.62
+
 
 func _init() -> void:
 	display_name = "复制镜"
@@ -93,4 +103,12 @@ func validate_configuration() -> Array[String]:
 	ConfigValidator.require_number(errors, "虚像轮廓透明度", projection_rim_alpha, 0.0, 1.0)
 	ConfigValidator.require_number(errors, "虚像环间距", projection_ring_spacing_ratio, 0.0, 0.2)
 	ConfigValidator.require_number(errors, "虚像环宽度", projection_ring_thickness_ratio, 0.01, 0.1)
+	ConfigValidator.require_color(errors, "复制连接线颜色", copy_link_color)
+	ConfigValidator.require_number(errors, "复制连接线宽度", copy_link_width_ratio, 0.005, 0.2)
+	ConfigValidator.require_number(errors, "复制连接线拱高", copy_link_arch_height_ratio, 0.0, 3.0)
+	ConfigValidator.require_integer_range(errors, "复制连接线采样数", copy_link_sample_count, 2, 96)
+	ConfigValidator.require_number(errors, "复制连接线流动速度", copy_link_flow_speed, 0.0, 10.0)
+	ConfigValidator.require_number(errors, "复制连接线流动密度", copy_link_flow_repeat, 0.1, 20.0)
+	ConfigValidator.require_number(errors, "复制连接线发光强度", copy_link_emission_energy, 0.0, 8.0)
+	ConfigValidator.require_number(errors, "复制连接线端点高度", copy_link_endpoint_height_ratio, 0.0, 3.0)
 	return errors

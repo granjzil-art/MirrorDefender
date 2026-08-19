@@ -50,6 +50,9 @@ function_description = "复制朝向[color=#06c763]最近非空[/color]格子上
 script = ExtResource("1_definition")
 projection_emission_energy = 3.6
 projection_rim_alpha = 0.56
+copy_link_color = Color(0.1901961, 0.12156862, 1, 0.72)
+copy_link_width_ratio = 0.2
+copy_link_emission_energy = 4.0
 display_name = "复制镜"
 card_icon = ExtResource("1_uv4ha")
 inspection_display = SubResource("Inspection_copy_mirror")
