@@ -1,5 +1,11 @@
 # MirrorDefender · 变更日志（逐里程碑）
 
+## Tooling · 取消 MCP 运行时探针随项目自启动 — 2026-08-19
+**模块**：Project Configuration / Debug Tooling。
+- 从正式 Autoload 列表移除 `MCPRuntimeProbe`，避免打开项目或运行游戏时由开发连接探针写入运行状态；MCP 编辑器连接本身仍由插件/外部服务按需使用。
+- `toggle_building_cards` 的 F2 InputMap 配置仅被 Godot 重新排序，事件内容与运行时语义保持不变。
+**影响面**：只收束开发探针启动边界，不改变正式玩法、HUD、输入键位或资源数据。
+
 ## Mirror / Presentation · 复制源与虚像增加流动连线 — 2026-08-19
 **模块**：Mirror / Presentation / Runtime Editor / Tests / Docs。
 - 每个复制虚像新增一条从源格中心指向投影格中心的蓝色流动带，用于直接辨认来源；同一源格与投影格存在多个对象时，首条保持直线，后续连线使用稳定序号抬高拱线，避免完全重叠。
